@@ -1,26 +1,26 @@
 # plnjbt-dashboard
 
-Aplikasi web untuk pengelolaan dan visualisasi data kinerja di Bidang
-Perencanaan PLN UIT JBT - pengganti Looker Studio yang datanya dan
-fiturnya bisa diolah sendiri oleh karyawan, tanpa bergantung pada
-developer.
+A web application for managing and visualizing performance data for the
+Planning Directorate at PLN UIT JBT - a replacement for Looker Studio where
+both the data and the dashboard features can be managed by the staff
+themselves, without depending on a developer.
 
-## Fitur
+## Features
 
-- Unggah data laporan Excel/CSV dengan validasi otomatis
-- Dashboard yang bisa disusun, diubah, dan dihapus langsung dari aplikasi
-- Visualisasi: KPI card, grafik bar, grafik line, dan tabel
-- Filter tanggal dan unit yang berlaku lintas widget
-- Jejak audit untuk setiap perubahan data
+- Upload Excel/CSV report files with automatic validation
+- Dashboards that can be built, edited, and removed directly in the app
+- Visualizations: KPI cards, bar charts, line charts, and tables
+- Date and unit filters that apply across all widgets
+- Audit trail for every data change
 
-## Persyaratan
+## Requirements
 
 - PHP >= 8.2
 - Composer
-- Node.js dan npm
+- Node.js and npm
 - MySQL 8
 
-## Instalasi
+## Installation
 
 ```bash
 composer install
@@ -29,7 +29,7 @@ cp .env.example .env
 php artisan key:generate
 ```
 
-Sesuaikan kredensial MySQL di file `.env`, lalu:
+Configure your MySQL credentials in the `.env` file, then run:
 
 ```bash
 php artisan migrate
@@ -37,4 +37,4 @@ npm run dev
 php artisan serve
 ```
 
-Aplikasi bisa diakses di `http://localhost:8000`.
+The application is available at `http://localhost:8000`.
