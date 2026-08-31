@@ -20,6 +20,9 @@ class User extends Authenticatable
     /**
      * Get the attributes that should be cast.
      *
+     * 'password' => 'hashed' -> setiap kali password di-set, Laravel otomatis
+     *                           meng-hash-nya. Jadi tidak perlu bcrypt() manual.
+     *
      * @return array<string, string>
      */
     protected function casts(): array

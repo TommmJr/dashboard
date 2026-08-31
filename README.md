@@ -1,4 +1,4 @@
-# plnjbt-dashboard
+# dashboard
 
 A web application for managing and visualizing performance data for the
 Planning Directorate at PLN UIT JBT - a replacement for Looker Studio where

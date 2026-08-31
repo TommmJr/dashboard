@@ -3,39 +3,27 @@
 namespace Database\Seeders;
 
 use App\Models\User;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
+/**
+ * Seeder utama untuk mengisi data awal aplikasi.
+ * Dijalankan dengan: php artisan db:seed
+ *
+ * Saat ini hanya membuat 1 user admin sebagai akun login pertama.
+ * Password di-hash otomatis oleh Laravel lewat cast 'hashed' di model User.
+ */
 class DatabaseSeeder extends Seeder
 {
-    use WithoutModelEvents;
-
     /**
-     * Seed the application's database.
+     * Jalankan proses seeding.
      */
     public function run(): void
     {
-        // User::factory(10)->create();
-
+        // Akun admin pertama. Ganti password setelah login lewat aplikasi.
         User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
-            'password' => bcrypt('password'),
-            'role' => 'CURRENT_ROLE()', 
-        ]);
-
-        Admin::factory()->create([
-            'name' => 'Test Admin',
-            'email' => 'admin@example.com',
-            'password' => bcrypt('password'),
-            'role' => 'CURRENT_ROLE()',
-        ]);
-
-        Management::factory()->create([
-            'name' => 'Test Management',
-            'email' => 'management@example.com',
-            'password' => bcrypt('password'),
-            'role' => 'CURRENT_ROLE()',
+            'name' => 'Admin',
+            'email' => 'admin@dashboard.local',
+            'password' => 'password',
         ]);
     }
 }

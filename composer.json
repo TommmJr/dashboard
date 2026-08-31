@@ -1,8 +1,8 @@
 {
     "$schema": "https://getcomposer.org/schema.json",
-    "name": "laravel/laravel",
+    "name": "tommmjr/dashboard",
     "type": "project",
-    "description": "The skeleton application for the Laravel framework.",
+    "description": "Web dashboard application for the Planning Directorate at PLN UIT JBT.",
     "keywords": ["laravel", "framework"],
     "license": "MIT",
     "require": {
