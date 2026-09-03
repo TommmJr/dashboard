@@ -15,6 +15,9 @@
 <body class="h-full bg-gray-100 antialiased">
     <main class="min-h-full">
         @yield('content')
+        <div class="fixed bottom-0 left-0 w-full bg-gray-100 py-2 text-center text-sm text-gray-500">
+            &copy; {{ date('Y') }} My Application. All rights reserved.
+        </div>
     </main>
 </body>
 </html>

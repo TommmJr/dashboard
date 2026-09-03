@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\Role;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 
@@ -9,8 +10,8 @@ use Illuminate\Database\Seeder;
  * Seeder utama untuk mengisi data awal aplikasi.
  * Dijalankan dengan: php artisan db:seed
  *
- * Saat ini hanya membuat 1 user admin sebagai akun login pertama.
- * Password di-hash otomatis oleh Laravel lewat cast 'hashed' di model User.
+ * Urutan: seed RBAC dulu (roles + permissions), lalu buat akun admin
+ * pertama sebagai akun login dengan role Admin (semua permission).
  */
 class DatabaseSeeder extends Seeder
 {
@@ -19,11 +20,20 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
+        $this->call(RolePermissionSeeder::class);
+
         // Akun admin pertama. Ganti password setelah login lewat aplikasi.
-        User::factory()->create([
-            'name' => 'Admin',
-            'email' => 'admin@dashboard.local',
-            'password' => 'password',
-        ]);
+        // firstOrCreate supaya db:seed berulang tidak gagal (email unique).
+        $admin = User::firstOrCreate(
+            ['email' => 'admin@dashboard.local'],
+            [
+                'name' => 'Admin',
+                'password' => 'password',
+            ],
+        );
+
+        if (! $admin->hasRole(Role::ADMIN)) {
+            $admin->role()->associate(Role::where('slug', Role::ADMIN)->firstOrFail())->save();
+        }
     }
 }

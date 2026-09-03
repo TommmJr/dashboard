@@ -1,0 +1,168 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\Permission;
+use App\Models\Role;
+use App\Models\User;
+use Database\Seeders\RolePermissionSeeder;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Gate;
+use Tests\TestCase;
+
+class RbacTest extends TestCase
+{
+    use RefreshDatabase;
+
+    // Seeding roles & permissions
+    public function test_seeder_membuat_empat_role(): void
+    {
+        $this->seed(RolePermissionSeeder::class);
+
+        $this->assertSame(
+            [Role::ADMIN, Role::MANAGEMENT, Role::EDITOR_DASHBOARD, Role::STAFF_DIVISI],
+            Role::query()->orderBy('id')->pluck('slug')->all(),
+        );
+    }
+
+    public function test_seeder_membuat_semua_permission_katalog(): void
+    {
+        $this->seed(RolePermissionSeeder::class);
+
+        $this->assertSame(
+            Permission::names(),
+            Permission::query()->orderBy('id')->pluck('name')->all(),
+        );
+    }
+
+    public function test_admin_memiliki_semua_permission(): void
+    {
+        $this->seed(RolePermissionSeeder::class);
+
+        $adminRole = Role::where('slug', Role::ADMIN)->firstOrFail();
+
+        $this->assertSame(
+            collect(Permission::names())->sort()->values()->all(),
+            $adminRole->permissions->pluck('name')->sort()->values()->all(),
+        );
+    }
+
+    public function test_editor_dashboard_tidak_punya_hak_tulis_data(): void
+    {
+        // Aturan bisnis terpenting (confirmed mentor 2026-08-28): akses data
+        // Editor Dashboard (IT) READ-ONLY mutlak. Boleh atur visual, dilarang
+        // utak-atik data dalam bentuk apa pun.
+        $this->seed(RolePermissionSeeder::class);
+
+        $editor = Role::where('slug', Role::EDITOR_DASHBOARD)->firstOrFail();
+        $permissions = $editor->permissions->pluck('name');
+
+        $this->assertTrue($permissions->contains('dashboard.update'));
+        $this->assertTrue($permissions->contains('dataset.view'));
+        $this->assertFalse($permissions->contains('dataset.import'));
+        $this->assertFalse($permissions->contains('dataset.update'));
+        $this->assertFalse($permissions->contains('dataset.delete'));
+    }
+
+    public function test_management_hanya_penonton_dan_penikmat_laporan(): void
+    {
+        $this->seed(RolePermissionSeeder::class);
+
+        $management = Role::where('slug', Role::MANAGEMENT)->firstOrFail();
+        $permissions = $management->permissions->pluck('name');
+
+        $this->assertTrue($permissions->contains('dashboard.view'));
+        $this->assertTrue($permissions->contains('audit.view'));
+        $this->assertTrue($permissions->contains('report.export'));
+        $this->assertFalse($permissions->contains('dataset.import'));
+        $this->assertFalse($permissions->contains('dashboard.update'));
+        $this->assertFalse($permissions->contains('user.create'));
+    }
+
+    public function test_staf_divisi_punya_hak_data_tapi_bukan_hak_visual(): void
+    {
+        $this->seed(RolePermissionSeeder::class);
+
+        $staff = Role::where('slug', Role::STAFF_DIVISI)->firstOrFail();
+        $permissions = $staff->permissions->pluck('name');
+
+        $this->assertTrue($permissions->contains('dataset.import'));
+        $this->assertTrue($permissions->contains('dataset.update'));
+        $this->assertTrue($permissions->contains('dashboard.view'));
+        $this->assertFalse($permissions->contains('dashboard.update'));
+        $this->assertFalse($permissions->contains('audit.view'));
+        $this->assertFalse($permissions->contains('user.view'));
+    }
+
+    // Gate permission (otorisasi di backend)
+
+    public function test_user_dengan_role_mendapat_permission_sesuai_matriks(): void
+    {
+        $this->seed(RolePermissionSeeder::class);
+
+        $admin = User::factory()->withRole(Role::ADMIN)->create();
+        $editor = User::factory()->withRole(Role::EDITOR_DASHBOARD)->create();
+
+        $this->assertTrue(Gate::forUser($admin)->allows('dataset.import'));
+        $this->assertTrue(Gate::forUser($admin)->allows('user.delete'));
+
+        // Editor Dashboard: boleh atur visual, tidak boleh sentuh data.
+        $this->assertTrue(Gate::forUser($editor)->allows('dashboard.update'));
+        $this->assertTrue(Gate::forUser($editor)->denies('dataset.import'));
+    }
+
+    public function test_user_tanpa_role_ditolak_semua_permission(): void
+    {
+        $user = User::factory()->create(); // tanpa role
+
+        $this->assertTrue(Gate::forUser($user)->denies('dashboard.view'));
+        $this->assertTrue(Gate::forUser($user)->denies('dataset.import'));
+    }
+
+    // Proteksi route via middleware 'can:'
+
+    public function test_halaman_users_wajib_login(): void
+    {
+        $this->get(route('users.index'))->assertRedirect(route('login'));
+    }
+
+    public function test_halaman_users_ditolak_403_tanpa_permission_user_view(): void
+    {
+        $this->seed(RolePermissionSeeder::class);
+
+        // Staf Divisi tidak punya user.view -> harus 403 meskipun sudah login.
+        $staff = User::factory()->withRole(Role::STAFF_DIVISI)->create();
+
+        $this->actingAs($staff)->get(route('users.index'))->assertForbidden();
+    }
+
+    public function test_halaman_users_bisa_diakses_admin(): void
+    {
+        $this->seed(RolePermissionSeeder::class);
+
+        $admin = User::factory()->withRole(Role::ADMIN)->create([
+            'name' => 'Admin Utama',
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('users.index'))
+            ->assertOk()
+            ->assertSee('Admin Utama');
+    }
+
+    public function test_dashboard_tetap_terbuka_untuk_semua_role(): void
+    {
+        // Lihat dashboard transparan dalam Bidang Perencanaan:
+        $this->seed(RolePermissionSeeder::class);
+
+        foreach ([Role::ADMIN, Role::MANAGEMENT, Role::EDITOR_DASHBOARD, Role::STAFF_DIVISI] as $slug) {
+            $user = User::factory()->withRole($slug)->create();
+
+            $this->actingAs($user)->get(route('dashboard'))->assertOk();
+        }
+    }
+
+    
+
+
+}

@@ -7,10 +7,11 @@ use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
-#[Fillable(['name', 'email', 'password'])]
+#[Fillable(['name', 'email', 'password', 'role_id'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
@@ -31,5 +32,33 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+
+    /**
+     * Role (peran) user ini. Setiap user punya tepat satu role;
+     * null berarti belum di-assign (tidak punya permission apa pun).
+     */
+    public function role(): BelongsTo
+    {
+        return $this->belongsTo(Role::class);
+    }
+
+    /**
+     * Cek apakah user punya role dengan slug tertentu.
+     */
+    public function hasRole(string $slug): bool
+    {
+        return $this->role?->slug === $slug;
+    }
+
+    /**
+     * Cek apakah user punya sebuah permission, lewat role-nya.
+     * Ini satu-satunya sumber kebenaran otorisasi; dipanggil oleh gate
+     * yang diregistrasi di AppServiceProvider. Authorization selalu
+     * divalidasi di backend - frontend hanya menyembunyikan fitur.
+     */
+    public function hasPermission(string $name): bool
+    {
+        return $this->role?->hasPermission($name) ?? false;
     }
 }

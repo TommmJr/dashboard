@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Models\Role;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
@@ -33,6 +34,7 @@ class UserFactory extends Factory
         ];
     }
 
+
     /**
      * Indicate that the model's email address should be unverified.
      */
@@ -41,5 +43,17 @@ class UserFactory extends Factory
         return $this->state(fn (array $attributes) => [
             'email_verified_at' => null,
         ]);
+    }
+
+    /**
+     * Assign role berdasarkan slug (roles harus sudah di-seed).
+     * Dipakai test RBAC: User::factory()->withRole(Role::ADMIN)->create().
+     */
+    public function withRole(string $slug): static
+    {
+        return $this->afterCreating(function (User $user) use ($slug) {
+            $role = Role::where('slug', $slug)->firstOrFail();
+            $user->role()->associate($role)->save();
+        });
     }
 }

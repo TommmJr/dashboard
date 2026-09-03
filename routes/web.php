@@ -1,22 +1,11 @@
 <?php
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 
 /*
-|--------------------------------------------------------------------------
-| Route aplikasi dashboard
-|--------------------------------------------------------------------------
-|
-| Alur navigasi:
-|   '/'          -> redirect ke halaman login.
-|   /login       -> halaman form login (GET) + proses login (POST).
-|   /dashboard   -> halaman utama setelah login (wajib autentikasi).
-|   /logout      -> proses keluar dari aplikasi (POST).
-|
-| Middleware:
-|   - 'guest' : hanya bisa diakses kalau BELUM login.
-|   - 'auth'  : hanya bisa diakses kalau SUDAH login.
+ Route aplikasi dashboard
 */
 
 // Akses root aplikasi langsung diarahkan ke halaman login.
@@ -36,6 +25,12 @@ Route::middleware('auth')->group(function () {
     Route::get('/dashboard', [AuthController::class, 'dashboard'])->name('dashboard');
     // Proses logout via POST (bukan GET, supaya aman dari CSRF/clickjacking).
     Route::post('/logout', [AuthController::class, 'destroy'])->name('logout');
+
+    // Area khusus ber-permission. Middleware 'can:...' memvalidasi gate
+    // permission di backend; tanpa permission = HTTP 403.
+    Route::middleware('can:user.view')->group(function () {
+        Route::get('/users', [UserController::class, 'index'])->name('users.index');
+    });
 });
 
 // Route fallback: URL yang tidak dikenal diarahkan ke login.
