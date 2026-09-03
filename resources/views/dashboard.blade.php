@@ -14,7 +14,7 @@
         <span class="font-semibold text-gray-900">Dashboard</span>
         <div class="flex items-center gap-4">
             <span class="text-sm text-gray-600">{{ auth()->user()->name }}</span>
-            <form method="POST" action="{{ route('logout') }}">
+            <form method="POST" action="{{ route('logout') }}" onsubmit="return confirm('Yakin ingin logout?');">
                 @csrf
                 <button type="submit" class="text-sm text-gray-600 hover:text-gray-900">Log out</button>
             </form>
@@ -31,8 +31,6 @@
     </div>
     <p class="mt-2 text-sm text-gray-600">You are signed in. Dashboard content will be built in later stages.</p>
 
-    {{-- Menu berdasarkan permission. Keamanan tetap divalidasi di backend (middleware/gate);
-         @can di sini hanya menyembunyikan menu yang tidak relevan bagi user. --}}
     <div class="mt-6 flex flex-wrap gap-3">
         @can('user.view')
             <a href="{{ route('users.index') }}" class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700">Manage users</a>
@@ -43,6 +41,8 @@
         @can('dataset.import')
             <span class="rounded-lg bg-gray-200 px-4 py-2 text-sm font-medium text-gray-500">Upload data (menyusul, Tahap 4)</span>
         @endcan
+
     </div>
-</div>
 @endsection
+</div>
+
