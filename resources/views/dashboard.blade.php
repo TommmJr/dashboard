@@ -19,8 +19,7 @@
                 <button type="submit" class="text-sm text-gray-600 hover:text-gray-900">Log out</button>
             </form>
         </div>
-    </div>
-</nav>
+    </nav>
 
 <div class="mx-auto max-w-7xl px-4 py-8">
     <div class="flex items-center gap-3">
@@ -41,8 +40,69 @@
         @can('dataset.import')
             <span class="rounded-lg bg-gray-200 px-4 py-2 text-sm font-medium text-gray-500">Upload data (menyusul, Tahap 4)</span>
         @endcan
-
     </div>
-@endsection
-</div>
 
+    {{-- Vertical Slice #1: Upload & Chart Demo --}}
+    <div class="mt-10 grid grid-cols-1 gap-8 lg:grid-cols-3">
+        {{-- Form Upload --}}
+        <div class="p-6 bg-white rounded-lg shadow">
+            <h3 class="text-lg font-bold mb-4">Upload Data Performance (Lite)</h3>
+            <form action="{{ route('performance.upload') }}" method="POST" enctype="multipart/form-data" class="flex flex-col gap-4">
+                @csrf
+                <input type="file" name="file" class="border p-2 rounded w-full" accept=".csv">
+                <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 font-medium">Upload CSV</button>
+            </form>
+            @if(session('success'))
+                <div class="mt-2 text-green-600 text-sm">{{ session('success') }}</div>
+            @endif
+        </div>
+
+        {{-- Area Grafik --}}
+        <div class="lg:col-span-2 p-6 bg-white rounded-lg shadow">
+            <h3 class="text-lg font-bold mb-4">Performance Trends</h3>
+            <div class="relative h-64">
+                <canvas id="performanceChart"></canvas>
+            </div>
+        </div>
+    </div>
+    </div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    async function loadChart() {
+        try {
+            const response = await fetch("{{ route('performance.data') }}");
+            const data = await response.json();
+
+            const ctx = document.getElementById('performanceChart').getContext('2d');
+            if (window.myChart) { window.myChart.destroy(); }
+
+            window.myChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: data.labels,
+                    datasets: [{
+                        label: 'Total Value',
+                        data: data.values,
+                        backgroundColor: 'rgba(59, 130, 246, 0.5)',
+                        borderColor: 'rgb(59, 130, 246)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { beginAtZero: true }
+                    }
+                }
+            });
+        } catch (e) {
+            console.error('Chart loading error:', e);
+        }
+    }
+
+    // Load chart on page load
+    document.addEventListener('DOMContentLoaded', loadChart);
+</script>
+@endsection

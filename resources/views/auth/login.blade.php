@@ -54,4 +54,17 @@
         </div>
     </div>
 </div>
+
+@section('main graph')
+<div class="flex justify-center mt-8">
+    <input id = "search" name = "search" type = "text" placeholder = "Search..." class="w-1/2 px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
+    
+</div>
+
+
+
+<div class="fixed bottom-0 left-0 w-full bg-gray-100 py-2 text-center text-sm text-gray-500">
+    &copy; {{ date('Y') }} Dashboard. (c) All rights reserved.
+</div>
+
 @endsection
