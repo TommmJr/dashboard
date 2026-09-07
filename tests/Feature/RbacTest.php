@@ -162,7 +162,53 @@ class RbacTest extends TestCase
         }
     }
 
-    
+    // ── Proteksi permission pada route performance ─────────────────────────────────
+
+    public function test_upload_performance_ditolak_403_tanpa_permission_dataset_import(): void
+    {
+        // Editor Dashboard tidak punya dataset.import -> harus ditolak 403.
+        $this->seed(RolePermissionSeeder::class);
+        $editor = User::factory()->withRole(Role::EDITOR_DASHBOARD)->create();
+
+        $this->actingAs($editor)
+            ->post(route('performance.upload'))
+            ->assertForbidden();
+    }
+
+    public function test_upload_performance_bisa_diakses_staf_divisi(): void
+    {
+        // Staf Divisi punya dataset.import -> boleh upload.
+        $this->seed(RolePermissionSeeder::class);
+        $staff = User::factory()->withRole(Role::STAFF_DIVISI)->create();
+
+        $this->actingAs($staff)
+            ->post(route('performance.upload'))
+            ->assertRedirect(); // validasi gagal karena tidak ada file, bukan 403
+    }
+
+    public function test_performance_data_api_ditolak_403_tanpa_permission_dashboard_view(): void
+    {
+        // User tanpa role sama sekali tidak punya dashboard.view.
+        $user = User::factory()->create();
+
+        $this->actingAs($user)
+            ->getJson(route('performance.data'))
+            ->assertForbidden();
+    }
+
+    public function test_performance_data_api_bisa_diakses_semua_role(): void
+    {
+        // Semua role yang punya dashboard.view boleh akses API data.
+        $this->seed(RolePermissionSeeder::class);
+
+        foreach ([Role::ADMIN, Role::MANAGEMENT, Role::EDITOR_DASHBOARD, Role::STAFF_DIVISI] as $slug) {
+            $user = User::factory()->withRole($slug)->create();
+
+            $this->actingAs($user)
+                ->getJson(route('performance.data'))
+                ->assertOk();
+        }
+    }
 
 
 }
