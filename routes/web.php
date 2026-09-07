@@ -1,6 +1,9 @@
 <?php
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\DatasetController;
+use App\Http\Controllers\PerformanceChartController;
+use App\Http\Controllers\PerformanceUploadController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -29,15 +32,29 @@ Route::middleware('auth')->group(function () {
     // Proteksi permission 'dataset.import' di backend. Tanpa permission
     // yang berhak mengunggah dataset, request ditolak dengan HTTP 403.
     Route::middleware('can:dataset.import')
-        ->post('/performance/upload', [App\Http\Controllers\PerformanceUploadController::class, 'store'])
+        ->post('/performance/upload', [PerformanceUploadController::class, 'store'])
         ->name('performance.upload');
 
     // Jalur data untuk grafik (Vertical Slice #1)
     // Proteksi permission 'dashboard.view' agar data agregat hanya dapat
     // diakses oleh user yang memang berhak melihat dashboard kinerja.
     Route::middleware('can:dashboard.view')
-        ->get('/api/performance-data', [\App\Http\Controllers\PerformanceChartController::class, 'index'])
+        ->get('/api/performance-data', [PerformanceChartController::class, 'index'])
         ->name('performance.data');
+
+    // Dataset CRUD (Tahap 3). Index/show untuk semua pemegang dataset.view
+    // (scoping per-divisi ditegakkan di controller). Archive butuh
+    // dataset.update + ownership divisi; delete butuh dataset.delete (admin).
+    Route::middleware('can:dataset.view')->group(function () {
+        Route::get('/datasets', [DatasetController::class, 'index'])->name('datasets.index');
+        Route::get('/datasets/{dataset}', [DatasetController::class, 'show'])->name('datasets.show');
+    });
+    Route::middleware('can:dataset.update')
+        ->patch('/datasets/{dataset}/archive', [DatasetController::class, 'archive'])
+        ->name('datasets.archive');
+    Route::middleware('can:dataset.delete')
+        ->delete('/datasets/{dataset}', [DatasetController::class, 'destroy'])
+        ->name('datasets.destroy');
 
     // Area khusus ber-permission. Middleware 'can:...' memvalidasi gate
     // permission di backend; tanpa permission = HTTP 403.
@@ -50,4 +67,3 @@ Route::middleware('auth')->group(function () {
 Route::fallback(function () {
     return redirect()->route('login');
 });
-    
