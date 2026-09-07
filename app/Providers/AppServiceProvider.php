@@ -2,8 +2,12 @@
 
 namespace App\Providers;
 
+use App\Models\AuditLog;
 use App\Models\Permission;
 use App\Models\User;
+use Illuminate\Auth\Events\Login;
+use Illuminate\Auth\Events\Logout;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 
@@ -23,6 +27,27 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->registerPermissionGates();
+        $this->registerAuditListeners();
+    }
+
+    /**
+     * Catat LOGIN/LOGOUT ke audit log (append-only) via auth events.
+     */
+    private function registerAuditListeners(): void
+    {
+        Event::listen(
+            Login::class,
+            fn (Login $event) => AuditLog::record(
+                AuditLog::ACTION_LOGIN, null, null, null, $event->user->id,
+            ),
+        );
+
+        Event::listen(
+            Logout::class,
+            fn (Logout $event) => AuditLog::record(
+                AuditLog::ACTION_LOGOUT, null, null, null, $event->user?->id,
+            ),
+        );
     }
 
     /**

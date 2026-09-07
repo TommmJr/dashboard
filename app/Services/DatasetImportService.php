@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\AuditLog;
 use App\Models\Dataset;
 use App\Models\PerformanceMetric;
 use App\Models\User;
@@ -111,7 +112,18 @@ class DatasetImportService
             }
 
             if ($inserts !== []) {
+                // Bulk insert demi performa; observer Auditable pada model
+                // tidak terpanggil, jadi jejaknya dicatat sebagai satu
+                // entri IMPORT pada dataset (bukan per-baris).
                 PerformanceMetric::insert(array_values($inserts));
+
+                AuditLog::record(
+                    AuditLog::ACTION_IMPORT,
+                    $dataset,
+                    null,
+                    ['rows_imported' => count($inserts), 'rows_skipped' => count($errors)],
+                    $uploader->id,
+                );
             }
 
             $imported = count($inserts);

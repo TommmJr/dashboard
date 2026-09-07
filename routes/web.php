@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DatasetController;
 use App\Http\Controllers\PerformanceChartController;
@@ -64,6 +65,11 @@ Route::middleware('auth')->group(function () {
     Route::middleware('can:dataset.delete')
         ->delete('/datasets/{dataset}', [DatasetController::class, 'destroy'])
         ->name('datasets.destroy');
+
+    // Audit log (append-only): admin, management, editor (gate audit.view).
+    Route::middleware('can:audit.view')
+        ->get('/audit-logs', [AuditLogController::class, 'index'])
+        ->name('audit-logs.index');
 
     // Area khusus ber-permission. Middleware 'can:...' memvalidasi gate
     // permission di backend; tanpa permission = HTTP 403.

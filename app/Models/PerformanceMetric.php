@@ -2,13 +2,14 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\Auditable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class PerformanceMetric extends Model
 {
-    use HasFactory;
+    use Auditable, HasFactory;
 
     protected $fillable = ['metric_name', 'value', 'period', 'unit_id', 'division_id', 'dataset_id'];
 
