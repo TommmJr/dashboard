@@ -33,28 +33,50 @@ class DatasetImportService
     /**
      * Jalankan pipeline impor untuk file yang diunggah.
      *
-     * @return array{imported: int, skipped: int, errors: array<int, string>}
+     * Severity validasi (keputusan Tahap 5):
+     * - FATAL   : baris di-skip (kolom wajib kosong, value non-numeric,
+     *             tanggal invalid, duplikat kunci metric_name+period dalam
+     *             file yang sama).
+     * - WARNING : baris TETAP masuk tetapi ditandai (outlier statistik
+     *             sederhana: |value - mean| > 3 * std-dev dalam file).
+     * Ringkasan disimpan di datasets.validation_report (JSON).
+     *
+     * @return array{imported: int, skipped: int, warnings: int, errors: array<int, string>}
      */
     public function import(UploadedFile $file, User $uploader, Dataset $dataset): array
     {
         $rows = $this->parseRows($file);
 
         $imported = 0;
+        $warnings = 0;
         $errors = [];
+        $issues = [];
         $inserts = [];
 
-        DB::transaction(function () use ($rows, $uploader, $dataset, &$imported, &$errors, &$inserts) {
+        DB::transaction(function () use ($rows, $uploader, $dataset, &$imported, &$warnings, &$errors, &$issues, &$inserts) {
             $dataset->update(['status' => Dataset::STATUS_VALIDATING]);
 
+            // Pass 1: validasi per-baris + deteksi duplikat kunci.
+            $seenKeys = [];
             foreach ($rows as $rowNumber => $row) {
                 $error = $this->validateRow($row);
                 if ($error !== null) {
                     $errors[$rowNumber] = $error;
+                    $issues[] = ['row' => $rowNumber, 'severity' => 'FATAL', 'message' => $error];
 
                     continue;
                 }
 
-                $inserts[] = [
+                $key = mb_strtolower(trim((string) $row[0])).'|'.trim((string) $row[2]);
+                if (isset($seenKeys[$key])) {
+                    $errors[$rowNumber] = "duplikat kunci dengan baris {$seenKeys[$key]}";
+                    $issues[] = ['row' => $rowNumber, 'severity' => 'FATAL', 'message' => $errors[$rowNumber]];
+
+                    continue;
+                }
+                $seenKeys[$key] = $rowNumber;
+
+                $inserts[$rowNumber] = [
                     'metric_name' => trim((string) $row[0]),
                     'value' => (float) $row[1],
                     'period' => Carbon::createFromFormat('Y-m-d', trim((string) $row[2]))->format('Y-m-d'),
@@ -66,27 +88,58 @@ class DatasetImportService
                 ];
             }
 
+            // Pass 2: deteksi outlier (WARNING) pada baris yang lolos FATAL.
+            // Hanya dihitung bila ada >= 3 baris valid agar std-dev bermakna.
+            if (count($inserts) >= 3) {
+                $values = array_column($inserts, 'value');
+                $mean = array_sum($values) / count($values);
+                $variance = array_sum(array_map(fn ($v) => ($v - $mean) ** 2, $values)) / count($values);
+                $stdDev = sqrt($variance);
+
+                if ($stdDev > 0) {
+                    foreach ($inserts as $rowNumber => $insert) {
+                        if (abs($insert['value'] - $mean) > 3 * $stdDev) {
+                            $warnings++;
+                            $issues[] = [
+                                'row' => $rowNumber,
+                                'severity' => 'WARNING',
+                                'message' => 'nilai outlier (>3 standar deviasi dari rata-rata file)',
+                            ];
+                        }
+                    }
+                }
+            }
+
             if ($inserts !== []) {
-                PerformanceMetric::insert($inserts);
+                PerformanceMetric::insert(array_values($inserts));
             }
 
             $imported = count($inserts);
+
+            $report = [
+                'ok' => $imported - $warnings,
+                'warning' => $warnings,
+                'fatal' => count($errors),
+                'issues' => $issues,
+            ];
 
             if ($imported === 0) {
                 // Gagal total: tidak ada satu pun baris valid.
                 $dataset->update([
                     'status' => Dataset::STATUS_FAILED,
                     'error_message' => 'Tidak ada baris valid. '.count($errors).' baris ditolak.',
+                    'validation_report' => $report,
                 ]);
             } else {
                 $dataset->update([
                     'status' => Dataset::STATUS_READY,
                     'error_message' => null,
+                    'validation_report' => $report,
                 ]);
             }
         });
 
-        return ['imported' => $imported, 'skipped' => count($errors), 'errors' => $errors];
+        return ['imported' => $imported, 'skipped' => count($errors), 'warnings' => $warnings, 'errors' => $errors];
     }
 
     /**

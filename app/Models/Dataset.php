@@ -19,7 +19,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * - ARCHIVED   : diarsipkan staf pemilik; TIDAK masuk agregasi chart,
  *                data tetap di DB (reversible, tanpa jejak hilang).
  */
-#[Fillable(['division_id', 'user_id', 'filename', 'original_name', 'mime_type', 'size', 'status', 'error_message'])]
+#[Fillable(['division_id', 'user_id', 'filename', 'original_name', 'mime_type', 'size', 'status', 'error_message', 'validation_report'])]
 class Dataset extends Model
 {
     use HasFactory;
@@ -36,6 +36,7 @@ class Dataset extends Model
 
     protected $casts = [
         'size' => 'integer',
+        'validation_report' => 'array',
     ];
 
     /**

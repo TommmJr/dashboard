@@ -34,6 +34,27 @@
                 @if ($dataset->status === 'FAILED' && $dataset->error_message)
                     <p class="mt-3 rounded-md bg-red-50 p-3 text-sm text-red-700">{{ $dataset->error_message }}</p>
                 @endif
+
+                @if ($dataset->validation_report)
+                    <div class="mt-3 rounded-md border border-gray-200 p-3 text-sm">
+                        <p class="font-semibold text-gray-800">Ringkasan validasi</p>
+                        <div class="mt-1 flex gap-4 text-xs">
+                            <span class="rounded-full bg-green-100 px-2 py-0.5 font-semibold text-green-800">OK: {{ $dataset->validation_report['ok'] ?? 0 }}</span>
+                            <span class="rounded-full bg-yellow-100 px-2 py-0.5 font-semibold text-yellow-800">WARNING: {{ $dataset->validation_report['warning'] ?? 0 }}</span>
+                            <span class="rounded-full bg-red-100 px-2 py-0.5 font-semibold text-red-800">FATAL: {{ $dataset->validation_report['fatal'] ?? 0 }}</span>
+                        </div>
+                        @if (! empty($dataset->validation_report['issues']))
+                            <ul class="mt-2 max-h-40 space-y-1 overflow-y-auto text-xs text-gray-600">
+                                @foreach ($dataset->validation_report['issues'] as $issue)
+                                    <li>
+                                        <span class="font-semibold {{ $issue['severity'] === 'FATAL' ? 'text-red-700' : 'text-yellow-700' }}">[{{ $issue['severity'] }}]</span>
+                                        Baris {{ $issue['row'] }}: {{ $issue['message'] }}
+                                    </li>
+                                @endforeach
+                            </ul>
+                        @endif
+                    </div>
+                @endif
             </div>
             <div class="flex gap-2">
                 @can('dataset.update')

@@ -114,6 +114,9 @@ class DatasetController extends Controller
         if ($result['skipped'] > 0) {
             $message .= " {$result['skipped']} baris dilewati karena tidak valid.";
         }
+        if ($result['warnings'] > 0) {
+            $message .= " {$result['warnings']} baris ditandai WARNING (outlier).";
+        }
 
         return redirect()
             ->route('datasets.show', $dataset)
