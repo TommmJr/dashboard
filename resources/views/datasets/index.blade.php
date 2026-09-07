@@ -15,7 +15,15 @@
 @section('content')
 <div class="mx-auto max-w-7xl px-4 py-8">
     <div class="flex items-center justify-between">
-        <h1 class="text-2xl font-bold text-gray-900">Datasets</h1>
+        <div class="flex items-center gap-4">
+            <h1 class="text-2xl font-bold text-gray-900">Datasets</h1>
+            @can('dataset.import')
+                <a href="{{ route('datasets.create') }}"
+                   class="rounded bg-indigo-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-indigo-700">
+                    + Upload Dataset
+                </a>
+            @endcan
+        </div>
         <form method="GET" class="flex items-center gap-2 text-sm">
             <label for="status" class="text-gray-600">Status</label>
             <select id="status" name="status" onchange="this.form.submit()"

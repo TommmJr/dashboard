@@ -47,8 +47,17 @@ Route::middleware('auth')->group(function () {
     // dataset.update + ownership divisi; delete butuh dataset.delete (admin).
     Route::middleware('can:dataset.view')->group(function () {
         Route::get('/datasets', [DatasetController::class, 'index'])->name('datasets.index');
-        Route::get('/datasets/{dataset}', [DatasetController::class, 'show'])->name('datasets.show');
+        // Route statis harus SEBELUM /datasets/{dataset} agar tidak
+        // tertelan parameter wildcard.
+        Route::get('/datasets-template', [DatasetController::class, 'template'])->name('datasets.template');
     });
+    Route::middleware('can:dataset.import')->group(function () {
+        Route::get('/datasets/create', [DatasetController::class, 'create'])->name('datasets.create');
+        Route::post('/datasets', [DatasetController::class, 'store'])->name('datasets.store');
+    });
+    Route::middleware('can:dataset.view')
+        ->get('/datasets/{dataset}', [DatasetController::class, 'show'])
+        ->name('datasets.show');
     Route::middleware('can:dataset.update')
         ->patch('/datasets/{dataset}/archive', [DatasetController::class, 'archive'])
         ->name('datasets.archive');

@@ -1,0 +1,188 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\Dataset;
+use App\Models\Division;
+use App\Models\Role;
+use App\Models\User;
+use Database\Seeders\RolePermissionSeeder;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use Tests\TestCase;
+
+/**
+ * Test Tahap 4 - Import Excel end-to-end (template generik).
+ *
+ * Mapping kolom mengikuti config/dataset_import.php (metric_name, value,
+ * period). Penyesuaian kolom final mentor nanti = ubah config + test ini.
+ */
+class DatasetImportTest extends TestCase
+{
+    use RefreshDatabase;
+
+    private Division $division;
+
+    private User $staff;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->seed(RolePermissionSeeder::class);
+
+        $this->division = Division::factory()->create();
+        $this->staff = User::factory()->withRole(Role::STAFF_DIVISI)->create([
+            'division_id' => $this->division->id,
+        ]);
+    }
+
+    /**
+     * Buat file .xlsx sementara dari array baris (baris pertama = header).
+     */
+    private function makeXlsx(array $rows): UploadedFile
+    {
+        $spreadsheet = new Spreadsheet;
+        $sheet = $spreadsheet->getActiveSheet();
+        foreach ($rows as $r => $row) {
+            foreach ($row as $c => $value) {
+                $sheet->setCellValue([$c + 1, $r + 1], $value);
+            }
+        }
+        $path = tempnam(sys_get_temp_dir(), 'imp_').'.xlsx';
+        (new Xlsx($spreadsheet))->save($path);
+        $spreadsheet->disconnectWorksheets();
+
+        return new UploadedFile($path, 'laporan.xlsx',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            null, true);
+    }
+
+    private function validRows(array $extra = []): array
+    {
+        return array_merge([
+            ['metric_name', 'value', 'period'],
+            ['Penjualan', '100.5', '2026-01-31'],
+            ['Penjualan', '250', '2026-02-28'],
+        ], $extra);
+    }
+
+    public function test_upload_sukses_dataset_ready_dan_baris_masuk(): void
+    {
+        $file = $this->makeXlsx($this->validRows());
+
+        $response = $this->actingAs($this->staff)->post(route('datasets.store'), ['file' => $file]);
+
+        $dataset = Dataset::sole();
+
+        $response->assertRedirect(route('datasets.show', $dataset));
+        $this->assertSame(Dataset::STATUS_READY, $dataset->status);
+        $this->assertSame($this->division->id, $dataset->division_id);
+        $this->assertSame($this->staff->id, $dataset->user_id);
+        $this->assertSame('laporan.xlsx', $dataset->original_name);
+
+        $this->assertSame(2, $dataset->metrics()->count());
+        $metric = $dataset->metrics()->where('period', '2026-01-31')->sole();
+        $this->assertSame('Penjualan', $metric->metric_name);
+        $this->assertEquals(100.5, (float) $metric->value);
+        $this->assertSame($this->division->id, $metric->division_id);
+        $this->assertSame($this->staff->id, $metric->unit_id);
+    }
+
+    public function test_file_non_excel_ditolak_validasi(): void
+    {
+        $file = UploadedFile::fake()->create('malware.exe', 10, 'application/octet-stream');
+
+        $this->actingAs($this->staff)
+            ->post(route('datasets.store'), ['file' => $file])
+            ->assertSessionHasErrors('file');
+
+        $this->assertSame(0, Dataset::count());
+    }
+
+    public function test_baris_invalid_di_skip_dan_dihitung(): void
+    {
+        $file = $this->makeXlsx($this->validRows([
+            ['Penjualan', 'bukan-angka', '2026-03-31'], // value non-numeric
+            ['Penjualan', '75', '2026-13-40'],          // tanggal silent-rolling
+            ['', '10', '2026-04-30'],                   // metric_name kosong
+        ]));
+
+        $response = $this->actingAs($this->staff)->post(route('datasets.store'), ['file' => $file]);
+
+        $dataset = Dataset::sole();
+        $response->assertRedirect(route('datasets.show', $dataset));
+        $this->assertSame(Dataset::STATUS_READY, $dataset->status);
+        $this->assertSame(2, $dataset->metrics()->count()); // hanya 2 baris valid
+        // Flash message melaporkan jumlah baris yang dilewati.
+        $response->assertSessionHas('success', fn ($msg) => str_contains($msg, '3 baris dilewati'));
+    }
+
+    public function test_gagal_total_dataset_failed_dengan_error_message(): void
+    {
+        $file = $this->makeXlsx([
+            ['metric_name', 'value', 'period'],
+            ['Penjualan', 'abc', '2026-13-40'],
+            ['', '', ''],
+        ]);
+
+        $this->actingAs($this->staff)->post(route('datasets.store'), ['file' => $file]);
+
+        $dataset = Dataset::sole();
+        $this->assertSame(Dataset::STATUS_FAILED, $dataset->status);
+        $this->assertNotEmpty($dataset->error_message);
+        $this->assertSame(0, $dataset->metrics()->count());
+    }
+
+    public function test_file_korup_ditandai_failed_bukan_menggantung(): void
+    {
+        // ZIP valid tapi bukan struktur XLSX: lolos deteksi MIME (zip),
+        // namun gagal di-parse reader -> exception -> FAILED, bukan
+        // menggantung di UPLOADING/VALIDATING.
+        $path = tempnam(sys_get_temp_dir(), 'imp_').'.xlsx';
+        $zip = new \ZipArchive;
+        $zip->open($path, \ZipArchive::CREATE);
+        $zip->addFromString('readme.txt', 'bukan spreadsheet');
+        $zip->close();
+        $file = new UploadedFile($path, 'korup.xlsx', 'application/zip', null, true);
+
+        $this->actingAs($this->staff)->post(route('datasets.store'), ['file' => $file]);
+
+        $dataset = Dataset::sole();
+        $this->assertSame(Dataset::STATUS_FAILED, $dataset->status);
+        $this->assertNotEmpty($dataset->error_message);
+    }
+
+    public function test_upload_ditolak_403_tanpa_permission_dataset_import(): void
+    {
+        // Editor Dashboard: read-only mutlak, tidak punya dataset.import.
+        $editor = User::factory()->withRole(Role::EDITOR_DASHBOARD)->create();
+        $file = $this->makeXlsx($this->validRows());
+
+        $this->actingAs($editor)->post(route('datasets.store'), ['file' => $file])
+            ->assertForbidden();
+
+        $this->assertSame(0, Dataset::count());
+    }
+
+    public function test_template_dapat_diunduh(): void
+    {
+        $response = $this->actingAs($this->staff)->get(route('datasets.template'));
+
+        $response->assertOk();
+        $this->assertSame(
+            'attachment; filename=template-dataset.xlsx',
+            $response->headers->get('content-disposition'),
+        );
+    }
+
+    public function test_form_upload_dapat_diakses_pemegang_dataset_import(): void
+    {
+        $this->actingAs($this->staff)->get(route('datasets.create'))->assertOk();
+
+        $editor = User::factory()->withRole(Role::EDITOR_DASHBOARD)->create();
+        $this->actingAs($editor)->get(route('datasets.create'))->assertForbidden();
+    }
+}

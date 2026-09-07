@@ -4,13 +4,122 @@ namespace App\Http\Controllers;
 
 use App\Models\Dataset;
 use App\Models\Role;
+use App\Services\DatasetImportService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use Throwable;
 
 class DatasetController extends Controller
 {
+    /**
+     * Form upload dataset baru (Tahap 4). Gate dataset.import di route.
+     */
+    public function create()
+    {
+        return view('datasets.create');
+    }
+
+    /**
+     * Unduh template .xlsx generik (kolom dari config/dataset_import.php).
+     */
+    public function template(DatasetImportService $importService)
+    {
+        $tempPath = $importService->buildTemplate();
+
+        return response()->download($tempPath, 'template-dataset.xlsx', [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ])->deleteFileAfterSend();
+    }
+
+    /**
+     * Terima file, buat record Dataset (UPLOADING), jalankan pipeline impor.
+     *
+     * Jika pipeline melempar exception (file korup, bukan Excel, dst.),
+     * dataset ditandai FAILED + error_message — tidak ada status menggantung.
+     */
+    public function store(Request $request, DatasetImportService $importService)
+    {
+        $maxKb = config('dataset_import.max_size_kb');
+        $extensions = implode(',', config('dataset_import.extensions'));
+
+        // mimetypes (bukan mimes): cek isi file, bukan hanya ekstensi.
+        // ZIP-based (xlsx) dan teks (csv) diterima; sisanya ditolak di
+        // lapisan validasi sebelum menyentuh pipeline.
+        $request->validate([
+            'file' => "required|file|extensions:{$extensions}|mimetypes:application/zip,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain,text/csv,application/csv|max:{$maxKb}",
+        ]);
+
+        $user = Auth::user();
+        $file = $request->file('file');
+
+        // Simpan file ke storage lokal (audit trail + kebutuhan delete).
+        $storedName = Str::random(32).'.'.$file->getClientOriginalExtension();
+        $file->storeAs('datasets', $storedName, 'local');
+
+        $dataset = Dataset::create([
+            'division_id' => $user->division_id,
+            'user_id' => $user->id,
+            'filename' => $storedName,
+            'original_name' => $file->getClientOriginalName(),
+            'mime_type' => $file->getMimeType(),
+            'size' => $file->getSize(),
+            'status' => Dataset::STATUS_UPLOADING,
+        ]);
+
+        // Metadata saja — JANGAN log isi baris (data kinerja sensitif).
+        Log::info('Dataset import dimulai', [
+            'dataset_id' => $dataset->id,
+            'original_name' => $dataset->original_name,
+            'size' => $dataset->size,
+            'user_id' => $user->id,
+        ]);
+
+        try {
+            $result = $importService->import($file, $user, $dataset);
+        } catch (Throwable $e) {
+            $dataset->update([
+                'status' => Dataset::STATUS_FAILED,
+                'error_message' => 'File tidak dapat diproses: format tidak dikenali atau korup.',
+            ]);
+
+            Log::warning('Dataset import gagal total', [
+                'dataset_id' => $dataset->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return redirect()
+                ->route('datasets.show', $dataset)
+                ->with('error', 'File tidak dapat diproses. Pastikan sesuai template.');
+        }
+
+        Log::info('Dataset import selesai', [
+            'dataset_id' => $dataset->id,
+            'imported' => $result['imported'],
+            'skipped' => $result['skipped'],
+        ]);
+
+        $dataset = $dataset->fresh();
+
+        if ($dataset->status === Dataset::STATUS_FAILED) {
+            return redirect()
+                ->route('datasets.show', $dataset)
+                ->with('error', $dataset->error_message);
+        }
+
+        $message = "Berhasil mengimpor {$result['imported']} baris.";
+        if ($result['skipped'] > 0) {
+            $message .= " {$result['skipped']} baris dilewati karena tidak valid.";
+        }
+
+        return redirect()
+            ->route('datasets.show', $dataset)
+            ->with('success', $message);
+    }
+
     /**
      * Daftar dataset.
      *
