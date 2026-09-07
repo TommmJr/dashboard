@@ -195,11 +195,7 @@ class DatasetCrudTest extends TestCase
 
         $payload = fn () => $this->actingAs($this->staffA)->getJson(route('performance.data'))->json();
 
-        // period di-serialize sebagai ISO datetime (cast date pada model);
-        // cocokkan prefix tanggalnya saja.
-        $hasPeriod = fn (array $labels) => collect($labels)->contains(
-            fn ($label) => str_starts_with((string) $label, '2026-01-15'),
-        );
+        $hasPeriod = fn (array $labels) => collect($labels)->contains('2026-01-15');
 
         $this->assertTrue($hasPeriod($payload()['labels']));
 

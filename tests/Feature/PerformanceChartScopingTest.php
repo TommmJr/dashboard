@@ -65,8 +65,7 @@ class PerformanceChartScopingTest extends TestCase
             ->getJson(route('performance.data'))
             ->assertOk();
 
-        $values = $response->json('values');
-        $sum = array_sum(array_map('floatval', $values));
+        $sum = (float) $response->json('kpi.total_value');
         // Admin melihat 100+200+999 = 1299
         $this->assertEquals(1299.0, $sum);
     }
@@ -80,8 +79,7 @@ class PerformanceChartScopingTest extends TestCase
             ->getJson(route('performance.data'))
             ->assertOk();
 
-        $values = $response->json('values');
-        $sum = array_sum(array_map('floatval', $values));
+        $sum = (float) $response->json('kpi.total_value');
         $this->assertEquals(1299.0, $sum);
     }
 
@@ -97,8 +95,7 @@ class PerformanceChartScopingTest extends TestCase
             ->getJson(route('performance.data'))
             ->assertOk();
 
-        $values = $response->json('values');
-        $sum = array_sum(array_map('floatval', $values));
+        $sum = (float) $response->json('kpi.total_value');
 
         // Staf A hanya boleh melihat data divisi A: 100 + 200 = 300
         // TIDAK boleh melihat 999 dari divisi B.
@@ -134,8 +131,9 @@ class PerformanceChartScopingTest extends TestCase
             ->getJson(route('performance.data'))
             ->assertOk();
 
-        // labels dan values harus array kosong.
+        // labels dan series harus array kosong, KPI nol.
         $this->assertSame([], $response->json('labels'));
-        $this->assertSame([], $response->json('values'));
+        $this->assertSame([], $response->json('series'));
+        $this->assertEquals(0.0, (float) $response->json('kpi.total_value'));
     }
 }

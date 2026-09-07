@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\Dataset;
-use App\Models\PerformanceMetric;
 use App\Models\Role;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -13,53 +12,86 @@ use Illuminate\Support\Facades\DB;
 class PerformanceChartController extends Controller
 {
     /**
-     * Mengambil data agregasi untuk grafik.
+     * Data agregasi untuk chart dashboard utama (Tahap 7 parsial).
+     *
+     * Kontrak JSON:
+     * - labels : daftar periode (Y-m-d) urut naik.
+     * - series : [{ name: <nama divisi>, data: [<total per periode>] }]
+     *            — satu series per divisi agar ECharts bisa menumpuk
+     *            bar + line trend per divisi.
+     * - kpi    : { total_value, ready_datasets, metric_count }
      *
      * Aturan scoping (per audit keamanan #3):
-     * - admin & management: melihat agregasi SELURUH divisi.
+     * - admin & management: agregasi SELURUH divisi.
      * - role lain (staf_divisi, editor_dashboard): hanya divisinya sendiri.
      *
-     * Filter diterapkan langsung di query untuk mencegah kebocoran data
-     * silang divisi — TIDAK mengandalkan filter di view/frontend.
+     * Dataset ARCHIVED dikeluarkan dari agregasi (keputusan
+     * archive-vs-delete); baris legacy tanpa dataset tetap dihitung.
+     * Filter di query, TIDAK mengandalkan filter di view/frontend.
      */
     public function index(Request $request)
     {
         $user = Auth::user();
 
         // Query via DB::table (bukan model): cast 'date' pada model
-        // PerformanceMetric menggeser period saat serialisasi karena app
-        // berjalan di Asia/Jakarta sedangkan cast menganggap DB adalah UTC.
-        // Di sini period adalah kolom DATE murni; format eksplisit di PHP.
-        $query = DB::table('performance_metrics')
-            ->selectRaw('period, SUM(value) as total')
-            ->groupBy('period')
-            ->orderBy('period', 'asc')
-            // Dataset ARCHIVED tidak masuk agregasi chart (keputusan
-            // archive-vs-delete). Baris legacy tanpa dataset (dataset_id
-            // NULL, hasil slice #1) tetap dihitung.
+        // menggeser period saat serialisasi (app Asia/Jakarta vs cast
+        // menganggap DB UTC). period diformat eksplisit Y-m-d di PHP.
+        $baseQuery = fn () => DB::table('performance_metrics')
+            ->leftJoin('datasets', 'datasets.id', '=', 'performance_metrics.dataset_id')
+            ->leftJoin('divisions', 'divisions.id', '=', 'performance_metrics.division_id')
             ->where(function ($q) {
-                $q->whereNull('dataset_id')
-                    ->orWhereExists(function ($sub) {
-                        $sub->selectRaw('1')
-                            ->from('datasets')
-                            ->whereColumn('datasets.id', 'performance_metrics.dataset_id')
-                            ->where('datasets.status', Dataset::STATUS_READY);
-                    });
+                $q->whereNull('performance_metrics.dataset_id')
+                    ->orWhere('datasets.status', Dataset::STATUS_READY);
             });
 
         // Non-admin/non-management: batasi ke division_id miliknya.
-        // User tanpa division_id tidak akan melihat data apa pun.
         $isPrivileged = $user->hasRole(Role::ADMIN) || $user->hasRole(Role::MANAGEMENT);
 
+        $scoped = $baseQuery();
         if (! $isPrivileged) {
-            $query->where('division_id', $user->division_id);
+            $scoped->where('performance_metrics.division_id', $user->division_id);
         }
 
-        $data = $query->get();
+        $rows = (clone $scoped)
+            ->selectRaw('performance_metrics.period, performance_metrics.division_id, COALESCE(divisions.name, "Tanpa Divisi") as division_name, SUM(performance_metrics.value) as total')
+            ->groupBy('performance_metrics.period', 'performance_metrics.division_id', 'divisions.name')
+            ->orderBy('performance_metrics.period')
+            ->get();
+
+        // Pivot: label periode unik + satu series per divisi.
+        $labels = $rows->pluck('period')
+            ->map(fn ($period) => Carbon::parse($period)->format('Y-m-d'))
+            ->unique()
+            ->sort()
+            ->values();
+
+        $series = $rows->groupBy('division_name')->map(function ($group, $name) use ($labels) {
+            $byPeriod = $group->keyBy(fn ($row) => Carbon::parse($row->period)->format('Y-m-d'));
+
+            return [
+                'name' => $name,
+                'data' => $labels->map(fn ($label) => (float) ($byPeriod[$label]->total ?? 0))->values(),
+            ];
+        })->values();
+
+        // KPI card: total nilai seluruh periode tampil, jumlah dataset READY
+        // (mengikuti scoping yang sama), dan jumlah baris metric aktif.
+        $readyDatasets = DB::table('datasets')
+            ->where('status', Dataset::STATUS_READY)
+            ->when(! $isPrivileged, fn ($q) => $q->where('division_id', $user->division_id))
+            ->count();
+
+        $metricCount = (clone $scoped)->count();
+        $totalValue = (float) $rows->sum('total');
 
         return response()->json([
-            'labels' => $data->map(fn ($row) => Carbon::parse($row->period)->format('Y-m-d')),
-            'values' => $data->pluck('total'),
+            'labels' => $labels,
+            'series' => $series,
+            'kpi' => [
+                'total_value' => $totalValue,
+                'ready_datasets' => $readyDatasets,
+                'metric_count' => $metricCount,
+            ],
         ]);
     }
 }

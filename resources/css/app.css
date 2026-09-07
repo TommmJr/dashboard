@@ -6,6 +6,14 @@
 @theme {
     --font-sans: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';
+
+    /* Design token warna (single source of truth; dipakai ulang untuk
+       konfigurasi warna ECharts di resources/js/app.js). */
+    --color-primary: #125d72;   /* header, tombol utama, judul */
+    --color-accent: #14a2ba;    /* link, hover, chart series utama, focus */
+    --color-surface: #e7f6f9;   /* background halaman, card */
+    --color-highlight: #efe62f; /* badge, highlight, series kontras, WARNING */
+    --color-muted: #d9d9d9;     /* border, divider, disabled */
 }
 
 [x-cloak] {
