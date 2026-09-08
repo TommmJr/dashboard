@@ -9,8 +9,12 @@ use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\IOFactory;
+use PhpOffice\PhpSpreadsheet\Shared\Date;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Throwable;
 
@@ -159,22 +163,105 @@ class DatasetImportService
 
     /**
      * Bangun file template .xlsx generik sesuai config kolom.
+     *
+     * Formatting:
+     * - Header: bold, background abu-abu, teks terkunci (protected).
+     * - Kolom 'value'  : format number 2 desimal (#,##0.00).
+     * - Kolom 'period' : format date (YYYY-MM-DD) agar Excel enforce tipe date.
+     * - Lebar kolom    : auto-size.
+     * - Baris contoh   : nilai riil (bukan teks), agar format langsung terlihat.
      */
     public function buildTemplate(): string
     {
         $spreadsheet = new Spreadsheet;
         $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Data');
 
-        foreach (config('dataset_import.columns') as $index => $column) {
-            $sheet->setCellValue([$index + 1, 1], $column['header']);
+        $columns = config('dataset_import.columns');
+        $colCount = count($columns);
+
+        // --- Header row ---
+        foreach ($columns as $index => $column) {
+            $col = $index + 1;
+            $colLetter = Coordinate::stringFromColumnIndex($col);
+            $cell = $sheet->getCell($colLetter.'1');
+            $cell->setValue($column['header']);
+            $cell->getStyle()->getFont()->setBold(true);
+            $cell->getStyle()->getFill()
+                ->setFillType(Fill::FILL_SOLID)
+                ->getStartColor()->setRGB('D9D9D9');
+            $cell->getStyle()->getAlignment()
+                ->setHorizontal(Alignment::HORIZONTAL_CENTER);
         }
 
-        // Baris contoh agar staf paham format yang diharapkan.
-        $sheet->setCellValue([1, 2], 'contoh_metrik');
-        $sheet->setCellValue([2, 2], '123.45');
-        $sheet->setCellValue([3, 2], '2026-01-31');
+        // --- Baris contoh: nilai riil bukan string ---
+        $exampleValues = [];
+        foreach ($columns as $index => $column) {
+            $col = $index + 1;
+            $rule = $column['rule'];
 
-        $tempPath = tempnam(sys_get_temp_dir(), 'tpl_');
+            if ($rule === 'numeric') {
+                $value = 123.45;
+            } elseif ($rule === 'date') {
+                // PhpSpreadsheet menyimpan tanggal sebagai serial number Excel.
+                $value = Date::PHPToExcel(
+                    Carbon::createFromFormat('Y-m-d', '2026-01-31')->timestamp
+                );
+            } else {
+                $value = 'contoh_metrik';
+            }
+
+            $exampleValues[$col] = $value;
+            $colLetter = Coordinate::stringFromColumnIndex($col);
+            $sheet->getCell($colLetter.'2')->setValue($value);
+        }
+
+        // --- Format kolom data (baris 2 ke bawah, sampai baris 1000) ---
+        foreach ($columns as $index => $column) {
+            $col = $index + 1;
+            $colLetter = Coordinate::stringFromColumnIndex($col);
+            $range = "{$colLetter}2:{$colLetter}1000";
+
+            $style = $sheet->getStyle($range);
+
+            if ($column['rule'] === 'numeric') {
+                $style->getNumberFormat()->setFormatCode('#,##0.00');
+            } elseif ($column['rule'] === 'date') {
+                // YYYY-MM-DD agar import pipeline bisa parse tanpa ambiguitas.
+                $style->getNumberFormat()->setFormatCode('YYYY-MM-DD');
+            }
+        }
+
+        // --- Instruksi di sheet kedua ---
+        $info = $spreadsheet->createSheet();
+        $info->setTitle('Petunjuk');
+        $info->setCellValue([1, 1], 'PETUNJUK PENGISIAN TEMPLATE');
+        $info->getStyle([1, 1])->getFont()->setBold(true)->setSize(12);
+        $instructions = [
+            [2, 1, 'Kolom', 2, 2, 'Format', 2, 3, 'Contoh'],
+        ];
+        $row = 2;
+        foreach ($columns as $column) {
+            $formatNote = match ($column['rule']) {
+                'numeric' => 'Angka desimal (mis. 123.45 atau 1000)',
+                'date' => 'Tanggal format YYYY-MM-DD (mis. 2026-01-31)',
+                default => 'Teks bebas',
+            };
+            $info->setCellValue([1, $row], $column['header']);
+            $info->setCellValue([2, $row], $formatNote);
+            $row++;
+        }
+        $info->setCellValue([1, $row + 1], 'Catatan: jangan ubah header baris pertama di sheet Data.');
+        $info->getColumnDimension('A')->setWidth(20);
+        $info->getColumnDimension('B')->setWidth(45);
+
+        // --- Auto-size kolom di sheet Data ---
+        $spreadsheet->setActiveSheetIndex(0);
+        for ($col = 1; $col <= $colCount; $col++) {
+            $sheet->getColumnDimensionByColumn($col)->setAutoSize(true);
+        }
+
+        $tempPath = tempnam(sys_get_temp_dir(), 'tpl_').'.xlsx';
         (new Xlsx($spreadsheet))->save($tempPath);
         $spreadsheet->disconnectWorksheets();
 
@@ -185,21 +272,61 @@ class DatasetImportService
      * Parse file menjadi array baris [nomor_baris => [kolom...]].
      * Baris 1 adalah header dan tidak ikut dikembalikan.
      *
+     * Kolom bertipe 'date' di config diperlakukan khusus: PhpSpreadsheet
+     * membaca date yang diisi via Excel date-picker sebagai serial float.
+     * Di sini kita konversi ke string Y-m-d agar pipeline validasi konsisten.
+     *
      * @return array<int, array<int, mixed>>
      */
     private function parseRows(UploadedFile $file): array
     {
         $spreadsheet = IOFactory::load($file->getRealPath());
+        $columns = config('dataset_import.columns');
+        $dateColumnIndexes = collect($columns)
+            ->keys()
+            ->filter(fn ($i) => ($columns[$i]['rule'] ?? '') === 'date')
+            ->all();
 
         try {
-            $data = $spreadsheet->getActiveSheet()->toArray(null, true, true, false);
+            $worksheet = $spreadsheet->getActiveSheet();
+            $data = [];
+
+            foreach ($worksheet->getRowIterator() as $rowIndex => $row) {
+                $cellIterator = $row->getCellIterator();
+                $cellIterator->setIterateOnlyExistingCells(false);
+                $rowData = [];
+                $colIndex = 0;
+
+                foreach ($cellIterator as $cell) {
+                    $rawValue = $cell->getValue();
+
+                    // Kolom date: konversi serial float Excel ke Y-m-d.
+                    if (in_array($colIndex, $dateColumnIndexes, true)
+                        && $rawValue !== null
+                        && $rawValue !== ''
+                        && is_numeric($rawValue)
+                    ) {
+                        try {
+                            $phpDate = Date::excelToDateTimeObject($rawValue);
+                            $rowData[] = $phpDate->format('Y-m-d');
+                        } catch (Throwable) {
+                            $rowData[] = trim((string) $rawValue);
+                        }
+                    } else {
+                        $rowData[] = $rawValue === null ? '' : trim((string) $rawValue);
+                    }
+
+                    $colIndex++;
+                }
+
+                $data[] = $rowData;
+            }
         } finally {
             $spreadsheet->disconnectWorksheets();
         }
 
-        // Buang header; indeks baris dimulai dari 2 agar cocok dengan nomor
-        // baris yang dilihat staf di Excel.
-        unset($data[0]);
+        // Buang header (index 0); nomor baris dimulai dari 2.
+        array_shift($data);
 
         $rows = [];
         foreach ($data as $index => $row) {
@@ -207,7 +334,7 @@ class DatasetImportService
             if (count(array_filter($row, fn ($cell) => $cell !== null && trim((string) $cell) !== '')) === 0) {
                 continue;
             }
-            $rows[$index + 2] = array_map(fn ($cell) => $cell === null ? '' : trim((string) $cell), $row);
+            $rows[$index + 2] = $row;
         }
 
         return $rows;
