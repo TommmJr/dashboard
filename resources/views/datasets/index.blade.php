@@ -14,7 +14,9 @@
 
 @section('content')
 <div class="mx-auto max-w-7xl px-4 py-8">
-    <div class="flex items-center justify-between">
+    <a href="{{ route('dashboard') }}" class="text-sm text-indigo-600 hover:underline">&larr; Kembali ke Dashboard</a>
+
+    <div class="mt-4 flex items-center justify-between">
         <div class="flex items-center gap-4">
             <h1 class="text-2xl font-bold text-gray-900">Datasets</h1>
             @can('dataset.import')
