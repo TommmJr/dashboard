@@ -21,7 +21,7 @@ The goal of IBS is to eliminate dependency on external tools  and manual data cl
 
 ---
 
-## Getting Started (Tutorial)
+## Getting Started 
 
 This project is containerized using Docker. You don't need to install PHP or MySQL on your local machine.
 
