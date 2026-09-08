@@ -185,4 +185,54 @@ class DatasetImportTest extends TestCase
         $editor = User::factory()->withRole(Role::EDITOR_DASHBOARD)->create();
         $this->actingAs($editor)->get(route('datasets.create'))->assertForbidden();
     }
+
+    public function test_admin_tanpa_divisi_bisa_upload_dengan_memilih_divisi(): void
+    {
+        // PRD 6.1: admin "Mengelola dataset". Karena tidak terikat divisi,
+        // admin memilih divisi tujuan; data tertaut ke divisi pilihannya.
+        $admin = User::factory()->withRole(Role::ADMIN)->create(['division_id' => null]);
+
+        $file = $this->makeXlsx($this->validRows());
+
+        $response = $this->actingAs($admin)->post(route('datasets.store'), [
+            'file' => $file,
+            'division_id' => $this->division->id,
+        ]);
+
+        // Filter by user_id to isolate this test's dataset regardless of
+        // other records that may exist in the same DB transaction scope.
+        $dataset = Dataset::where('user_id', $admin->id)->firstOrFail();
+        $response->assertRedirect(route('datasets.show', $dataset));
+        $this->assertSame(Dataset::STATUS_READY, $dataset->status);
+        $this->assertSame($this->division->id, $dataset->division_id);
+        $this->assertSame($admin->id, $dataset->user_id);
+        // Semua baris metric mengikuti divisi dataset, bukan division_id uploader (NULL).
+        $this->assertSame($this->division->id, $dataset->metrics()->value('division_id'));
+    }
+
+    public function test_admin_tanpa_memilih_divisi_ditolak_validasi(): void
+    {
+        $admin = User::factory()->withRole(Role::ADMIN)->create(['division_id' => null]);
+        $file = $this->makeXlsx($this->validRows());
+
+        $this->actingAs($admin)->post(route('datasets.store'), ['file' => $file])
+            ->assertSessionHasErrors('division_id');
+
+        $this->assertSame(0, Dataset::count());
+    }
+
+    public function test_staf_tidak_bisa_menyelipkan_division_id_lain(): void
+    {
+        // Input division_id dari staf DIABAIKAN (rule prohibited): data
+        // selalu tertaut ke divisi staf sendiri — anti scoping bypass.
+        $otherDivision = Division::factory()->create();
+        $file = $this->makeXlsx($this->validRows());
+
+        $this->actingAs($this->staff)->post(route('datasets.store'), [
+            'file' => $file,
+            'division_id' => $otherDivision->id,
+        ])->assertSessionHasErrors('division_id');
+
+        $this->assertSame(0, Dataset::count());
+    }
 }

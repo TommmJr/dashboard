@@ -82,7 +82,10 @@ class DatasetImportService
                     'value' => (float) $row[1],
                     'period' => Carbon::createFromFormat('Y-m-d', trim((string) $row[2]))->format('Y-m-d'),
                     'unit_id' => $uploader->id,
-                    'division_id' => $uploader->division_id,
+                    // Divisi pemilik data = divisi dataset (staf: divisinya
+                    // sendiri; admin: divisi yang dipilih di form). Bukan
+                    // division_id uploader yang bisa NULL pada admin.
+                    'division_id' => $dataset->division_id,
                     'dataset_id' => $dataset->id,
                     'created_at' => now(),
                     'updated_at' => now(),

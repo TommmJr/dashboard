@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Dataset;
+use App\Models\Division;
 use App\Models\Role;
 use App\Services\DatasetImportService;
 use Illuminate\Http\Request;
@@ -20,7 +21,13 @@ class DatasetController extends Controller
      */
     public function create()
     {
-        return view('datasets.create');
+        // Admin tidak terikat divisi (division_id NULL): ia memilih divisi
+        // tujuan di form. Staf otomatis divisinya sendiri, tanpa pilihan.
+        $divisions = Auth::user()->division_id === null
+            ? Division::query()->orderBy('name')->get(['id', 'name'])
+            : collect();
+
+        return view('datasets.create', compact('divisions'));
     }
 
     /**
@@ -49,11 +56,24 @@ class DatasetController extends Controller
         // mimetypes (bukan mimes): cek isi file, bukan hanya ekstensi.
         // ZIP-based (xlsx) dan teks (csv) diterima; sisanya ditolak di
         // lapisan validasi sebelum menyentuh pipeline.
+        $user = Auth::user();
+
+        // Penentu divisi pemilik dataset (dataset wajib tertaut divisi):
+        // - Staf (punya division_id): selalu divisinya sendiri — input
+        //   division_id dari request DIABAIKAN (anti scoping bypass).
+        // - Admin (division_id NULL, "Mengelola dataset" di PRD 6.1):
+        //   wajib memilih divisi tujuan lewat form.
+        $divisionRule = $user->division_id === null
+            ? 'required|exists:divisions,id'
+            : 'prohibited';
+
         $request->validate([
             'file' => "required|file|extensions:{$extensions}|mimetypes:application/zip,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain,text/csv,application/csv|max:{$maxKb}",
+            'division_id' => $divisionRule,
         ]);
 
-        $user = Auth::user();
+        $divisionId = $user->division_id ?? $request->integer('division_id');
+
         $file = $request->file('file');
 
         // Simpan file ke storage lokal (audit trail + kebutuhan delete).
@@ -61,7 +81,7 @@ class DatasetController extends Controller
         $file->storeAs('datasets', $storedName, 'local');
 
         $dataset = Dataset::create([
-            'division_id' => $user->division_id,
+            'division_id' => $divisionId,
             'user_id' => $user->id,
             'filename' => $storedName,
             'original_name' => $file->getClientOriginalName(),
