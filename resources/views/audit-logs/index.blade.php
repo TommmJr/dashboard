@@ -55,11 +55,15 @@
                                 -
                             @endif
                         </td>
-                        <td class="px-4 py-2 max-w-md truncate text-xs text-gray-600">
-                            @if ($log->new_values)
-                                {{ json_encode($log->new_values) }}
-                            @elseif ($log->old_values)
-                                <span class="text-red-600">{{ json_encode($log->old_values) }}</span>
+                        <td class="px-4 py-2 max-w-md text-xs text-gray-600">
+                            @php
+                                $sensitiveKeys = ['password', 'remember_token', 'api_token', 'api_key'];
+                                $displayValues = collect($log->new_values ?? $log->old_values ?? [])
+                                    ->except($sensitiveKeys);
+                                $isOld = empty($log->new_values) && ! empty($log->old_values);
+                            @endphp
+                            @if ($displayValues->isNotEmpty())
+                                <pre class="overflow-auto max-h-20 whitespace-pre-wrap {{ $isOld ? 'text-red-600' : '' }}">{{ $displayValues->toJson(JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) }}</pre>
                             @else
                                 -
                             @endif

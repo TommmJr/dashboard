@@ -101,6 +101,16 @@
                     const response = await fetch("{{ route('performance.data') }}", {
                         headers: { 'Accept': 'application/json' },
                     });
+
+                    if (!response.ok) {
+                        // Session expired or unauthorized — redirect to login.
+                        if (response.status === 401 || response.status === 419) {
+                            window.location.href = "{{ route('login') }}";
+                            return;
+                        }
+                        throw new Error(`HTTP ${response.status}`);
+                    }
+
                     const payload = await response.json();
 
                     this.kpi = payload.kpi;

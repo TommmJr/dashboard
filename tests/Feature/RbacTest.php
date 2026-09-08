@@ -163,28 +163,9 @@ class RbacTest extends TestCase
     }
 
     // ── Proteksi permission pada route performance ─────────────────────────────────
-
-    public function test_upload_performance_ditolak_403_tanpa_permission_dataset_import(): void
-    {
-        // Editor Dashboard tidak punya dataset.import -> harus ditolak 403.
-        $this->seed(RolePermissionSeeder::class);
-        $editor = User::factory()->withRole(Role::EDITOR_DASHBOARD)->create();
-
-        $this->actingAs($editor)
-            ->post(route('performance.upload'))
-            ->assertForbidden();
-    }
-
-    public function test_upload_performance_bisa_diakses_staf_divisi(): void
-    {
-        // Staf Divisi punya dataset.import -> boleh upload.
-        $this->seed(RolePermissionSeeder::class);
-        $staff = User::factory()->withRole(Role::STAFF_DIVISI)->create();
-
-        $this->actingAs($staff)
-            ->post(route('performance.upload'))
-            ->assertRedirect(); // validasi gagal karena tidak ada file, bukan 403
-    }
+    // NOTE: route performance.upload (PerformanceUploadController, Slice #1) sudah
+    // dinonaktifkan — digantikan sepenuhnya oleh DatasetController::store() (POST /datasets).
+    // Test otorisasi upload sekarang ada di DatasetImportTest.
 
     public function test_performance_data_api_ditolak_403_tanpa_permission_dashboard_view(): void
     {
@@ -209,6 +190,4 @@ class RbacTest extends TestCase
                 ->assertOk();
         }
     }
-
-
 }

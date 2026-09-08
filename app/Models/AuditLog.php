@@ -82,4 +82,19 @@ class AuditLog extends Model
     {
         throw new LogicException('Audit log bersifat append-only; entri tidak dapat dihapus.');
     }
+
+    /**
+     * Boot: blokir mass update/delete via Eloquent Builder (selain
+     * instance method). DB::table() masih perlu dilindungi di level DB.
+     */
+    protected static function booted(): void
+    {
+        static::updating(fn () => throw new LogicException(
+            'Audit log bersifat append-only; entri tidak dapat diubah.',
+        ));
+
+        static::deleting(fn () => throw new LogicException(
+            'Audit log bersifat append-only; entri tidak dapat dihapus.',
+        ));
+    }
 }

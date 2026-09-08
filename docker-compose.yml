@@ -23,10 +23,11 @@ services:
     container_name: plnjbt_db
     restart: unless-stopped
     environment:
-      MYSQL_DATABASE: dashboard
-      MYSQL_USER: dashboard
-      MYSQL_PASSWORD: password
-      MYSQL_ROOT_PASSWORD: root_password
+      MYSQL_DATABASE: ${DB_DATABASE:-dashboard}
+      MYSQL_USER: ${DB_USERNAME:-dashboard_app}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-password}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-change_this_in_production}
+    # Port hanya di-expose untuk dev lokal. Hapus blok ini di production.
     ports:
       - "3306:3306"
     volumes:

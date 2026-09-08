@@ -32,12 +32,13 @@ Route::middleware('auth')->group(function () {
     // Proses logout via POST (bukan GET, supaya aman dari CSRF/clickjacking).
     Route::post('/logout', [AuthController::class, 'destroy'])->name('logout');
 
-    // Jalur upload data performance (Vertical Slice #1)
-    // Proteksi permission 'dataset.import' di backend. Tanpa permission
-    // yang berhak mengunggah dataset, request ditolak dengan HTTP 403.
-    Route::middleware('can:dataset.import')
-        ->post('/performance/upload', [PerformanceUploadController::class, 'store'])
-        ->name('performance.upload');
+    // DEPRECATED: jalur upload CSV lama (Vertical Slice #1).
+    // Sudah digantikan sepenuhnya oleh DatasetController::store() (POST /datasets).
+    // Route ini dinonaktifkan agar tidak ada dua jalur import yang tidak konsisten.
+    // Uncomment hanya jika perlu backward-compat sementara.
+    // Route::middleware('can:dataset.import')
+    //     ->post('/performance/upload', [PerformanceUploadController::class, 'store'])
+    //     ->name('performance.upload');
 
     // Jalur data untuk grafik (Vertical Slice #1)
     // Proteksi permission 'dashboard.view' agar data agregat hanya dapat
@@ -81,7 +82,11 @@ Route::middleware('auth')->group(function () {
     });
 });
 
-// Route fallback: URL yang tidak dikenal diarahkan ke login.
+// Route fallback: user login -> 404; user guest -> redirect login.
 Route::fallback(function () {
+    if (auth()->check()) {
+        abort(404);
+    }
+
     return redirect()->route('login');
 });

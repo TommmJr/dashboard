@@ -11,7 +11,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
-#[Fillable(['name', 'email', 'password', 'role_id', 'division_id'])]
+// role_id dan division_id sengaja TIDAK masuk fillable untuk mencegah
+// privilege escalation via mass assignment. Keduanya hanya di-set secara
+// eksplisit dari kode yang sudah tervalidasi otorisasinya.
+#[Fillable(['name', 'email', 'password'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
@@ -67,4 +70,3 @@ class User extends Authenticatable
         return $this->role?->hasPermission($name) ?? false;
     }
 }
-    

@@ -6,7 +6,7 @@ use App\Models\User;
 use Illuminate\View\View;
 
 /**
- * Controller manajemen user (Tahap 2 RBAC).
+ * Controller manajemen user.
  *
  * Saat ini baru halaman daftar user sebagai pembuktian gate permission
  * 'user.view' (dilindungi middleware 'can:user.view' di routes/web.php).
@@ -23,7 +23,7 @@ class UserController extends Controller
         $users = User::query()
             ->with('role')
             ->orderBy('name')
-            ->get();
+            ->paginate(50);
 
         return view('users.index', ['users' => $users]);
     }

@@ -4,16 +4,17 @@ namespace Tests\Feature;
 
 use App\Models\Role;
 use App\Models\User;
-use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Tests\TestCase;
 
 /**
- * Test resmi untuk upload file CSV performance metrics.
- * Logika import sebelumnya di-test secara manual via test_csv.php (debug script
- * yang telah dihapus dari source tree). Test di sini memverifikasi fungsionalitas
- * yang sama secara otomatis.
+ * Test untuk PerformanceUploadController (Vertical Slice #1 — DEPRECATED).
+ * Route POST /performance/upload sudah dinonaktifkan dan digantikan oleh
+ * DatasetController::store() (POST /datasets). Test-test ini di-skip
+ * sampai controller lama dihapus sepenuhnya.
+ *
+ * @group legacy
  */
 class PerformanceUploadTest extends TestCase
 {
@@ -22,7 +23,7 @@ class PerformanceUploadTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->seed(RolePermissionSeeder::class);
+        $this->markTestSkipped('PerformanceUploadController deprecated — route dinonaktifkan. Lihat DatasetImportTest.');
     }
 
     /**
