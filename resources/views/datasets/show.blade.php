@@ -52,6 +52,9 @@
                                     </li>
                                 @endforeach
                             </ul>
+                            @if (! empty($dataset->validation_report['issues_truncated']))
+                                <p class="mt-1 text-xs text-gray-400">Hanya menampilkan 50 masalah pertama. Total: {{ ($dataset->validation_report['fatal'] ?? 0) + ($dataset->validation_report['warning'] ?? 0) }}.</p>
+                            @endif
                         @endif
                     </div>
                 @endif

@@ -53,7 +53,7 @@ class PerformanceChartController extends Controller
         }
 
         $rows = (clone $scoped)
-            ->selectRaw('performance_metrics.period, performance_metrics.division_id, COALESCE(divisions.name, "Tanpa Divisi") as division_name, SUM(performance_metrics.value) as total')
+            ->selectRaw("performance_metrics.period, performance_metrics.division_id, COALESCE(divisions.name, 'Tanpa Divisi') as division_name, SUM(performance_metrics.value) as total")
             ->groupBy('performance_metrics.period', 'performance_metrics.division_id', 'divisions.name')
             ->orderBy('performance_metrics.period')
             ->get();

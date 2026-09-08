@@ -139,7 +139,10 @@ class DatasetImportService
                 'ok' => $imported - $warnings,
                 'warning' => $warnings,
                 'fatal' => count($errors),
-                'issues' => $issues,
+                // Simpan maksimal 50 issue pertama; selebihnya hanya hitungan.
+                // Mencegah JSON multi-MB pada file berisi ribuan baris error.
+                'issues' => array_slice($issues, 0, 50),
+                'issues_truncated' => count($issues) > 50,
             ];
 
             if ($imported === 0) {

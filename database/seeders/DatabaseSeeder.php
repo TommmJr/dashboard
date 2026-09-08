@@ -68,7 +68,10 @@ class DatabaseSeeder extends Seeder
             $this->command->newLine();
         }
 
-        $this->seedDemoAccounts();
+        // Akun demo hanya untuk env local (guard eksplisit di caller).
+        if (app()->environment('local')) {
+            $this->seedDemoAccounts();
+        }
     }
 
     /**

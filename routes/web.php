@@ -19,8 +19,11 @@ Route::redirect('/', '/login');
 Route::middleware('guest')->group(function () {
     // Menampilkan form login.
     Route::get('/login', [AuthController::class, 'create'])->name('login');
-    // Memproses submit form login.
-    Route::post('/login', [AuthController::class, 'store'])->name('login.store');
+    // Memproses submit form login. throttle:login = max 5 percobaan per menit
+    // per IP/email (didefinisikan di RateLimiter di AppServiceProvider).
+    Route::post('/login', [AuthController::class, 'store'])
+        ->middleware('throttle:login')
+        ->name('login.store');
 });
 // Grup route yang wajib login terlebih dahulu.
 Route::middleware('auth')->group(function () {

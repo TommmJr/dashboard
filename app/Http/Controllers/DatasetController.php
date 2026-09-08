@@ -23,11 +23,14 @@ class DatasetController extends Controller
     {
         // Admin tidak terikat divisi (division_id NULL): ia memilih divisi
         // tujuan di form. Staf otomatis divisinya sendiri, tanpa pilihan.
-        $divisions = Auth::user()->division_id === null
+        // loadMissing agar tidak lazy load saat preventLazyLoading aktif.
+        $user = Auth::user()->loadMissing('division');
+
+        $divisions = $user->division_id === null
             ? Division::query()->orderBy('name')->get(['id', 'name'])
             : collect();
 
-        return view('datasets.create', compact('divisions'));
+        return view('datasets.create', compact('divisions', 'user'));
     }
 
     /**
@@ -76,15 +79,24 @@ class DatasetController extends Controller
 
         $file = $request->file('file');
 
-        // Simpan file ke storage lokal (audit trail + kebutuhan delete).
-        $storedName = Str::random(32).'.'.$file->getClientOriginalExtension();
+        // Ekstensi dari whitelist (bukan dari client) + sanitasi nama file asli
+        // agar karakter berbahaya tidak tersimpan di DB (MEDIUM-04).
+        $allowedExts = config('dataset_import.extensions', ['xlsx', 'csv']);
+        $ext = strtolower($file->getClientOriginalExtension());
+        $safeExt = in_array($ext, $allowedExts, true) ? $ext : 'bin';
+        $storedName = Str::random(32).'.'.$safeExt;
+        $safeOriginalName = mb_substr(
+            preg_replace('/[^\w\s\-_.()\p{L}]/u', '', $file->getClientOriginalName()),
+            0, 255
+        );
+
         $file->storeAs('datasets', $storedName, 'local');
 
         $dataset = Dataset::create([
             'division_id' => $divisionId,
             'user_id' => $user->id,
             'filename' => $storedName,
-            'original_name' => $file->getClientOriginalName(),
+            'original_name' => $safeOriginalName ?: 'dataset.'.$safeExt,
             'mime_type' => $file->getMimeType(),
             'size' => $file->getSize(),
             'status' => Dataset::STATUS_UPLOADING,
@@ -164,7 +176,15 @@ class DatasetController extends Controller
         }
 
         $status = $request->query('status');
-        if (is_string($status) && $status !== '') {
+        $allowedStatuses = [
+            Dataset::STATUS_UPLOADING,
+            Dataset::STATUS_VALIDATING,
+            Dataset::STATUS_READY,
+            Dataset::STATUS_FAILED,
+            Dataset::STATUS_ARCHIVED,
+        ];
+
+        if (is_string($status) && in_array($status, $allowedStatuses, true)) {
             $query->where('status', $status);
         } else {
             $query->where('status', '!=', Dataset::STATUS_ARCHIVED);
@@ -217,7 +237,19 @@ class DatasetController extends Controller
      */
     public function destroy(Dataset $dataset)
     {
-        Storage::disk('local')->delete('datasets/'.$dataset->filename);
+        $originalName = $dataset->original_name;
+        $filePath = 'datasets/'.$dataset->filename;
+
+        // Cek dan hapus file dari storage. Jika file masih ada tapi gagal
+        // dihapus, batalkan operasi agar tidak terjadi orphan record DB.
+        if (Storage::disk('local')->exists($filePath)) {
+            $deleted = Storage::disk('local')->delete($filePath);
+
+            if (! $deleted) {
+                return back()->with('error', 'Gagal menghapus file dari storage. Dataset tidak dihapus.');
+            }
+        }
+
         $dataset->delete();
 
         return redirect()

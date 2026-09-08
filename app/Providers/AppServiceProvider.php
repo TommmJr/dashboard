@@ -7,27 +7,60 @@ use App\Models\Permission;
 use App\Models\User;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Auth\Events\Logout;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\LazyLoadingViolationException;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
 {
-    /**
-     * Register any application services.
-     */
-    public function register(): void
+    public function register(): void {}
+
+    public function boot(): void
     {
-        //
+        $this->configureLazyLoading();
+        $this->registerLoginRateLimiter();
+        $this->registerPermissionGates();
+        $this->registerAuditListeners();
     }
 
     /**
-     * Bootstrap any application services.
+     * Lempar exception saat lazy loading di non-production; log warning di
+     * production. Tangkap N+1 lebih awal sebelum sampai ke user.
      */
-    public function boot(): void
+    private function configureLazyLoading(): void
     {
-        $this->registerPermissionGates();
-        $this->registerAuditListeners();
+        Model::preventLazyLoading(! app()->isProduction());
+
+        Model::handleLazyLoadingViolationUsing(function ($model, $relation) {
+            $message = "Lazy loading violation: {$model}::{$relation}";
+
+            if (app()->isProduction()) {
+                Log::warning($message);
+
+                return;
+            }
+
+            throw new LazyLoadingViolationException($model, $relation);
+        });
+    }
+
+    /**
+     * Rate limiter untuk POST /login: maksimal 5 percobaan per menit
+     * per kombinasi email+IP. Mencegah brute force password.
+     */
+    private function registerLoginRateLimiter(): void
+    {
+        RateLimiter::for('login', function (Request $request) {
+            return Limit::perMinute(5)->by(
+                (string) $request->input('email').'|'.$request->ip(),
+            );
+        });
     }
 
     /**
@@ -52,13 +85,6 @@ class AppServiceProvider extends ServiceProvider
 
     /**
      * Registrasi gate Laravel untuk setiap permission granular.
-     *
-     * Nama gate = nama permission (mis. 'dataset.import'), jadi bisa dipakai
-     * seragam di semua lapisan: middleware 'can:dataset.import' di route,
-     * Gate::authorize() di controller, dan @can('dataset.import') di Blade.
-     *
-     * Ability yang BUKAN permission terdaftar (mis. nama policy model di
-     * tahap berikutnya) dibiarkan lewat tanpa didefinisikan di sini.
      */
     private function registerPermissionGates(): void
     {

@@ -46,7 +46,7 @@
                     </select>
                 </div>
             @else
-                <p class="text-sm text-gray-600">Dataset akan tertaut ke divisi Anda: <span class="font-semibold">{{ auth()->user()->division?->name }}</span></p>
+                <p class="text-sm text-gray-600">Dataset akan tertaut ke divisi Anda: <span class="font-semibold">{{ $user->division?->name }}</span></p>
             @endif
             <input   type="file" name="file" required accept=".xlsx,.csv"
                    class="block w-full rounded border border-gray-300 p-2 text-sm">
