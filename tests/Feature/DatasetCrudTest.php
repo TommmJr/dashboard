@@ -132,7 +132,7 @@ class DatasetCrudTest extends TestCase
             ->patch(route('datasets.archive', $this->datasetA))
             ->assertRedirect(route('datasets.index'));
 
-        $this->assertSame(Dataset::STATUS_ARCHIVED, $this->datasetA->fresh()->status);
+        $this->assertSame(Dataset::STATUS_ARCHIVED, $this->datasetA->fresh()->status->value);
     }
 
     public function test_archive_oleh_staf_divisi_lain_ditolak_403(): void
@@ -141,7 +141,7 @@ class DatasetCrudTest extends TestCase
             ->patch(route('datasets.archive', $this->datasetA))
             ->assertForbidden();
 
-        $this->assertSame(Dataset::STATUS_READY, $this->datasetA->fresh()->status);
+        $this->assertSame(Dataset::STATUS_READY, $this->datasetA->fresh()->status->value);
     }
 
     public function test_archive_oleh_editor_ditolak_403(): void

@@ -73,7 +73,7 @@ class DatasetValidationTest extends TestCase
             ['Biaya', '50', '2026-01-31'],
         ]);
 
-        $this->assertSame(Dataset::STATUS_READY, $dataset->status);
+        $this->assertSame(Dataset::STATUS_READY, $dataset->status->value);
         $this->assertSame(2, $dataset->metrics()->count()); // second Penjualan skipped
 
         $report = $dataset->validation_report;
@@ -92,7 +92,7 @@ class DatasetValidationTest extends TestCase
             ['', '10', '2026-03-31'],            // empty metric_name
         ]);
 
-        $this->assertSame(Dataset::STATUS_READY, $dataset->status);
+        $this->assertSame(Dataset::STATUS_READY, $dataset->status->value);
         $this->assertSame(1, $dataset->metrics()->count());
 
         $report = $dataset->validation_report;
@@ -111,7 +111,7 @@ class DatasetValidationTest extends TestCase
 
         $dataset = $this->upload($rows);
 
-        $this->assertSame(Dataset::STATUS_READY, $dataset->status);
+        $this->assertSame(Dataset::STATUS_READY, $dataset->status->value);
         // Outlier row is imported, not skipped.
         $this->assertSame(11, $dataset->metrics()->count());
 
@@ -134,7 +134,7 @@ class DatasetValidationTest extends TestCase
 
         $dataset = $this->upload($rows);
 
-        $this->assertSame(Dataset::STATUS_READY, $dataset->status);
+        $this->assertSame(Dataset::STATUS_READY, $dataset->status->value);
         $this->assertSame(21, $dataset->metrics()->count()); // outlier kept
         $this->assertGreaterThanOrEqual(1, $dataset->validation_report['warning']);
     }

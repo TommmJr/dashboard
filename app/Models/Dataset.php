@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\DatasetStatus;
 use App\Models\Concerns\Auditable;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -12,7 +13,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 /**
  * Model Dataset - satu file unggahan (Excel/CSV) berisi data kinerja.
  *
- * Lifecycle status:
+ * Lifecycle status (lihat App\Enums\DatasetStatus):
  * - UPLOADING  : file baru diterima, belum diproses.
  * - VALIDATING : baris sedang divalidasi & diimpor.
  * - READY      : valid, masuk agregasi chart.
@@ -25,19 +26,22 @@ class Dataset extends Model
 {
     use Auditable, HasFactory;
 
-    public const STATUS_UPLOADING = 'UPLOADING';
+    // Backward-compatible constants — delegate ke enum agar kode yang
+    // masih pakai Dataset::STATUS_* tidak perlu diubah sekaligus.
+    public const STATUS_UPLOADING = DatasetStatus::UPLOADING->value;
 
-    public const STATUS_VALIDATING = 'VALIDATING';
+    public const STATUS_VALIDATING = DatasetStatus::VALIDATING->value;
 
-    public const STATUS_READY = 'READY';
+    public const STATUS_READY = DatasetStatus::READY->value;
 
-    public const STATUS_FAILED = 'FAILED';
+    public const STATUS_FAILED = DatasetStatus::FAILED->value;
 
-    public const STATUS_ARCHIVED = 'ARCHIVED';
+    public const STATUS_ARCHIVED = DatasetStatus::ARCHIVED->value;
 
     protected $casts = [
         'size' => 'integer',
         'validation_report' => 'array',
+        'status' => DatasetStatus::class,
     ];
 
     /**
@@ -45,7 +49,7 @@ class Dataset extends Model
      */
     public function scopeChartable($query)
     {
-        return $query->where('status', self::STATUS_READY);
+        return $query->where('status', DatasetStatus::READY);
     }
 
     public function division(): BelongsTo

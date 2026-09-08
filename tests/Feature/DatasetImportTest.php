@@ -78,7 +78,7 @@ class DatasetImportTest extends TestCase
         $dataset = Dataset::sole();
 
         $response->assertRedirect(route('datasets.show', $dataset));
-        $this->assertSame(Dataset::STATUS_READY, $dataset->status);
+        $this->assertSame(Dataset::STATUS_READY, $dataset->status->value);
         $this->assertSame($this->division->id, $dataset->division_id);
         $this->assertSame($this->staff->id, $dataset->user_id);
         $this->assertSame('laporan.xlsx', $dataset->original_name);
@@ -114,7 +114,7 @@ class DatasetImportTest extends TestCase
 
         $dataset = Dataset::sole();
         $response->assertRedirect(route('datasets.show', $dataset));
-        $this->assertSame(Dataset::STATUS_READY, $dataset->status);
+        $this->assertSame(Dataset::STATUS_READY, $dataset->status->value);
         $this->assertSame(2, $dataset->metrics()->count()); // hanya 2 baris valid
         // Flash message melaporkan jumlah baris yang dilewati.
         $response->assertSessionHas('success', fn ($msg) => str_contains($msg, '3 baris dilewati'));
@@ -131,7 +131,7 @@ class DatasetImportTest extends TestCase
         $this->actingAs($this->staff)->post(route('datasets.store'), ['file' => $file]);
 
         $dataset = Dataset::sole();
-        $this->assertSame(Dataset::STATUS_FAILED, $dataset->status);
+        $this->assertSame(Dataset::STATUS_FAILED, $dataset->status->value);
         $this->assertNotEmpty($dataset->error_message);
         $this->assertSame(0, $dataset->metrics()->count());
     }
@@ -151,7 +151,7 @@ class DatasetImportTest extends TestCase
         $this->actingAs($this->staff)->post(route('datasets.store'), ['file' => $file]);
 
         $dataset = Dataset::sole();
-        $this->assertSame(Dataset::STATUS_FAILED, $dataset->status);
+        $this->assertSame(Dataset::STATUS_FAILED, $dataset->status->value);
         $this->assertNotEmpty($dataset->error_message);
     }
 
@@ -203,7 +203,7 @@ class DatasetImportTest extends TestCase
         // other records that may exist in the same DB transaction scope.
         $dataset = Dataset::where('user_id', $admin->id)->firstOrFail();
         $response->assertRedirect(route('datasets.show', $dataset));
-        $this->assertSame(Dataset::STATUS_READY, $dataset->status);
+        $this->assertSame(Dataset::STATUS_READY, $dataset->status->value);
         $this->assertSame($this->division->id, $dataset->division_id);
         $this->assertSame($admin->id, $dataset->user_id);
         // Semua baris metric mengikuti divisi dataset, bukan division_id uploader (NULL).

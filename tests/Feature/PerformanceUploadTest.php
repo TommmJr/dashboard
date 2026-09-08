@@ -2,13 +2,11 @@
 
 namespace Tests\Feature;
 
-use App\Models\PerformanceMetric;
 use App\Models\Role;
 use App\Models\User;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\Log;
 use Tests\TestCase;
 
 /**
@@ -33,6 +31,7 @@ class PerformanceUploadTest extends TestCase
     private function actingAsStaff(): User
     {
         $staff = User::factory()->withRole(Role::STAFF_DIVISI)->create();
+
         return $staff;
     }
 
@@ -51,7 +50,7 @@ class PerformanceUploadTest extends TestCase
         $this->assertDatabaseCount('performance_metrics', 1);
         $this->assertDatabaseHas('performance_metrics', [
             'metric_name' => 'Pendapatan',
-            'period' => '2026-01-15 00:00:00',
+            'period' => '2026-01-15',
         ]);
     }
 

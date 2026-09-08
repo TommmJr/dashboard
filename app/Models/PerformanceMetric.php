@@ -17,7 +17,10 @@ class PerformanceMetric extends Model
     {
         return [
             'value' => 'decimal:2',
-            'period' => 'date',
+            // 'date:Y-m-d' menyimpan + mengembalikan string Y-m-d tanpa
+            // konversi timezone (berbeda dari 'date' yang dianggap UTC).
+            // Mencegah geser tanggal di env Asia/Jakarta.
+            'period' => 'date:Y-m-d',
         ];
     }
 

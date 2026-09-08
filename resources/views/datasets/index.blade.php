@@ -2,16 +2,6 @@
 
 @section('title', 'Datasets')
 
-@php
-    $statusBadge = [
-        'UPLOADING' => 'bg-gray-200 text-gray-700',
-        'VALIDATING' => 'bg-yellow-100 text-yellow-800',
-        'READY' => 'bg-green-100 text-green-800',
-        'FAILED' => 'bg-red-100 text-red-800',
-        'ARCHIVED' => 'bg-gray-400 text-white',
-    ];
-@endphp
-
 @section('content')
 <div class="mx-auto max-w-7xl px-4 py-8">
     <a href="{{ route('dashboard') }}" class="text-sm text-indigo-600 hover:underline">&larr; Kembali ke Dashboard</a>
@@ -67,15 +57,13 @@
                         <td class="px-4 py-3">{{ $dataset->user?->name ?? '-' }}</td>
                         <td class="px-4 py-3">{{ number_format($dataset->size / 1024, 1) }} KB</td>
                         <td class="px-4 py-3">
-                            <span class="rounded-full px-2 py-1 text-xs font-semibold {{ $statusBadge[$dataset->status] ?? 'bg-gray-200' }}">
-                                {{ $dataset->status }}
-                            </span>
+                            <x-dataset-status-badge :status="$dataset->status->value" />
                         </td>
                         <td class="px-4 py-3">{{ $dataset->created_at->format('d M Y H:i') }}</td>
                         <td class="px-4 py-3">
                             <div class="flex gap-2">
                                 @can('dataset.update')
-                                    @if ($dataset->status !== 'ARCHIVED')
+                                    @if ($dataset->status !== \App\Enums\DatasetStatus::ARCHIVED)
                                         <form method="POST" action="{{ route('datasets.archive', $dataset) }}"
                                               onsubmit="return confirm('Arsipkan dataset ini? Data keluar dari chart tetapi tetap tersimpan.');">
                                             @csrf @method('PATCH')
