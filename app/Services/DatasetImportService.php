@@ -227,8 +227,11 @@ class DatasetImportService
             if ($column['rule'] === 'numeric') {
                 $style->getNumberFormat()->setFormatCode('#,##0.00');
             } elseif ($column['rule'] === 'date') {
-                // YYYY-MM-DD agar import pipeline bisa parse tanpa ambiguitas.
-                $style->getNumberFormat()->setFormatCode('YYYY-MM-DD');
+                // DD/MM/YYYY — format familiar staf Indonesia. Parser
+                // tetap menerima kedua format (serial float dari date-picker
+                // maupun string Y-m-d dari CSV) karena konversi dilakukan
+                // di parseRows sebelum validasi.
+                $style->getNumberFormat()->setFormatCode('DD/MM/YYYY');
             }
         }
 
@@ -244,7 +247,7 @@ class DatasetImportService
         foreach ($columns as $column) {
             $formatNote = match ($column['rule']) {
                 'numeric' => 'Angka desimal (mis. 123.45 atau 1000)',
-                'date' => 'Tanggal format YYYY-MM-DD (mis. 2026-01-31)',
+                'date' => 'Tanggal format DD/MM/YYYY (mis. 31/01/2026)',
                 default => 'Teks bebas',
             };
             $info->setCellValue([1, $row], $column['header']);
@@ -313,7 +316,16 @@ class DatasetImportService
                             $rowData[] = trim((string) $rawValue);
                         }
                     } else {
-                        $rowData[] = $rawValue === null ? '' : trim((string) $rawValue);
+                        $strValue = $rawValue === null ? '' : trim((string) $rawValue);
+
+                        // Kolom date: string DD/MM/YYYY atau YYYY-MM-DD sama-sama
+                        // di-normalize ke Y-m-d agar pipeline validasi konsisten.
+                        if (in_array($colIndex, $dateColumnIndexes, true) && $strValue !== '') {
+                            $normalized = $this->normalizeDate($strValue);
+                            $rowData[] = $normalized ?? $strValue;
+                        } else {
+                            $rowData[] = $strValue;
+                        }
                     }
 
                     $colIndex++;
@@ -374,20 +386,46 @@ class DatasetImportService
     }
 
     /**
-     * Validasi tanggal ketat Y-m-d, anti silent-rolling: Carbon::parse
-     * biasa akan menggulung "2026-13-40" ke tanggal valid lain; createFromFormat
-     * + hasFormatWithModifiers memastikan input persis sesuai format.
+     * Validasi tanggal — terima dua format:
+     * - DD/MM/YYYY (format template, familiar staf Indonesia)
+     * - YYYY-MM-DD (format ISO, untuk CSV manual atau export lain)
+     *
+     * Keduanya di-normalize ke Y-m-d sebelum disimpan. Anti silent-rolling:
+     * round-trip format harus identik dengan input.
      */
     private function isValidDate(string $value): bool
     {
+        return $this->normalizeDate($value) !== null;
+    }
+
+    /**
+     * Normalisasi string tanggal ke Y-m-d.
+     * Kembalikan null bila format tidak dikenali atau tanggal tidak valid.
+     */
+    private function normalizeDate(string $value): ?string
+    {
+        // Format 1: DD/MM/YYYY (dari template Excel dengan format DD/MM/YYYY)
+        if (preg_match('/^\d{2}\/\d{2}\/\d{4}$/', $value)) {
+            try {
+                $date = Carbon::createFromFormat('d/m/Y', $value);
+                if ($date !== false && $date->format('d/m/Y') === $value) {
+                    return $date->format('Y-m-d');
+                }
+            } catch (Throwable) {
+            }
+
+            return null;
+        }
+
+        // Format 2: YYYY-MM-DD (ISO, untuk CSV atau input manual)
         try {
             $date = Carbon::createFromFormat('Y-m-d', $value);
         } catch (Throwable) {
-            return false;
+            return null;
         }
 
-        // Double-check: hasil parse harus memformat balik persis ke input.
-        // Ini menolak silent-rolling seperti 2026-13-40 atau 2026-02-30.
-        return $date !== false && $date->format('Y-m-d') === $value;
+        return ($date !== false && $date->format('Y-m-d') === $value)
+            ? $value
+            : null;
     }
 }
