@@ -35,6 +35,7 @@ class RolePermissionSeeder extends Seeder
                 'dashboard.view',
                 'dataset.view',
                 'audit.view',
+                'audit.view_all',
                 'report.export',
             ],
 
@@ -43,7 +44,7 @@ class RolePermissionSeeder extends Seeder
                 'dashboard.create',
                 'dashboard.update',
                 'dashboard.publish',
-                'dataset.view', 
+                'dataset.view',
                 'audit.view',
                 'report.export',
             ],
@@ -88,7 +89,7 @@ class RolePermissionSeeder extends Seeder
             $role->permissions()->sync(
                 Permission::whereIn('name', self::matrix()[$slug])->pluck('id'),
             );
-        
+
         }
     }
 }

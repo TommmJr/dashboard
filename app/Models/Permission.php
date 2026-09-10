@@ -44,7 +44,8 @@ class Permission extends Model
         'dashboard.publish' => 'Mempublikasikan dashboard ke pembaca',
 
         // Lain-lain.
-        'audit.view' => 'Melihat riwayat perubahan data (audit log)',
+        'audit.view' => 'Melihat riwayat perubahan data (audit log); tanpa audit.view_all hanya entri perubahan data (dataset & metrik)',
+        'audit.view_all' => 'Melihat SELURUH audit log termasuk aktivitas non-data (login, perubahan user)',
         'report.export' => 'Mengunduh laporan (PDF/Excel)',
     ];
 

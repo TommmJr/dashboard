@@ -6,6 +6,11 @@
 <div class="mx-auto max-w-7xl px-4 py-8">
     <h1 class="text-2xl font-bold text-primary">Audit Log</h1>
     <p class="mt-1 text-sm text-gray-600">Riwayat perubahan data </p>
+    @if ($dataOnly ?? false)
+        <p class="mt-1 text-xs text-gray-500">
+            Menampilkan perubahan data saja (dataset &amp; baris data kinerja).
+        </p>
+    @endif
 
     <form method="GET" class="mt-4 flex flex-wrap items-end gap-3 text-sm">
         <div>
@@ -13,7 +18,7 @@
             <select id="action" name="action" class="rounded-md border-gray-300 text-sm">
                 <option value="">Semua</option>
                 @foreach ($actions as $action)
-                    <option value="{{ $action }}" @selected(request('action') === $action)>{{ $action }}</option>
+                    <option value="{{ $action }}" @selected(request('action') === $action)>{{ App\Services\AuditLogFormatter::actionLabel($action) }}</option>
                 @endforeach
             </select>
         </div>
@@ -46,27 +51,15 @@
                         <td class="px-4 py-2 whitespace-nowrap">{{ $log->created_at->format('d M Y H:i:s') }}</td>
                         <td class="px-4 py-2">{{ $log->user?->name ?? '-' }}</td>
                         <td class="px-4 py-2">
-                            <span class="rounded-full bg-surface px-2 py-0.5 text-xs font-semibold text-primary">{{ $log->action }}</span>
+                            <span class="rounded-full bg-surface px-2 py-0.5 text-xs font-semibold text-primary" title="{{ $log->action }}">
+                                {{ App\Services\AuditLogFormatter::actionLabel($log->action) }}
+                            </span>
                         </td>
                         <td class="px-4 py-2">
-                            @if ($log->auditable_type)
-                                {{ class_basename($log->auditable_type) }} #{{ $log->auditable_id }}
-                            @else
-                                -
-                            @endif
+                            {{ App\Services\AuditLogFormatter::objectLabel($log) }}
                         </td>
-                        <td class="px-4 py-2 max-w-md text-xs text-gray-600">
-                            @php
-                                $sensitiveKeys = ['password', 'remember_token', 'api_token', 'api_key'];
-                                $displayValues = collect($log->new_values ?? $log->old_values ?? [])
-                                    ->except($sensitiveKeys);
-                                $isOld = empty($log->new_values) && ! empty($log->old_values);
-                            @endphp
-                            @if ($displayValues->isNotEmpty())
-                                <pre class="overflow-auto max-h-20 whitespace-pre-wrap {{ $isOld ? 'text-red-600' : '' }}">{{ $displayValues->toJson(JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) }}</pre>
-                            @else
-                                -
-                            @endif
+                        <td class="px-4 py-2 max-w-md text-xs">
+                            <x-audit-values :log="$log" />
                         </td>
                         <td class="px-4 py-2 text-xs text-gray-500">{{ $log->ip ?? '-' }}</td>
                     </tr>

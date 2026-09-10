@@ -1,0 +1,132 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\AuditLog;
+use App\Models\Dataset;
+use App\Models\Division;
+use App\Models\PerformanceMetric;
+use App\Models\Role;
+use App\Models\User;
+use Database\Seeders\RolePermissionSeeder;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
+
+/**
+ * Scoping halaman audit log per permission (matriks User Roles baris 70):
+ * - Admin & Management (audit.view_all): melihat SELURUH entri, termasuk
+ *   aktivitas non-data (login, perubahan user).
+ * - Editor Dashboard / IT (audit.view saja): HANYA entri perubahan data
+ *   (Dataset & PerformanceMetric) — "cuma liat perubahan datasetnya aja
+ *   biar tim IT tau apa yang harus dibuat".
+ * - Staf divisi: tetap 403 (tanpa audit.view).
+ */
+class AuditLogScopingTest extends TestCase
+{
+    use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->seed(RolePermissionSeeder::class);
+    }
+
+    /**
+     * Buat satu entri perubahan data (UPDATE dataset READY -> ARCHIVED)
+     * dan satu entri non-data (LOGIN) sebagai pembanding.
+     *
+     * @return array{0: Dataset, 1: AuditLog, 2: AuditLog} [dataset, entriData, entriLogin]
+     */
+    private function seedAuditEntries(): array
+    {
+        $dataset = Dataset::factory()->create([
+            'status' => Dataset::STATUS_READY,
+            'division_id' => Division::factory()->create()->id,
+        ]);
+
+        $dataEntry = AuditLog::record(
+            AuditLog::ACTION_UPDATE,
+            $dataset,
+            ['status' => Dataset::STATUS_READY],
+            ['status' => Dataset::STATUS_ARCHIVED],
+        );
+
+        $loginEntry = AuditLog::record(AuditLog::ACTION_LOGIN, null, null, null, $dataset->user_id);
+
+        return [$dataset, $dataEntry, $loginEntry];
+    }
+
+    public function test_editor_dashboard_hanya_melihat_entri_perubahan_data(): void
+    {
+        [$dataset, $dataEntry] = $this->seedAuditEntries();
+        $editor = User::factory()->withRole(Role::EDITOR_DASHBOARD)->create();
+
+        $response = $this->actingAs($editor)
+            ->get(route('audit-logs.index'))
+            ->assertOk();
+
+        // Entri perubahan dataset tampil, dengan diff readable lama -> baru.
+        $response->assertSee('Dataset #'.$dataset->id);
+        $response->assertSee(Dataset::STATUS_READY);
+        $response->assertSee(Dataset::STATUS_ARCHIVED);
+
+        // Entri LOGIN TIDAK boleh terlihat oleh editor (label aksi "Masuk"
+        // maupun objek "Aktivitas akun" absen total dari halaman).
+        $response->assertDontSee('Aktivitas akun');
+        $response->assertDontSee('Masuk');
+        $response->assertSee('perubahan data saja');
+    }
+
+    public function test_admin_dan_management_melihat_seluruh_entri(): void
+    {
+        [$dataset] = $this->seedAuditEntries();
+
+        foreach ([Role::ADMIN, Role::MANAGEMENT] as $slug) {
+            $user = User::factory()->withRole($slug)->create();
+
+            $response = $this->actingAs($user)
+                ->get(route('audit-logs.index'))
+                ->assertOk();
+
+            $response->assertSee('Dataset #'.$dataset->id);
+            $response->assertSee('Aktivitas akun');
+            $response->assertSee('Masuk');
+        }
+    }
+
+    public function test_entri_metric_juga_terlihat_oleh_editor(): void
+    {
+        $division = Division::factory()->create();
+        $dataset = Dataset::factory()->create(['division_id' => $division->id]);
+        $metric = PerformanceMetric::create([
+            'metric_name' => 'Pendapatan',
+            'value' => 100,
+            'period' => '2026-01-15',
+            'division_id' => $division->id,
+            'dataset_id' => $dataset->id,
+        ]);
+
+        AuditLog::record(
+            AuditLog::ACTION_UPDATE,
+            $metric,
+            ['value' => 100],
+            ['value' => 250],
+        );
+
+        $editor = User::factory()->withRole(Role::EDITOR_DASHBOARD)->create();
+
+        $response = $this->actingAs($editor)
+            ->get(route('audit-logs.index'))
+            ->assertOk();
+
+        $response->assertSee('Baris data kinerja #'.$metric->id);
+        $response->assertSee('250');
+    }
+
+    public function test_staf_divisi_tetap_ditolak_403(): void
+    {
+        $staff = User::factory()->withRole(Role::STAFF_DIVISI)->create();
+
+        $this->actingAs($staff)->get(route('audit-logs.index'))->assertForbidden();
+    }
+}

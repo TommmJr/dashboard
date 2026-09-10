@@ -18,6 +18,8 @@
                     <th class="px-4 py-3">Waktu</th>
                     <th class="px-4 py-3">User</th>
                     <th class="px-4 py-3">Aksi</th>
+                    <th class="px-4 py-3">Objek</th>
+                    <th class="px-4 py-3">Perubahan</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-gray-100">
@@ -26,11 +28,17 @@
                         <td class="px-4 py-2 whitespace-nowrap">{{ $log->created_at?->diffForHumans() ?? '-' }}</td>
                         <td class="px-4 py-2">{{ $log->user?->name ?? '-' }}</td>
                         <td class="px-4 py-2">
-                            <span class="rounded-full bg-surface px-2 py-0.5 text-xs font-semibold text-primary">{{ $log->action }}</span>
+                            <span class="rounded-full bg-surface px-2 py-0.5 text-xs font-semibold text-primary" title="{{ $log->action }}">
+                                {{ App\Services\AuditLogFormatter::actionLabel($log->action) }}
+                            </span>
+                        </td>
+                        <td class="px-4 py-2 whitespace-nowrap">{{ App\Services\AuditLogFormatter::objectLabel($log) }}</td>
+                        <td class="px-4 py-2 max-w-md text-xs">
+                            <x-audit-values :log="$log" />
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="3" class="px-4 py-6 text-center text-gray-500">Belum ada entri audit.</td></tr>
+                    <tr><td colspan="5" class="px-4 py-6 text-center text-gray-500">Belum ada entri audit.</td></tr>
                 @endforelse
             </tbody>
         </table>
