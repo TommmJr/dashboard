@@ -4,7 +4,6 @@ use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DatasetController;
 use App\Http\Controllers\PerformanceChartController;
-use App\Http\Controllers\PerformanceUploadController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -31,14 +30,6 @@ Route::middleware('auth')->group(function () {
     Route::get('/dashboard', [AuthController::class, 'dashboard'])->name('dashboard');
     // Proses logout via POST (bukan GET, supaya aman dari CSRF/clickjacking).
     Route::post('/logout', [AuthController::class, 'destroy'])->name('logout');
-
-    // DEPRECATED: jalur upload CSV lama (Vertical Slice #1).
-    // Sudah digantikan sepenuhnya oleh DatasetController::store() (POST /datasets).
-    // Route ini dinonaktifkan agar tidak ada dua jalur import yang tidak konsisten.
-    // Uncomment hanya jika perlu backward-compat sementara.
-    // Route::middleware('can:dataset.import')
-    //     ->post('/performance/upload', [PerformanceUploadController::class, 'store'])
-    //     ->name('performance.upload');
 
     // Jalur data untuk grafik (Vertical Slice #1)
     // Proteksi permission 'dashboard.view' agar data agregat hanya dapat
@@ -82,10 +73,10 @@ Route::middleware('auth')->group(function () {
     });
 });
 
-// Route fallback: user login -> 404; user guest -> redirect login.
+// Route fallback: user login -> redirect dashboard; user guest -> redirect login.
 Route::fallback(function () {
     if (auth()->check()) {
-        abort(404);
+        return redirect()->route('dashboard');
     }
 
     return redirect()->route('login');

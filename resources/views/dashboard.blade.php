@@ -11,40 +11,13 @@
 @section('title', 'Dashboard')
 
 @section('content')
-<nav class="bg-white shadow">
-    <div class="mx-auto flex max-w-7xl items-center justify-between px-4 py-3">
-        <span class="font-semibold text-gray-900">Dashboard</span>
-        <div class="flex items-center gap-4">
-            <span class="text-sm text-gray-600">{{ auth()->user()->name }}</span>
-            <form method="POST" action="{{ route('logout') }}" onsubmit="return confirm('Yakin ingin logout?');">
-                @csrf
-                <button type="submit" class="text-sm text-gray-600 hover:text-gray-900">Log out</button>
-            </form>
-        </div>
-    </div>
-</nav>
-
-<div class="mx-auto max-w-7xl px-4 py-8" x-data="performanceDashboard()" x-init="load()">
+<div class="mx-auto max-w-7xl" x-data="performanceDashboard()" x-init="load()">
     <div class="flex items-center gap-3">
         <h1 class="text-2xl font-bold text-primary">Welcome, {{ auth()->user()->name }}</h1>
+
         @if (auth()->user()->role)
             <span class="inline-flex rounded-full bg-surface px-2.5 py-0.5 text-xs font-medium text-primary">{{ auth()->user()->role->name }}</span>
         @endif
-    </div>
-
-    <div class="mt-6 flex flex-wrap gap-3">
-        @can('user.view')
-            <a href="{{ route('users.index') }}" class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700">Manage users</a>
-        @endcan
-        @can('dataset.view')
-            <a href="{{ route('datasets.index') }}" class="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-accent">Datasets</a>
-        @endcan
-        @can('dataset.import')
-            <a href="{{ route('datasets.create') }}" class="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-primary">Upload data</a>
-        @endcan
-        @can('dashboard.update')
-            <span class="rounded-lg bg-muted px-4 py-2 text-sm font-medium text-gray-500">Edit dashboard (menyusul, Tahap 6)</span>
-        @endcan
     </div>
 
     {{-- KPI cards --}}
@@ -67,11 +40,11 @@
     <div class="mt-8 rounded-lg bg-white p-6 shadow">
         <h3 class="text-lg font-bold text-primary">Performance Trends</h3>
 
-        <div x-show="loading" class="mt-6 flex h-72 items-center justify-center text-sm text-gray-500">
+        <div x-show="loading" class="mt-6 flex h-80 items-center justify-center text-sm text-gray-500 sm:h-96 lg:h-[32rem]">
             Memuat data chart...
         </div>
 
-        <div x-show="!loading && empty" x-cloak class="mt-6 flex h-72 flex-col items-center justify-center gap-2 text-sm text-gray-500">
+        <div x-show="!loading && empty" x-cloak class="mt-6 flex h-80 flex-col items-center justify-center gap-2 text-sm text-gray-500 sm:h-96 lg:h-[32rem]">
             <p>Belum ada data kinerja yang aktif.</p>
             @can('dataset.import')
                 <a href="{{ route('datasets.create') }}" class="text-accent hover:underline">Upload dataset pertama</a>
@@ -79,7 +52,7 @@
         </div>
 
         <div x-show="!loading && !empty" x-cloak class="mt-4">
-            <div id="performanceChart" class="h-80 w-full"></div>
+            <div id="performanceChart" class="h-80 w-full sm:h-96 lg:h-[32rem]"></div>
         </div>
     </div>
 </div>

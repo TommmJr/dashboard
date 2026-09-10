@@ -5,7 +5,7 @@
 @section('content')
 <div class="mx-auto max-w-7xl px-4 py-8">
     <h1 class="text-2xl font-bold text-primary">Audit Log</h1>
-    <p class="mt-1 text-sm text-gray-600">Riwayat perubahan data (append-only; entri tidak dapat diubah atau dihapus).</p>
+    <p class="mt-1 text-sm text-gray-600">Riwayat perubahan data </p>
 
     <form method="GET" class="mt-4 flex flex-wrap items-end gap-3 text-sm">
         <div>

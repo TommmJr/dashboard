@@ -7,23 +7,7 @@
 @section('title', 'Users')
 
 @section('content')
-<nav class="bg-white shadow">
-    <div class="mx-auto flex max-w-7xl items-center justify-between px-4 py-3">
-        <div class="flex items-center gap-4">
-            <a href="{{ route('dashboard') }}" class="font-semibold text-gray-900 hover:text-gray-600">Dashboard</a>
-            <span class="font-semibold text-gray-900">Users</span>
-        </div>
-        <div class="flex items-center gap-4">
-            <span class="text-sm text-gray-600">{{ auth()->user()->name }}</span>
-            <form method="POST" action="{{ route('logout') }}">
-                @csrf
-                <button type="submit" class="text-sm text-gray-600 hover:text-gray-900">Log out</button>
-            </form>
-        </div>
-    </div>
-</nav>
-
-<div class="mx-auto max-w-7xl px-4 py-8">
+<div class="mx-auto max-w-7xl">
     <h1 class="text-2xl font-bold text-gray-900">Users</h1>
     <p class="mt-2 mb-6 text-sm text-gray-600">Daftar semua pengguna aplikasi beserta perannya.</p>
 

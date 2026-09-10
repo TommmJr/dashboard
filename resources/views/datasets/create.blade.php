@@ -9,10 +9,6 @@
     <div class="mt-4 rounded-lg bg-white p-6 shadow">
         <div class="flex items-center justify-between">
             <h1 class="text-xl font-bold text-gray-900">Upload Dataset Baru</h1>
-            <a href="{{ route('datasets.index') }}"
-               class="rounded bg-gray-200 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-300">
-                &larr; Kembali
-            </a>
         </div>
         <p class="mt-2 text-sm text-gray-600">
             Gunakan template generik. Kolom wajib: <code class="rounded bg-gray-100 px-1">metric_name</code>,

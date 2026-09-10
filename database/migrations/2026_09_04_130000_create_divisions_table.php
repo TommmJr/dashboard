@@ -19,6 +19,13 @@ return new class extends Migration
 
     public function down(): void
     {
+        // Drop FK on users.division_id before dropping the divisions table
+        // to avoid constraint violations on MySQL during rollback.
+        Schema::table('users', function (Blueprint $table) {
+            $table->dropForeign(['division_id']);
+            $table->dropColumn('division_id');
+        });
+
         Schema::dropIfExists('divisions');
     }
 };
