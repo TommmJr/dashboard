@@ -162,7 +162,7 @@ class RbacTest extends TestCase
         }
     }
 
-    // ── Proteksi permission pada route performance ─────────────────────────────────
+    //  Proteksi permission pada route performance
     // NOTE: route performance.upload (PerformanceUploadController, Slice #1) sudah
     // dinonaktifkan — digantikan sepenuhnya oleh DatasetController::store() (POST /datasets).
     // Test otorisasi upload sekarang ada di DatasetImportTest.

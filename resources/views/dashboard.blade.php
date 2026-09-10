@@ -1,9 +1,13 @@
 {{--
     Halaman Dashboard (halaman utama setelah login).
     - Dilindungi middleware 'auth', jadi hanya user yang login yang bisa lihat.
-    - Chart ECharts (bar + line) + KPI card diisi data riil dari
-      GET /api/performance-data (scoping per divisi ditegakkan backend;
-      dataset ARCHIVED tidak dihitung).
+    - Daftar widget ditentukan DashboardController dari
+      config/dashboard_layouts.php (per role, difilter Gate di backend),
+      lalu di-render via SATU loop x-dynamic-component ke komponen di
+      resources/views/components/widgets/.
+    - State Alpine performanceDashboard() tetap di wrapper file ini:
+      widget kpi-summary & trend-chart berbagi SATU fetch bersama dari
+      GET /api/performance-data (sengaja tidak dipecah per widget).
     - Tombol logout memakai POST + @csrf (aman dari CSRF / clickjacking).
 --}}
 @extends('layouts.app')
@@ -20,41 +24,10 @@
         @endif
     </div>
 
-    {{-- KPI cards --}}
-    <div class="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div class="rounded-lg bg-surface p-5 shadow">
-            <p class="text-sm text-gray-600">Total Nilai Kinerja</p>
-            <p class="mt-1 text-2xl font-bold text-primary" x-text="kpi ? formatNumber(kpi.total_value) : '-'"></p>
-        </div>
-        <div class="rounded-lg bg-surface p-5 shadow">
-            <p class="text-sm text-gray-600">Dataset READY</p>
-            <p class="mt-1 text-2xl font-bold text-primary" x-text="kpi ? kpi.ready_datasets : '-'"></p>
-        </div>
-        <div class="rounded-lg bg-surface p-5 shadow">
-            <p class="text-sm text-gray-600">Baris Data Aktif</p>
-            <p class="mt-1 text-2xl font-bold text-primary" x-text="kpi ? kpi.metric_count : '-'"></p>
-        </div>
-    </div>
-
-    {{-- Area chart ECharts --}}
-    <div class="mt-8 rounded-lg bg-white p-6 shadow">
-        <h3 class="text-lg font-bold text-primary">Performance Trends</h3>
-
-        <div x-show="loading" class="mt-6 flex h-80 items-center justify-center text-sm text-gray-500 sm:h-96 lg:h-[32rem]">
-            Memuat data chart...
-        </div>
-
-        <div x-show="!loading && empty" x-cloak class="mt-6 flex h-80 flex-col items-center justify-center gap-2 text-sm text-gray-500 sm:h-96 lg:h-[32rem]">
-            <p>Belum ada data kinerja yang aktif.</p>
-            @can('dataset.import')
-                <a href="{{ route('datasets.create') }}" class="text-accent hover:underline">Upload dataset pertama</a>
-            @endcan
-        </div>
-
-        <div x-show="!loading && !empty" x-cloak class="mt-4">
-            <div id="performanceChart" class="h-80 w-full sm:h-96 lg:h-[32rem]"></div>
-        </div>
-    </div>
+    {{-- Widget per role: satu loop generik, urutan & komposisi dari config. --}}
+    @foreach ($widgets as $widget)
+        <x-dynamic-component :component="$widget['view']" :widget="$widget" :data="$widget['data'] ?? null" />
+    @endforeach
 </div>
 
 <script>
@@ -131,7 +104,16 @@
                     series: [...barSeries, ...lineSeries],
                 });
 
-                window.addEventListener('resize', () => this.chart && this.chart.resize());
+                // Resize chart otomatis kalau ukuran containernya berubah — ini yang
+                // nangkep perubahan lebar akibat sidebar push/expand, bukan cuma
+                // window resize biasa (browser di-resize manual).
+                if (this.resizeObserver) {
+                    this.resizeObserver.disconnect();
+                }
+                this.resizeObserver = new ResizeObserver(() => {
+                    this.chart && this.chart.resize();
+                });
+                this.resizeObserver.observe(el);
             },
         };
     }

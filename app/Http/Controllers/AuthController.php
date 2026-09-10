@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
+use Illuminate\View\View;
 
 /**
  * Controller untuk menangani autentikasi (login / logout).
@@ -22,7 +24,7 @@ class AuthController extends Controller
     /**
      * Menampilkan halaman form login.
      *
-     * @return \Illuminate\View\View
+     * @return View
      */
     public function create()
     {
@@ -38,10 +40,9 @@ class AuthController extends Controller
      *    - Sukses  -> session di-regenerate (anti session fixation) lalu redirect dashboard.
      *    - Gagal   -> lempar error validasi agar pesan tampil di form.
      *
-     * @param  \Illuminate\Http\Request  $request
-     * @return \Illuminate\Http\RedirectResponse
+     * @return RedirectResponse
      *
-     * @throws \Illuminate\Validation\ValidationException
+     * @throws ValidationException
      */
     public function store(Request $request)
     {
@@ -71,8 +72,7 @@ class AuthController extends Controller
     /**
      * Logout: hapus session user, invalidasi session, lalu balik ke login.
      *
-     * @param  \Illuminate\Http\Request  $request
-     * @return \Illuminate\Http\RedirectResponse
+     * @return RedirectResponse
      */
     public function destroy(Request $request)
     {
@@ -83,19 +83,5 @@ class AuthController extends Controller
         $request->session()->regenerateToken();
 
         return redirect()->route('login');
-    }
-
-    /**
-     * Menampilkan halaman dashboard (dilindungi middleware 'auth').
-     *
-     * Konten dashboard sebenarnya akan dibangun di tahap berikutnya
-     * (Dashboard Builder & Visualization Engine). Untuk sekarang ini
-     * hanya halaman sederhana sebagai bukti login berhasil.
-     *
-     * @return \Illuminate\View\View
-     */
-    public function dashboard()
-    {
-        return view('dashboard');
     }
 }

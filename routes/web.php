@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DatasetController;
 use App\Http\Controllers\PerformanceChartController;
 use App\Http\Controllers\UserController;
@@ -26,19 +27,20 @@ Route::middleware('guest')->group(function () {
 });
 // Grup route yang wajib login terlebih dahulu.
 Route::middleware('auth')->group(function () {
-    // Halaman utama dashboard.
-    Route::get('/dashboard', [AuthController::class, 'dashboard'])->name('dashboard');
+    // Halaman utama dashboard: controller invokable, merakit widget
+    // per role dari config/dashboard_layouts.php (Dashboard Builder Fase 1).
+    Route::get('/dashboard', DashboardController::class)->name('dashboard');
     // Proses logout via POST (bukan GET, supaya aman dari CSRF/clickjacking).
     Route::post('/logout', [AuthController::class, 'destroy'])->name('logout');
 
-    // Jalur data untuk grafik (Vertical Slice #1)
+    // Jalur data untuk grafik
     // Proteksi permission 'dashboard.view' agar data agregat hanya dapat
     // diakses oleh user yang memang berhak melihat dashboard kinerja.
     Route::middleware('can:dashboard.view')
         ->get('/api/performance-data', [PerformanceChartController::class, 'index'])
         ->name('performance.data');
 
-    // Dataset CRUD (Tahap 3). Index/show untuk semua pemegang dataset.view
+    // Dataset CRUD. Index/show untuk semua pemegang dataset.view
     // (scoping per-divisi ditegakkan di controller). Archive butuh
     // dataset.update + ownership divisi; delete butuh dataset.delete (admin).
     Route::middleware('can:dataset.view')->group(function () {
