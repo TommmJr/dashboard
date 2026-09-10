@@ -24,6 +24,15 @@ export const CHART_COLORS = {
     muted: '#d9d9d9',
 };
 
+// Store global untuk state sidebar (hover-expand).
+// Dipakai sidebar.blade.php (nulis) dan app.blade.php (baca, buat
+// nge-push margin konten). Satu sumber kebenaran, bukan dua x-data
+// yang gak sinkron.
+Alpine.store('ui', {
+    sidebarExpanded: false,
+    sidebarTimer: null,
+});
+
 window.Alpine = Alpine;
 window.echarts = echarts;
 
