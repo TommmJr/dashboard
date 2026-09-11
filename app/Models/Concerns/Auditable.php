@@ -24,12 +24,16 @@ trait Auditable
         });
 
         static::updated(function ($model) {
+            $exclude = property_exists($model, 'auditExclude') ? $model->auditExclude : [];
+
             $changes = $model->getChanges();
             // Abaikan update yang hanya menyentuh timestamp.
             unset($changes[$model->getUpdatedAtColumn()]);
+            // Buang field sensitif dari changes dan original.
+            $changes = array_diff_key($changes, array_flip($exclude));
 
             if ($changes !== []) {
-                $old = array_intersect_key($model->getOriginal(), $changes);
+                $old = array_diff_key(array_intersect_key($model->getOriginal(), $changes), array_flip($exclude));
                 // Serialize enum ke value agar JSON tersimpan sebagai string.
                 $changes = static::serializeForAudit($changes);
                 $old = static::serializeForAudit($old);
@@ -38,7 +42,9 @@ trait Auditable
         });
 
         static::deleted(function ($model) {
-            AuditLog::record(AuditLog::ACTION_DELETE, $model, static::serializeForAudit($model->getOriginal()), null);
+            $exclude = property_exists($model, 'auditExclude') ? $model->auditExclude : [];
+            $attrs = array_diff_key($model->getOriginal(), array_flip($exclude));
+            AuditLog::record(AuditLog::ACTION_DELETE, $model, static::serializeForAudit($attrs), null);
         });
     }
 

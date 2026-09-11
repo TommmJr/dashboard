@@ -45,9 +45,7 @@ class UserCrudTest extends TestCase
         $this->editor = User::factory()->withRole(Role::EDITOR_DASHBOARD)->create();
     }
 
-    // -------------------------------------------------------------------------
     // Index
-    // -------------------------------------------------------------------------
 
     public function test_index_ditolak_403_tanpa_permission_user_view(): void
     {
@@ -55,9 +53,7 @@ class UserCrudTest extends TestCase
         $this->actingAs($user)->get(route('users.index'))->assertForbidden();
     }
 
-    // -------------------------------------------------------------------------
     // Create form
-    // -------------------------------------------------------------------------
 
     public function test_create_form_hanya_bisa_diakses_admin(): void
     {
@@ -67,9 +63,7 @@ class UserCrudTest extends TestCase
         $this->actingAs($this->staff)->get(route('users.create'))->assertForbidden();
     }
 
-    // -------------------------------------------------------------------------
     // Store
-    // -------------------------------------------------------------------------
 
     public function test_store_berhasil_dan_user_terbuat(): void
     {
@@ -142,9 +136,7 @@ class UserCrudTest extends TestCase
             ->assertSessionHasErrors('role_id');
     }
 
-    // -------------------------------------------------------------------------
     // Edit form
-    // -------------------------------------------------------------------------
 
     public function test_edit_form_hanya_bisa_diakses_admin(): void
     {
@@ -153,9 +145,7 @@ class UserCrudTest extends TestCase
         $this->actingAs($this->management)->get(route('users.edit', $this->staff))->assertForbidden();
     }
 
-    // -------------------------------------------------------------------------
     // Update
-    // -------------------------------------------------------------------------
 
     public function test_update_berhasil(): void
     {
@@ -235,9 +225,7 @@ class UserCrudTest extends TestCase
             ->assertRedirect(route('users.index'));
     }
 
-    // -------------------------------------------------------------------------
     // Delete
-    // -------------------------------------------------------------------------
 
     public function test_delete_oleh_admin_berhasil(): void
     {
@@ -267,9 +255,8 @@ class UserCrudTest extends TestCase
             'action' => AuditLog::ACTION_DELETE,
         ]);
 
-        // Datasets + metrics terhapus via cascade
-        $this->assertDatabaseMissing('datasets', ['id' => $dataset->id]);
-        $this->assertSame(0, PerformanceMetric::where('dataset_id', $dataset->id)->count());
+        // Dataset tetap ada, user_id di-set NULL (nullOnDelete)
+        $this->assertDatabaseHas('datasets', ['id' => $dataset->id, 'user_id' => null]);
     }
 
     public function test_delete_ditolak_403_untuk_non_admin(): void
@@ -285,9 +272,66 @@ class UserCrudTest extends TestCase
         $this->assertDatabaseHas('users', ['id' => $target->id]);
     }
 
-    // -------------------------------------------------------------------------
     // Division optional
-    // -------------------------------------------------------------------------
+
+    public function test_delete_diri_sendiri_ditolak(): void
+    {
+        $this->actingAs($this->admin)
+            ->delete(route('users.destroy', $this->admin))
+            ->assertRedirect(route('users.index'));
+
+        $this->assertDatabaseHas('users', ['id' => $this->admin->id]);
+        $this->assertNotNull(User::find($this->admin->id));
+    }
+
+    public function test_delete_user_menull_kan_user_id_di_audit_logs(): void
+    {
+        // Buat audit log yang tercatat atas nama target
+        $target = User::factory()->withRole(Role::STAFF_DIVISI)->create();
+        $log = AuditLog::create([
+            'user_id' => $target->id,
+            'auditable_type' => User::class,
+            'auditable_id' => $target->id,
+            'action' => AuditLog::ACTION_CREATE,
+            'new_values' => [],
+        ]);
+
+        $this->actingAs($this->admin)
+            ->delete(route('users.destroy', $target))
+            ->assertRedirect(route('users.index'));
+
+        $this->assertNull($log->fresh()->user_id);
+    }
+
+    public function test_delete_user_tanpa_dataset_berhasil(): void
+    {
+        $target = User::factory()->withRole(Role::MANAGEMENT)->create();
+
+        $this->actingAs($this->admin)
+            ->delete(route('users.destroy', $target))
+            ->assertRedirect(route('users.index'));
+
+        $this->assertDatabaseMissing('users', ['id' => $target->id]);
+    }
+
+    public function test_store_ditolak_403_untuk_non_admin(): void
+    {
+        $roleId = Role::where('slug', Role::STAFF_DIVISI)->value('id');
+
+        foreach ([$this->management, $this->editor, $this->staff] as $actor) {
+            $this->actingAs($actor)
+                ->post(route('users.store'), [
+                    'name' => 'Coba',
+                    'email' => 'coba'.$actor->id.'@example.com',
+                    'password' => 'password123',
+                    'password_confirmation' => 'password123',
+                    'role_id' => $roleId,
+                ])
+                ->assertForbidden();
+        }
+    }
+
+    // Division optional
 
     public function test_division_opsional_bagi_admin(): void
     {

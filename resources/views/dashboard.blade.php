@@ -104,9 +104,7 @@
                     series: [...barSeries, ...lineSeries],
                 });
 
-                // Resize chart otomatis kalau ukuran containernya berubah — ini yang
-                // nangkep perubahan lebar akibat sidebar push/expand, bukan cuma
-                // window resize biasa (browser di-resize manual).
+                // Resize chart otomatis kalau ukuran containernya berubah 
                 if (this.resizeObserver) {
                     this.resizeObserver.disconnect();
                 }

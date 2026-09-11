@@ -8,12 +8,14 @@ RUN apt-get update && apt-get install -y \
     libpng-dev \
     libonig-dev \
     libxml2-dev \
+    libzip-dev \
+    libicu-dev \
     zip \
     unzip \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Install PHP extensions yang dibutuhkan Laravel
-RUN docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd
+RUN docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd zip intl
 
 # Aktifkan mod_rewrite untuk Laravel
 RUN a2enmod rewrite

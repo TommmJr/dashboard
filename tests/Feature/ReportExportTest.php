@@ -55,9 +55,7 @@ class ReportExportTest extends TestCase
         ]);
     }
 
-    // -------------------------------------------------------------------------
     // Staf bisa export dataset divisinya sendiri, isi baris & kolom benar
-    // -------------------------------------------------------------------------
 
     public function test_staf_bisa_export_dataset_divisinya_sendiri(): void
     {
@@ -104,9 +102,7 @@ class ReportExportTest extends TestCase
         @unlink($tempPath);
     }
 
-    // -------------------------------------------------------------------------
     // Staf ditolak 403 export dataset divisi lain
-    // -------------------------------------------------------------------------
 
     public function test_staf_ditolak_403_export_dataset_divisi_lain(): void
     {
@@ -115,9 +111,7 @@ class ReportExportTest extends TestCase
             ->assertForbidden();
     }
 
-    // -------------------------------------------------------------------------
     // Admin / Management / Editor Dashboard bisa export dataset divisi mana pun
-    // -------------------------------------------------------------------------
 
     public function test_admin_management_editor_bisa_export_semua_divisi(): void
     {
@@ -128,9 +122,7 @@ class ReportExportTest extends TestCase
         }
     }
 
-    // -------------------------------------------------------------------------
     // Dataset 0 metric → file valid berisi header saja
-    // -------------------------------------------------------------------------
 
     public function test_dataset_tanpa_metric_menghasilkan_file_header_only(): void
     {
@@ -157,9 +149,7 @@ class ReportExportTest extends TestCase
         @unlink($tempPath);
     }
 
-    // -------------------------------------------------------------------------
     // Tidak ada entri audit log akibat export
-    // -------------------------------------------------------------------------
 
     public function test_export_tidak_mencatat_audit_log(): void
     {

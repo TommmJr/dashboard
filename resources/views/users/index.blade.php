@@ -24,6 +24,9 @@
     @if (session('success'))
         <div class="mt-4 rounded-md bg-green-50 p-3 text-sm text-green-700">{{ session('success') }}</div>
     @endif
+    @if (session('error'))
+        <div class="mt-4 rounded-md bg-red-50 p-3 text-sm text-red-700">{{ session('error') }}</div>
+    @endif
 
     <div class="mt-6 overflow-hidden rounded-lg bg-white shadow">
         <table class="min-w-full divide-y divide-gray-200 text-sm">

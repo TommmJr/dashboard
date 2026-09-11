@@ -52,7 +52,7 @@
                             </a>
                         </td>
                         <td class="px-4 py-3">{{ $dataset->division?->name ?? '-' }}</td>
-                        <td class="px-4 py-3">{{ $dataset->user?->name ?? '-' }}</td>
+                        <td class="px-4 py-3">{{ $dataset->user?->name ?? 'Pengguna telah dihapus' }}</td>
                         <td class="px-4 py-3">{{ number_format($dataset->size / 1024, 1) }} KB</td>
                         <td class="px-4 py-3">
                             <x-dataset-status-badge :status="$dataset->status->value" />
