@@ -12,6 +12,20 @@
         </p>
     @endif
 
+    @can('report.export')
+        <form method="GET" action="{{ route('reports.audit-export') }}" class="mt-3 flex flex-wrap items-end gap-2 text-sm">
+            <div>
+                <label class="block text-gray-600" for="export_from">Export dari</label>
+                <input id="export_from" type="date" name="from" value="{{ request('from') }}" class="rounded-md border-gray-300 text-sm" required>
+            </div>
+            <div>
+                <label class="block text-gray-600" for="export_to">sampai</label>
+                <input id="export_to" type="date" name="to" value="{{ request('to') }}" class="rounded-md border-gray-300 text-sm" required>
+            </div>
+            <button class="rounded bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700">Export Audit (.xlsx)</button>
+        </form>
+    @endcan
+
     <form method="GET" class="mt-4 flex flex-wrap items-end gap-3 text-sm">
         <div>
             <label class="block text-gray-600" for="action">Aksi</label>
