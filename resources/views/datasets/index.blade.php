@@ -13,6 +13,12 @@
                     + Upload Dataset
                 </a>
             @endcan
+            @can('report.export')
+                <a href="{{ route('reports.dataset-summary') }}"
+                   class="rounded bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-700">
+                    Export Ringkasan
+                </a>
+            @endcan
         </div>
         <form method="GET" class="flex items-center gap-2 text-sm">
             <label for="status" class="text-gray-600">Status</label>
