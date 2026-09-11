@@ -61,6 +61,7 @@
                                     </a>
                                 @endcan
                                 @can('user.delete')
+                                    @unless ($user->is(auth()->user()))
                                     <form method="POST" action="{{ route('users.destroy', $user) }}"
                                           onsubmit="return confirm('Hapus permanen user \"{{ addslashes($user->name) }}\"? Dataset miliknya juga akan terhapus.');">
                                         @csrf @method('DELETE')
@@ -68,6 +69,7 @@
                                             Hapus
                                         </button>
                                     </form>
+                                    @endunless
                                 @endcan
                             </div>
                         </td>
