@@ -93,7 +93,7 @@
         <hr class="my-2 border-white/10">
 
         @can('report.export')
-        <a href="{{ route('reports.dataset-summary') }}"
+        <a href="{{ route('reports.index') }}"
            class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition
                   {{ request()->routeIs('reports.*') ? 'bg-accent text-white' : 'text-white/80 hover:bg-white/10 hover:text-white' }}">
             <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">

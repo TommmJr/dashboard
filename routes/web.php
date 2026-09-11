@@ -83,6 +83,7 @@ Route::middleware('auth')->group(function () {
 
     // Report exports. Semua butuh dataset.view/audit.view + report.export.
     Route::middleware(['can:dataset.view', 'can:report.export'])->group(function () {
+        Route::get('/reports', [ReportController::class, 'index'])->name('reports.index');
         Route::get('/reports/datasets/{dataset}/validation', [ReportController::class, 'validationExport'])
             ->name('reports.validation-export');
         Route::get('/reports/datasets/summary', [ReportController::class, 'datasetSummaryExport'])

@@ -19,6 +19,26 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 class ReportController extends Controller
 {
     /**
+     * Halaman index laporan — daftar semua export yang tersedia.
+     *
+     * Gate: report.export (di route).
+     * Menyiapkan daftar dataset untuk pilihan validationExport per-dataset.
+     * Scoping identik dengan datasetSummaryExport.
+     */
+    public function index(Request $request): \Illuminate\View\View
+    {
+        $user = Auth::user();
+
+        $datasets = Dataset::query()
+            ->with('division:id,name')
+            ->orderBy('created_at', 'desc')
+            ->when(! $this->seesAllDivisions($user), fn ($q) => $q->where('division_id', $user->division_id))
+            ->get(['id', 'original_name', 'status', 'division_id', 'created_at']);
+
+        return view('reports.index', compact('datasets'));
+    }
+
+    /**
      * Export laporan validasi satu dataset ke .xlsx.
      *
      * Gate: dataset.view + report.export (di route).
