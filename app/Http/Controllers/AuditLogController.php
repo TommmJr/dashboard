@@ -49,7 +49,7 @@ class AuditLogController extends Controller
             ->when($validated['from'] ?? null, fn ($q, $v) => $q->whereDate('created_at', '>=', $v))
             ->when($validated['to'] ?? null, fn ($q, $v) => $q->whereDate('created_at', '<=', $v))
             ->latest('created_at')
-            ->paginate(25)
+            ->paginate(50)
             ->withQueryString();
 
         $actions = $dataOnly

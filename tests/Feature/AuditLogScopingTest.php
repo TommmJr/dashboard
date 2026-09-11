@@ -129,4 +129,59 @@ class AuditLogScopingTest extends TestCase
 
         $this->actingAs($staff)->get(route('audit-logs.index'))->assertForbidden();
     }
+
+    /** Pagination aktif: lebih dari 50 entri menghasilkan halaman pertama berisi tepat 50 record. */
+    public function test_pagination_membatasi_50_record_per_halaman(): void
+    {
+        $admin = User::factory()->withRole(Role::ADMIN)->create();
+
+        $before = AuditLog::count();
+        AuditLog::factory()->count(51)->create();
+
+        $response = $this->actingAs($admin)
+            ->get(route('audit-logs.index'))
+            ->assertOk();
+
+        $logs = $response->viewData('logs');
+        $this->assertCount(50, $logs->items());
+        $this->assertSame($before + 51, $logs->total());
+        $this->assertTrue($logs->hasMorePages());
+    }
+
+    /** Filter action tetap bekerja saat pagination aktif. */
+    public function test_filter_action_tetap_bekerja_dengan_pagination(): void
+    {
+        $admin = User::factory()->withRole(Role::ADMIN)->create();
+
+        // Catat jumlah LOGIN yang sudah ada (dari setUp user creation) sebelum menambah.
+        $existingLoginCount = AuditLog::where('action', AuditLog::ACTION_LOGIN)->count();
+
+        AuditLog::factory()->count(3)->create(['action' => AuditLog::ACTION_LOGIN]);
+        AuditLog::factory()->count(2)->create(['action' => AuditLog::ACTION_CREATE]);
+
+        $response = $this->actingAs($admin)
+            ->get(route('audit-logs.index', ['action' => AuditLog::ACTION_LOGIN]))
+            ->assertOk();
+
+        $logs = $response->viewData('logs');
+        $this->assertSame($existingLoginCount + 3, $logs->total());
+    }
+
+    /** Halaman kedua pagination dapat diakses dan berisi sisa record. */
+    public function test_halaman_kedua_pagination_berisi_sisa_record(): void
+    {
+        $admin = User::factory()->withRole(Role::ADMIN)->create();
+
+        $before = AuditLog::count();
+        // Buat tepat cukup entri agar halaman kedua berisi 1 record.
+        $needed = 50 - $before + 1;
+        AuditLog::factory()->count($needed)->create();
+
+        $response = $this->actingAs($admin)
+            ->get(route('audit-logs.index', ['page' => 2]))
+            ->assertOk();
+
+        $logs = $response->viewData('logs');
+        $this->assertCount(1, $logs->items());
+    }
 }
