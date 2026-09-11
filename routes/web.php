@@ -4,6 +4,7 @@ use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DatasetController;
+use App\Http\Controllers\DivisionController;
 use App\Http\Controllers\PerformanceChartController;
 use App\Http\Controllers\PerformanceMetricController;
 use App\Http\Controllers\ReportController;
@@ -110,6 +111,22 @@ Route::middleware('auth')->group(function () {
     Route::middleware('can:user.delete')
         ->delete('/users/{user}', [UserController::class, 'destroy'])
         ->name('users.destroy');
+
+    // Division CRUD — hanya admin (semua permission user.* dimiliki admin).
+    Route::middleware('can:user.view')->group(function () {
+        Route::get('/divisions', [DivisionController::class, 'index'])->name('divisions.index');
+    });
+    Route::middleware('can:user.create')->group(function () {
+        Route::get('/divisions/create', [DivisionController::class, 'create'])->name('divisions.create');
+        Route::post('/divisions', [DivisionController::class, 'store'])->name('divisions.store');
+    });
+    Route::middleware('can:user.update')->group(function () {
+        Route::get('/divisions/{division}/edit', [DivisionController::class, 'edit'])->name('divisions.edit');
+        Route::patch('/divisions/{division}', [DivisionController::class, 'update'])->name('divisions.update');
+    });
+    Route::middleware('can:user.delete')
+        ->delete('/divisions/{division}', [DivisionController::class, 'destroy'])
+        ->name('divisions.destroy');
 });
 
 // Route fallback: user login -> redirect dashboard; user guest -> redirect login.

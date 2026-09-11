@@ -78,19 +78,29 @@
         </a>
         @endcan
 
+        @can('user.view')
+        <a href="{{ route('divisions.index') }}"
+           class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition
+                  {{ request()->routeIs('divisions.*') ? 'bg-accent text-white' : 'text-white/80 hover:bg-white/10 hover:text-white' }}">
+            <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+            </svg>
+            <span x-show="$store.ui.sidebarExpanded" x-transition.opacity class="whitespace-nowrap">Divisi</span>
+        </a>
+        @endcan
+
         {{-- Divider --}}
         <hr class="my-2 border-white/10">
 
         @can('report.export')
-        <span class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-white/40 pointer-events-none select-none">
+        <a href="{{ route('reports.dataset-summary') }}"
+           class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition
+                  {{ request()->routeIs('reports.*') ? 'bg-accent text-white' : 'text-white/80 hover:bg-white/10 hover:text-white' }}">
             <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
             </svg>
-            <span x-show="$store.ui.sidebarExpanded" x-transition.opacity class="flex w-full items-center whitespace-nowrap">
-                Reports
-                <span class="ml-auto rounded-full bg-highlight/20 px-1.5 py-0.5 text-xs font-semibold text-highlight">Segera</span>
-            </span>
-        </span>
+            <span x-show="$store.ui.sidebarExpanded" x-transition.opacity class="whitespace-nowrap">Reports</span>
+        </a>
         @endcan
 
         @can('dashboard.update')
