@@ -56,6 +56,9 @@ Route::middleware('auth')->group(function () {
     Route::middleware('can:dataset.view')
         ->get('/datasets/{dataset}', [DatasetController::class, 'show'])
         ->name('datasets.show');
+    Route::middleware(['can:dataset.view', 'can:report.export'])
+        ->get('/datasets/{dataset}/export', [DatasetController::class, 'export'])
+        ->name('datasets.export');
     Route::middleware('can:dataset.update')
         ->patch('/datasets/{dataset}/archive', [DatasetController::class, 'archive'])
         ->name('datasets.archive');
@@ -73,6 +76,20 @@ Route::middleware('auth')->group(function () {
     Route::middleware('can:user.view')->group(function () {
         Route::get('/users', [UserController::class, 'index'])->name('users.index');
     });
+
+    Route::middleware('can:user.create')->group(function () {
+        Route::get('/users/create', [UserController::class, 'create'])->name('users.create');
+        Route::post('/users', [UserController::class, 'store'])->name('users.store');
+    });
+
+    Route::middleware('can:user.update')->group(function () {
+        Route::get('/users/{user}/edit', [UserController::class, 'edit'])->name('users.edit');
+        Route::patch('/users/{user}', [UserController::class, 'update'])->name('users.update');
+    });
+
+    Route::middleware('can:user.delete')
+        ->delete('/users/{user}', [UserController::class, 'destroy'])
+        ->name('users.destroy');
 });
 
 // Route fallback: user login -> redirect dashboard; user guest -> redirect login.

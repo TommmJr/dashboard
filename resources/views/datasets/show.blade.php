@@ -50,6 +50,12 @@
                 @endif
             </div>
             <div class="flex gap-2">
+                @can('report.export')
+                    <a href="{{ route('datasets.export', $dataset) }}"
+                       class="rounded bg-green-600 px-3 py-2 text-sm font-semibold text-white hover:bg-green-700">
+                        Export Excel
+                    </a>
+                @endcan
                 @can('dataset.update')
                     @if ($dataset->status !== \App\Enums\DatasetStatus::ARCHIVED)
                         <form method="POST" action="{{ route('datasets.archive', $dataset) }}"

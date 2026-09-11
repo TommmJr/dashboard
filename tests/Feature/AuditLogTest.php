@@ -86,6 +86,7 @@ class AuditLogTest extends TestCase
         $this->actingAs($this->staff)->patch(route('datasets.archive', $dataset));
 
         $log = AuditLog::where('action', AuditLog::ACTION_UPDATE)
+            ->where('auditable_type', Dataset::class)
             ->where('auditable_id', $dataset->id)
             ->sole();
         $this->assertSame($this->staff->id, $log->user_id);
