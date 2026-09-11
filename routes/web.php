@@ -5,6 +5,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DatasetController;
 use App\Http\Controllers\PerformanceChartController;
+use App\Http\Controllers\PerformanceMetricController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -65,6 +66,13 @@ Route::middleware('auth')->group(function () {
     Route::middleware('can:dataset.delete')
         ->delete('/datasets/{dataset}', [DatasetController::class, 'destroy'])
         ->name('datasets.destroy');
+
+    Route::middleware('can:dataset.update')->group(function () {
+        Route::get('/performance-metrics/{metric}/edit', [PerformanceMetricController::class, 'edit'])
+            ->name('performance_metrics.edit');
+        Route::patch('/performance-metrics/{metric}', [PerformanceMetricController::class, 'update'])
+            ->name('performance_metrics.update');
+    });
 
     // Audit log (append-only): admin, management, editor (gate audit.view).
     Route::middleware('can:audit.view')
