@@ -264,4 +264,25 @@ class PerformanceMetricEditTest extends TestCase
 
         $this->assertSame('Admin Edit', $this->metricA->fresh()->metric_name);
     }
+
+    /** @test */
+    public function test_validasi_gagal_duplikat_metric_name_period_dalam_dataset(): void
+    {
+        // Buat metric lain dalam dataset yang sama dengan nama+period berbeda
+        PerformanceMetric::factory()->create([
+            'dataset_id' => $this->datasetA->id,
+            'division_id' => $this->divisionA->id,
+            'metric_name' => 'Metric Duplikat',
+            'period' => '2026-05-01',
+        ]);
+
+        // Coba ubah metricA agar nama+period sama dengan metric yang baru dibuat
+        $this->actingAs($this->staffA)
+            ->patch(route('performance_metrics.update', $this->metricA), [
+                'metric_name' => 'Metric Duplikat',
+                'value' => '100',
+                'period' => '2026-05-01',
+            ])
+            ->assertSessionHasErrors('metric_name');
+    }
 }

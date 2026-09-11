@@ -8,6 +8,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class PerformanceMetricController extends Controller
@@ -28,13 +29,24 @@ class PerformanceMetricController extends Controller
     /**
      * Simpan perubahan metric. Hanya 3 field yang boleh diubah;
      * division_id, dataset_id, unit_id diabaikan meski dikirim.
+     *
+     * Unique constraint: metric_name+period harus unik per dataset,
+     * kecuali row yang sedang diedit itu sendiri.
      */
     public function update(Request $request, PerformanceMetric $metric): RedirectResponse
     {
         $this->authorizeDivisionAccess($metric);
 
         $validated = $request->validate([
-            'metric_name' => 'required|string|max:255',
+            'metric_name' => [
+                'required',
+                'string',
+                'max:255',
+                Rule::unique('performance_metrics')
+                    ->where('dataset_id', $metric->dataset_id)
+                    ->where('period', $request->input('period'))
+                    ->ignore($metric->id),
+            ],
             'value' => 'required|numeric',
             'period' => 'required|date_format:Y-m-d',
         ]);
