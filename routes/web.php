@@ -6,6 +6,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DatasetController;
 use App\Http\Controllers\PerformanceChartController;
 use App\Http\Controllers\PerformanceMetricController;
+use App\Http\Controllers\ReportController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -78,6 +79,17 @@ Route::middleware('auth')->group(function () {
     Route::middleware('can:audit.view')
         ->get('/audit-logs', [AuditLogController::class, 'index'])
         ->name('audit-logs.index');
+
+    // Report exports. Semua butuh dataset.view/audit.view + report.export.
+    Route::middleware(['can:dataset.view', 'can:report.export'])->group(function () {
+        Route::get('/reports/datasets/{dataset}/validation', [ReportController::class, 'validationExport'])
+            ->name('reports.validation-export');
+        Route::get('/reports/datasets/summary', [ReportController::class, 'datasetSummaryExport'])
+            ->name('reports.dataset-summary');
+    });
+    Route::middleware(['can:audit.view', 'can:report.export'])
+        ->get('/reports/audit', [ReportController::class, 'auditExport'])
+        ->name('reports.audit-export');
 
     // Area khusus ber-permission. Middleware 'can:...' memvalidasi gate
     // permission di backend; tanpa permission = HTTP 403.

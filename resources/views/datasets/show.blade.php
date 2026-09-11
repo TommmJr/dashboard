@@ -55,6 +55,12 @@
                        class="rounded bg-green-600 px-3 py-2 text-sm font-semibold text-white hover:bg-green-700">
                         Export Excel
                     </a>
+                    @if ($dataset->validation_report)
+                        <a href="{{ route('reports.validation-export', $dataset) }}"
+                           class="rounded bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700">
+                            Export Validasi
+                        </a>
+                    @endif
                 @endcan
                 @can('dataset.update')
                     @if ($dataset->status !== \App\Enums\DatasetStatus::ARCHIVED)
