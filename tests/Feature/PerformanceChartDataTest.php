@@ -169,4 +169,40 @@ class PerformanceChartDataTest extends TestCase
             ->assertSee('id="performanceChart"', false)
             ->assertSee(route('performance.data'), false);
     }
+
+    public function test_y_axis_min_dihitung_dinamis_dari_nko_terendah(): void
+    {
+        // NKO terendah 95 -> margin 5 -> (95-5)/5=18 -> floor*5=90.
+        $this->datasetWithNko($this->divA, Dataset::STATUS_READY, '2026-01-31', 95);
+        $this->datasetWithNko($this->divB, Dataset::STATUS_READY, '2026-01-31', 105.5);
+
+        $admin = User::factory()->withRole(Role::ADMIN)->create();
+        $response = $this->actingAs($admin)->getJson(route('performance.data'))->assertOk();
+
+        $this->assertEquals(90.0, (float) $response->json('y_axis_min'));
+    }
+
+    public function test_y_axis_min_tidak_terseret_oleh_padding_nol_periode_kosong(): void
+    {
+        // Divisi B hanya punya NKO di Feb; series-nya di-pad 0 di Jan (lihat
+        // test_series_per_divisi_dengan_padding_nol). y_axis_min HARUS dihitung
+        // dari nilai NKO mentah (min 100), bukan dari padding 0 di series.
+        $this->datasetWithNko($this->divA, Dataset::STATUS_READY, '2026-01-31', 100);
+        $this->datasetWithNko($this->divA, Dataset::STATUS_READY, '2026-02-28', 105);
+        $this->datasetWithNko($this->divB, Dataset::STATUS_READY, '2026-02-28', 999);
+
+        $admin = User::factory()->withRole(Role::ADMIN)->create();
+        $response = $this->actingAs($admin)->getJson(route('performance.data'))->assertOk();
+
+        // min NKO mentah = 100 -> (100-5)/5=19 -> floor*5=95.
+        $this->assertEquals(95.0, (float) $response->json('y_axis_min'));
+    }
+
+    public function test_y_axis_min_nol_saat_tidak_ada_data(): void
+    {
+        $admin = User::factory()->withRole(Role::ADMIN)->create();
+        $response = $this->actingAs($admin)->getJson(route('performance.data'))->assertOk();
+
+        $this->assertEquals(0.0, (float) $response->json('y_axis_min'));
+    }
 }

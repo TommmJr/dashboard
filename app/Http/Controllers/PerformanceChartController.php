@@ -20,6 +20,8 @@ class PerformanceChartController extends Controller
      * - series : [{ name: <nama unit>, data: [<NKO per periode>] }]
      *            — satu series per unit agar ECharts bisa menumpuk
      *            bar + line trend per unit.
+     * - y_axis_min : batas bawah sumbu Y chart (dihitung dinamis dari
+     *            nilai NKO mentah terendah; NKO bukan besaran mulai 0).
      * - kpi    : { average_nko, ready_datasets, metric_count }
      *
      * Basis agregasi adalah baris NKO saja, BUKAN SUM(value). Kolom value
@@ -88,6 +90,14 @@ class PerformanceChartController extends Controller
             ];
         })->values();
 
+        // Sumbu Y dinamis dari NILAI NKO MENTAH (bukan dari $series yang
+        // di-pad nol untuk periode kosong) - padding nol akan menyeret axis
+        // ke 0 secara keliru. Margin 5 poin di bawah nilai terendah,
+        // dibulatkan ke bawah kelipatan 5, tidak boleh negatif.
+        // Contoh: NKO terendah 95.5 -> axis mulai di 90.
+        $rawMin = $rows->isEmpty() ? 0.0 : (float) $rows->min('nko');
+        $yAxisMin = $rawMin > 0 ? max(0, floor(($rawMin - 5) / 5) * 5) : 0.0;
+
         // KPI card: rata-rata NKO periode terbaru (kondisi terkini), jumlah
         // dataset READY (scoping sama), dan jumlah baris metric aktif.
         $readyDatasets = DB::table('datasets')
@@ -105,6 +115,7 @@ class PerformanceChartController extends Controller
         return response()->json([
             'labels' => $labels,
             'series' => $series,
+            'y_axis_min' => $yAxisMin,
             'kpi' => [
                 'average_nko' => round($averageNko, 2),
                 'ready_datasets' => $readyDatasets,

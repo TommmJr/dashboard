@@ -100,7 +100,7 @@
                     legend: { bottom: 0 },
                     grid: { left: 60, right: 20, top: 20, bottom: 40 },
                     xAxis: { type: 'category', data: payload.labels },
-                    yAxis: { type: 'value' },
+                    yAxis: { type: 'value', min: payload.y_axis_min ?? 0 },
                     series: [...barSeries, ...lineSeries],
                 });
 
