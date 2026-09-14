@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\AuditLog;
 use App\Models\Dataset;
 use App\Models\Division;
 use App\Models\Role;
@@ -230,5 +231,57 @@ class DivisionCrudTest extends TestCase
         }
 
         $this->assertDatabaseHas('divisions', ['id' => $empty->id]);
+    }
+
+    // --- Audit log ---
+
+    public function test_store_mencatat_audit_log_create_divisi(): void
+    {
+        $this->actingAs($this->admin)
+            ->post(route('divisions.store'), [
+                'name' => 'Divisi Dicatat',
+                'description' => 'Audit test.',
+            ]);
+
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => AuditLog::ACTION_CREATE,
+            'auditable_type' => Division::class,
+            'auditable_id' => Division::where('slug', 'divisi-dicatat')->value('id'),
+            'user_id' => $this->admin->id,
+        ]);
+    }
+
+    public function test_update_mencatat_audit_log_update_divisi(): void
+    {
+        $before = Division::where('slug', 'divisi-awal')->value('id');
+
+        $this->actingAs($this->admin)
+            ->patch(route('divisions.update', $this->division), [
+                'name' => 'Nama Baru',
+                'description' => 'Desc baru.',
+            ]);
+
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => AuditLog::ACTION_UPDATE,
+            'auditable_type' => Division::class,
+            'auditable_id' => $before,
+            'user_id' => $this->admin->id,
+        ]);
+    }
+
+    public function test_destroy_mencatat_audit_log_delete_divisi(): void
+    {
+        $empty = Division::factory()->create(['name' => 'Untuk Hapus', 'slug' => 'untuk-hapus']);
+        $deleteId = $empty->id;
+
+        $this->actingAs($this->admin)
+            ->delete(route('divisions.destroy', $empty));
+
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => AuditLog::ACTION_DELETE,
+            'auditable_type' => Division::class,
+            'auditable_id' => $deleteId,
+            'user_id' => $this->admin->id,
+        ]);
     }
 }
