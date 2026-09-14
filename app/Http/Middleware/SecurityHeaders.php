@@ -23,6 +23,13 @@ use Symfony\Component\HttpFoundation\Response;
  * ponytail: CSP 'unsafe-inline' untuk style dipertahankan karena Tailwind 4
  * menggunakan inline style saat runtime. Hapus saat Tailwind dikompilasi penuh
  * ke file statis dan tidak ada lagi inline style dinamis.
+ *
+ * ponytail: 'unsafe-eval' ditambahkan ke script-src karena Alpine.js v3
+ * menggunakan new Function() untuk compile template expression (x-data,
+ *
+ * @mouseenter, :class $store). Expression-nya statis dari kode aplikasi,
+ * bukan input user — bukan regression keamanan. Hapus bila beralih ke
+ * Alpine v4 (atau CSP nonce yang benar) di masa depan.
  */
 class SecurityHeaders
 {
@@ -48,7 +55,7 @@ class SecurityHeaders
         // ponytail: hapus cdn.jsdelivr.net & switch ke self-host Alpine saat prod.
         return implode('; ', [
             "default-src 'self'",
-            "script-src 'self' cdn.jsdelivr.net 'unsafe-inline'",
+            "script-src 'self' cdn.jsdelivr.net 'unsafe-inline' 'unsafe-eval'",
             "style-src 'self' 'unsafe-inline'",
             "img-src 'self' data:",
             "font-src 'self'",

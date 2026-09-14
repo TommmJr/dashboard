@@ -58,6 +58,17 @@ class SecurityHeadersTest extends TestCase
         $this->assertStringContainsString('cdn.jsdelivr.net', $csp);
     }
 
+    // CSP harus mengizinkan 'unsafe-eval' — Alpine.js v3 butuh untuk
+    // compile template expression (x-data, @mouseenter, :class $store).
+    public function test_csp_allows_unsafe_eval_for_alpine(): void
+    {
+        $response = $this->get(route('login'));
+
+        $csp = $response->headers->get('Content-Security-Policy');
+
+        $this->assertStringContainsString("'unsafe-eval'", $csp);
+    }
+
     // Redirect response (misal / -> /login) juga harus punya security headers.
     public function test_security_headers_present_on_redirect_response(): void
     {
