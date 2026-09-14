@@ -55,6 +55,7 @@ Route::middleware('auth')->group(function () {
     Route::middleware('can:dataset.import')->group(function () {
         Route::get('/datasets/create', [DatasetController::class, 'create'])->name('datasets.create');
         Route::post('/datasets', [DatasetController::class, 'store'])->name('datasets.store');
+        Route::post('/datasets/bulk', [DatasetController::class, 'bulkStore'])->name('datasets.bulk-store');
     });
     Route::middleware('can:dataset.view')
         ->get('/datasets/{dataset}', [DatasetController::class, 'show'])

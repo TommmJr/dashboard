@@ -54,5 +54,50 @@
             </button>
         </form>
     </div>
+
+    @if ($divisions->isNotEmpty())
+        <div class="mt-4 rounded-lg bg-white p-6 shadow">
+            <h2 class="text-lg font-bold text-gray-900">Upload Massal (Multi-Divisi)</h2>
+            <p class="mt-2 text-sm text-gray-600">
+                Untuk berkas hasil <code class="rounded bg-gray-100 px-1">php artisan kpi:convert --split</code>.
+                Setiap berkas dicocokkan ke divisi lewat <strong>nama berkas</strong> (tanpa ekstensi) yang harus
+                sama persis dengan kode divisi, mis. <code class="rounded bg-gray-100 px-1">TJBT.xlsx</code>
+                untuk divisi <code class="rounded bg-gray-100 px-1">TJBT</code>. Berkas yang tidak cocok akan
+                dilewati dan dilaporkan, tidak diimpor ke divisi yang salah.
+            </p>
+
+            @if (session('bulk_unmatched') && count(session('bulk_unmatched')))
+                <div class="mt-3 rounded-md bg-yellow-50 p-3 text-sm text-yellow-800">
+                    <p class="font-semibold">Berkas tidak dikenali (nama tidak cocok divisi manapun):</p>
+                    <ul class="mt-1 list-disc pl-5">
+                        @foreach (session('bulk_unmatched') as $name)
+                            <li>{{ $name }}</li>
+                        @endforeach
+                    </ul>
+                </div>
+            @endif
+
+            @if (session('bulk_failed') && count(session('bulk_failed')))
+                <div class="mt-3 rounded-md bg-red-50 p-3 text-sm text-red-700">
+                    <p class="font-semibold">Berkas gagal diproses:</p>
+                    <ul class="mt-1 list-disc pl-5">
+                        @foreach (session('bulk_failed') as $name)
+                            <li>{{ $name }}</li>
+                        @endforeach
+                    </ul>
+                </div>
+            @endif
+
+            <form method="POST" action="{{ route('datasets.bulk-store') }}" enctype="multipart/form-data" class="mt-4 flex flex-col gap-4">
+                @csrf
+                <input type="file" name="files[]" multiple required accept=".xlsx,.csv"
+                       class="block w-full rounded border border-gray-300 p-2 text-sm">
+                <button type="submit"
+                        class="self-start rounded bg-gray-700 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-800">
+                    Upload &amp; Cocokkan ke Divisi
+                </button>
+            </form>
+        </div>
+    @endif
 </div>
 @endsection
