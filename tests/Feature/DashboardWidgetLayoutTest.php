@@ -69,7 +69,7 @@ class DashboardWidgetLayoutTest extends TestCase
         $this->actingAs($staff)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('Total Nilai Kinerja')
+            ->assertSee('Rata-rata NKO')
             ->assertSee('Grafik Tren Kinerja')
             ->assertDontSee('Audit Terbaru')
             ->assertDontSee('Dataset Gagal')

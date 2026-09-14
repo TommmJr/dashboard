@@ -5,7 +5,9 @@ namespace App\Http\Controllers;
 use App\Enums\DatasetStatus;
 use App\Models\AuditLog;
 use App\Models\Dataset;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\View\View;
 
@@ -54,6 +56,7 @@ class DashboardController extends Controller
     private function dataFor(string $key): mixed
     {
         return match ($key) {
+            'nko-ranking' => $this->nkoRanking(),
             'recent-audit' => AuditLog::query()
                 ->with('user:id,name')
                 ->latest('created_at')
@@ -64,5 +67,39 @@ class DashboardController extends Controller
                 ->count(),
             default => null,
         };
+    }
+
+    /**
+     * Peringkat NKO per unit untuk periode terbaru.
+     *
+     * Hanya baris berakhiran '| NKO' (dihasilkan KpiReportConverter) yang
+     * diambil. NKO BUKAN besaran aditif: menjumlahkannya seperti pada chart
+     * tren (SUM(value)) menghasilkan angka tak bermakna, jadi query ini
+     * terpisah dan mengambil nilai per unit apa adanya.
+     *
+     * Cross-unit by design — widget ini hanya dipasang di layout role yang
+     * memang melihat semua divisi (lihat config/dashboard_layouts.php).
+     *
+     * @return Collection<int, object>
+     */
+    private function nkoRanking(): Collection
+    {
+        $base = fn () => DB::table('performance_metrics')
+            ->join('datasets', 'datasets.id', '=', 'performance_metrics.dataset_id')
+            ->where('datasets.status', Dataset::STATUS_READY)
+            ->where('performance_metrics.metric_name', 'like', '% | NKO');
+
+        $latestPeriod = $base()->max('performance_metrics.period');
+
+        if ($latestPeriod === null) {
+            return collect();
+        }
+
+        return $base()
+            ->join('divisions', 'divisions.id', '=', 'performance_metrics.division_id')
+            ->where('performance_metrics.period', $latestPeriod)
+            ->select('divisions.name as unit', 'performance_metrics.value as nko')
+            ->orderByDesc('performance_metrics.value')
+            ->get();
     }
 }

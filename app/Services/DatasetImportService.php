@@ -170,7 +170,7 @@ class DatasetImportService
      * Formatting:
      * - Header: bold, background abu-abu, teks terkunci (protected).
      * - Kolom 'value'  : format number 2 desimal (#,##0.00).
-     * - Kolom 'period' : format date (YYYY-MM-DD) agar Excel enforce tipe date.
+     * - Kolom 'period' : format date DD/MM/YYYY agar Excel enforce tipe date.
      * - Lebar kolom    : auto-size.
      * - Baris contoh   : nilai riil (bukan teks), agar format langsung terlihat.
      */
@@ -207,8 +207,12 @@ class DatasetImportService
                 $value = 123.45;
             } elseif ($rule === 'date') {
                 // PhpSpreadsheet menyimpan tanggal sebagai serial number Excel.
+                // startOfDay() wajib: Carbon::createFromFormat mengisi komponen
+                // jam dengan waktu saat ini, sehingga serial-nya jadi datetime
+                // (mis. 46053.096) bukan tanggal murni 46053 sesuai format
+                // DD/MM/YYYY yang diklaim di bawah.
                 $value = Date::PHPToExcel(
-                    Carbon::createFromFormat('Y-m-d', '2026-01-31')->timestamp
+                    Carbon::createFromFormat('Y-m-d', '2026-01-31')->startOfDay()
                 );
             } else {
                 $value = 'contoh_metrik';
@@ -282,11 +286,18 @@ class DatasetImportService
      * membaca date yang diisi via Excel date-picker sebagai serial float.
      * Di sini kita konversi ke string Y-m-d agar pipeline validasi konsisten.
      *
+     * readDataOnly: jangan muat style/format sel. Laporan KPI riil (16 sheet,
+     * ~3 MB) mati OOM di memory_limit 128M bila style ikut dimuat; dengan
+     * readDataOnly turun ke ~58 MB. Style tidak dibutuhkan karena nilai
+     * dibaca mentah dan tipe kolom sudah ditentukan config.
+     *
      * @return array<int, array<int, mixed>>
      */
     private function parseRows(UploadedFile $file): array
     {
-        $spreadsheet = IOFactory::load($file->getRealPath());
+        $reader = IOFactory::createReaderForFile($file->getRealPath());
+        $reader->setReadDataOnly(true);
+        $spreadsheet = $reader->load($file->getRealPath());
         $columns = config('dataset_import.columns');
         $dateColumnIndexes = collect($columns)
             ->keys()
@@ -381,7 +392,17 @@ class DatasetImportService
             };
 
             if ($invalid) {
-                return "kolom '{$column['header']}' tidak valid ({$column['rule']})";
+                return match ($column['rule']) {
+                    // is_numeric() hanya menerima gaya PHP/Inggris (1234.56).
+                    // Gaya Indonesia (1.234,56) SENGAJA ditolak dengan pesan
+                    // eksplisit, bukan dinormalisasi otomatis: "1.234" ambigu
+                    // (1,234 vs 1234) dan menebak-nebak separator bisa diam-diam
+                    // menggeser nilai 1000x. Normalisasi hanya aman bila suatu
+                    // saat ada kebutuhan CSV locale Indonesia yang jelas.
+                    'numeric' => "kolom '{$column['header']}' tidak valid (numeric): pakai titik desimal tanpa pemisah ribuan (contoh: 1234.56)",
+                    'date' => "kolom '{$column['header']}' tidak valid (date): pakai DD/MM/YYYY atau YYYY-MM-DD",
+                    default => "kolom '{$column['header']}' tidak valid ({$column['rule']})",
+                };
             }
         }
 
@@ -389,11 +410,13 @@ class DatasetImportService
     }
 
     /**
-     * Validasi tanggal — terima dua format:
+     * Validasi tanggal — terima:
      * - DD/MM/YYYY (format template, familiar staf Indonesia)
      * - YYYY-MM-DD (format ISO, untuk CSV manual atau export lain)
+     * - datetime dengan komponen jam (mis. "2026-01-31 10:30:00"),
+     *   tanggalnya diambil, jamnya dibuang.
      *
-     * Keduanya di-normalize ke Y-m-d sebelum disimpan. Anti silent-rolling:
+     * Semua di-normalize ke Y-m-d sebelum disimpan. Anti silent-rolling:
      * round-trip format harus identik dengan input.
      */
     private function isValidDate(string $value): bool
@@ -407,6 +430,13 @@ class DatasetImportService
      */
     private function normalizeDate(string $value): ?string
     {
+        // Datetime dengan komponen jam (dari CSV/export sistem lain):
+        // ambil tanggalnya saja. Validitas tanggal tetap dicek round-trip
+        // di bawah, jadi "31/02/2026 10:00" tetap ditolak, bukan digulung.
+        if (preg_match('/^(\d{2}\/\d{2}\/\d{4}|\d{4}-\d{2}-\d{2})[T ]\d{1,2}:\d{2}(?::\d{2})?$/', $value, $matches)) {
+            $value = $matches[1];
+        }
+
         // Format 1: DD/MM/YYYY (dari template Excel dengan format DD/MM/YYYY)
         if (preg_match('/^\d{2}\/\d{2}\/\d{4}$/', $value)) {
             try {

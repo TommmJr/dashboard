@@ -6,9 +6,12 @@ use App\Models\Dataset;
 use App\Models\Division;
 use App\Models\Role;
 use App\Models\User;
+use App\Services\DatasetImportService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use PhpOffice\PhpSpreadsheet\IOFactory;
+use PhpOffice\PhpSpreadsheet\Shared\Date;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Tests\TestCase;
@@ -176,6 +179,50 @@ class DatasetImportTest extends TestCase
             'attachment; filename=template-dataset.xlsx',
             $response->headers->get('content-disposition'),
         );
+    }
+
+    public function test_contoh_period_di_template_adalah_tanggal_murni_dd_mm_yyyy(): void
+    {
+        $path = app(DatasetImportService::class)->buildTemplate();
+        $spreadsheet = IOFactory::load($path);
+        $sheet = $spreadsheet->getSheetByName('Data');
+
+        $cell = $sheet->getCell('C2');
+
+        $this->assertSame('DD/MM/YYYY', $sheet->getStyle('C2')->getNumberFormat()->getFormatCode());
+        $this->assertSame('31/01/2026', $cell->getFormattedValue());
+
+        // Regresi: dulu Carbon::createFromFormat mengisi jam dengan waktu
+        // saat ini, sehingga serial-nya datetime (46053.096...) bukan tanggal
+        // murni (46053). Tanggal tampil benar, tapi value-nya keliru.
+        $this->assertSame(46053.0, (float) $cell->getValue());
+        $this->assertSame(
+            '2026-01-31 00:00:00',
+            Date::excelToDateTimeObject($cell->getValue())->format('Y-m-d H:i:s'),
+        );
+
+        $spreadsheet->disconnectWorksheets();
+        @unlink($path);
+    }
+
+    public function test_template_yang_diunduh_bisa_diimpor_ulang(): void
+    {
+        // End-to-end: file template sendiri harus lolos pipeline impor dan
+        // period contohnya terbaca sebagai 2026-01-31 (bukti value-nya tanggal,
+        // bukan cuma format tampilan).
+        $path = app(DatasetImportService::class)->buildTemplate();
+        $file = new UploadedFile($path, 'template-dataset.xlsx',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', null, true);
+
+        $this->actingAs($this->staff)->post(route('datasets.store'), ['file' => $file]);
+
+        $dataset = Dataset::sole();
+        $this->assertSame(Dataset::STATUS_READY, $dataset->status->value);
+        $this->assertSame(1, $dataset->metrics()->count());
+
+        $metric = $dataset->metrics()->sole();
+        $this->assertSame('contoh_metrik', $metric->metric_name);
+        $this->assertSame('2026-01-31', $metric->period->format('Y-m-d'));
     }
 
     public function test_form_upload_dapat_diakses_pemegang_dataset_import(): void

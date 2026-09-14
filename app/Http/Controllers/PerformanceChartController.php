@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Dataset;
 use App\Models\Role;
+use App\Services\KpiReportConverter;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
@@ -12,14 +13,20 @@ use Illuminate\Support\Facades\DB;
 class PerformanceChartController extends Controller
 {
     /**
-     * Data agregasi untuk chart dashboard utama (Tahap 7 parsial).
+     * Data agregasi untuk chart dashboard utama.
      *
      * Kontrak JSON:
      * - labels : daftar periode (Y-m-d) urut naik.
-     * - series : [{ name: <nama divisi>, data: [<total per periode>] }]
-     *            — satu series per divisi agar ECharts bisa menumpuk
-     *            bar + line trend per divisi.
-     * - kpi    : { total_value, ready_datasets, metric_count }
+     * - series : [{ name: <nama unit>, data: [<NKO per periode>] }]
+     *            — satu series per unit agar ECharts bisa menumpuk
+     *            bar + line trend per unit.
+     * - kpi    : { average_nko, ready_datasets, metric_count }
+     *
+     * Basis agregasi adalah baris NKO saja, BUKAN SUM(value). Kolom value
+     * memuat satuan yang tidak sebanding (Rp Juta, Dokumen, Kali, %, indeks
+     * 0-110) karena satu dataset KPI memuat target, realisasi, dan skor
+     * sekaligus — menjumlahkannya menghasilkan angka tak bermakna.
+     * NKO adalah satu-satunya angka yang sebanding lintas unit.
      *
      * Aturan scoping (per audit keamanan #3):
      * - admin & management: agregasi SELURUH divisi.
@@ -47,18 +54,25 @@ class PerformanceChartController extends Controller
         // Non-admin/non-management: batasi ke division_id miliknya.
         $isPrivileged = $user->hasRole(Role::ADMIN) || $user->hasRole(Role::MANAGEMENT);
 
-        $scoped = $baseQuery();
-        if (! $isPrivileged) {
-            $scoped->where('performance_metrics.division_id', $user->division_id);
-        }
+        $scoped = function ($query) use ($isPrivileged, $user) {
+            if (! $isPrivileged) {
+                $query->where('performance_metrics.division_id', $user->division_id);
+            }
 
-        $rows = (clone $scoped)
-            ->selectRaw("performance_metrics.period, performance_metrics.division_id, COALESCE(divisions.name, 'Tanpa Divisi') as division_name, SUM(performance_metrics.value) as total")
+            return $query;
+        };
+
+        // ponytail: MAX dipakai bila satu unit mengunggah NKO lebih dari sekali
+        // untuk periode yang sama — nilai tertinggi yang tampil. Ganti ke
+        // "dataset terbaru per periode" kalau re-upload jadi kebiasaan.
+        $rows = $scoped($baseQuery())
+            ->where('performance_metrics.metric_name', 'like', '%'.KpiReportConverter::NKO_SUFFIX)
+            ->selectRaw("performance_metrics.period, performance_metrics.division_id, COALESCE(divisions.name, 'Tanpa Divisi') as division_name, MAX(performance_metrics.value) as nko")
             ->groupBy('performance_metrics.period', 'performance_metrics.division_id', 'divisions.name')
             ->orderBy('performance_metrics.period')
             ->get();
 
-        // Pivot: label periode unik + satu series per divisi.
+        // Pivot: label periode unik + satu series per unit.
         $labels = $rows->pluck('period')
             ->map(fn ($period) => Carbon::parse($period)->format('Y-m-d'))
             ->unique()
@@ -70,25 +84,29 @@ class PerformanceChartController extends Controller
 
             return [
                 'name' => $name,
-                'data' => $labels->map(fn ($label) => (float) ($byPeriod[$label]->total ?? 0))->values(),
+                'data' => $labels->map(fn ($label) => (float) ($byPeriod[$label]->nko ?? 0))->values(),
             ];
         })->values();
 
-        // KPI card: total nilai seluruh periode tampil, jumlah dataset READY
-        // (mengikuti scoping yang sama), dan jumlah baris metric aktif.
+        // KPI card: rata-rata NKO periode terbaru (kondisi terkini), jumlah
+        // dataset READY (scoping sama), dan jumlah baris metric aktif.
         $readyDatasets = DB::table('datasets')
             ->where('status', Dataset::STATUS_READY)
             ->when(! $isPrivileged, fn ($q) => $q->where('division_id', $user->division_id))
             ->count();
 
-        $metricCount = (clone $scoped)->count();
-        $totalValue = (float) $rows->sum('total');
+        $latestPeriod = $labels->last();
+        $averageNko = $latestPeriod === null ? 0.0 : (float) $rows
+            ->filter(fn ($row) => Carbon::parse($row->period)->format('Y-m-d') === $latestPeriod)
+            ->avg('nko');
+
+        $metricCount = $scoped($baseQuery())->count();
 
         return response()->json([
             'labels' => $labels,
             'series' => $series,
             'kpi' => [
-                'total_value' => $totalValue,
+                'average_nko' => round($averageNko, 2),
                 'ready_datasets' => $readyDatasets,
                 'metric_count' => $metricCount,
             ],

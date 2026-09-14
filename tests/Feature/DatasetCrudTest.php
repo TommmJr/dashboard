@@ -7,6 +7,7 @@ use App\Models\Division;
 use App\Models\PerformanceMetric;
 use App\Models\Role;
 use App\Models\User;
+use App\Services\KpiReportConverter;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -187,6 +188,7 @@ class DatasetCrudTest extends TestCase
     public function test_dataset_archived_tidak_masuk_agregasi_chart(): void
     {
         PerformanceMetric::factory()->create([
+            'metric_name' => $this->divisionA->name.KpiReportConverter::NKO_SUFFIX,
             'dataset_id' => $this->datasetA->id,
             'division_id' => $this->divisionA->id,
             'period' => '2026-01-15',

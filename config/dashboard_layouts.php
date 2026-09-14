@@ -31,6 +31,7 @@ return [
     'widgets' => [
         'kpi-summary' => ['label' => 'Ringkasan KPI',      'view' => 'widgets.kpi-summary',          'permission' => null],
         'trend-chart' => ['label' => 'Grafik Tren Kinerja', 'view' => 'widgets.trend-chart',         'permission' => null],
+        'nko-ranking' => ['label' => 'Peringkat NKO Unit',   'view' => 'widgets.nko-ranking',          'permission' => 'dashboard.view'],
         'recent-audit' => ['label' => 'Audit Terbaru',      'view' => 'widgets.recent-audit',         'permission' => 'audit.view'],
         'failed-datasets' => ['label' => 'Dataset Gagal',      'view' => 'widgets.failed-datasets',      'permission' => 'dataset.view'],
         'layout-editor-placeholder' => ['label' => 'Editor Layout',      'view' => 'widgets.layout-editor-placeholder', 'permission' => 'dashboard.update'],
@@ -39,11 +40,15 @@ return [
     /*
      * Layout per role. Key = slug role (string literal, identik dengan
      * konstanta di App\Models\Role), value = daftar widget_key terurut.
+     *
+     * nko-ranking sengaja HANYA di layout role yang melihat semua divisi
+     * (admin, management, editor_dashboard). Peringkat lintas-unit tidak
+     * bermakna untuk staf divisi yang scoping datanya satu divisi saja.
      */
     'layouts' => [
-        'admin' => ['kpi-summary', 'trend-chart', 'recent-audit', 'failed-datasets'],
-        'management' => ['kpi-summary', 'trend-chart'],
-        'editor_dashboard' => ['kpi-summary', 'trend-chart', 'layout-editor-placeholder'],
+        'admin' => ['kpi-summary', 'trend-chart', 'nko-ranking', 'recent-audit', 'failed-datasets'],
+        'management' => ['kpi-summary', 'trend-chart', 'nko-ranking'],
+        'editor_dashboard' => ['kpi-summary', 'trend-chart', 'nko-ranking', 'layout-editor-placeholder'],
         'staff_divisi' => ['kpi-summary', 'trend-chart'],
     ],
 

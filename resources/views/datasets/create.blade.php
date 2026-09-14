@@ -37,7 +37,9 @@
                             class="mt-1 block w-full rounded-md border-gray-300 text-sm">
                         <option value="">-- Pilih divisi --</option>
                         @foreach ($divisions as $division)
-                            <option value="{{ $division->id }}" @selected(old('division_id') == $division->id)>{{ $division->name }}</option>
+                            {{-- Kode unit (name) yang dicocokkan ke nama berkas; nama
+                                 panjangnya (description) ditampilkan agar tidak kriptik. --}}
+                            <option value="{{ $division->id }}" @selected(old('division_id') == $division->id)>{{ $division->description ? $division->name.' — '.$division->description : $division->name }}</option>
                         @endforeach
                     </select>
                 </div>

@@ -6,6 +6,7 @@ use App\Models\Division;
 use App\Models\PerformanceMetric;
 use App\Models\Role;
 use App\Models\User;
+use App\Services\KpiReportConverter;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -15,6 +16,8 @@ use Tests\TestCase;
  *
  * - Admin & management: boleh lihat agregat semua divisi.
  * - Staf divisi & editor: hanya divisinya sendiri.
+ *
+ * Basis agregasi NKO (bukan SUM seluruh value) — lihat PerformanceChartDataTest.
  */
 class PerformanceChartScopingTest extends TestCase
 {
@@ -31,56 +34,52 @@ class PerformanceChartScopingTest extends TestCase
         $divA = Division::create(['name' => 'Divisi A', 'slug' => 'div-a']);
         $divB = Division::create(['name' => 'Divisi B', 'slug' => 'div-b']);
 
-        // Data di Divisi A
-        PerformanceMetric::create([
-            'metric_name' => 'Pendapatan A',
-            'value' => 100,
-            'period' => '2026-01-15',
-            'division_id' => $divA->id,
-        ]);
-        PerformanceMetric::create([
-            'metric_name' => 'Pendapatan A2',
-            'value' => 200,
-            'period' => '2026-02-15',
-            'division_id' => $divA->id,
-        ]);
+        $nko = function (Division $division, string $period, float $value): void {
+            PerformanceMetric::create([
+                'metric_name' => $division->name.KpiReportConverter::NKO_SUFFIX,
+                'value' => $value,
+                'period' => $period,
+                'division_id' => $division->id,
+            ]);
+        };
 
-        // Data di Divisi B
-        PerformanceMetric::create([
-            'metric_name' => 'Pendapatan B',
-            'value' => 999,
-            'period' => '2026-01-15',
-            'division_id' => $divB->id,
-        ]);
+        $nko($divA, '2026-01-15', 100);
+        $nko($divA, '2026-02-15', 105);
+
+        $nko($divB, '2026-01-15', 95);
+        $nko($divB, '2026-02-15', 95);
 
         return [$divA, $divB];
     }
 
     public function test_admin_melihat_agregat_semua_divisi(): void
     {
-        [$divA, $divB] = $this->seedDivisionsAndMetrics();
+        $this->seedDivisionsAndMetrics();
         $admin = User::factory()->withRole(Role::ADMIN)->create();
 
         $response = $this->actingAs($admin)
             ->getJson(route('performance.data'))
             ->assertOk();
 
-        $sum = (float) $response->json('kpi.total_value');
-        // Admin melihat 100+200+999 = 1299
-        $this->assertEquals(1299.0, $sum);
+        // Admin melihat kedua divisi: rata-rata NKO periode terbaru
+        // (105 + 95) / 2 = 100.
+        $this->assertEquals(100.0, (float) $response->json('kpi.average_nko'));
+
+        $seriesNames = collect($response->json('series'))->pluck('name');
+        $this->assertContains('Divisi A', $seriesNames);
+        $this->assertContains('Divisi B', $seriesNames);
     }
 
     public function test_management_melihat_agregat_semua_divisi(): void
     {
-        [$divA, $divB] = $this->seedDivisionsAndMetrics();
+        $this->seedDivisionsAndMetrics();
         $mgmt = User::factory()->withRole(Role::MANAGEMENT)->create();
 
         $response = $this->actingAs($mgmt)
             ->getJson(route('performance.data'))
             ->assertOk();
 
-        $sum = (float) $response->json('kpi.total_value');
-        $this->assertEquals(1299.0, $sum);
+        $this->assertEquals(100.0, (float) $response->json('kpi.average_nko'));
     }
 
     public function test_staf_divisi_hanya_lihat_datanya_sendiri(): void
@@ -95,11 +94,13 @@ class PerformanceChartScopingTest extends TestCase
             ->getJson(route('performance.data'))
             ->assertOk();
 
-        $sum = (float) $response->json('kpi.total_value');
+        // Staf A hanya boleh melihat NKO divisi A: periode terbaru = 105.
+        // TIDAK boleh terpengaruh 95 dari divisi B.
+        $this->assertEquals(105.0, (float) $response->json('kpi.average_nko'));
 
-        // Staf A hanya boleh melihat data divisi A: 100 + 200 = 300
-        // TIDAK boleh melihat 999 dari divisi B.
-        $this->assertEquals(300.0, $sum);
+        $seriesNames = collect($response->json('series'))->pluck('name');
+        $this->assertContains('Divisi A', $seriesNames);
+        $this->assertNotContains('Divisi B', $seriesNames);
     }
 
     public function test_staf_divisi_tidak_boleh_lihat_data_divisi_lain(): void
@@ -115,8 +116,7 @@ class PerformanceChartScopingTest extends TestCase
             ->getJson(route('performance.data'))
             ->assertOk();
 
-        // Response JSON tidak mengandung label metric divisi B.
-        $this->assertStringNotContainsString('Pendapatan B', json_encode($response->json()));
+        $this->assertStringNotContainsString('Divisi B', json_encode($response->json()));
     }
 
     public function test_user_tanpa_division_melihat_data_kosong(): void
@@ -134,6 +134,6 @@ class PerformanceChartScopingTest extends TestCase
         // labels dan series harus array kosong, KPI nol.
         $this->assertSame([], $response->json('labels'));
         $this->assertSame([], $response->json('series'));
-        $this->assertEquals(0.0, (float) $response->json('kpi.total_value'));
+        $this->assertEquals(0.0, (float) $response->json('kpi.average_nko'));
     }
 }
