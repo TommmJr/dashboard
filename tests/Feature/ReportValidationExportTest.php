@@ -32,6 +32,9 @@ class ReportValidationExportTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        // Fitur Reports dinonaktifkan sementara 2026-09-15 - route /reports/* di-comment,
+        // lihat routes/web.php dan progress.md. Aktifkan lagi bersama route-nya.
+        $this->markTestSkipped('Reports feature dinonaktifkan sementara 2026-09-15 - lihat progress.md.');
 
         $this->seed(RolePermissionSeeder::class);
 

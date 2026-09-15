@@ -28,6 +28,7 @@ Route::middleware('guest')->group(function () {
         ->middleware('throttle:login')
         ->name('login.store');
 });
+
 // Grup route yang wajib login terlebih dahulu.
 Route::middleware('auth')->group(function () {
     // Halaman utama dashboard: controller invokable, merakit widget
@@ -48,14 +49,17 @@ Route::middleware('auth')->group(function () {
     // dataset.update + ownership divisi; delete butuh dataset.delete (admin).
     Route::middleware('can:dataset.view')->group(function () {
         Route::get('/datasets', [DatasetController::class, 'index'])->name('datasets.index');
-        // Route statis harus SEBELUM /datasets/{dataset} agar tidak
-        // tertelan parameter wildcard.
-        Route::get('/datasets-template', [DatasetController::class, 'template'])->name('datasets.template');
+        // Fitur unduh template dihapus (2026-09-15) — buildTemplate() &
+        // DatasetController::template() sudah tidak dipakai lagi.
+        // Route::get('/datasets-template', [DatasetController::class, 'template'])->name('datasets.template');
     });
     Route::middleware('can:dataset.import')->group(function () {
         Route::get('/datasets/create', [DatasetController::class, 'create'])->name('datasets.create');
         Route::post('/datasets', [DatasetController::class, 'store'])->name('datasets.store');
         Route::post('/datasets/bulk', [DatasetController::class, 'bulkStore'])->name('datasets.bulk-store');
+        // Import 1-klik laporan KPI mentah dari mentor (auto-split per unit).
+        Route::post('/datasets/import-kpi-report', [DatasetController::class, 'importKpiReport'])
+            ->name('datasets.kpi-import');
     });
     Route::middleware('can:dataset.view')
         ->get('/datasets/{dataset}', [DatasetController::class, 'show'])
@@ -82,17 +86,19 @@ Route::middleware('auth')->group(function () {
         ->get('/audit-logs', [AuditLogController::class, 'index'])
         ->name('audit-logs.index');
 
-    // Report exports. Semua butuh dataset.view/audit.view + report.export.
-    Route::middleware(['can:dataset.view', 'can:report.export'])->group(function () {
-        Route::get('/reports', [ReportController::class, 'index'])->name('reports.index');
-        Route::get('/reports/datasets/{dataset}/validation', [ReportController::class, 'validationExport'])
-            ->name('reports.validation-export');
-        Route::get('/reports/datasets/summary', [ReportController::class, 'datasetSummaryExport'])
-            ->name('reports.dataset-summary');
-    });
-    Route::middleware(['can:audit.view', 'can:report.export'])
-        ->get('/reports/audit', [ReportController::class, 'auditExport'])
-        ->name('reports.audit-export');
+    // Fitur Reports dinonaktifkan sementara (2026-09-15) — seluruh route
+    // /reports/* di-comment, controller & view dibiarkan ada untuk
+    // diaktifkan lagi nanti. Pola sama dengan HIGH-05 (PerformanceUpload).
+    // Route::middleware(['can:dataset.view', 'can:report.export'])->group(function () {
+    //     Route::get('/reports', [ReportController::class, 'index'])->name('reports.index');
+    //     Route::get('/reports/datasets/{dataset}/validation', [ReportController::class, 'validationExport'])
+    //         ->name('reports.validation-export');
+    //     Route::get('/reports/datasets/summary', [ReportController::class, 'datasetSummaryExport'])
+    //         ->name('reports.dataset-summary');
+    // });
+    // Route::middleware(['can:audit.view', 'can:report.export'])
+    //     ->get('/reports/audit', [ReportController::class, 'auditExport'])
+    //     ->name('reports.audit-export');
 
     // Area khusus ber-permission. Middleware 'can:...' memvalidasi gate
     // permission di backend; tanpa permission = HTTP 403.

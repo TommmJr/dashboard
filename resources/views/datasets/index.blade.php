@@ -13,12 +13,6 @@
                     + Upload Dataset
                 </a>
             @endcan
-            @can('report.export')
-                <a href="{{ route('reports.dataset-summary') }}"
-                   class="rounded bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-700">
-                    Export Ringkasan
-                </a>
-            @endcan
         </div>
         <form method="GET" class="flex items-center gap-2 text-sm">
             <label for="status" class="text-gray-600">Status</label>
@@ -34,6 +28,10 @@
 
     @if (session('success'))
         <div class="mt-4 rounded-md bg-green-50 p-3 text-sm text-green-700">{{ session('success') }}</div>
+    @endif
+
+    @if (session('error'))
+        <div class="mt-4 rounded-md bg-red-50 p-3 text-sm text-red-700">{{ session('error') }}</div>
     @endif
 
     <div class="mt-6 overflow-x-auto rounded-lg bg-white shadow">

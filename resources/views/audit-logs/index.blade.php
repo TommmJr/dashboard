@@ -12,7 +12,9 @@
         </p>
     @endif
 
-    @can('report.export')
+    {{-- Fitur Reports dinonaktifkan sementara (2026-09-15), tombol export
+         dihapus karena route reports.audit-export di-comment di routes/web.php. --}}
+    {{-- @can('report.export')
         <form method="GET" action="{{ route('reports.audit-export') }}" class="mt-3 flex flex-wrap items-end gap-2 text-sm">
             <div>
                 <label class="block text-gray-600" for="export_from">Export dari</label>
@@ -24,7 +26,7 @@
             </div>
             <button class="rounded bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700">Export Audit (.xlsx)</button>
         </form>
-    @endcan
+    @endcan --}}
 
     <form method="GET" class="mt-4 flex flex-wrap items-end gap-3 text-sm">
         <div>

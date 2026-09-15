@@ -6,6 +6,14 @@
 <div class="mx-auto max-w-7xl px-4 py-8">
     <a href="{{ route('datasets.index') }}" class="text-sm text-indigo-600 hover:underline">&larr; Kembali ke daftar</a>
 
+    @if (session('success'))
+        <div class="mt-4 rounded-md bg-green-50 p-3 text-sm text-green-700">{{ session('success') }}</div>
+    @endif
+
+    @if (session('error'))
+        <div class="mt-4 rounded-md bg-red-50 p-3 text-sm text-red-700">{{ session('error') }}</div>
+    @endif
+
     <div class="mt-4 rounded-lg bg-white p-6 shadow">
         <div class="flex items-start justify-between">
             <div>
@@ -55,12 +63,14 @@
                        class="rounded bg-green-600 px-3 py-2 text-sm font-semibold text-white hover:bg-green-700">
                         Export Excel
                     </a>
-                    @if ($dataset->validation_report)
+                    {{-- Fitur Reports dinonaktifkan sementara (2026-09-15) —
+                         route reports.validation-export di-comment, tombol dihapus. --}}
+                    {{-- @if ($dataset->validation_report)
                         <a href="{{ route('reports.validation-export', $dataset) }}"
                            class="rounded bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700">
                             Export Validasi
                         </a>
-                    @endif
+                    @endif --}}
                 @endcan
                 @can('dataset.update')
                     @if ($dataset->status !== \App\Enums\DatasetStatus::ARCHIVED)

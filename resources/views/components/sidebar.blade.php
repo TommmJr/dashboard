@@ -92,7 +92,9 @@
         {{-- Divider --}}
         <hr class="my-2 border-white/10">
 
-        @can('report.export')
+        {{-- Fitur Reports dinonaktifkan sementara (2026-09-15), link dihapus.
+             Route /reports/* juga di-comment di routes/web.php. --}}
+        {{-- @can('report.export')
         <a href="{{ route('reports.index') }}"
            class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition
                   {{ request()->routeIs('reports.*') ? 'bg-accent text-white' : 'text-white/80 hover:bg-white/10 hover:text-white' }}">
@@ -101,7 +103,7 @@
             </svg>
             <span x-show="$store.ui.sidebarExpanded" x-transition.opacity class="whitespace-nowrap">Reports</span>
         </a>
-        @endcan
+        @endcan --}}
 
         @can('dashboard.update')
         <span class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-white/40 pointer-events-none select-none">

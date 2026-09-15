@@ -11,15 +11,10 @@
             <h1 class="text-xl font-bold text-gray-900">Upload Dataset Baru</h1>
         </div>
         <p class="mt-2 text-sm text-gray-600">
-            Gunakan template generik. Kolom wajib: <code class="rounded bg-gray-100 px-1">metric_name</code>,
+            Gunakan file Excel/CSV dengan kolom <code class="rounded bg-gray-100 px-1">metric_name</code>,
             <code class="rounded bg-gray-100 px-1">value</code> (numerik),
-            <code class="rounded bg-gray-100 px-1">period</code> (format YYYY-MM-DD).
+            <code class="rounded bg-gray-100 px-1">period</code> (format DD-MM-YYYY).
         </p>
-
-        <a href="{{ route('datasets.template') }}"
-           class="mt-3 inline-block rounded bg-gray-700 px-3 py-2 text-sm font-semibold text-white hover:bg-gray-800">
-            Unduh Template (.xlsx)
-        </a>
 
         @if ($errors->any())
             <div class="mt-4 rounded-md bg-red-50 p-3 text-sm text-red-700">
@@ -46,8 +41,7 @@
             @else
                 <p class="text-sm text-gray-600">Dataset akan tertaut ke divisi Anda: <span class="font-semibold">{{ $user->division?->name }}</span></p>
             @endif
-            <input   type="file" name="file" required accept=".xlsx,.csv"
-                   class="block w-full rounded border border-gray-300 p-2 text-sm">
+            <x-dropzone name="file" accept=".xlsx,.csv" required />
             <button type="submit"
                     class="rounded bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">
                 Upload &amp; Impor
@@ -90,11 +84,58 @@
 
             <form method="POST" action="{{ route('datasets.bulk-store') }}" enctype="multipart/form-data" class="mt-4 flex flex-col gap-4">
                 @csrf
-                <input type="file" name="files[]" multiple required accept=".xlsx,.csv"
-                       class="block w-full rounded border border-gray-300 p-2 text-sm">
+                <x-dropzone name="files[]" accept=".xlsx,.csv" multiple required />
                 <button type="submit"
                         class="self-start rounded bg-gray-700 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-800">
                     Upload &amp; Cocokkan ke Divisi
+                </button>
+            </form>
+        </div>
+    @endif
+
+    @if ($divisions->isNotEmpty())
+        <div class="mt-4 rounded-lg bg-white p-6 shadow">
+            <h2 class="text-lg font-bold text-gray-900">Import Laporan KPI dari Mentor (Otomatis)</h2>
+            <p class="mt-2 text-sm text-gray-600">
+                Upload file Excel laporan KPI apa adanya, sistem akan memisahkan per unit secara otomatis
+                dan mengimpornya ke divisi yang sesuai. Isi <strong>periode data</strong> karena tulisan
+                periode di dalam file sering tidak akurat. Unit yang namanya tidak dikenal akan dilewati
+                dan dilaporkan, bukan diimpor ke divisi yang salah.
+            </p>
+
+            @if (session('kpi_unmatched') && count(session('kpi_unmatched')))
+                <div class="mt-3 rounded-md bg-yellow-50 p-3 text-sm text-yellow-800">
+                    <p class="font-semibold">Unit tidak dikenal (tidak ada divisi dengan nama sama, dilewati):</p>
+                    <ul class="mt-1 list-disc pl-5">
+                        @foreach (session('kpi_unmatched') as $unit)
+                            <li>{{ $unit }}</li>
+                        @endforeach
+                    </ul>
+                </div>
+            @endif
+
+            @if (session('kpi_failed') && count(session('kpi_failed')))
+                <div class="mt-3 rounded-md bg-red-50 p-3 text-sm text-red-700">
+                    <p class="font-semibold">Unit gagal diproses:</p>
+                    <ul class="mt-1 list-disc pl-5">
+                        @foreach (session('kpi_failed') as $reason)
+                            <li>{{ $reason }}</li>
+                        @endforeach
+                    </ul>
+                </div>
+            @endif
+
+            <form method="POST" action="{{ route('datasets.kpi-import') }}" enctype="multipart/form-data" class="mt-4 flex flex-col gap-4">
+                @csrf
+                <div>
+                    <label for="period" class="block text-sm font-medium text-gray-700">Periode data</label>
+                    <input type="date" id="period" name="period" required value="{{ old('period') }}"
+                           class="mt-1 block rounded-md border-gray-300 text-sm">
+                </div>
+                <x-dropzone name="file" accept=".xlsx" required />
+                <button type="submit"
+                        class="self-start rounded bg-gray-700 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-800">
+                    Import Otomatis
                 </button>
             </form>
         </div>

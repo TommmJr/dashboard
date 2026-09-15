@@ -7,6 +7,7 @@ use App\Models\Division;
 use App\Models\Role;
 use App\Models\User;
 use App\Services\DatasetImportService;
+use App\Services\KpiReportConverter;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
@@ -38,16 +39,10 @@ class DatasetController extends Controller
     }
 
     /**
-     * Unduh template .xlsx generik (kolom dari config/dataset_import.php).
+     * Fitur unduh template dihapus (2026-09-15): buildTemplate() tidak
+     * lagi dipakai. Method & route datasets.template dihapus, bukan
+     * di-comment, karena tidak ada sisa referensi.
      */
-    public function template(DatasetImportService $importService)
-    {
-        $tempPath = $importService->buildTemplate();
-
-        return response()->download($tempPath, 'template-dataset.xlsx', [
-            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        ])->deleteFileAfterSend();
-    }
 
     /**
      * Terima file, buat record Dataset (UPLOADING), jalankan pipeline impor.
@@ -179,6 +174,124 @@ class DatasetController extends Controller
             ->with($imported !== [] ? 'success' : 'error', $message)
             ->with('bulk_unmatched', $unmatched)
             ->with('bulk_failed', $failed);
+    }
+
+    /**
+     * Import laporan KPI mentah dari mentor dalam 1 klik, tanpa command line.
+     * File .xlsx "apa adanya" dipecah per unit oleh KpiReportConverter, tiap
+     * unit dicocokkan ke divisi lewat NAMA SHEET (case-insensitive exact
+     * match, pola sama dengan bulkStore()), lalu diimpor lewat pipeline biasa.
+     *
+     * Unit yang namanya tidak sama persis dengan divisi manapun DILEWATI dan
+     * dilaporkan — tidak ditebak. Satu sheet bermasalah (layout berubah)
+     * tidak menghentikan sheet lain. Periode wajib diisi user karena label
+     * periode di sheet mentor tidak konsisten (stale), tidak reliable untuk
+     * auto-detect.
+     */
+    public function importKpiReport(Request $request, KpiReportConverter $converter, DatasetImportService $importService)
+    {
+        $user = Auth::user();
+
+        abort_unless($user->division_id === null, 403, 'Import laporan KPI hanya untuk user tanpa divisi tetap.');
+
+        $maxKb = config('dataset_import.max_size_kb');
+
+        $request->validate([
+            'file' => "required|file|extensions:xlsx|mimetypes:application/zip,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet|max:{$maxKb}",
+            // Date picker form selalu mengirim Y-m-d; format dipatok agar
+            // tidak ada silent-rolling (pola sama dengan kpi:convert --period).
+            'period' => 'required|date_format:Y-m-d',
+        ]);
+
+        try {
+            $perUnit = $converter->extractPerUnit(
+                $request->file('file')->getRealPath(),
+                $request->string('period')->toString(),
+            );
+        } catch (Throwable $e) {
+            Log::warning('Import laporan KPI gagal dibaca', [
+                'user_id' => $user->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return back()->with('error', 'File tidak dapat dibaca. Pastikan file Excel laporan KPI dari mentor tidak rusak.');
+        }
+
+        $divisions = Division::all(['id', 'name']);
+        $matched = [];
+        $unmatched = [];
+        $failed = [];
+        $validRows = [];
+
+        foreach ($perUnit as $unit => $outcome) {
+            if ($outcome instanceof Throwable) {
+                $failed[] = "{$unit}: layout sheet tidak dikenali — periksa file dari mentor.";
+
+                continue;
+            }
+
+            if ($outcome === []) {
+                $failed[] = "{$unit}: tidak ada baris data yang bisa dibaca.";
+
+                continue;
+            }
+
+            $division = $divisions->first(
+                fn ($d) => mb_strtolower(trim($d->name)) === mb_strtolower(trim($unit)),
+            );
+
+            if ($division === null) {
+                // Tidak ditebak: unit tanpa divisi bernama sama dilaporkan.
+                $unmatched[] = $unit;
+
+                continue;
+            }
+
+            $matched[$unit] = $division;
+            array_push($validRows, ...$outcome);
+        }
+
+        $imported = [];
+
+        if ($validRows !== []) {
+            $tmpDir = sys_get_temp_dir().DIRECTORY_SEPARATOR.'kpi_web_'.Str::random(8);
+            mkdir($tmpDir);
+
+            try {
+                foreach ($converter->writeSplit($validRows, $tmpDir) as $unit => $unitPath) {
+                    $division = $matched[$unit];
+                    $file = new UploadedFile($unitPath, "{$unit}.xlsx",
+                        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', null, true);
+
+                    ['dataset' => $dataset, 'result' => $result] = $this->storeAndImport(
+                        $file, $division->id, $user, $importService,
+                    );
+
+                    if ($result === null || $dataset->status === Dataset::STATUS_FAILED) {
+                        $failed[] = "{$unit} ({$division->name}): gagal diproses — ".($dataset->error_message ?? 'coba periksa file.');
+
+                        continue;
+                    }
+
+                    $imported[] = "{$division->name}: {$result['imported']} baris";
+                }
+            } finally {
+                foreach (glob($tmpDir.DIRECTORY_SEPARATOR.'*') ?: [] as $tmpFile) {
+                    @unlink($tmpFile);
+                }
+                @rmdir($tmpDir);
+            }
+        }
+
+        $message = $imported !== []
+            ? 'Berhasil mengimpor '.count($imported)." unit.\n".implode("\n", $imported)
+            : 'Tidak ada unit yang berhasil diimpor.';
+
+        return redirect()
+            ->route('datasets.create')
+            ->with($imported !== [] ? 'success' : 'error', $message)
+            ->with('kpi_unmatched', $unmatched)
+            ->with('kpi_failed', $failed);
     }
 
     /**
@@ -388,7 +501,13 @@ class DatasetController extends Controller
             $deleted = Storage::disk('local')->delete($filePath);
 
             if (! $deleted) {
-                return back()->with('error', 'Gagal menghapus file dari storage. Dataset tidak dihapus.');
+                // Selalu ke index (bukan back()): back() dari halaman detail
+                // mengembalikan user ke halaman yang sama tanpa konteks, dan
+                // pesan errornya tidak terlihat kalau view itu tidak merender
+                // flash error (bug: hapus dari show terkesan "tidak terjadi apa-apa").
+                return redirect()
+                    ->route('datasets.index')
+                    ->with('error', 'Gagal menghapus file dari storage. Dataset tidak dihapus.');
             }
         }
 

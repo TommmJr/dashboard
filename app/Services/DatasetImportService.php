@@ -9,13 +9,8 @@ use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
-use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Shared\Date;
-use PhpOffice\PhpSpreadsheet\Spreadsheet;
-use PhpOffice\PhpSpreadsheet\Style\Alignment;
-use PhpOffice\PhpSpreadsheet\Style\Fill;
-use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Throwable;
 
 /**
@@ -165,118 +160,10 @@ class DatasetImportService
     }
 
     /**
-     * Bangun file template .xlsx generik sesuai config kolom.
-     *
-     * Formatting:
-     * - Header: bold, background abu-abu, teks terkunci (protected).
-     * - Kolom 'value'  : format number 2 desimal (#,##0.00).
-     * - Kolom 'period' : format date DD/MM/YYYY agar Excel enforce tipe date.
-     * - Lebar kolom    : auto-size.
-     * - Baris contoh   : nilai riil (bukan teks), agar format langsung terlihat.
+     * Fitur unduh template dihapus (2026-09-15): buildTemplate() tidak
+     * lagi dipakai. Method dihapus karena tidak ada sisa referensi di
+     * controller/route/view.
      */
-    public function buildTemplate(): string
-    {
-        $spreadsheet = new Spreadsheet;
-        $sheet = $spreadsheet->getActiveSheet();
-        $sheet->setTitle('Data');
-
-        $columns = config('dataset_import.columns');
-        $colCount = count($columns);
-
-        // --- Header row ---
-        foreach ($columns as $index => $column) {
-            $col = $index + 1;
-            $colLetter = Coordinate::stringFromColumnIndex($col);
-            $cell = $sheet->getCell($colLetter.'1');
-            $cell->setValue($column['header']);
-            $cell->getStyle()->getFont()->setBold(true);
-            $cell->getStyle()->getFill()
-                ->setFillType(Fill::FILL_SOLID)
-                ->getStartColor()->setRGB('D9D9D9');
-            $cell->getStyle()->getAlignment()
-                ->setHorizontal(Alignment::HORIZONTAL_CENTER);
-        }
-
-        // --- Baris contoh: nilai riil bukan string ---
-        $exampleValues = [];
-        foreach ($columns as $index => $column) {
-            $col = $index + 1;
-            $rule = $column['rule'];
-
-            if ($rule === 'numeric') {
-                $value = 123.45;
-            } elseif ($rule === 'date') {
-                // PhpSpreadsheet menyimpan tanggal sebagai serial number Excel.
-                // startOfDay() wajib: Carbon::createFromFormat mengisi komponen
-                // jam dengan waktu saat ini, sehingga serial-nya jadi datetime
-                // (mis. 46053.096) bukan tanggal murni 46053 sesuai format
-                // DD/MM/YYYY yang diklaim di bawah.
-                $value = Date::PHPToExcel(
-                    Carbon::createFromFormat('Y-m-d', '2026-01-31')->startOfDay()
-                );
-            } else {
-                $value = 'contoh_metrik';
-            }
-
-            $exampleValues[$col] = $value;
-            $colLetter = Coordinate::stringFromColumnIndex($col);
-            $sheet->getCell($colLetter.'2')->setValue($value);
-        }
-
-        // --- Format kolom data (baris 2 ke bawah, sampai baris 1000) ---
-        foreach ($columns as $index => $column) {
-            $col = $index + 1;
-            $colLetter = Coordinate::stringFromColumnIndex($col);
-            $range = "{$colLetter}2:{$colLetter}1000";
-
-            $style = $sheet->getStyle($range);
-
-            if ($column['rule'] === 'numeric') {
-                $style->getNumberFormat()->setFormatCode('#,##0.00');
-            } elseif ($column['rule'] === 'date') {
-                // DD/MM/YYYY — format familiar staf Indonesia. Parser
-                // tetap menerima kedua format (serial float dari date-picker
-                // maupun string Y-m-d dari CSV) karena konversi dilakukan
-                // di parseRows sebelum validasi.
-                $style->getNumberFormat()->setFormatCode('DD/MM/YYYY');
-            }
-        }
-
-        // --- Instruksi di sheet kedua ---
-        $info = $spreadsheet->createSheet();
-        $info->setTitle('Petunjuk');
-        $info->setCellValue([1, 1], 'PETUNJUK PENGISIAN TEMPLATE');
-        $info->getStyle([1, 1])->getFont()->setBold(true)->setSize(12);
-        $instructions = [
-            [2, 1, 'Kolom', 2, 2, 'Format', 2, 3, 'Contoh'],
-        ];
-        $row = 2;
-        foreach ($columns as $column) {
-            $formatNote = match ($column['rule']) {
-                'numeric' => 'Angka desimal (mis. 123.45 atau 1000)',
-                'date' => 'Tanggal format DD/MM/YYYY (mis. 31/01/2026)',
-                default => 'Teks bebas',
-            };
-            $info->setCellValue([1, $row], $column['header']);
-            $info->setCellValue([2, $row], $formatNote);
-            $row++;
-        }
-        $info->setCellValue([1, $row + 1], 'Catatan: jangan ubah header baris pertama di sheet Data.');
-        $info->getColumnDimension('A')->setWidth(20);
-        $info->getColumnDimension('B')->setWidth(45);
-
-        // --- Auto-size kolom di sheet Data ---
-        $spreadsheet->setActiveSheetIndex(0);
-        for ($col = 1; $col <= $colCount; $col++) {
-            $sheet->getColumnDimensionByColumn($col)->setAutoSize(true);
-        }
-
-        $tempPath = tempnam(sys_get_temp_dir(), 'tpl_').'.xlsx';
-        (new Xlsx($spreadsheet))->save($tempPath);
-        $spreadsheet->disconnectWorksheets();
-
-        return $tempPath;
-    }
 
     /**
      * Parse file menjadi array baris [nomor_baris => [kolom...]].

@@ -9,7 +9,9 @@ use App\Models\Role;
 use App\Models\User;
 use App\Services\KpiReportConverter;
 use Database\Seeders\RolePermissionSeeder;
+use Illuminate\Contracts\Filesystem\Filesystem;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 /**
@@ -173,6 +175,25 @@ class DatasetCrudTest extends TestCase
 
         $this->assertDatabaseMissing('datasets', ['id' => $this->datasetA->id]);
         $this->assertSame(0, PerformanceMetric::where('dataset_id', $this->datasetA->id)->count());
+    }
+
+    public function test_delete_gagal_storage_redirect_ke_index_dengan_pesan_error(): void
+    {
+        // Regresi: jalur gagal Storage::delete() dulu memakai back(), sehingga
+        // hapus dari halaman show mengembalikan user ke show itu sendiri dan
+        // pesan errornya tidak dirender — terkesan tidak terjadi apa-apa.
+        $disk = \Mockery::mock(Filesystem::class);
+        $disk->shouldReceive('exists')->with('datasets/'.$this->datasetA->filename)->andReturnTrue();
+        $disk->shouldReceive('delete')->with('datasets/'.$this->datasetA->filename)->andReturnFalse();
+        Storage::shouldReceive('disk')->with('local')->andReturn($disk);
+
+        $this->actingAs($this->admin)
+            ->from(route('datasets.show', $this->datasetA))
+            ->delete(route('datasets.destroy', $this->datasetA))
+            ->assertRedirect(route('datasets.index'))
+            ->assertSessionHas('error', 'Gagal menghapus file dari storage. Dataset tidak dihapus.');
+
+        $this->assertDatabaseHas('datasets', ['id' => $this->datasetA->id]);
     }
 
     public function test_delete_oleh_staf_ditolak_403(): void

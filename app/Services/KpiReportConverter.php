@@ -65,11 +65,7 @@ class KpiReportConverter
      */
     public function extract(string $sourcePath, string $period, array $onlyUnits = []): array
     {
-        // readDataOnly wajib: laporan 16 sheet ~3 MB mati OOM di 128M
-        // kalau style sel ikut dimuat (lihat DatasetImportService::parseRows).
-        $reader = IOFactory::createReaderForFile($sourcePath);
-        $reader->setReadDataOnly(true);
-        $spreadsheet = $reader->load($sourcePath);
+        $spreadsheet = $this->load($sourcePath);
 
         $only = array_map('strtoupper', $onlyUnits);
         $rows = [];
@@ -95,6 +91,57 @@ class KpiReportConverter
         }
 
         return $rows;
+    }
+
+    /**
+     * Ekstrak semua unit sekaligus, SATU sheet gagal tidak menghentikan sheet
+     * lain — dipakai alur import web 1-klik dari laporan mentor.
+     *
+     * Berbeda dengan extract() yang melempar RuntimeException dan membuang
+     * semua hasil bila satu sheet bermasalah, di sini kegagalan per-sheet
+     * dikembalikan sebagai nilai (Throwable) di bawah unitnya, sehingga
+     * pemanggil bisa melapor per unit sambil tetap mengimpor unit sehat.
+     *
+     * @return array<string, array<int, array{0: string, 1: float, 2: string}>|Throwable> unit => baris, atau Throwable bila sheet gagal
+     */
+    public function extractPerUnit(string $sourcePath, string $period): array
+    {
+        $spreadsheet = $this->load($sourcePath);
+
+        $results = [];
+
+        try {
+            foreach ($spreadsheet->getAllSheets() as $sheet) {
+                $unit = trim($sheet->getTitle());
+
+                if (strtoupper($unit) === self::SUMMARY_SHEET) {
+                    continue;
+                }
+
+                try {
+                    $results[$unit] = $this->extractSheet($sheet, $unit, $period);
+                } catch (RuntimeException $e) {
+                    $results[$unit] = $e;
+                }
+            }
+        } finally {
+            $spreadsheet->disconnectWorksheets();
+        }
+
+        return $results;
+    }
+
+    /**
+     * Muat workbook read-only. readDataOnly wajib: laporan 16 sheet ~3 MB
+     * mati OOM di 128M kalau style sel ikut dimuat (lihat
+     * DatasetImportService::parseRows).
+     */
+    private function load(string $sourcePath): Spreadsheet
+    {
+        $reader = IOFactory::createReaderForFile($sourcePath);
+        $reader->setReadDataOnly(true);
+
+        return $reader->load($sourcePath);
     }
 
     /**

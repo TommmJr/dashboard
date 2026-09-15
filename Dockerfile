@@ -16,6 +16,10 @@ RUN apt-get update && apt-get install -y \
 # Install PHP extensions yang dibutuhkan Laravel
 RUN docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd zip
 
+# Upload limit harus >= config/dataset_import.php max_size_kb (5120 KB);
+# default PHP 2M membuang file lebih besar secara diam-diam.
+RUN printf 'upload_max_filesize=10M\npost_max_size=12M\n' > /usr/local/etc/php/conf.d/uploads.ini
+
 # Aktifkan mod_rewrite untuk Laravel
 RUN a2enmod rewrite
 
