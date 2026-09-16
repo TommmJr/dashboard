@@ -10,7 +10,7 @@ use Illuminate\Support\Carbon;
 use RuntimeException;
 use Throwable;
 
-#[Signature('kpi:convert {file : Path laporan KPI (.xlsx)} {--period= : Periode data format Y-m-d, mis. 2026-08-31} {--unit=* : Batasi ke kode unit tertentu (boleh diulang, mis. --unit=TJBT)} {--output= : Path file keluaran (satu berkas gabungan)} {--split= : Tulis satu berkas per unit ke direktori ini}')]
+#[Signature('kpi:convert {file : Path laporan KPI (.xlsx)} {--period= : Periode data format Y-m-d, mis. 2026-08-31} {--unit=* : Batasi ke kode unit tertentu (boleh diulang, mis. --unit=TJBT)} {--output= : Path file keluaran}')]
 #[Description('Konversi laporan KPI hierarkis menjadi template impor generik (metric_name, value, period)')]
 class ConvertKpiReport extends Command
 {
@@ -56,24 +56,6 @@ class ConvertKpiReport extends Command
         }
 
         $this->components->info(count($rows)." baris diekstrak untuk periode {$period}.");
-
-        $split = (string) $this->option('split');
-
-        if ($split !== '') {
-            if (! is_dir($split) && ! @mkdir($split, 0775, true) && ! is_dir($split)) {
-                $this->components->error("Tidak bisa membuat direktori: {$split}");
-
-                return self::FAILURE;
-            }
-
-            foreach ($converter->writeSplit($rows, $split) as $unit => $unitPath) {
-                $this->line("  {$unit} -> {$unitPath}");
-            }
-
-            $this->components->info('Unggah tiap berkas ke divisi unitnya lewat menu Upload Dataset.');
-
-            return self::SUCCESS;
-        }
 
         $path = $converter->write($rows);
 

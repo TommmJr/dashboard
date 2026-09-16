@@ -56,8 +56,7 @@ Route::middleware('auth')->group(function () {
     Route::middleware('can:dataset.import')->group(function () {
         Route::get('/datasets/create', [DatasetController::class, 'create'])->name('datasets.create');
         Route::post('/datasets', [DatasetController::class, 'store'])->name('datasets.store');
-        Route::post('/datasets/bulk', [DatasetController::class, 'bulkStore'])->name('datasets.bulk-store');
-        // Import 1-klik laporan KPI mentah dari mentor (auto-split per unit).
+        // Import 1-klik laporan KPI mentah dari mentor ke satu dataset owner.
         Route::post('/datasets/import-kpi-report', [DatasetController::class, 'importKpiReport'])
             ->name('datasets.kpi-import');
     });

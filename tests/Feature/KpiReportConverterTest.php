@@ -8,6 +8,7 @@ use App\Models\Role;
 use App\Models\User;
 use App\Services\KpiReportConverter;
 use Database\Seeders\RolePermissionSeeder;
+use Database\Seeders\UnitDivisionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use PhpOffice\PhpSpreadsheet\IOFactory;
@@ -31,20 +32,10 @@ class KpiReportConverterTest extends TestCase
     /** @var list<string> */
     private array $tempFiles = [];
 
-    /** @var list<string> */
-    private array $tempDirs = [];
-
     protected function tearDown(): void
     {
         foreach ($this->tempFiles as $file) {
             @unlink($file);
-        }
-
-        foreach ($this->tempDirs as $dir) {
-            foreach (glob($dir.DIRECTORY_SEPARATOR.'*') ?: [] as $file) {
-                @unlink($file);
-            }
-            @rmdir($dir);
         }
 
         parent::tearDown();
@@ -104,8 +95,9 @@ class KpiReportConverterTest extends TestCase
     public function test_hasil_konversi_bisa_diunggah_lewat_pipeline_impor(): void
     {
         $this->seed(RolePermissionSeeder::class);
+        $this->seed(UnitDivisionSeeder::class);
 
-        $division = Division::factory()->create();
+        $division = Division::where('slug', 'tjbt')->sole();
         $staff = User::factory()->withRole(Role::STAFF_DIVISI)->create([
             'division_id' => $division->id,
         ]);
@@ -194,53 +186,15 @@ class KpiReportConverterTest extends TestCase
         ])->assertFailed();
     }
 
-    public function test_split_menulis_satu_berkas_per_unit(): void
-    {
-        $converter = app(KpiReportConverter::class);
-        $rows = $converter->extract($this->makeKpiReport(), '2026-08-31');
-
-        $paths = $converter->writeSplit($rows, $this->tempDir());
-
-        $this->assertSame(['TJBT', 'TJBB'], array_keys($paths));
-
-        foreach ($paths as $path) {
-            $this->assertFileExists($path);
-        }
-
-        // Berkas TJBT: 6 baris data + 1 header, tanpa baris unit lain.
-        $reader = IOFactory::createReaderForFile($paths['TJBT']);
-        $reader->setReadDataOnly(true);
-        $spreadsheet = $reader->load($paths['TJBT']);
-        $sheet = $spreadsheet->getActiveSheet();
-
-        $this->assertSame(7, $sheet->getHighestRow());
-        $this->assertSame('TJBT | NKO', $sheet->getCell('A7')->getValue());
-
-        $spreadsheet->disconnectWorksheets();
-    }
-
-    public function test_perintah_konversi_split_membuat_berkas_per_unit(): void
-    {
-        $directory = $this->tempDir();
-
-        $this->artisan('kpi:convert', [
-            'file' => $this->makeKpiReport(),
-            '--period' => '2026-08-31',
-            '--split' => $directory,
-        ])->assertSuccessful();
-
-        $this->assertFileExists($directory.DIRECTORY_SEPARATOR.'TJBT.xlsx');
-        $this->assertFileExists($directory.DIRECTORY_SEPARATOR.'TJBB.xlsx');
-    }
-
     public function test_hasil_konversi_muncul_di_widget_peringkat_nko(): void
     {
         // Rantai penuh: konversi -> upload -> widget. Mengunci kesepakatan
         // format metric_name antara converter ('{UNIT} | NKO') dan query
         // widget ('% | NKO') supaya perubahan salah satu sisi ketangkap.
         $this->seed(RolePermissionSeeder::class);
+        $this->seed(UnitDivisionSeeder::class);
 
-        $division = Division::factory()->create(['name' => 'TJBT']);
+        $division = Division::where('slug', 'tjbt')->sole();
         $admin = User::factory()->withRole(Role::ADMIN)->create(['division_id' => null]);
 
         $converter = app(KpiReportConverter::class);
@@ -252,7 +206,6 @@ class KpiReportConverterTest extends TestCase
 
         $this->actingAs($admin)->post(route('datasets.store'), [
             'file' => $file,
-            'division_id' => $division->id,
         ]);
 
         $this->actingAs($admin)
@@ -384,17 +337,5 @@ class KpiReportConverterTest extends TestCase
         $this->tempFiles[] = $path;
 
         return $path;
-    }
-
-    /**
-     * Direktori sementara untuk uji --split.
-     */
-    private function tempDir(): string
-    {
-        $dir = sys_get_temp_dir().DIRECTORY_SEPARATOR.'kpi_split_'.uniqid();
-        mkdir($dir);
-        $this->tempDirs[] = $dir;
-
-        return $dir;
     }
 }

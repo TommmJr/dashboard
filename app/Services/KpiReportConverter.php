@@ -156,50 +156,6 @@ class KpiReportConverter
     }
 
     /**
-     * Tulis satu berkas template per unit ke direktori tujuan.
-     *
-     * Dipakai karena importer menetapkan SATU divisi per dataset (bukan per
-     * baris), sedangkan laporan mentor lintas-unit. Berkas terpisah per unit
-     * membuat tiap unit tertaut ke divisinya sendiri tanpa mengubah pipeline.
-     *
-     * @param  array<int, array{0: string, 1: float, 2: string}>  $rows
-     * @return array<string, string> unit => path berkas
-     */
-    public function writeSplit(array $rows, string $directory): array
-    {
-        $paths = [];
-
-        foreach ($this->groupByUnit($rows) as $unit => $unitRows) {
-            $safe = preg_replace('/[^\w\s\-.]/u', '', $unit) ?: 'unit';
-            $path = rtrim($directory, '\\/').DIRECTORY_SEPARATOR.$safe.'.xlsx';
-
-            $paths[$unit] = $this->writeTo($unitRows, $path);
-        }
-
-        return $paths;
-    }
-
-    /**
-     * Kelompokkan baris hasil ekstraksi per unit.
-     *
-     * Unit adalah prefix sebelum ' | ' pada metric_name (mis. "P3B SUM | NKO"
-     * -> "P3B SUM").
-     *
-     * @param  array<int, array{0: string, 1: float, 2: string}>  $rows
-     * @return array<string, array<int, array{0: string, 1: float, 2: string}>>
-     */
-    public function groupByUnit(array $rows): array
-    {
-        $grouped = [];
-
-        foreach ($rows as $row) {
-            $grouped[explode(' | ', $row[0], 2)[0]][] = $row;
-        }
-
-        return $grouped;
-    }
-
-    /**
      * @param  array<int, array{0: string, 1: float, 2: string}>  $rows
      */
     private function writeTo(array $rows, string $path): string

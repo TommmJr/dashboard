@@ -7,6 +7,7 @@ use App\Models\Division;
 use App\Models\Role;
 use App\Models\User;
 use Database\Seeders\RolePermissionSeeder;
+use Database\Seeders\UnitDivisionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
@@ -32,8 +33,9 @@ class DatasetImportTest extends TestCase
         parent::setUp();
 
         $this->seed(RolePermissionSeeder::class);
+        $this->seed(UnitDivisionSeeder::class);
 
-        $this->division = Division::factory()->create();
+        $this->division = Division::where('slug', 'tjbt')->sole();
         $this->staff = User::factory()->withRole(Role::STAFF_DIVISI)->create([
             'division_id' => $this->division->id,
         ]);
@@ -175,17 +177,14 @@ class DatasetImportTest extends TestCase
         $this->actingAs($editor)->get(route('datasets.create'))->assertForbidden();
     }
 
-    public function test_admin_tanpa_divisi_bisa_upload_dengan_memilih_divisi(): void
+    public function test_admin_tanpa_divisi_upload_otomatis_ke_owner_tjbt(): void
     {
-        // PRD 6.1: admin "Mengelola dataset". Karena tidak terikat divisi,
-        // admin memilih divisi tujuan; data tertaut ke divisi pilihannya.
         $admin = User::factory()->withRole(Role::ADMIN)->create(['division_id' => null]);
 
         $file = $this->makeXlsx($this->validRows());
 
         $response = $this->actingAs($admin)->post(route('datasets.store'), [
             'file' => $file,
-            'division_id' => $this->division->id,
         ]);
 
         // Filter by user_id to isolate this test's dataset regardless of
@@ -199,12 +198,15 @@ class DatasetImportTest extends TestCase
         $this->assertSame($this->division->id, $dataset->metrics()->value('division_id'));
     }
 
-    public function test_admin_tanpa_memilih_divisi_ditolak_validasi(): void
+    public function test_admin_tidak_bisa_override_owner_dengan_division_id(): void
     {
         $admin = User::factory()->withRole(Role::ADMIN)->create(['division_id' => null]);
         $file = $this->makeXlsx($this->validRows());
 
-        $this->actingAs($admin)->post(route('datasets.store'), ['file' => $file])
+        $this->actingAs($admin)->post(route('datasets.store'), [
+            'file' => $file,
+            'division_id' => Division::factory()->create()->id,
+        ])
             ->assertSessionHasErrors('division_id');
 
         $this->assertSame(0, Dataset::count());

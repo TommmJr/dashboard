@@ -14,7 +14,7 @@ class UnitDivisionSeederTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_seeder_membuat_satu_divisi_untuk_setiap_unit(): void
+    public function test_seeder_membuat_satu_divisi_owner_data(): void
     {
         $this->seed(UnitDivisionSeeder::class);
 
@@ -33,18 +33,19 @@ class UnitDivisionSeederTest extends TestCase
         $this->assertSame(count(UnitDivisionSeeder::UNITS), Division::count());
     }
 
-    public function test_slug_unit_berkode_spasi_tetap_valid(): void
+    public function test_owner_menggunakan_slug_tjbt(): void
     {
         $this->seed(UnitDivisionSeeder::class);
 
-        // "P3B SUM" -> slug "p3b-sum".
-        $this->assertSame('P3B SUM', Division::where('slug', 'p3b-sum')->sole()->name);
+        $this->assertSame('TJBT', Division::where('slug', 'tjbt')->sole()->name);
     }
 
-    public function test_sheet_trans_level_direktorat_tidak_dijadikan_unit(): void
+    public function test_entitas_pembanding_tidak_dijadikan_division(): void
     {
         $this->seed(UnitDivisionSeeder::class);
 
         $this->assertFalse(Division::where('slug', 'trans')->exists());
+        $this->assertFalse(Division::where('slug', 'tjbb')->exists());
+        $this->assertFalse(Division::where('slug', 'p3b-sum')->exists());
     }
 }

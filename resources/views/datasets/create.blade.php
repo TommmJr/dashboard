@@ -24,23 +24,7 @@
 
         <form method="POST" action="{{ route('datasets.store') }}" enctype="multipart/form-data" class="mt-5 flex flex-col gap-4">
             @csrf
-            @if ($divisions->isNotEmpty())
-                {{-- Admin tidak terikat divisi: wajib memilih divisi pemilik data. --}}
-                <div>
-                    <label for="division_id" class="block text-sm font-medium text-gray-700">Divisi Pemilik Data</label>
-                    <select id="division_id" name="division_id" required
-                            class="mt-1 block w-full rounded-md border-gray-300 text-sm">
-                        <option value="">-- Pilih divisi --</option>
-                        @foreach ($divisions as $division)
-                            {{-- Kode unit (name) yang dicocokkan ke nama berkas; nama
-                                 panjangnya (description) ditampilkan agar tidak kriptik. --}}
-                            <option value="{{ $division->id }}" @selected(old('division_id') == $division->id)>{{ $division->description ? $division->name.' — '.$division->description : $division->name }}</option>
-                        @endforeach
-                    </select>
-                </div>
-            @else
-                <p class="text-sm text-gray-600">Dataset akan tertaut ke divisi Anda: <span class="font-semibold">{{ $user->division?->name }}</span></p>
-            @endif
+            <p class="text-sm text-gray-600">Dataset akan tertaut ke pemilik data: <span class="font-semibold">{{ $owner->name }}</span></p>
             <x-dropzone name="file" accept=".xlsx,.csv" required />
             <button type="submit"
                     class="rounded bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">
@@ -49,70 +33,13 @@
         </form>
     </div>
 
-    @if ($divisions->isNotEmpty())
-        <div class="mt-4 rounded-lg bg-white p-6 shadow">
-            <h2 class="text-lg font-bold text-gray-900">Upload Massal (Multi-Divisi)</h2>
-            <p class="mt-2 text-sm text-gray-600">
-                Untuk berkas hasil <code class="rounded bg-gray-100 px-1">php artisan kpi:convert --split</code>.
-                Setiap berkas dicocokkan ke divisi lewat <strong>nama berkas</strong> (tanpa ekstensi) yang harus
-                sama persis dengan kode divisi, mis. <code class="rounded bg-gray-100 px-1">TJBT.xlsx</code>
-                untuk divisi <code class="rounded bg-gray-100 px-1">TJBT</code>. Berkas yang tidak cocok akan
-                dilewati dan dilaporkan, tidak diimpor ke divisi yang salah.
-            </p>
-
-            @if (session('bulk_unmatched') && count(session('bulk_unmatched')))
-                <div class="mt-3 rounded-md bg-yellow-50 p-3 text-sm text-yellow-800">
-                    <p class="font-semibold">Berkas tidak dikenali (nama tidak cocok divisi manapun):</p>
-                    <ul class="mt-1 list-disc pl-5">
-                        @foreach (session('bulk_unmatched') as $name)
-                            <li>{{ $name }}</li>
-                        @endforeach
-                    </ul>
-                </div>
-            @endif
-
-            @if (session('bulk_failed') && count(session('bulk_failed')))
-                <div class="mt-3 rounded-md bg-red-50 p-3 text-sm text-red-700">
-                    <p class="font-semibold">Berkas gagal diproses:</p>
-                    <ul class="mt-1 list-disc pl-5">
-                        @foreach (session('bulk_failed') as $name)
-                            <li>{{ $name }}</li>
-                        @endforeach
-                    </ul>
-                </div>
-            @endif
-
-            <form method="POST" action="{{ route('datasets.bulk-store') }}" enctype="multipart/form-data" class="mt-4 flex flex-col gap-4">
-                @csrf
-                <x-dropzone name="files[]" accept=".xlsx,.csv" multiple required />
-                <button type="submit"
-                        class="self-start rounded bg-gray-700 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-800">
-                    Upload &amp; Cocokkan ke Divisi
-                </button>
-            </form>
-        </div>
-    @endif
-
-    @if ($divisions->isNotEmpty())
-        <div class="mt-4 rounded-lg bg-white p-6 shadow">
+    <div class="mt-4 rounded-lg bg-white p-6 shadow">
             <h2 class="text-lg font-bold text-gray-900">Import Laporan KPI dari Mentor (Otomatis)</h2>
             <p class="mt-2 text-sm text-gray-600">
-                Upload file Excel laporan KPI apa adanya, sistem akan memisahkan per unit secara otomatis
-                dan mengimpornya ke divisi yang sesuai. Isi <strong>periode data</strong> karena tulisan
-                periode di dalam file sering tidak akurat. Unit yang namanya tidak dikenal akan dilewati
-                dan dilaporkan, bukan diimpor ke divisi yang salah.
+                Upload file Excel laporan KPI apa adanya. Semua sheet unit menjadi dimensi pembanding
+                dalam satu dataset milik {{ $owner->name }}. Isi <strong>periode data</strong> karena
+                tulisan periode di dalam file sering tidak akurat.
             </p>
-
-            @if (session('kpi_unmatched') && count(session('kpi_unmatched')))
-                <div class="mt-3 rounded-md bg-yellow-50 p-3 text-sm text-yellow-800">
-                    <p class="font-semibold">Unit tidak dikenal (tidak ada divisi dengan nama sama, dilewati):</p>
-                    <ul class="mt-1 list-disc pl-5">
-                        @foreach (session('kpi_unmatched') as $unit)
-                            <li>{{ $unit }}</li>
-                        @endforeach
-                    </ul>
-                </div>
-            @endif
 
             @if (session('kpi_failed') && count(session('kpi_failed')))
                 <div class="mt-3 rounded-md bg-red-50 p-3 text-sm text-red-700">
@@ -138,7 +65,6 @@
                     Import Otomatis
                 </button>
             </form>
-        </div>
-    @endif
+    </div>
 </div>
 @endsection

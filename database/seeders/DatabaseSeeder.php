@@ -28,6 +28,7 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $this->call(RolePermissionSeeder::class);
+        $this->call(UnitDivisionSeeder::class);
 
         // Tentukan password admin:
         // - Prioritas 1: env ADMIN_DEFAULT_PASSWORD (untuk dev/CI, eksplisit).
@@ -78,7 +79,9 @@ class DatabaseSeeder extends Seeder
      * Akun demo non-admin + divisi, HANYA di environment lokal.
      *
      * Tujuannya smoke test manual: staf butuh division_id untuk mengunggah
-     * dataset (kolom division_id NOT NULL). Password semua akun demo sama,
+     * dataset (kolom division_id NOT NULL). Semua data aplikasi dimiliki
+     * division TJBT; nama unit lain pada laporan KPI hanya dimensi pembanding.
+     * Password semua akun demo sama,
      * dari env DEMO_USER_PASSWORD (default 'password') — jangan pernah
      * mengaktifkan APP_ENV=local di server publik dengan akun ini ada.
      */
@@ -90,21 +93,10 @@ class DatabaseSeeder extends Seeder
 
         $demoPassword = env('DEMO_USER_PASSWORD', 'password');
 
-        $divisions = [
-            ['name' => 'Perencanaan Pengusahaan', 'slug' => 'perencanaan-pengusahaan'],
-            ['name' => 'Perencanaan Sistem', 'slug' => 'perencanaan-sistem'],
-        ];
-
-        foreach ($divisions as $division) {
-            Division::firstOrCreate(['slug' => $division['slug']], $division);
-        }
-
-        $pengusahaan = Division::where('slug', 'perencanaan-pengusahaan')->firstOrFail();
-        $sistem = Division::where('slug', 'perencanaan-sistem')->firstOrFail();
+        $owner = Division::where('slug', 'tjbt')->firstOrFail();
 
         $demoUsers = [
-            ['staf@dashboard.local', 'Staf Pengusahaan', Role::STAFF_DIVISI, $pengusahaan->id],
-            ['staf.sistem@dashboard.local', 'Staf Sistem', Role::STAFF_DIVISI, $sistem->id],
+            ['staf@dashboard.local', 'Staf Perencanaan Pengusahaan', Role::STAFF_DIVISI, $owner->id],
             ['editor@dashboard.local', 'Editor Dashboard', Role::EDITOR_DASHBOARD, null],
             ['management@dashboard.local', 'Management', Role::MANAGEMENT, null],
         ];
@@ -122,7 +114,7 @@ class DatabaseSeeder extends Seeder
 
         if ($this->command) {
             $this->command->info('Akun demo (env local, password dari DEMO_USER_PASSWORD, default "password"):');
-            $this->command->line('  staf@dashboard.local / staf.sistem@dashboard.local (Staf Divisi)');
+            $this->command->line('  staf@dashboard.local (Staf Perencanaan Pengusahaan)');
             $this->command->line('  editor@dashboard.local (Editor) / management@dashboard.local (Management)');
         }
     }

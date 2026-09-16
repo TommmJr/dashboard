@@ -11,6 +11,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 #[Fillable(['name', 'slug', 'description'])]
 class Division extends Model
 {
+    public const DATA_OWNER_SLUG = 'tjbt';
+
     use Auditable, HasFactory;
 
     public function users(): HasMany
