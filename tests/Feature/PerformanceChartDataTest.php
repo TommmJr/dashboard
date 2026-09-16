@@ -111,6 +111,38 @@ class PerformanceChartDataTest extends TestCase
         $this->assertEquals(120.0, (float) $response->json('kpi.average_nko'));
     }
 
+    public function test_filter_rentang_tanggal_dan_unit_membatasi_series_dan_kpi(): void
+    {
+        $this->datasetWithNko($this->divA, Dataset::STATUS_READY, '2026-01-31', 100, 'RST');
+        $this->datasetWithNko($this->divA, Dataset::STATUS_READY, '2026-02-28', 110, 'RST');
+        $this->datasetWithNko($this->divA, Dataset::STATUS_READY, '2026-01-31', 90, 'TEK');
+        $this->datasetWithNko($this->divA, Dataset::STATUS_READY, '2026-02-28', 100, 'TEK');
+
+        $admin = User::factory()->withRole(Role::ADMIN)->create();
+        $response = $this->actingAs($admin)->getJson(route('performance.data', [
+            'start_date' => '2026-02-01',
+            'end_date' => '2026-02-28',
+            'unit' => ['RST', 'TEK'],
+        ]))->assertOk();
+
+        $this->assertSame(['2026-02-28'], $response->json('labels'));
+        $series = collect($response->json('series'))->keyBy('name');
+        $this->assertSame(['RST', 'TEK'], $series->keys()->all());
+        $this->assertEquals([110.0], array_map('floatval', $series['RST']['data']));
+        $this->assertEquals([100.0], array_map('floatval', $series['TEK']['data']));
+        $this->assertEquals(105.0, (float) $response->json('kpi.average_nko'));
+    }
+
+    public function test_filter_tanggal_dengan_rentang_terbalik_ditolak(): void
+    {
+        $admin = User::factory()->withRole(Role::ADMIN)->create();
+
+        $this->actingAs($admin)->getJson(route('performance.data', [
+            'start_date' => '2026-03-01',
+            'end_date' => '2026-02-28',
+        ]))->assertUnprocessable();
+    }
+
     public function test_rata_rata_nko_diambil_dari_periode_terbaru(): void
     {
         // Kondisi terkini: Jan (100 & 90) tidak boleh mencemari angka periode

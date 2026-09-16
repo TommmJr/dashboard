@@ -40,6 +40,12 @@ class PerformanceChartController extends Controller
      */
     public function index(Request $request)
     {
+        $filters = $request->validate([
+            'start_date' => ['nullable', 'date_format:Y-m-d'],
+            'end_date' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:start_date'],
+            'unit' => ['nullable', 'array'],
+            'unit.*' => ['string', 'max:100'],
+        ]);
         $user = Auth::user();
 
         // Query via DB::table (bukan model): cast 'date' pada model
@@ -67,6 +73,12 @@ class PerformanceChartController extends Controller
         // untuk periode yang sama — nilai tertinggi yang tampil.
         $rows = $scoped($baseQuery())
             ->where('performance_metrics.metric_name', 'like', '%'.KpiReportConverter::NKO_SUFFIX)
+            ->when($filters['start_date'] ?? null, fn ($query, $startDate) => $query->where('performance_metrics.period', '>=', $startDate))
+            ->when($filters['end_date'] ?? null, fn ($query, $endDate) => $query->where('performance_metrics.period', '<=', $endDate))
+            ->when($filters['unit'] ?? null, fn ($query, $units) => $query->whereIn(
+                'performance_metrics.metric_name',
+                collect($units)->map(fn (string $unit) => $unit.KpiReportConverter::NKO_SUFFIX),
+            ))
             ->selectRaw('performance_metrics.period, performance_metrics.metric_name, MAX(performance_metrics.value) as nko')
             ->groupBy('performance_metrics.period', 'performance_metrics.metric_name')
             ->orderBy('performance_metrics.period')

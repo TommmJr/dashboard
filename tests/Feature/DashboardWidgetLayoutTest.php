@@ -37,6 +37,22 @@ class DashboardWidgetLayoutTest extends TestCase
             ->assertSee('Grafik Tren Kinerja');
     }
 
+    public function test_dashboard_merender_kontrol_filter_performance(): void
+    {
+        $management = User::factory()->withRole(Role::MANAGEMENT)->create();
+
+        $this->actingAs($management)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('id="start_date"', false)
+            ->assertSee('id="end_date"', false)
+            ->assertSee('id="unit"', false)
+            ->assertSee('x-model="filters.units"', false)
+            ->assertSee('Semua unit')
+            ->assertSee('Terapkan')
+            ->assertSee('Reset');
+    }
+
     public function test_management_tidak_melihat_widget_admin(): void
     {
         $management = User::factory()->withRole(Role::MANAGEMENT)->create();
