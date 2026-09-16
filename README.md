@@ -1,63 +1,95 @@
-# IBS - Intelligent Business Intelligence System (PLN UIT JBT)
+# PLN UIT JBT Performance Dashboard
 
-An internal BI platform designed for the Planning Division of PLN UIT JBT, focusing on transforming raw performance data from spreadsheets into dynamic, configurable, and secure dashboards.
+A secure internal web dashboard for the Planning Division of PLN UIT JBT. It turns Excel and CSV performance reports into validated, auditable KPI visualizations for daily monitoring and management review.
+
+## Background
+
+Performance reporting was previously dependent on spreadsheets and external dashboard tools. This application centralizes the import, validation, storage, and visualization workflow in one internal Laravel application while preserving role-based access and an audit trail for every important data change.
 
 ## Project Vision
-The goal of IBS is to eliminate dependency on external tools  and manual data cleaning, providing a sustainable, self-service dashboard system that can be managed by internal IT staff without requiring deep coding knowledge.
 
-### Core Pillars:
-- **Data Management**: Automated import, validation, and cleaning of Excel/CSV datasets.
-- **Business Intelligence**: Metadata-driven dashboard builder with configurable widgets.
-- **AI Assistance (Phase 2)**: AI-powered chart recommendations and NL (Natural Language) queries.
-- **Cybersecurity**: Granular RBAC, secure API access, and append-only audit logs.
+Provide a maintainable internal dashboard that reduces manual reporting work and external-tool dependency. Operational staff can submit data, management can monitor performance, and the IT dashboard editor can manage the presentation layer without receiving write access to source data.
 
----
+## Current Scope
+
+- Session authentication and granular RBAC for Admin, Management, Dashboard Editor, and Division Staff.
+- Excel/CSV dataset import, FATAL/WARNING validation, archiving, and append-only audit logs.
+- One-click hierarchical KPI report import. Valid unit sheets are stored under the canonical `TJBT` data owner.
+- KPI/NKO dashboard charts and rankings powered by Apache ECharts.
+- Dashboard filters for date ranges and multiple units through `start_date`, `end_date`, and `unit[]`.
+- User and division administration, security headers, and login rate limiting.
+
+## Current Limitations
+
+- The dashboard uses a Phase 1 role-based layout from `config/dashboard_layouts.php`.
+- The metadata-driven dashboard builder and per-dashboard persistent layouts are planned for Phase 2, pending additional source-data samples.
+- The Reports module is currently disabled; its `/reports/*` routes are intentionally commented out.
 
 ## Tech Stack
-- **Backend**: Laravel 13
-- **Frontend**: Tailwind CSS 4 + Alpine.js
-- **Database**: MySQL 8.4
-- **Infrastructure**: Docker (Containerized Environment)
 
----
+- Laravel 13 and PHP 8.3+
+- Blade, Alpine.js 3, Tailwind CSS 4, and Vite
+- MySQL 8.4
+- Apache ECharts
+- PhpSpreadsheet 5.9
+- Docker Compose
 
-## Getting Started 
+## Prerequisites
 
-This project is containerized using Docker. You don't need to install PHP or MySQL on your local machine.
+- Git
+- PHP 8.3+ and Composer
+- Node.js and npm
+- Docker Desktop (recommended for the local MySQL and Apache environment)
 
-### Prerequisites
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running.
+## Getting Started
 
-### Installation Steps
+1. Clone the repository and install dependencies.
 
-1. **Clone the repository**
    ```bash
    git clone https://github.com/TommmJr/dashboard.git
    cd dashboard
+   composer install
+   npm install
    ```
 
-2. **Environment Setup**
-   Copy the environment example file:
+2. Create the environment file and configure the Docker database connection.
+
    ```bash
    cp .env.example .env
    ```
-   Update `.env` with your local settings (the Docker defaults are already provided in `docker-compose.yml`).
 
-3. **Spin up the Infrastructure**
-   Run the containers in detached mode:
-   ```bash
-   docker-compose up -d --build
+   Set these values in `.env`:
+
+   ```dotenv
+   DB_CONNECTION=mysql
+   DB_HOST=db
+   DB_PORT=3306
+   DB_DATABASE=dashboard
+   DB_USERNAME=dashboard_app
+   DB_PASSWORD=password
    ```
 
-4. **Initialize the Application**
-   Run migrations and seed the initial data (including RBAC roles and Admin user):
+3. Start the application and database containers, then initialize the application.
+
    ```bash
-   docker exec -it plnjbt_app php artisan migrate --seed
+   docker compose up -d --build
+   docker compose exec app php artisan key:generate
+   docker compose exec app php artisan migrate --seed --no-interaction
+   npm run build
    ```
 
-5. **Access the App**
-   Open your browser and go to: [http://localhost:8000](http://localhost:8000)
+4. Open [http://localhost:8000](http://localhost:8000).
 
+## Testing
 
-## Security Note
-Authorization is strictly enforced at the backend level using Laravel Gates and Middleware. Frontend visibility is used for UX convenience, but the API and routes are protected by granular permissions.
+```bash
+docker compose exec app php artisan test --compact
+```
+
+## Security and Access
+
+Authorization is enforced on the backend through granular permissions. Dashboard Editors are read-only for data, while Division Staff may change only their own division's data. Audit logs are append-only at both the application and database layers.
+
+## Project Status
+
+The core MVP and dashboard filtering phase are complete. `progress.md` is the source of truth for implementation status; the local `Obsidian/` vault contains supporting requirements and design notes.
