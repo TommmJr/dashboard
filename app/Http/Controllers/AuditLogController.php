@@ -13,11 +13,6 @@ class AuditLogController extends Controller
     /**
      * Daftar audit log (append-only). Gate audit.view di route.
      * Filter divalidasi terhadap whitelist untuk mencegah probing.
-     *
-     * Scoping: pemegang audit.view TANPA audit.view_all (Editor Dashboard/IT)
-     * hanya melihat entri perubahan DATA (dataset & baris metrik) — sesuai
-     * matriks User Roles: "IT cuma liat perubahan datasetnya aja". Login,
-     * perubahan user, dsb. tidak ditampilkan ke mereka.
      */
     public function index(Request $request)
     {

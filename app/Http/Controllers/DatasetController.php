@@ -30,12 +30,6 @@ class DatasetController extends Controller
     }
 
     /**
-     * Fitur unduh template dihapus (2026-09-15): buildTemplate() tidak
-     * lagi dipakai. Method & route datasets.template dihapus, bukan
-     * di-comment, karena tidak ada sisa referensi.
-     */
-
-    /**
      * Terima file dan simpan sebagai dataset milik owner canonical TJBT.
      */
     public function store(Request $request, DatasetImportService $importService)
@@ -84,11 +78,6 @@ class DatasetController extends Controller
      * Import laporan KPI mentah dari mentor dalam 1 klik, tanpa command line.
      * Semua sheet unit pada workbook adalah dimensi pembanding dalam satu
      * laporan milik TJBT, sehingga hasilnya digabung menjadi SATU dataset.
-     * Unit sheet tidak dibuat menjadi division dan tidak menjadi scope RBAC.
-     *
-     * Sheet bermasalah dilaporkan tanpa menghentikan sheet lain. Periode wajib
-     * diisi user karena label periode di sheet mentor tidak konsisten (stale),
-     * tidak reliable untuk auto-detect.
      */
     public function importKpiReport(Request $request, KpiReportConverter $converter, DatasetImportService $importService)
     {
@@ -240,10 +229,7 @@ class DatasetController extends Controller
     /**
      * Daftar dataset.
      *
-     * Scoping (keputusan archive-vs-delete, plan Fase 1):
      * - admin, management, editor: melihat semua divisi.
-     * - staf_divisi: hanya dataset divisinya sendiri.
-     * Default menyembunyikan ARCHIVED; filter via ?status=ARCHIVED dll.
      */
     public function index(Request $request)
     {
@@ -379,9 +365,6 @@ class DatasetController extends Controller
 
             if (! $deleted) {
                 // Selalu ke index (bukan back()): back() dari halaman detail
-                // mengembalikan user ke halaman yang sama tanpa konteks, dan
-                // pesan errornya tidak terlihat kalau view itu tidak merender
-                // flash error (bug: hapus dari show terkesan "tidak terjadi apa-apa").
                 return redirect()
                     ->route('datasets.index')
                     ->with('error', 'Gagal menghapus file dari storage. Dataset tidak dihapus.');
@@ -412,9 +395,6 @@ class DatasetController extends Controller
 
     /**
      * Role tanpa pembatasan divisi: admin selalu; role lain mengikuti
-     * permission dataset.delete (hanya admin saat ini) — selebihnya
-     * management/editor melihat semua divisi (dashboard transparan),
-     * staf_divisi dibatasi divisinya.
      */
     private function seesAllDivisions($user): bool
     {

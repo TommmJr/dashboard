@@ -29,9 +29,11 @@ class NkoRankingWidgetTest extends TestCase
 
     public function test_admin_melihat_peringkat_nko_urut_menurun(): void
     {
-        $this->nko($this->division('TJBT'), 105.5);
-        $this->nko($this->division('TRANS'), 100.74);
-        $this->nko($this->division('RST'), 99.5);
+        $division = $this->division('Pemilik Data');
+        $dataset = Dataset::factory()->create(['division_id' => $division->id]);
+        $this->nko($division, 'TJBT', 105.5, dataset: $dataset);
+        $this->nko($division, 'TRANS', 100.74, dataset: $dataset);
+        $this->nko($division, 'RST', 99.5, dataset: $dataset);
 
         $admin = User::factory()->withRole(Role::ADMIN)->create();
 
@@ -40,6 +42,8 @@ class NkoRankingWidgetTest extends TestCase
             ->assertOk()
             ->assertSee('Peringkat NKO Unit')
             ->assertSee('105.50')
+            ->assertSee('100.74')
+            ->assertSee('99.50')
             ->assertSeeInOrder(['TJBT', 'TRANS', 'RST']);
     }
 
@@ -47,7 +51,7 @@ class NkoRankingWidgetTest extends TestCase
     {
         // Peringkat lintas-unit tidak bermakna untuk staf yang datanya
         // di-scope satu divisi; widget sengaja tidak ada di layoutnya.
-        $this->nko($this->division('TJBT'), 105.5);
+        $this->nko($this->division('TJBT'), 'TJBT', 105.5);
 
         $staff = User::factory()->withRole(Role::STAFF_DIVISI)->create();
 
@@ -59,7 +63,7 @@ class NkoRankingWidgetTest extends TestCase
 
     public function test_management_melihat_widget_peringkat(): void
     {
-        $this->nko($this->division('TJBT'), 105.5);
+        $this->nko($this->division('TJBT'), 'TJBT', 105.5);
 
         $management = User::factory()->withRole(Role::MANAGEMENT)->create();
 
@@ -72,8 +76,8 @@ class NkoRankingWidgetTest extends TestCase
     public function test_hanya_periode_terbaru_yang_ditampilkan(): void
     {
         $division = $this->division('TJBT');
-        $this->nko($division, 90.0, '2026-07-31');
-        $this->nko($division, 105.5, '2026-08-31');
+        $this->nko($division, 'TJBT', 90.0, '2026-07-31');
+        $this->nko($division, 'TJBT', 105.5, '2026-08-31');
 
         $admin = User::factory()->withRole(Role::ADMIN)->create();
 
@@ -132,12 +136,17 @@ class NkoRankingWidgetTest extends TestCase
         return Division::factory()->create(['name' => $unit]);
     }
 
-    private function nko(Division $division, float $value, string $period = '2026-08-31'): void
-    {
-        $dataset = Dataset::factory()->create(['division_id' => $division->id]);
+    private function nko(
+        Division $division,
+        string $unit,
+        float $value,
+        string $period = '2026-08-31',
+        ?Dataset $dataset = null,
+    ): void {
+        $dataset ??= Dataset::factory()->create(['division_id' => $division->id]);
 
         PerformanceMetric::factory()->create([
-            'metric_name' => $division->name.' | NKO',
+            'metric_name' => $unit.' | NKO',
             'value' => $value,
             'period' => $period,
             'division_id' => $division->id,

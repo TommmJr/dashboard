@@ -16,9 +16,6 @@ use Illuminate\View\View;
  *
  * Layout dibaca dari config/dashboard_layouts.php berdasarkan slug role
  * (fallback 'default' untuk role null / slug tak dikenal). Katalog widget
- * difilter permission via Gate di backend — config BUKAN mekanisme
- * keamanan. Data server-side (audit terbaru, jumlah dataset FAILED)
- * hanya disiapkan untuk widget yang benar-benar lolos filter.
  */
 class DashboardController extends Controller
 {
@@ -73,12 +70,7 @@ class DashboardController extends Controller
      * Peringkat NKO per unit untuk periode terbaru.
      *
      * Hanya baris berakhiran '| NKO' (dihasilkan KpiReportConverter) yang
-     * diambil. NKO BUKAN besaran aditif: menjumlahkannya seperti pada chart
-     * tren (SUM(value)) menghasilkan angka tak bermakna, jadi query ini
-     * terpisah dan mengambil nilai per unit apa adanya.
-     *
      * Cross-unit by design — widget ini hanya dipasang di layout role yang
-     * memang melihat semua divisi (lihat config/dashboard_layouts.php).
      *
      * @return Collection<int, object>
      */
@@ -96,10 +88,14 @@ class DashboardController extends Controller
         }
 
         return $base()
-            ->join('divisions', 'divisions.id', '=', 'performance_metrics.division_id')
             ->where('performance_metrics.period', $latestPeriod)
-            ->select('divisions.name as unit', 'performance_metrics.value as nko')
+            ->select('performance_metrics.metric_name', 'performance_metrics.value as nko')
             ->orderByDesc('performance_metrics.value')
-            ->get();
+            ->get()
+            ->map(function (object $row): object {
+                $row->unit = explode(' | ', $row->metric_name, 2)[0];
+
+                return $row;
+            });
     }
 }

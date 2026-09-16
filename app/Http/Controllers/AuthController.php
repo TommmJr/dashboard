@@ -9,14 +9,7 @@ use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 /**
- * Controller untuk menangani autentikasi (login / logout).
- *
- * Alur kerja:
- * 1. User membuka /login              -> create() menampilkan form.
- * 2. User submit email + password      -> store() memvalidasi & mencoba login.
- * 3. Jika sukses, session dibuat dan user diarahkan ke dashboard.
- * 4. Tombol Log out                    -> destroy() menghapus session.
- *
+ * Controller untuk menangani autentikasi (login / logout)
  * Semua halaman selain login dilindungi middleware 'auth' di routes/web.php.
  */
 class AuthController extends Controller
@@ -33,12 +26,6 @@ class AuthController extends Controller
 
     /**
      * Memproses submit form login.
-     *
-     * Tahapan:
-     * 1. Validasi input email & password.
-     * 2. Auth::attempt() mencocokkan kredensial dengan database.
-     *    - Sukses  -> session di-regenerate (anti session fixation) lalu redirect dashboard.
-     *    - Gagal   -> lempar error validasi agar pesan tampil di form.
      *
      * @return RedirectResponse
      *

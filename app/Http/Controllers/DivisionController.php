@@ -11,8 +11,6 @@ use Illuminate\View\View;
 /**
  * CRUD divisi — hanya admin (via middleware can:user.view / can:user.create
  * dll. yang sudah dimiliki admin). Tidak memerlukan permission baru karena
- * pengelolaan divisi adalah bagian dari administrasi sistem, bukan data.
- *
  * Proteksi delete: divisi yang masih punya user atau dataset tidak bisa
  * dihapus (integrity — jangan tinggalkan orphan FK).
  */
@@ -36,13 +34,13 @@ class DivisionController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $validated = $request->validate([
-            'name'        => 'required|string|max:255|unique:divisions,name',
+            'name' => 'required|string|max:255|unique:divisions,name',
             'description' => 'nullable|string|max:1000',
         ]);
 
         $division = Division::create([
-            'name'        => $validated['name'],
-            'slug'        => Str::slug($validated['name']),
+            'name' => $validated['name'],
+            'slug' => Str::slug($validated['name']),
             'description' => $validated['description'] ?? null,
         ]);
 
@@ -58,13 +56,13 @@ class DivisionController extends Controller
     public function update(Request $request, Division $division): RedirectResponse
     {
         $validated = $request->validate([
-            'name'        => 'required|string|max:255|unique:divisions,name,'.$division->id,
+            'name' => 'required|string|max:255|unique:divisions,name,'.$division->id,
             'description' => 'nullable|string|max:1000',
         ]);
 
         $division->update([
-            'name'        => $validated['name'],
-            'slug'        => Str::slug($validated['name']),
+            'name' => $validated['name'],
+            'slug' => Str::slug($validated['name']),
             'description' => $validated['description'] ?? null,
         ]);
 

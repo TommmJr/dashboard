@@ -37,14 +37,20 @@ class PerformanceChartDataTest extends TestCase
         $this->divB = Division::factory()->create(['name' => 'Divisi B']);
     }
 
-    private function datasetWithNko(Division $division, string $status, string $period, float $nko): Dataset
-    {
-        $dataset = Dataset::factory()->create([
+    private function datasetWithNko(
+        Division $division,
+        string $status,
+        string $period,
+        float $nko,
+        string $unit,
+        ?Dataset $dataset = null,
+    ): Dataset {
+        $dataset ??= Dataset::factory()->create([
             'division_id' => $division->id,
             'status' => $status,
         ]);
         PerformanceMetric::factory()->create([
-            'metric_name' => $division->name.KpiReportConverter::NKO_SUFFIX,
+            'metric_name' => $unit.KpiReportConverter::NKO_SUFFIX,
             'dataset_id' => $dataset->id,
             'division_id' => $division->id,
             'period' => $period,
@@ -56,7 +62,7 @@ class PerformanceChartDataTest extends TestCase
 
     public function test_kontrak_json_berisi_labels_series_kpi(): void
     {
-        $this->datasetWithNko($this->divA, Dataset::STATUS_READY, '2026-01-31', 100);
+        $this->datasetWithNko($this->divA, Dataset::STATUS_READY, '2026-01-31', 100, 'RST');
         $admin = User::factory()->withRole(Role::ADMIN)->create();
 
         $response = $this->actingAs($admin)->getJson(route('performance.data'))->assertOk();
@@ -67,7 +73,7 @@ class PerformanceChartDataTest extends TestCase
             'kpi' => ['average_nko', 'ready_datasets', 'metric_count'],
         ]);
         $this->assertSame(['2026-01-31'], $response->json('labels'));
-        $this->assertSame('Divisi A', $response->json('series.0.name'));
+        $this->assertSame('RST', $response->json('series.0.name'));
         $this->assertEquals(100.0, (float) $response->json('series.0.data.0'));
         $this->assertEquals(100.0, (float) $response->json('kpi.average_nko'));
         $this->assertSame(1, $response->json('kpi.ready_datasets'));
@@ -76,11 +82,11 @@ class PerformanceChartDataTest extends TestCase
 
     public function test_series_per_divisi_dengan_padding_nol(): void
     {
-        // Divisi A punya NKO di Jan & Feb; Divisi B hanya di Feb.
-        // Series A harus [100, 200], series B harus [0, 999] (padding nol).
-        $this->datasetWithNko($this->divA, Dataset::STATUS_READY, '2026-01-31', 100);
-        $this->datasetWithNko($this->divA, Dataset::STATUS_READY, '2026-02-28', 200);
-        $this->datasetWithNko($this->divB, Dataset::STATUS_READY, '2026-02-28', 999);
+        // RST punya NKO di Jan & Feb; TEK hanya di Feb dan berbagi owner.
+        // Series RST harus [100, 200], series TEK harus [0, 999].
+        $this->datasetWithNko($this->divA, Dataset::STATUS_READY, '2026-01-31', 100, 'RST');
+        $this->datasetWithNko($this->divA, Dataset::STATUS_READY, '2026-02-28', 200, 'RST');
+        $this->datasetWithNko($this->divA, Dataset::STATUS_READY, '2026-02-28', 999, 'TEK');
 
         $admin = User::factory()->withRole(Role::ADMIN)->create();
         $response = $this->actingAs($admin)->getJson(route('performance.data'))->assertOk();
@@ -88,18 +94,31 @@ class PerformanceChartDataTest extends TestCase
         $this->assertSame(['2026-01-31', '2026-02-28'], $response->json('labels'));
 
         $series = collect($response->json('series'))->keyBy('name');
-        $this->assertEquals([100.0, 200.0], array_map('floatval', $series['Divisi A']['data']));
-        $this->assertEquals([0.0, 999.0], array_map('floatval', $series['Divisi B']['data']));
+        $this->assertEquals([100.0, 200.0], array_map('floatval', $series['RST']['data']));
+        $this->assertEquals([0.0, 999.0], array_map('floatval', $series['TEK']['data']));
+    }
+
+    public function test_upload_ganda_unit_dan_periode_yang_sama_memakai_nilai_maksimum(): void
+    {
+        $dataset = $this->datasetWithNko($this->divA, Dataset::STATUS_READY, '2026-01-31', 100, 'RST');
+        $this->datasetWithNko($this->divA, Dataset::STATUS_READY, '2026-01-31', 120, 'RST', $dataset);
+
+        $admin = User::factory()->withRole(Role::ADMIN)->create();
+        $response = $this->actingAs($admin)->getJson(route('performance.data'))->assertOk();
+
+        $this->assertSame(['2026-01-31'], $response->json('labels'));
+        $this->assertEquals([120.0], array_map('floatval', $response->json('series.0.data')));
+        $this->assertEquals(120.0, (float) $response->json('kpi.average_nko'));
     }
 
     public function test_rata_rata_nko_diambil_dari_periode_terbaru(): void
     {
         // Kondisi terkini: Jan (100 & 90) tidak boleh mencemari angka periode
         // terbaru Feb (110 & 100) -> rata-rata 105.
-        $this->datasetWithNko($this->divA, Dataset::STATUS_READY, '2026-01-31', 100);
-        $this->datasetWithNko($this->divB, Dataset::STATUS_READY, '2026-01-31', 90);
-        $this->datasetWithNko($this->divA, Dataset::STATUS_READY, '2026-02-28', 110);
-        $this->datasetWithNko($this->divB, Dataset::STATUS_READY, '2026-02-28', 100);
+        $this->datasetWithNko($this->divA, Dataset::STATUS_READY, '2026-01-31', 100, 'RST');
+        $this->datasetWithNko($this->divA, Dataset::STATUS_READY, '2026-01-31', 90, 'TEK');
+        $this->datasetWithNko($this->divA, Dataset::STATUS_READY, '2026-02-28', 110, 'RST');
+        $this->datasetWithNko($this->divA, Dataset::STATUS_READY, '2026-02-28', 100, 'TEK');
 
         $admin = User::factory()->withRole(Role::ADMIN)->create();
         $response = $this->actingAs($admin)->getJson(route('performance.data'))->assertOk();
@@ -111,10 +130,10 @@ class PerformanceChartDataTest extends TestCase
     {
         // Inti perbaikan: nilai target/realisasi bersatuan lain (Rp Juta,
         // Dokumen) tidak boleh masuk rata-rata NKO.
-        $dataset = $this->datasetWithNko($this->divA, Dataset::STATUS_READY, '2026-01-31', 100);
+        $dataset = $this->datasetWithNko($this->divA, Dataset::STATUS_READY, '2026-01-31', 100, 'RST');
 
         PerformanceMetric::factory()->create([
-            'metric_name' => 'Divisi A | c. Usulan Penghapusan ATTB | realisasi',
+            'metric_name' => 'RST | c. Usulan Penghapusan ATTB | realisasi',
             'dataset_id' => $dataset->id,
             'division_id' => $this->divA->id,
             'period' => '2026-01-31',
@@ -133,8 +152,8 @@ class PerformanceChartDataTest extends TestCase
 
     public function test_dataset_archived_dikeluarkan_dari_series_dan_kpi(): void
     {
-        $this->datasetWithNko($this->divA, Dataset::STATUS_READY, '2026-01-31', 100);
-        $archived = $this->datasetWithNko($this->divA, Dataset::STATUS_READY, '2026-02-28', 500);
+        $this->datasetWithNko($this->divA, Dataset::STATUS_READY, '2026-01-31', 100, 'RST');
+        $archived = $this->datasetWithNko($this->divA, Dataset::STATUS_READY, '2026-02-28', 500, 'RST');
         $archived->update(['status' => Dataset::STATUS_ARCHIVED]);
 
         $admin = User::factory()->withRole(Role::ADMIN)->create();
@@ -148,15 +167,15 @@ class PerformanceChartDataTest extends TestCase
 
     public function test_staf_hanya_melihat_series_divisinya(): void
     {
-        $this->datasetWithNko($this->divA, Dataset::STATUS_READY, '2026-01-31', 100);
-        $this->datasetWithNko($this->divB, Dataset::STATUS_READY, '2026-01-31', 999);
+        $this->datasetWithNko($this->divA, Dataset::STATUS_READY, '2026-01-31', 100, 'RST');
+        $this->datasetWithNko($this->divB, Dataset::STATUS_READY, '2026-01-31', 999, 'TJBT');
 
         $staffA = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $this->divA->id]);
         $response = $this->actingAs($staffA)->getJson(route('performance.data'))->assertOk();
 
         $seriesNames = collect($response->json('series'))->pluck('name');
-        $this->assertContains('Divisi A', $seriesNames);
-        $this->assertNotContains('Divisi B', $seriesNames);
+        $this->assertContains('RST', $seriesNames);
+        $this->assertNotContains('TJBT', $seriesNames);
         $this->assertEquals(100.0, (float) $response->json('kpi.average_nko'));
     }
 
@@ -173,8 +192,8 @@ class PerformanceChartDataTest extends TestCase
     public function test_y_axis_min_dihitung_dinamis_dari_nko_terendah(): void
     {
         // NKO terendah 95 -> margin 5 -> (95-5)/5=18 -> floor*5=90.
-        $this->datasetWithNko($this->divA, Dataset::STATUS_READY, '2026-01-31', 95);
-        $this->datasetWithNko($this->divB, Dataset::STATUS_READY, '2026-01-31', 105.5);
+        $this->datasetWithNko($this->divA, Dataset::STATUS_READY, '2026-01-31', 95, 'RST');
+        $this->datasetWithNko($this->divA, Dataset::STATUS_READY, '2026-01-31', 105.5, 'TEK');
 
         $admin = User::factory()->withRole(Role::ADMIN)->create();
         $response = $this->actingAs($admin)->getJson(route('performance.data'))->assertOk();
@@ -187,9 +206,9 @@ class PerformanceChartDataTest extends TestCase
         // Divisi B hanya punya NKO di Feb; series-nya di-pad 0 di Jan (lihat
         // test_series_per_divisi_dengan_padding_nol). y_axis_min HARUS dihitung
         // dari nilai NKO mentah (min 100), bukan dari padding 0 di series.
-        $this->datasetWithNko($this->divA, Dataset::STATUS_READY, '2026-01-31', 100);
-        $this->datasetWithNko($this->divA, Dataset::STATUS_READY, '2026-02-28', 105);
-        $this->datasetWithNko($this->divB, Dataset::STATUS_READY, '2026-02-28', 999);
+        $this->datasetWithNko($this->divA, Dataset::STATUS_READY, '2026-01-31', 100, 'RST');
+        $this->datasetWithNko($this->divA, Dataset::STATUS_READY, '2026-02-28', 105, 'RST');
+        $this->datasetWithNko($this->divA, Dataset::STATUS_READY, '2026-02-28', 999, 'TEK');
 
         $admin = User::factory()->withRole(Role::ADMIN)->create();
         $response = $this->actingAs($admin)->getJson(route('performance.data'))->assertOk();

@@ -47,7 +47,6 @@ class PerformanceChartController extends Controller
         // menganggap DB UTC). period diformat eksplisit Y-m-d di PHP.
         $baseQuery = fn () => DB::table('performance_metrics')
             ->leftJoin('datasets', 'datasets.id', '=', 'performance_metrics.dataset_id')
-            ->leftJoin('divisions', 'divisions.id', '=', 'performance_metrics.division_id')
             ->where(function ($q) {
                 $q->whereNull('performance_metrics.dataset_id')
                     ->orWhere('datasets.status', Dataset::STATUS_READY);
@@ -65,14 +64,18 @@ class PerformanceChartController extends Controller
         };
 
         // ponytail: MAX dipakai bila satu unit mengunggah NKO lebih dari sekali
-        // untuk periode yang sama — nilai tertinggi yang tampil. Ganti ke
-        // "dataset terbaru per periode" kalau re-upload jadi kebiasaan.
+        // untuk periode yang sama — nilai tertinggi yang tampil.
         $rows = $scoped($baseQuery())
             ->where('performance_metrics.metric_name', 'like', '%'.KpiReportConverter::NKO_SUFFIX)
-            ->selectRaw("performance_metrics.period, performance_metrics.division_id, COALESCE(divisions.name, 'Tanpa Divisi') as division_name, MAX(performance_metrics.value) as nko")
-            ->groupBy('performance_metrics.period', 'performance_metrics.division_id', 'divisions.name')
+            ->selectRaw('performance_metrics.period, performance_metrics.metric_name, MAX(performance_metrics.value) as nko')
+            ->groupBy('performance_metrics.period', 'performance_metrics.metric_name')
             ->orderBy('performance_metrics.period')
-            ->get();
+            ->get()
+            ->map(function (object $row): object {
+                $row->unit = explode(' | ', $row->metric_name, 2)[0];
+
+                return $row;
+            });
 
         // Pivot: label periode unik + satu series per unit.
         $labels = $rows->pluck('period')
@@ -81,7 +84,7 @@ class PerformanceChartController extends Controller
             ->sort()
             ->values();
 
-        $series = $rows->groupBy('division_name')->map(function ($group, $name) use ($labels) {
+        $series = $rows->groupBy('unit')->map(function ($group, $name) use ($labels) {
             $byPeriod = $group->keyBy(fn ($row) => Carbon::parse($row->period)->format('Y-m-d'));
 
             return [
@@ -90,10 +93,6 @@ class PerformanceChartController extends Controller
             ];
         })->values();
 
-        // Sumbu Y dinamis dari NILAI NKO MENTAH (bukan dari $series yang
-        // di-pad nol untuk periode kosong) - padding nol akan menyeret axis
-        // ke 0 secara keliru. Margin 5 poin di bawah nilai terendah,
-        // dibulatkan ke bawah kelipatan 5, tidak boleh negatif.
         // Contoh: NKO terendah 95.5 -> axis mulai di 90.
         $rawMin = $rows->isEmpty() ? 0.0 : (float) $rows->min('nko');
         $yAxisMin = $rawMin > 0 ? max(0, floor(($rawMin - 5) / 5) * 5) : 0.0;
