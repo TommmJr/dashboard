@@ -52,22 +52,13 @@ Provide a maintainable internal dashboard that reduces manual reporting work and
    npm install
    ```
 
-2. Create the environment file and configure the Docker database connection.
+2. Create the environment file.
 
    ```bash
    cp .env.example .env
    ```
 
-   Set these values in `.env`:
-
-   ```dotenv
-   DB_CONNECTION=mysql
-   DB_HOST=db
-   DB_PORT=3306
-   DB_DATABASE=dashboard
-   DB_USERNAME=dashboard_app
-   DB_PASSWORD=password
-   ```
+   Configure `.env` with the application and database values supplied by your local setup or deployment administrator. Do not commit this file.
 
 3. Start the application and database containers, then initialize the application.
 
