@@ -15,8 +15,8 @@ use Tests\TestCase;
 /**
  * Memverifikasi scoping data performance per divisi (audit #3).
  *
- * - Admin & management: boleh lihat agregat semua divisi.
- * - Staf divisi & editor: hanya divisinya sendiri.
+ * - Admin, management & editor: boleh lihat agregat semua divisi.
+ * - Staf divisi: hanya divisinya sendiri.
  *
  * Basis agregasi NKO (bukan SUM seluruh value) — lihat PerformanceChartDataTest.
  */
@@ -133,9 +133,11 @@ class PerformanceChartScopingTest extends TestCase
         $this->assertStringNotContainsString('TRANS', json_encode($response->json()));
     }
 
-    public function test_user_tanpa_division_melihat_data_kosong(): void
+    public function test_editor_tanpa_divisi_melihat_agregat_semua_divisi(): void
     {
-        // User non-privileged tanpa division_id => agregat kosong.
+        // Editor Dashboard lintas divisi meski division_id null (lihat
+        // DatabaseSeeder: editor/management/admin tanpa divisi tetap).
+        // Regresi yang diperbaiki: filter division_id = null membuat chart kosong.
         $this->seedDivisionsAndMetrics();
         $editor = User::factory()->withRole(Role::EDITOR_DASHBOARD)->create([
             'division_id' => null,
@@ -145,9 +147,38 @@ class PerformanceChartScopingTest extends TestCase
             ->getJson(route('performance.data'))
             ->assertOk();
 
-        // labels dan series harus array kosong, KPI nol.
-        $this->assertSame([], $response->json('labels'));
-        $this->assertSame([], $response->json('series'));
-        $this->assertEquals(0.0, (float) $response->json('kpi.average_nko'));
+        // Sama seperti admin: (105 + 103 + 95 + 94) / 4 = 99.25, bukan 0/kosong.
+        $this->assertEquals(99.25, (float) $response->json('kpi.average_nko'));
+
+        $seriesNames = collect($response->json('series'))->pluck('name');
+        $this->assertContains('RST', $seriesNames);
+        $this->assertContains('TEK', $seriesNames);
+        $this->assertContains('TJBT', $seriesNames);
+        $this->assertContains('TRANS', $seriesNames);
+
+        // KPI scoping sama: dua dataset READY dan delapan baris metric aktif.
+        $this->assertSame(2, $response->json('kpi.ready_datasets'));
+        $this->assertSame(8, $response->json('kpi.metric_count'));
+    }
+
+    public function test_editor_dengan_divisi_tetap_melihat_agregat_semua_divisi(): void
+    {
+        // Editor yang kebetulan punya division_id tetap lintas divisi,
+        // tidak tersekat ke divisinya seperti staf.
+        [$divA, $divB] = $this->seedDivisionsAndMetrics();
+        $editor = User::factory()->withRole(Role::EDITOR_DASHBOARD)->create([
+            'division_id' => $divA->id,
+        ]);
+
+        $response = $this->actingAs($editor)
+            ->getJson(route('performance.data'))
+            ->assertOk();
+
+        $this->assertEquals(99.25, (float) $response->json('kpi.average_nko'));
+
+        $seriesNames = collect($response->json('series'))->pluck('name');
+        $this->assertContains('RST', $seriesNames);
+        $this->assertContains('TJBT', $seriesNames);
+        $this->assertStringContainsString('TJBT', json_encode($response->json()));
     }
 }

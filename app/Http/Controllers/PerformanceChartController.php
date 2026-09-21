@@ -31,8 +31,8 @@ class PerformanceChartController extends Controller
      * NKO adalah satu-satunya angka yang sebanding lintas unit.
      *
      * Aturan scoping (per audit keamanan #3):
-     * - admin & management: agregasi SELURUH divisi.
-     * - role lain (staf_divisi, editor_dashboard): hanya divisinya sendiri.
+     * - admin, management & editor_dashboard: agregasi SELURUH divisi.
+     * - staf_divisi: hanya divisinya sendiri.
      *
      * Dataset ARCHIVED dikeluarkan dari agregasi (keputusan
      * archive-vs-delete); baris legacy tanpa dataset tetap dihitung.
@@ -58,8 +58,9 @@ class PerformanceChartController extends Controller
                     ->orWhere('datasets.status', Dataset::STATUS_READY);
             });
 
-        // Non-admin/non-management: batasi ke division_id miliknya.
-        $isPrivileged = $user->hasRole(Role::ADMIN) || $user->hasRole(Role::MANAGEMENT);
+        // Admin, management & editor: lintas divisi. Staf: divisinya sendiri.
+        $isPrivileged = $user->hasRole(Role::ADMIN) || $user->hasRole(Role::MANAGEMENT)
+            || $user->hasRole(Role::EDITOR_DASHBOARD);
 
         $scoped = function ($query) use ($isPrivileged, $user) {
             if (! $isPrivileged) {
