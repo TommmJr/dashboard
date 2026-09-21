@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Division;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -71,5 +72,49 @@ class DatabaseSeederTest extends TestCase
         $admin = User::where('email', 'admin@dashboard.local')->firstOrFail();
         $this->assertNotNull($admin->role);
         $this->assertSame(Role::ADMIN, $admin->role->slug);
+    }
+
+    public function test_db_seed_menyediakan_divisi_untuk_akun_demo(): void
+    {
+        // seedDemoAccounts() butuh kedua slug ini via firstOrFail; jika
+        // panggilan UnitDivisionSeeder dihapus, fresh seed lokal gagal.
+        $this->artisan('db:seed')->assertExitCode(0);
+
+        Division::where('slug', 'perencanaan-pengusahaan')->sole();
+        Division::where('slug', 'data-aset')->sole();
+    }
+
+    public function test_db_seed_local_berhasil_dan_idempoten_dari_database_kosong(): void
+    {
+        // Jalur yang gagal sebelum fix: APP_ENV=local + DB kosong.
+        $previousEnv = $this->app['env'];
+        $this->app['env'] = 'local';
+
+        try {
+            $this->artisan('db:seed')->assertExitCode(0);
+            $this->artisan('db:seed')->assertExitCode(0);
+
+            $this->assertSame(2, Division::count());
+
+            $staf = User::where('email', 'staf@dashboard.local')->sole();
+            $this->assertSame(Role::STAFF_DIVISI, $staf->role->slug);
+            $this->assertSame(
+                Division::where('slug', 'perencanaan-pengusahaan')->sole()->id,
+                $staf->division_id,
+            );
+
+            $stafAset = User::where('email', 'staf.aset@dashboard.local')->sole();
+            $this->assertSame(Role::STAFF_DIVISI, $stafAset->role->slug);
+            $this->assertSame(
+                Division::where('slug', 'data-aset')->sole()->id,
+                $stafAset->division_id,
+            );
+
+            $this->assertSame(1, User::where('email', 'admin@dashboard.local')->count());
+            $this->assertSame(1, User::where('email', 'editor@dashboard.local')->count());
+            $this->assertSame(1, User::where('email', 'management@dashboard.local')->count());
+        } finally {
+            $this->app['env'] = $previousEnv;
+        }
     }
 }

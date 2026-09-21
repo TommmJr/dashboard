@@ -79,8 +79,8 @@ class DatabaseSeeder extends Seeder
      * Akun demo non-admin + divisi, HANYA di environment lokal.
      *
      * Tujuannya smoke test manual: staf butuh division_id untuk mengunggah
-     * dataset (kolom division_id NOT NULL). Semua data aplikasi dimiliki
-     * division TJBT; nama unit lain pada laporan KPI hanya dimensi pembanding.
+     * dataset (kolom division_id NOT NULL). Setiap akun staf demo ditempatkan
+     * pada sub-bidang organisasi yang memiliki data sendiri.
      * Password semua akun demo sama,
      * dari env DEMO_USER_PASSWORD (default 'password') — jangan pernah
      * mengaktifkan APP_ENV=local di server publik dengan akun ini ada.
@@ -93,10 +93,12 @@ class DatabaseSeeder extends Seeder
 
         $demoPassword = env('DEMO_USER_PASSWORD', 'password');
 
-        $owner = Division::where('slug', 'tjbt')->firstOrFail();
+        $pengusahaan = Division::where('slug', 'perencanaan-pengusahaan')->firstOrFail();
+        $dataAset = Division::where('slug', 'data-aset')->firstOrFail();
 
         $demoUsers = [
-            ['staf@dashboard.local', 'Staf Perencanaan Pengusahaan', Role::STAFF_DIVISI, $owner->id],
+            ['staf@dashboard.local', 'Staf Perencanaan Pengusahaan', Role::STAFF_DIVISI, $pengusahaan->id],
+            ['staf.aset@dashboard.local', 'Staf Data Aset', Role::STAFF_DIVISI, $dataAset->id],
             ['editor@dashboard.local', 'Editor Dashboard', Role::EDITOR_DASHBOARD, null],
             ['management@dashboard.local', 'Management', Role::MANAGEMENT, null],
         ];
@@ -115,6 +117,7 @@ class DatabaseSeeder extends Seeder
         if ($this->command) {
             $this->command->info('Akun demo (env local, password dari DEMO_USER_PASSWORD, default "password"):');
             $this->command->line('  staf@dashboard.local (Staf Perencanaan Pengusahaan)');
+            $this->command->line('  staf.aset@dashboard.local (Staf Data Aset)');
             $this->command->line('  editor@dashboard.local (Editor) / management@dashboard.local (Management)');
         }
     }
