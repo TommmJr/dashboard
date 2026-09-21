@@ -12,6 +12,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\View\View;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -25,7 +26,7 @@ class ReportController extends Controller
      * Menyiapkan daftar dataset untuk pilihan validationExport per-dataset.
      * Scoping identik dengan datasetSummaryExport.
      */
-    public function index(Request $request): \Illuminate\View\View
+    public function index(Request $request): View
     {
         $user = Auth::user();
 
@@ -45,8 +46,11 @@ class ReportController extends Controller
      * Scoping: identik dengan DatasetController::show() —
      * seesAllDivisions atau staf divisi yang sama.
      *
-     * Sumber: $dataset->validation_report['issues'] — SEMUA issue
-     * (tanpa cap 50; issues_truncated diabaikan untuk export).
+     * Sumber: $dataset->validation_report['issues'] — detail yang tersimpan
+     * saat import (dibatasi 50 pertama; lihat DatasetImportService).
+     * Bila issues_truncated=true, baris catatan ditambahkan di akhir file
+     * agar export tidak disangka memuat semua masalah, sama seperti
+     * keterangan di halaman detail dataset.
      * Dataset tanpa issues menghasilkan file header-only.
      */
     public function validationExport(Dataset $dataset): BinaryFileResponse
@@ -72,6 +76,17 @@ class ReportController extends Controller
                 $issue['severity'] ?? '',
                 $issue['message'] ?? '',
             ], null, 'A'.($i + 2));
+        }
+
+        if (! empty($dataset->validation_report['issues_truncated'])) {
+            $total = ($dataset->validation_report['fatal'] ?? 0)
+                + ($dataset->validation_report['warning'] ?? 0);
+            $noteRow = count($issues) + 3;
+            $sheet->fromArray(
+                ["Catatan: hanya 50 masalah pertama yang disimpan. Total masalah: {$total}."],
+                null,
+                'A'.$noteRow,
+            );
         }
 
         foreach (['A', 'B', 'C'] as $col) {

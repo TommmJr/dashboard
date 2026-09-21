@@ -39,7 +39,7 @@ class DatasetValidationTest extends TestCase
         $this->seed(RolePermissionSeeder::class);
         $this->seed(UnitDivisionSeeder::class);
 
-        $this->division = Division::where('slug', 'tjbt')->sole();
+        $this->division = Division::where('slug', 'perencanaan-pengusahaan')->sole();
         $this->staff = User::factory()->withRole(Role::STAFF_DIVISI)->create([
             'division_id' => $this->division->id,
         ]);
@@ -206,5 +206,21 @@ class DatasetValidationTest extends TestCase
         $issue = collect($dataset->validation_report['issues'])->firstWhere('severity', 'FATAL');
         $this->assertStringContainsString('numeric', $issue['message']);
         $this->assertStringContainsString('1234.56', $issue['message']);
+    }
+
+    public function test_detail_masalah_dibatasi_50_dengan_flag_truncated_dan_count_penuh(): void
+    {
+        // 60 baris invalid: semua FATAL, tidak ada yang lolos.
+        $rows = [['metric_name', 'value', 'period']];
+        foreach (range(1, 60) as $i) {
+            $rows[] = ['', 'abc', 'bukan-tanggal-'.$i];
+        }
+
+        $dataset = $this->upload($rows);
+
+        $report = $dataset->validation_report;
+        $this->assertSame(60, $report['fatal']);
+        $this->assertCount(50, $report['issues']);
+        $this->assertTrue($report['issues_truncated']);
     }
 }

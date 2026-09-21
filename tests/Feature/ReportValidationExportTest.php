@@ -146,4 +146,40 @@ class ReportValidationExportTest extends TestCase
         $spreadsheet->disconnectWorksheets();
         @unlink($tempPath);
     }
+
+    /** Export yang truncated memuat baris catatan, bukan dikira lengkap. */
+    public function test_export_terpotong_memuat_baris_catatan(): void
+    {
+        $issues = [];
+        foreach (range(2, 51) as $row) {
+            $issues[] = ['row' => $row, 'severity' => 'FATAL', 'message' => 'Nilai bukan angka'];
+        }
+        $dataset = Dataset::factory()->create([
+            'division_id' => $this->divisionA->id,
+            'validation_report' => [
+                'ok' => 0,
+                'warning' => 0,
+                'fatal' => 60,
+                'issues' => $issues,
+                'issues_truncated' => true,
+            ],
+        ]);
+
+        $response = $this->actingAs($this->admin)
+            ->get(route('reports.validation-export', $dataset));
+
+        $response->assertOk();
+
+        $tempPath = tempnam(sys_get_temp_dir(), 'test_val_trunc_').'.xlsx';
+        file_put_contents($tempPath, $response->streamedContent());
+        $spreadsheet = IOFactory::load($tempPath);
+        $sheet = $spreadsheet->getActiveSheet();
+
+        // 50 baris detail + 1 baris kosong + 1 baris catatan (baris 53).
+        $this->assertStringContainsString('hanya 50 masalah pertama', (string) $sheet->getCell('A53')->getValue());
+        $this->assertStringContainsString('60', (string) $sheet->getCell('A53')->getValue());
+
+        $spreadsheet->disconnectWorksheets();
+        @unlink($tempPath);
+    }
 }
