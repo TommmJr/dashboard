@@ -97,7 +97,7 @@ class KpiReportConverterTest extends TestCase
         $this->seed(RolePermissionSeeder::class);
         $this->seed(UnitDivisionSeeder::class);
 
-        $division = Division::where('slug', 'tjbt')->sole();
+        $division = Division::where('slug', 'perencanaan-pengusahaan')->sole();
         $staff = User::factory()->withRole(Role::STAFF_DIVISI)->create([
             'division_id' => $division->id,
         ]);
@@ -194,7 +194,7 @@ class KpiReportConverterTest extends TestCase
         $this->seed(RolePermissionSeeder::class);
         $this->seed(UnitDivisionSeeder::class);
 
-        $division = Division::where('slug', 'tjbt')->sole();
+        $division = Division::where('slug', 'perencanaan-pengusahaan')->sole();
         $admin = User::factory()->withRole(Role::ADMIN)->create(['division_id' => null]);
 
         $converter = app(KpiReportConverter::class);
@@ -206,6 +206,7 @@ class KpiReportConverterTest extends TestCase
 
         $this->actingAs($admin)->post(route('datasets.store'), [
             'file' => $file,
+            'division_id' => $division->id,
         ]);
 
         $this->actingAs($admin)

@@ -8,21 +8,22 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
- * Divisi unit pemilik data kinerja (sumber: sheet REKAP laporan KPI).
+ * Divisi organisasi nyata pemilik data kinerja.
  */
 class UnitDivisionSeederTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_seeder_membuat_satu_divisi_owner_data(): void
+    public function test_seeder_membuat_dua_divisi_organisasi_nyata(): void
     {
         $this->seed(UnitDivisionSeeder::class);
 
         $this->assertSame(count(UnitDivisionSeeder::UNITS), Division::count());
 
-        $tjbt = Division::where('slug', 'tjbt')->sole();
-        $this->assertSame('TJBT', $tjbt->name);
-        $this->assertSame('Unit Induk Transmisi Jawa Bagian Tengah', $tjbt->description);
+        $pengusahaan = Division::where('slug', 'perencanaan-pengusahaan')->sole();
+        $dataAset = Division::where('slug', 'data-aset')->sole();
+        $this->assertSame('Perencanaan Pengusahaan', $pengusahaan->name);
+        $this->assertSame('Data Aset', $dataAset->name);
     }
 
     public function test_seeder_idempoten_saat_dijalankan_ulang(): void
@@ -33,11 +34,12 @@ class UnitDivisionSeederTest extends TestCase
         $this->assertSame(count(UnitDivisionSeeder::UNITS), Division::count());
     }
 
-    public function test_owner_menggunakan_slug_tjbt(): void
+    public function test_divisi_menggunakan_slug_organisasi(): void
     {
         $this->seed(UnitDivisionSeeder::class);
 
-        $this->assertSame('TJBT', Division::where('slug', 'tjbt')->sole()->name);
+        $this->assertSame('Perencanaan Pengusahaan', Division::where('slug', 'perencanaan-pengusahaan')->sole()->name);
+        $this->assertSame('Data Aset', Division::where('slug', 'data-aset')->sole()->name);
     }
 
     public function test_entitas_pembanding_tidak_dijadikan_division(): void

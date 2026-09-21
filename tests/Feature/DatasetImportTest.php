@@ -35,7 +35,7 @@ class DatasetImportTest extends TestCase
         $this->seed(RolePermissionSeeder::class);
         $this->seed(UnitDivisionSeeder::class);
 
-        $this->division = Division::where('slug', 'tjbt')->sole();
+        $this->division = Division::where('slug', 'perencanaan-pengusahaan')->sole();
         $this->staff = User::factory()->withRole(Role::STAFF_DIVISI)->create([
             'division_id' => $this->division->id,
         ]);
@@ -173,18 +173,37 @@ class DatasetImportTest extends TestCase
     {
         $this->actingAs($this->staff)->get(route('datasets.create'))->assertOk();
 
+        $admin = User::factory()->withRole(Role::ADMIN)->create(['division_id' => null]);
+        $this->actingAs($admin)->get(route('datasets.create'))
+            ->assertOk()
+            ->assertSee('Divisi Pemilik Data');
+
         $editor = User::factory()->withRole(Role::EDITOR_DASHBOARD)->create();
         $this->actingAs($editor)->get(route('datasets.create'))->assertForbidden();
     }
 
-    public function test_admin_tanpa_divisi_upload_otomatis_ke_owner_tjbt(): void
+    public function test_admin_wajib_memilih_divisi_tujuan(): void
     {
         $admin = User::factory()->withRole(Role::ADMIN)->create(['division_id' => null]);
 
         $file = $this->makeXlsx($this->validRows());
 
+        $this->actingAs($admin)->post(route('datasets.store'), ['file' => $file])
+            ->assertSessionHasErrors('division_id');
+
+        $this->assertSame(0, Dataset::count());
+    }
+
+    public function test_admin_dapat_memilih_divisi_tujuan(): void
+    {
+        $admin = User::factory()->withRole(Role::ADMIN)->create(['division_id' => null]);
+        $targetDivision = Division::where('slug', 'data-aset')->sole();
+
+        $file = $this->makeXlsx($this->validRows());
+
         $response = $this->actingAs($admin)->post(route('datasets.store'), [
             'file' => $file,
+            'division_id' => $targetDivision->id,
         ]);
 
         // Filter by user_id to isolate this test's dataset regardless of
@@ -192,24 +211,10 @@ class DatasetImportTest extends TestCase
         $dataset = Dataset::where('user_id', $admin->id)->firstOrFail();
         $response->assertRedirect(route('datasets.show', $dataset));
         $this->assertSame(Dataset::STATUS_READY, $dataset->status->value);
-        $this->assertSame($this->division->id, $dataset->division_id);
+        $this->assertSame($targetDivision->id, $dataset->division_id);
         $this->assertSame($admin->id, $dataset->user_id);
         // Semua baris metric mengikuti divisi dataset, bukan division_id uploader (NULL).
-        $this->assertSame($this->division->id, $dataset->metrics()->value('division_id'));
-    }
-
-    public function test_admin_tidak_bisa_override_owner_dengan_division_id(): void
-    {
-        $admin = User::factory()->withRole(Role::ADMIN)->create(['division_id' => null]);
-        $file = $this->makeXlsx($this->validRows());
-
-        $this->actingAs($admin)->post(route('datasets.store'), [
-            'file' => $file,
-            'division_id' => Division::factory()->create()->id,
-        ])
-            ->assertSessionHasErrors('division_id');
-
-        $this->assertSame(0, Dataset::count());
+        $this->assertSame($targetDivision->id, $dataset->metrics()->value('division_id'));
     }
 
     public function test_staf_tidak_bisa_menyelipkan_division_id_lain(): void

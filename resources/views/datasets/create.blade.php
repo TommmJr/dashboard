@@ -24,7 +24,22 @@
 
         <form method="POST" action="{{ route('datasets.store') }}" enctype="multipart/form-data" class="mt-5 flex flex-col gap-4">
             @csrf
-            <p class="text-sm text-gray-600">Dataset akan tertaut ke pemilik data: <span class="font-semibold">{{ $owner->name }}</span></p>
+            @if ($divisions->isNotEmpty())
+                <div>
+                    <label for="division_id" class="block text-sm font-medium text-gray-700">Divisi Pemilik Data</label>
+                    <select id="division_id" name="division_id" required
+                            class="mt-1 block w-full rounded-md border-gray-300 text-sm">
+                        <option value="">-- Pilih divisi --</option>
+                        @foreach ($divisions as $division)
+                            <option value="{{ $division->id }}" @selected(old('division_id') == $division->id)>
+                                {{ $division->name }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+            @else
+                <p class="text-sm text-gray-600">Dataset akan tertaut ke divisi Anda: <span class="font-semibold">{{ $user->division?->name }}</span></p>
+            @endif
             <x-dropzone name="file" accept=".xlsx,.csv" required />
             <button type="submit"
                     class="rounded bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">
@@ -37,7 +52,7 @@
             <h2 class="text-lg font-bold text-gray-900">Import Laporan KPI dari Mentor (Otomatis)</h2>
             <p class="mt-2 text-sm text-gray-600">
                 Upload file Excel laporan KPI apa adanya. Semua sheet unit menjadi dimensi pembanding
-                dalam satu dataset milik {{ $owner->name }}. Isi <strong>periode data</strong> karena
+                dalam satu dataset milik divisi Perencanaan Pengusahaan. Isi <strong>periode data</strong> karena
                 tulisan periode di dalam file sering tidak akurat.
             </p>
 

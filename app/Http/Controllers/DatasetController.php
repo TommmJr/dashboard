@@ -24,13 +24,16 @@ class DatasetController extends Controller
     public function create()
     {
         $user = Auth::user()->loadMissing('division');
-        $owner = Division::where('slug', Division::DATA_OWNER_SLUG)->firstOrFail();
 
-        return view('datasets.create', compact('owner', 'user'));
+        $divisions = $user->division_id === null
+            ? Division::query()->orderBy('name')->get(['id', 'name', 'description'])
+            : collect();
+
+        return view('datasets.create', compact('divisions', 'user'));
     }
 
     /**
-     * Terima file dan simpan sebagai dataset milik owner canonical TJBT.
+     * Terima file dan simpan sebagai dataset milik divisi yang sesuai.
      */
     public function store(Request $request, DatasetImportService $importService)
     {
@@ -38,12 +41,16 @@ class DatasetController extends Controller
         $extensions = implode(',', config('dataset_import.extensions'));
         $user = Auth::user();
 
+        $divisionRule = $user->division_id === null
+            ? 'required|exists:divisions,id'
+            : 'prohibited';
+
         $request->validate([
             'file' => "required|file|extensions:{$extensions}|mimetypes:application/zip,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain,text/csv,application/csv|max:{$maxKb}",
-            'division_id' => 'prohibited',
+            'division_id' => $divisionRule,
         ]);
 
-        $divisionId = Division::where('slug', Division::DATA_OWNER_SLUG)->firstOrFail()->id;
+        $divisionId = $user->division_id ?? $request->integer('division_id');
 
         ['dataset' => $dataset, 'result' => $result] = $this->storeAndImport(
             $request->file('file'), $divisionId, $user, $importService,
@@ -108,7 +115,7 @@ class DatasetController extends Controller
             return back()->with('error', 'File tidak dapat dibaca. Pastikan file Excel laporan KPI dari mentor tidak rusak.');
         }
 
-        $owner = Division::where('slug', Division::DATA_OWNER_SLUG)->firstOrFail();
+        $owner = Division::where('slug', 'perencanaan-pengusahaan')->firstOrFail();
         $failed = [];
         $validRows = [];
 
@@ -142,9 +149,9 @@ class DatasetController extends Controller
                 );
 
                 if ($result === null || $dataset->status === Dataset::STATUS_FAILED) {
-                    $failed[] = 'TJBT: gagal diproses — '.($dataset->error_message ?? 'coba periksa file.');
+                    $failed[] = $owner->name.': gagal diproses — '.($dataset->error_message ?? 'coba periksa file.');
                 } else {
-                    $imported[] = "TJBT: {$result['imported']} baris";
+                    $imported[] = "{$owner->name}: {$result['imported']} baris";
                 }
             } finally {
                 @unlink($convertedPath);

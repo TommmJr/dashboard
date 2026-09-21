@@ -7,41 +7,38 @@ use Illuminate\Database\Seeder;
 use Illuminate\Support\Str;
 
 /**
- * Divisi unit pemilik data kinerja.
+ * Divisi organisasi pemilik data kinerja.
  *
- * Pemilik data aplikasi adalah TJBT (Perencanaan Pengusahaan). Nama lain
- * pada sheet `REKAP` laporan KPI mentor adalah dimensi pembanding di dalam
- * laporan, bukan division owner yang membutuhkan akun dan scope RBAC sendiri.
- *
- * `name` = kode unit (mis. "TJBT"), bukan nama panjang, karena kode itulah yang
- * dipakai KpiReportConverter sebagai prefix metric_name dan menjadi label
- * ringkas di chart. Nama panjang disimpan di `description`.
+ * Unit pada sheet `REKAP` laporan KPI mentor tetap menjadi dimensi pembanding,
+ * bukan division owner. Division di sini hanya sub-bidang organisasi yang
+ * memang memiliki data dan akun staf sendiri.
  *
  * Idempoten (firstOrCreate by slug). Dipanggil dari DatabaseSeeder dan dapat
  * dijalankan ulang secara eksplisit:
  *
  *     php artisan db:seed --class=UnitDivisionSeeder
  *
- * Sheet `TRANS` dan 13 entitas pembanding sengaja TIDAK dibuat sebagai
+ * Sheet `TRANS` dan entitas pembanding lain sengaja TIDAK dibuat sebagai
  * division: memasukkannya akan mencampur pemilik data dengan dimensi laporan.
  */
 class UnitDivisionSeeder extends Seeder
 {
     /**
-     * Kode owner => nama lengkap.
+     * Nama division => nama lengkap.
      *
      * @var array<string, string>
      */
     public const UNITS = [
-        'TJBT' => 'Unit Induk Transmisi Jawa Bagian Tengah',
+        'Perencanaan Pengusahaan' => 'Perencanaan Pengusahaan',
+        'Data Aset' => 'Data Aset',
     ];
 
     public function run(): void
     {
-        foreach (self::UNITS as $code => $name) {
+        foreach (self::UNITS as $name => $description) {
             Division::firstOrCreate(
-                ['slug' => Str::slug($code)],
-                ['name' => $code, 'description' => $name],
+                ['slug' => Str::slug($name)],
+                ['name' => $name, 'description' => $description],
             );
         }
     }

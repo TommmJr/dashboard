@@ -16,7 +16,7 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Tests\TestCase;
 
 /**
- * Import laporan KPI mentor sebagai satu dataset milik owner TJBT.
+ * Import laporan KPI mentor sebagai satu dataset milik Perencanaan Pengusahaan.
  */
 class DatasetKpiReportImportTest extends TestCase
 {
@@ -31,7 +31,7 @@ class DatasetKpiReportImportTest extends TestCase
 
     public function test_import_sukses_menggabungkan_semua_unit_ke_satu_dataset_owner(): void
     {
-        $owner = Division::where('slug', 'tjbt')->sole();
+        $owner = Division::where('slug', 'perencanaan-pengusahaan')->sole();
         $admin = User::factory()->withRole(Role::ADMIN)->create(['division_id' => null]);
 
         $response = $this->actingAs($admin)->post(route('datasets.kpi-import'), [
@@ -111,7 +111,7 @@ class DatasetKpiReportImportTest extends TestCase
 
     public function test_staf_ditolak_403(): void
     {
-        $owner = Division::where('slug', 'tjbt')->sole();
+        $owner = Division::where('slug', 'perencanaan-pengusahaan')->sole();
         $staff = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $owner->id]);
 
         $this->actingAs($staff)->post(route('datasets.kpi-import'), [

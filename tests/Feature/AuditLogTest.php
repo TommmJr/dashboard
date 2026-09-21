@@ -36,7 +36,7 @@ class AuditLogTest extends TestCase
         $this->seed(RolePermissionSeeder::class);
         $this->seed(UnitDivisionSeeder::class);
 
-        $this->division = Division::where('slug', 'tjbt')->sole();
+        $this->division = Division::where('slug', 'perencanaan-pengusahaan')->sole();
         $this->staff = User::factory()->withRole(Role::STAFF_DIVISI)->create([
             'division_id' => $this->division->id,
         ]);
