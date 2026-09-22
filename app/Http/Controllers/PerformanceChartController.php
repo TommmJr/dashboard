@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Dataset;
 use App\Models\Role;
+use App\Services\AssetStockConverter;
 use App\Services\KpiReportConverter;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -29,6 +30,9 @@ class PerformanceChartController extends Controller
      * 0-110) karena satu dataset KPI memuat target, realisasi, dan skor
      * sekaligus — menjumlahkannya menghasilkan angka tak bermakna.
      * NKO adalah satu-satunya angka yang sebanding lintas unit.
+     * Baris domain Aset (`ASET | ...`, lihat AssetStockConverter::PREFIX)
+     * dikeluarkan dari metric_count dan ready_datasets; series dan
+     * average_nko aman by construction (hanya baris `% | NKO`).
      *
      * Aturan scoping (per audit keamanan #3):
      * - admin, management & editor_dashboard: agregasi SELURUH divisi.
@@ -112,9 +116,17 @@ class PerformanceChartController extends Controller
 
         // KPI card: rata-rata NKO periode terbaru (kondisi terkini), jumlah
         // dataset READY (scoping sama), dan jumlah baris metric aktif.
+        // Domain Aset (metric berprefix AssetStockConverter::PREFIX) tidak
+        // masuk hitungan: satuannya fisik (Bank, MVA, kms) dan bukan kinerja.
         $readyDatasets = DB::table('datasets')
             ->where('status', Dataset::STATUS_READY)
             ->when(! $isPrivileged, fn ($q) => $q->where('division_id', $user->division_id))
+            ->whereNotExists(function ($query) {
+                $query->select(DB::raw(1))
+                    ->from('performance_metrics')
+                    ->whereColumn('performance_metrics.dataset_id', 'datasets.id')
+                    ->where('performance_metrics.metric_name', 'like', AssetStockConverter::PREFIX.'%');
+            })
             ->count();
 
         $latestPeriod = $labels->last();
@@ -122,7 +134,9 @@ class PerformanceChartController extends Controller
             ->filter(fn ($row) => Carbon::parse($row->period)->format('Y-m-d') === $latestPeriod)
             ->avg('nko');
 
-        $metricCount = $scoped($baseQuery())->count();
+        $metricCount = $scoped($baseQuery())
+            ->where('performance_metrics.metric_name', 'not like', AssetStockConverter::PREFIX.'%')
+            ->count();
 
         return response()->json([
             'labels' => $labels,
