@@ -99,4 +99,32 @@ class AssetStockReportTest extends TestCase
         $this->assertNull($snapshot['period']);
         $this->assertTrue($snapshot['groups']->isEmpty());
     }
+
+    public function test_baris_bernilai_nol_tetap_muncul_di_snapshot(): void
+    {
+        // Nol adalah data (belum ada realisasi, atau cached zero dari
+        // converter) — bukan "tidak ada data", jadi tidak boleh difilter.
+        $division = Division::factory()->create();
+        $dataset = Dataset::factory()->create([
+            'division_id' => $division->id,
+            'status' => Dataset::STATUS_READY,
+        ]);
+        PerformanceMetric::factory()->create([
+            'metric_name' => 'ASET | BANDUNG | BANDUNG BARAT | Trafo 500/150 KV | Bank',
+            'dataset_id' => $dataset->id,
+            'division_id' => $division->id,
+            'period' => '2026-01-31',
+            'value' => 0,
+        ]);
+
+        $snapshot = app(AssetStockReport::class)->latestSnapshot();
+
+        $this->assertSame('2026-01-31', $snapshot['period']);
+        $this->assertCount(1, $snapshot['groups']);
+
+        $metrics = $snapshot['groups'][0]->metrics;
+        $this->assertCount(1, $metrics);
+        $this->assertSame('Trafo 500/150 KV | Bank', $metrics[0]->attribute);
+        $this->assertSame(0.0, $metrics[0]->value);
+    }
 }
