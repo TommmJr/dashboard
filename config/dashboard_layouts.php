@@ -32,6 +32,11 @@ return [
         'kpi-summary' => ['label' => 'Ringkasan KPI',      'view' => 'widgets.kpi-summary',          'permission' => null],
         'trend-chart' => ['label' => 'Grafik Tren Kinerja', 'view' => 'widgets.trend-chart',         'permission' => null],
         'nko-ranking' => ['label' => 'Peringkat NKO Unit',   'view' => 'widgets.nko-ranking',          'permission' => 'dashboard.view'],
+        // Katalog saja, BELUM dipasang ke layout role mana pun (M2: visual
+        // per UPT confirmed, mounting production masih blocked agar user
+        // nyata tidak melihat grafik berisi data nol). Daftar series
+        // provisional mengikuti data; subset final menunggu data valid.
+        'aset-upt-chart' => ['label' => 'Stok Aset per UPT', 'view' => 'widgets.aset-upt-chart', 'permission' => 'dashboard.view'],
         'recent-audit' => ['label' => 'Audit Terbaru',      'view' => 'widgets.recent-audit',         'permission' => 'audit.view'],
         'failed-datasets' => ['label' => 'Dataset Gagal',      'view' => 'widgets.failed-datasets',      'permission' => 'dataset.view'],
         'layout-editor-placeholder' => ['label' => 'Editor Layout',      'view' => 'widgets.layout-editor-placeholder', 'permission' => 'dashboard.update'],

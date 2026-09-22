@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Enums\DatasetStatus;
 use App\Models\AuditLog;
 use App\Models\Dataset;
+use App\Services\AssetStockReport;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -54,6 +55,7 @@ class DashboardController extends Controller
     {
         return match ($key) {
             'nko-ranking' => $this->nkoRanking(),
+            'aset-upt-chart' => $this->asetUptChart(),
             'recent-audit' => AuditLog::query()
                 ->with('user:id,name')
                 ->latest('created_at')
@@ -64,6 +66,34 @@ class DashboardController extends Controller
                 ->count(),
             default => null,
         };
+    }
+
+    /**
+     * Data grafik stok aset per UPT untuk periode terbaru.
+     *
+     * Bentuk siap render ECharts bar: labels = UPT, satu series per atribut
+     * (atribut tidak dicampur dalam satu series karena satuannya beda:
+     * Bank, MVA, kms). Snapshot, bukan time-series — tanpa line/trend.
+     * Widget ini BELUM dipasang ke layout role mana pun (M2 sebagian
+     * terbuka: visual per UPT confirmed, workbook valid + mounting
+     * production masih blocked).
+     *
+     * @return array{period: ?string, labels: list<string>, series: list<array{name: string, data: list<float>}>}
+     */
+    private function asetUptChart(): array
+    {
+        $report = app(AssetStockReport::class)->totalsByUpt();
+
+        $upts = $report['totals']->pluck('upt')->unique()->values();
+        $attributes = $report['totals']->pluck('attribute')->unique()->values();
+        $byKey = $report['totals']->keyBy(fn (object $total): string => $total->upt."\0".$total->attribute);
+
+        $series = $attributes->map(fn (string $attribute): array => [
+            'name' => $attribute,
+            'data' => $upts->map(fn (string $upt): float => (float) ($byKey[$upt."\0".$attribute]->total ?? 0))->all(),
+        ])->values()->all();
+
+        return ['period' => $report['period'], 'labels' => $upts->all(), 'series' => $series];
     }
 
     /**
