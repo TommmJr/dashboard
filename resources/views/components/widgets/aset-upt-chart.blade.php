@@ -6,12 +6,16 @@
      snapshot, bukan time-series. Widget BELUM dipasang ke layout role.
      Daftar series mengikuti atribut apa pun yang ada di data (probe
      workbook: 14) — PROVISIONAL, subset atribut final menunggu data
-     aktual, jangan mount ke production sebelum itu diputuskan. --}}
+     aktual, jangan mount ke production sebelum itu diputuskan.
+     DOM id unik per render (key + counter) agar aman bila widget yang
+     sama tampil lebih dari sekali dalam satu halaman. --}}
 @php
     $labels = collect($data['labels'] ?? []);
     $series = collect($data['series'] ?? []);
     $period = $data['period'] ?? null;
-    $palette = ['#14a2ba', '#125d72', '#efe62f', '#d9d9d9'];
+    $chartSlug = preg_replace('/[^a-z0-9]+/i', '-', strtolower($widget['key'] ?? 'aset-upt-chart'));
+    $chartId = 'asetUptChart-'.$chartSlug.'-'.($widget['instance'] ?? 0);
+    $palette = ['#14a2ba', '#125d72', '#efe62f', '#d9d9d9', '#0b7a75', '#f39233', '#7a5195', '#ef5675', '#2f9e44', '#1971c2'];
     $chartSeries = $series->map(fn ($item, $index) => [
         'name' => $item['name'],
         'type' => 'bar',
@@ -33,10 +37,10 @@
             <code>aset:convert</code> lalu unggah berkasnya lewat menu Upload Dataset (divisi Data Aset).
         </p>
     @else
-        <div id="asetUptChart" class="mt-4 h-80 w-full sm:h-96"></div>
+        <div id="{{ $chartId }}" class="mt-4 h-80 w-full sm:h-96"></div>
         <script>
             window.addEventListener('DOMContentLoaded', () => {
-                const el = document.getElementById('asetUptChart');
+                const el = document.getElementById(@json($chartId));
                 if (!el || !window.echarts) { return; }
                 const chart = window.echarts.init(el);
                 chart.setOption({

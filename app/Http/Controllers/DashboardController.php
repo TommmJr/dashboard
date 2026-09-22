@@ -36,7 +36,10 @@ class DashboardController extends Controller
             ->filter()
             ->filter(fn (array $widget) => $widget['permission'] === null
                 || Gate::allows($widget['permission']))
-            ->map(function (array $widget) {
+            ->map(function (array $widget, int $key) {
+                // Instance = indeks layout: unik per render dalam satu
+                // response meski widget key yang sama tampil berulang.
+                $widget['instance'] = $key;
                 $widget['data'] = $this->dataFor($widget['key']);
 
                 return $widget;
