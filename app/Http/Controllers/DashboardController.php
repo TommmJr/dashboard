@@ -5,7 +5,11 @@ namespace App\Http\Controllers;
 use App\Enums\DatasetStatus;
 use App\Models\AuditLog;
 use App\Models\Dataset;
+use App\Models\PerformanceMetric;
+use App\Models\Role;
+use App\Models\User;
 use App\Services\AssetStockReport;
+use App\Services\KpiReportConverter;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -26,7 +30,8 @@ class DashboardController extends Controller
     public function __invoke(): View
     {
         $config = config('dashboard_layouts');
-        $roleSlug = Auth::user()->loadMissing('role')->role?->slug;
+        $user = Auth::user();
+        $roleSlug = $user?->loadMissing('role')->role?->slug;
         $layout = $config['layouts'][$roleSlug] ?? $config['default'];
 
         $widgets = collect($layout)
@@ -36,11 +41,11 @@ class DashboardController extends Controller
             ->filter()
             ->filter(fn (array $widget) => $widget['permission'] === null
                 || Gate::allows($widget['permission']))
-            ->map(function (array $widget, int $key) {
+            ->map(function (array $widget, int $key) use ($user) {
                 // Instance = indeks layout: unik per render dalam satu
                 // response meski widget key yang sama tampil berulang.
                 $widget['instance'] = $key;
-                $widget['data'] = $this->dataFor($widget['key']);
+                $widget['data'] = $this->dataFor($widget['key'], $user);
 
                 return $widget;
             })
@@ -54,21 +59,39 @@ class DashboardController extends Controller
      * Data server-side ringan per widget. Widget client-side (kpi-summary,
      * trend-chart) mengambil data sendiri via /api/performance-data -> null.
      */
-    private function dataFor(string $key): mixed
+    private function dataFor(string $key, ?User $user = null): mixed
     {
         return match ($key) {
-            'nko-ranking' => $this->nkoRanking(),
+            'nko-ranking' => $this->nkoRanking($user),
             'aset-upt-chart' => $this->asetUptChart(),
-            'recent-audit' => AuditLog::query()
-                ->with('user:id,name')
-                ->latest('created_at')
-                ->limit(5)
-                ->get(),
+            'recent-audit' => $this->recentAudit($user),
             'failed-datasets' => Dataset::query()
                 ->where('status', DatasetStatus::FAILED)
                 ->count(),
             default => null,
         };
+    }
+
+    /**
+     * Lima entri audit log terbaru, discope sesuai hak akses user:
+     * - Pemegang audit.view_all (Admin & Management): seluruh entri termasuk aktivitas login/user.
+     * - Tanpa audit.view_all (mis. Editor Dashboard): dibatasi ke entri Dataset & PerformanceMetric.
+     *
+     * @return Collection<int, AuditLog>
+     */
+    private function recentAudit(?User $user): Collection
+    {
+        $dataOnly = ! ($user?->can('audit.view_all') ?? false);
+
+        return AuditLog::query()
+            ->with('user:id,name')
+            ->when($dataOnly, fn ($query) => $query->whereIn('auditable_type', [
+                (new Dataset)->getMorphClass(),
+                (new PerformanceMetric)->getMorphClass(),
+            ]))
+            ->latest('created_at')
+            ->limit(5)
+            ->get();
     }
 
     /**
@@ -102,17 +125,26 @@ class DashboardController extends Controller
     /**
      * Peringkat NKO per unit untuk periode terbaru.
      *
-     * Hanya baris berakhiran '| NKO' (dihasilkan KpiReportConverter) yang
-     * Cross-unit by design — widget ini hanya dipasang di layout role yang
+     * Hanya baris berakhiran '| NKO' (dihasilkan KpiReportConverter) yang dihitung.
+     * Aturan scoping divisi:
+     * - Admin, Management, dan Editor Dashboard: lintas divisi.
+     * - Staf Divisi / role lain: hanya divisinya sendiri.
      *
      * @return Collection<int, object>
      */
-    private function nkoRanking(): Collection
+    private function nkoRanking(?User $user): Collection
     {
+        $isPrivileged = $user && (
+            $user->hasRole(Role::ADMIN)
+            || $user->hasRole(Role::MANAGEMENT)
+            || $user->hasRole(Role::EDITOR_DASHBOARD)
+        );
+
         $base = fn () => DB::table('performance_metrics')
             ->join('datasets', 'datasets.id', '=', 'performance_metrics.dataset_id')
             ->where('datasets.status', Dataset::STATUS_READY)
-            ->where('performance_metrics.metric_name', 'like', '% | NKO');
+            ->where('performance_metrics.metric_name', 'like', '%'.KpiReportConverter::NKO_SUFFIX)
+            ->when(! $isPrivileged, fn ($query) => $query->where('performance_metrics.division_id', $user?->division_id));
 
         $latestPeriod = $base()->max('performance_metrics.period');
 
