@@ -14,7 +14,7 @@ Provide a maintainable internal dashboard that reduces manual reporting work and
 
 - Session authentication and granular RBAC for Admin, Management, Dashboard Editor, and Division Staff.
 - Excel/CSV dataset import, FATAL/WARNING validation, archiving, and append-only audit logs.
-- One-click hierarchical KPI report import. Valid unit sheets are stored under the canonical `TJBT` data owner.
+- One-click hierarchical KPI report import. Valid unit sheets are stored under the canonical `Perencanaan Pengusahaan` data owner (`perencanaan-pengusahaan`).
 - KPI/NKO dashboard charts and rankings powered by Apache ECharts.
 - Dashboard filters for date ranges and multiple units through `start_date`, `end_date`, and `unit[]`.
 - User and division administration, security headers, and login rate limiting.
