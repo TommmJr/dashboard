@@ -9,135 +9,100 @@
     @mouseenter="clearTimeout($store.ui.sidebarTimer); $store.ui.sidebarExpanded = true"
     @mouseleave="$store.ui.sidebarTimer = setTimeout(() => $store.ui.sidebarExpanded = false, 150)"
     :class="$store.ui.sidebarExpanded ? 'w-64' : 'w-16'"
-    class="fixed inset-y-0 left-0 z-40 flex min-h-screen flex-col overflow-hidden bg-primary text-white transition-all duration-200 ease-in-out"
+    id="main-sidebar"
+    class="app-sidebar fixed inset-y-0 left-0 z-50 flex min-h-screen flex-col overflow-hidden bg-primary text-white transition-all duration-200 ease-in-out"
 >
-    {{-- Logo / app name --}}
-    <div class="flex items-center gap-3 border-b border-white/10 px-4 py-5">
-        <img src="{{ asset('images/logo-pln.png') }}" alt="Logo PLN" class="h-8 w-8 shrink-0 object-contain">
-        <div x-show="$store.ui.sidebarExpanded" x-transition.opacity class="min-w-0">
-            <a href="{{ route('dashboard') }}" class="whitespace-nowrap text-lg font-bold tracking-wide text-white hover:text-white/80">
-                PLN UIT JBT
-            </a>
-            <p class="whitespace-nowrap text-xs text-white/50">Dashboard Kinerja</p>
-        </div>
+    <div class="flex h-[78px] shrink-0 items-center gap-3 border-b border-white/10 px-4">
+        <span class="inline-flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-white/20 bg-white/10">
+            <img src="{{ asset('images/logo-pln.png') }}" alt="Logo PLN" class="h-full w-full object-contain">
+        </span>
+        <p x-show="$store.ui.sidebarExpanded" x-transition.opacity class="sidebar-label whitespace-nowrap text-base font-bold text-white">
+            IBS Dashboard
+        </p>
     </div>
 
-    {{-- Nav links --}}
-    <nav class="flex-1 px-3 py-4 flex flex-col gap-1">
-        {{-- Dashboard — semua role --}}
+    <nav class="flex flex-1 flex-col gap-1 px-3 py-6">
         <a href="{{ route('dashboard') }}"
-           class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition
-                  {{ request()->routeIs('dashboard') ? 'bg-accent text-white' : 'text-white/80 hover:bg-white/10 hover:text-white' }}">
-            <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+           @if (request()->routeIs('dashboard')) aria-current="page" @endif
+           class="flex items-center gap-3 rounded-lg border-l-2 px-3 py-2.5 text-sm font-medium transition {{ request()->routeIs('dashboard') ? 'border-highlight bg-white/15 text-white' : 'border-transparent text-white/70 hover:bg-white/10 hover:text-white' }}">
+            <svg class="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                <path d="M4.5 16.5a8.5 8.5 0 1 1 15 0M12 12l3-3" stroke-linecap="round" stroke-linejoin="round" />
+                <circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none" />
             </svg>
-            <span x-show="$store.ui.sidebarExpanded" x-transition.opacity class="whitespace-nowrap">Dashboard</span>
+            <span x-show="$store.ui.sidebarExpanded" x-transition.opacity class="sidebar-label whitespace-nowrap">Dashboard</span>
         </a>
 
         @can('dataset.view')
-        <a href="{{ route('datasets.index') }}"
-           class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition
-                  {{ request()->routeIs('datasets.*') ? 'bg-accent text-white' : 'text-white/80 hover:bg-white/10 hover:text-white' }}">
-            <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M4 7v10c0 2 1 3 3 3h10c2 0 3-1 3-3V7M4 7c0-2 1-3 3-3h10c2 0 3 1 3 3M4 7h16M9 11h6"/>
-            </svg>
-            <span x-show="$store.ui.sidebarExpanded" x-transition.opacity class="whitespace-nowrap">Datasets</span>
-        </a>
+            <a href="{{ route('datasets.index') }}"
+               @if ((request()->routeIs('datasets.index') || request()->routeIs('datasets.show'))) aria-current="page" @endif
+               class="flex items-center gap-3 rounded-lg border-l-2 px-3 py-2.5 text-sm font-medium transition {{ (request()->routeIs('datasets.index') || request()->routeIs('datasets.show')) ? 'border-highlight bg-white/15 text-white' : 'border-transparent text-white/70 hover:bg-white/10 hover:text-white' }}">
+                <svg class="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                    <path d="M4 7c0-1.1 3.6-2 8-2s8 .9 8 2-3.6 2-8 2-8-.9-8-2Z" stroke-linecap="round" stroke-linejoin="round" />
+                    <path d="M4 7v5c0 1.1 3.6 2 8 2s8-.9 8-2V7M4 12v5c0 1.1 3.6 2 8 2s8-.9 8-2v-5" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                <span x-show="$store.ui.sidebarExpanded" x-transition.opacity class="sidebar-label whitespace-nowrap">Datasets</span>
+            </a>
         @endcan
 
         @can('dataset.import')
-        <a href="{{ route('datasets.create') }}"
-           class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition
-                  {{ request()->routeIs('datasets.create') ? 'bg-accent text-white' : 'text-white/80 hover:bg-white/10 hover:text-white' }}">
-            <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
-            </svg>
-            <span x-show="$store.ui.sidebarExpanded" x-transition.opacity class="whitespace-nowrap">Upload Data</span>
-        </a>
+            <a href="{{ route('datasets.create') }}"
+               @if (request()->routeIs('datasets.create') || request()->routeIs('datasets.kpi-import')) aria-current="page" @endif
+               class="flex items-center gap-3 rounded-lg border-l-2 px-3 py-2.5 text-sm font-medium transition {{ (request()->routeIs('datasets.create') || request()->routeIs('datasets.kpi-import')) ? 'border-highlight bg-white/15 text-white' : 'border-transparent text-white/70 hover:bg-white/10 hover:text-white' }}">
+                <svg class="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                    <path d="M12 16V4m0 0L8 8m4-4 4 4M5 14v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                <span x-show="$store.ui.sidebarExpanded" x-transition.opacity class="sidebar-label whitespace-nowrap">Upload Data</span>
+            </a>
         @endcan
 
         @can('audit.view')
-        <a href="{{ route('audit-logs.index') }}"
-           class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition
-                  {{ request()->routeIs('audit-logs.*') ? 'bg-accent text-white' : 'text-white/80 hover:bg-white/10 hover:text-white' }}">
-            <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-            </svg>
-            <span x-show="$store.ui.sidebarExpanded" x-transition.opacity class="whitespace-nowrap">Audit Log</span>
-        </a>
+            <a href="{{ route('audit-logs.index') }}"
+               @if (request()->routeIs('audit-logs.*')) aria-current="page" @endif
+               class="flex items-center gap-3 rounded-lg border-l-2 px-3 py-2.5 text-sm font-medium transition {{ request()->routeIs('audit-logs.*') ? 'border-highlight bg-white/15 text-white' : 'border-transparent text-white/70 hover:bg-white/10 hover:text-white' }}">
+                <svg class="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                    <path d="M4 12a8 8 0 1 0 2.3-5.7M4 4v5h5" stroke-linecap="round" stroke-linejoin="round" />
+                    <path d="M12 8v4l2.5 1.5" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                <span x-show="$store.ui.sidebarExpanded" x-transition.opacity class="sidebar-label whitespace-nowrap">Audit Log</span>
+            </a>
         @endcan
 
         @can('user.view')
-        <a href="{{ route('users.index') }}"
-           class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition
-                  {{ request()->routeIs('users.*') ? 'bg-accent text-white' : 'text-white/80 hover:bg-white/10 hover:text-white' }}">
-            <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/>
-            </svg>
-            <span x-show="$store.ui.sidebarExpanded" x-transition.opacity class="whitespace-nowrap">Manage Users</span>
-        </a>
+            <a href="{{ route('users.index') }}"
+               @if (request()->routeIs('users.*')) aria-current="page" @endif
+               class="flex items-center gap-3 rounded-lg border-l-2 px-3 py-2.5 text-sm font-medium transition {{ request()->routeIs('users.*') ? 'border-highlight bg-white/15 text-white' : 'border-transparent text-white/70 hover:bg-white/10 hover:text-white' }}">
+                <svg class="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                <span x-show="$store.ui.sidebarExpanded" x-transition.opacity class="sidebar-label whitespace-nowrap">Manage Users</span>
+            </a>
+
+            <a href="{{ route('divisions.index') }}"
+               @if (request()->routeIs('divisions.*')) aria-current="page" @endif
+               class="flex items-center gap-3 rounded-lg border-l-2 px-3 py-2.5 text-sm font-medium transition {{ request()->routeIs('divisions.*') ? 'border-highlight bg-white/15 text-white' : 'border-transparent text-white/70 hover:bg-white/10 hover:text-white' }}">
+                <svg class="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                    <path d="M19 21V5a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v5m-4 0h4" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                <span x-show="$store.ui.sidebarExpanded" x-transition.opacity class="sidebar-label whitespace-nowrap">Divisi</span>
+            </a>
         @endcan
-
-        @can('user.view')
-        <a href="{{ route('divisions.index') }}"
-           class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition
-                  {{ request()->routeIs('divisions.*') ? 'bg-accent text-white' : 'text-white/80 hover:bg-white/10 hover:text-white' }}">
-            <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
-            </svg>
-            <span x-show="$store.ui.sidebarExpanded" x-transition.opacity class="whitespace-nowrap">Divisi</span>
-        </a>
-        @endcan
-
-        {{-- Divider --}}
-        <hr class="my-2 border-white/10">
-
-        {{-- Fitur Reports dinonaktifkan sementara (2026-09-15), link dihapus.
-             Route /reports/* juga di-comment di routes/web.php. --}}
-        {{-- @can('report.export')
-        <a href="{{ route('reports.index') }}"
-           class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition
-                  {{ request()->routeIs('reports.*') ? 'bg-accent text-white' : 'text-white/80 hover:bg-white/10 hover:text-white' }}">
-            <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-            </svg>
-            <span x-show="$store.ui.sidebarExpanded" x-transition.opacity class="whitespace-nowrap">Reports</span>
-        </a>
-        @endcan --}}
 
         @can('dashboard.update')
-        <span class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-white/40 pointer-events-none select-none">
-            <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-            </svg>
-            <span x-show="$store.ui.sidebarExpanded" x-transition.opacity class="flex w-full items-center whitespace-nowrap">
-                Dashboard Builder
-                <span class="ml-auto rounded-full bg-highlight/20 px-1.5 py-0.5 text-xs font-semibold text-highlight">Segera</span>
+            <span class="pointer-events-none flex items-center gap-3 rounded-lg border-l-2 border-transparent px-3 py-2.5 text-sm font-medium text-white/40 select-none" aria-disabled="true">
+                <svg class="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                    <path d="M11 5H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-5m-1.4-9.4a2 2 0 1 1 2.8 2.8L11.8 15H9v-2.8l8.6-8.6Z" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                <span x-show="$store.ui.sidebarExpanded" x-transition.opacity class="sidebar-label flex w-full items-center whitespace-nowrap">
+                    Dashboard Builder
+                    <span class="ml-auto rounded-full bg-highlight/20 px-1.5 py-0.5 text-xs font-semibold text-highlight">Segera</span>
+                </span>
             </span>
-        </span>
         @endcan
     </nav>
 
-    {{-- User info + logout --}}
     <div class="border-t border-white/10 px-4 py-4">
-        <div class="flex items-center gap-3">
-            <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent text-xs font-bold text-white">
-                {{ mb_strtoupper(mb_substr(auth()->user()->name, 0, 1)) }}
-            </div>
-            <div x-show="$store.ui.sidebarExpanded" x-transition.opacity class="min-w-0 flex-1">
-                <p class="truncate text-sm font-medium text-white">{{ auth()->user()->name }}</p>
-                @if (auth()->user()->role)
-                    <p class="truncate text-xs text-white/50">{{ auth()->user()->role->name }}</p>
-                @endif
-            </div>
-        </div>
-        <form method="POST" action="{{ route('logout') }}" class="mt-3"
-              onsubmit="return confirm('Yakin ingin logout?');">
-            @csrf
-            <button type="submit" x-show="$store.ui.sidebarExpanded" x-transition.opacity
-                    class="w-full rounded-lg px-3 py-1.5 text-left text-xs font-medium text-white/60 hover:bg-white/10 hover:text-white transition">
-                Log out
-            </button>
-        </form>
+        <p x-show="$store.ui.sidebarExpanded" x-transition.opacity class="sidebar-label text-xs text-white/60">
+            &copy; {{ date('Y') }} PLN UIT JBT Internal System
+        </p>
     </div>
 </aside>

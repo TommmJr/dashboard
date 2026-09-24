@@ -18,10 +18,10 @@ echarts.use([BarChart, LineChart, GridComponent, LegendComponent, TooltipCompone
 // Design token warna — selaraskan dengan @theme di resources/css/app.css.
 // Satu sumber untuk semua series chart di aplikasi.
 export const CHART_COLORS = {
-    primary: '#125d72',
-    accent: '#14a2ba',
-    highlight: '#efe62f',
-    muted: '#d9d9d9',
+    primary: '#0b6175',
+    accent: '#16a3b8',
+    highlight: '#f1dc3a',
+    muted: '#d8e3e7',
 };
 
 // Store global untuk state sidebar (hover-expand).
@@ -29,7 +29,7 @@ export const CHART_COLORS = {
 // nge-push margin konten). Satu sumber kebenaran, bukan dua x-data
 // yang gak sinkron.
 Alpine.store('ui', {
-    sidebarExpanded: false,
+    sidebarExpanded: window.innerWidth >= 1024,
     sidebarTimer: null,
 });
 
