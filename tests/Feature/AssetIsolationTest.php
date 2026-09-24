@@ -120,7 +120,11 @@ class AssetIsolationTest extends TestCase
             'division_id' => $asetDivision->id,
         ])->assertRedirect();
 
-        $this->actingAs($admin)->get(route('dashboard'))->assertOk()
+        // Layout admin operasional saja (§5.5): peringkat dibaca via
+        // management (privileged lintas divisi, scoping tetap valid).
+        $management = User::factory()->withRole(Role::MANAGEMENT)->create(['division_id' => null]);
+
+        $this->actingAs($management)->get(route('dashboard'))->assertOk()
             ->assertSee('Peringkat NKO Unit')
             ->assertSee('RST')
             ->assertDontSee('BANDUNG');

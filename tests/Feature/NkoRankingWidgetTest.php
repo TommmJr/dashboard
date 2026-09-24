@@ -27,7 +27,7 @@ class NkoRankingWidgetTest extends TestCase
         $this->seed(RolePermissionSeeder::class);
     }
 
-    public function test_admin_melihat_peringkat_nko_urut_menurun(): void
+    public function test_management_melihat_peringkat_nko_urut_menurun(): void
     {
         $division = $this->division('Pemilik Data');
         $dataset = Dataset::factory()->create(['division_id' => $division->id]);
@@ -35,9 +35,9 @@ class NkoRankingWidgetTest extends TestCase
         $this->nko($division, 'TRANS', 100.74, dataset: $dataset);
         $this->nko($division, 'RST', 99.5, dataset: $dataset);
 
-        $admin = User::factory()->withRole(Role::ADMIN)->create();
+        $management = User::factory()->withRole(Role::MANAGEMENT)->create();
 
-        $this->actingAs($admin)
+        $this->actingAs($management)
             ->get(route('dashboard'))
             ->assertOk()
             ->assertSee('Peringkat NKO Unit')
@@ -79,9 +79,9 @@ class NkoRankingWidgetTest extends TestCase
         $this->nko($division, 'TJBT', 90.0, '2026-07-31');
         $this->nko($division, 'TJBT', 105.5, '2026-08-31');
 
-        $admin = User::factory()->withRole(Role::ADMIN)->create();
+        $management = User::factory()->withRole(Role::MANAGEMENT)->create();
 
-        $this->actingAs($admin)
+        $this->actingAs($management)
             ->get(route('dashboard'))
             ->assertOk()
             ->assertSee('105.50')
@@ -101,9 +101,9 @@ class NkoRankingWidgetTest extends TestCase
             'dataset_id' => $dataset->id,
         ]);
 
-        $admin = User::factory()->withRole(Role::ADMIN)->create();
+        $management = User::factory()->withRole(Role::MANAGEMENT)->create();
 
-        $this->actingAs($admin)
+        $this->actingAs($management)
             ->get(route('dashboard'))
             ->assertOk()
             ->assertSee('Belum ada data NKO')
@@ -123,9 +123,9 @@ class NkoRankingWidgetTest extends TestCase
             'dataset_id' => $dataset->id,
         ]);
 
-        $admin = User::factory()->withRole(Role::ADMIN)->create();
+        $management = User::factory()->withRole(Role::MANAGEMENT)->create();
 
-        $this->actingAs($admin)
+        $this->actingAs($management)
             ->get(route('dashboard'))
             ->assertOk()
             ->assertSee('Belum ada data NKO');

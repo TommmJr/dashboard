@@ -46,12 +46,13 @@ return [
      * Layout per role. Key = slug role (string literal, identik dengan
      * konstanta di App\Models\Role), value = daftar widget_key terurut.
      *
-     * nko-ranking sengaja HANYA di layout role yang melihat semua divisi
-     * (admin, management, editor_dashboard). Peringkat lintas-unit tidak
-     * bermakna untuk staf divisi yang scoping datanya satu divisi saja.
+     * Admin = operasional saja (audit, dataset); widget KPI/NKO milik
+     * dashboard tiap divisi. nko-ranking HANYA di layout lintas divisi yang
+     * memakai KPI (management, editor_dashboard). Peringkat lintas-unit
+     * tidak bermakna untuk staf divisi yang scoping datanya satu divisi saja.
      */
     'layouts' => [
-        'admin' => ['kpi-summary', 'trend-chart', 'nko-ranking', 'recent-audit', 'failed-datasets'],
+        'admin' => ['recent-audit', 'failed-datasets'],
         'management' => ['kpi-summary', 'trend-chart', 'nko-ranking'],
         'editor_dashboard' => ['kpi-summary', 'trend-chart', 'nko-ranking', 'layout-editor-placeholder'],
         'staff_divisi' => ['kpi-summary', 'trend-chart'],

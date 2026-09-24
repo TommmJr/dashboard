@@ -209,7 +209,11 @@ class KpiReportConverterTest extends TestCase
             'division_id' => $division->id,
         ]);
 
-        $this->actingAs($admin)
+        // Layout admin operasional saja (§5.5): peringkat dibaca via
+        // management (privileged lintas divisi, scoping tetap valid).
+        $management = User::factory()->withRole(Role::MANAGEMENT)->create(['division_id' => null]);
+
+        $this->actingAs($management)
             ->get(route('dashboard'))
             ->assertOk()
             ->assertSee('Peringkat NKO Unit')

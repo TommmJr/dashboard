@@ -25,7 +25,7 @@ class DashboardWidgetLayoutTest extends TestCase
         $this->seed(RolePermissionSeeder::class);
     }
 
-    public function test_admin_melihat_widget_audit_dan_dataset_gagal(): void
+    public function test_admin_hanya_melihat_widget_operasional(): void
     {
         $admin = User::factory()->withRole(Role::ADMIN)->create();
 
@@ -34,7 +34,9 @@ class DashboardWidgetLayoutTest extends TestCase
             ->assertOk()
             ->assertSee('Audit Terbaru')
             ->assertSee('Dataset Gagal')
-            ->assertSee('Grafik Tren Kinerja');
+            ->assertDontSee('Ringkasan KPI')
+            ->assertDontSee('Grafik Tren Kinerja')
+            ->assertDontSee('Peringkat NKO Unit');
     }
 
     public function test_dashboard_merender_kontrol_filter_performance(): void
