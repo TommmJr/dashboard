@@ -45,13 +45,8 @@ Route::middleware('auth')->group(function () {
         ->name('performance.data');
 
     // Dataset CRUD. Index/show untuk semua pemegang dataset.view
-    // (scoping per-divisi ditegakkan di controller). Archive butuh
-    // dataset.update + ownership divisi; delete butuh dataset.delete (admin).
     Route::middleware('can:dataset.view')->group(function () {
         Route::get('/datasets', [DatasetController::class, 'index'])->name('datasets.index');
-        // Fitur unduh template dihapus (2026-09-15) — buildTemplate() &
-        // DatasetController::template() sudah tidak dipakai lagi.
-        // Route::get('/datasets-template', [DatasetController::class, 'template'])->name('datasets.template');
     });
     Route::middleware('can:dataset.import')->group(function () {
         Route::get('/datasets/create', [DatasetController::class, 'create'])->name('datasets.create');
