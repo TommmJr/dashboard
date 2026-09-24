@@ -130,9 +130,12 @@ class DatasetImportTest extends TestCase
             ['', '', ''],
         ]);
 
-        $this->actingAs($this->staff)->post(route('datasets.store'), ['file' => $file]);
+        $response = $this->actingAs($this->staff)->post(route('datasets.store'), ['file' => $file]);
 
         $dataset = Dataset::sole();
+        $response->assertRedirect(route('datasets.show', $dataset));
+        $response->assertSessionHas('error');
+        $response->assertSessionMissing('success');
         $this->assertSame(Dataset::STATUS_FAILED, $dataset->status->value);
         $this->assertNotEmpty($dataset->error_message);
         $this->assertSame(0, $dataset->metrics()->count());

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\DatasetStatus;
 use App\Models\Dataset;
 use App\Models\Division;
 use App\Models\Role;
@@ -62,7 +63,7 @@ class DatasetController extends Controller
                 ->with('error', 'File tidak dapat diproses. Pastikan sesuai template.');
         }
 
-        if ($dataset->status === Dataset::STATUS_FAILED) {
+        if ($dataset->status === DatasetStatus::FAILED) {
             return redirect()
                 ->route('datasets.show', $dataset)
                 ->with('error', $dataset->error_message);
@@ -148,7 +149,7 @@ class DatasetController extends Controller
                     $file, $owner->id, $user, $importService,
                 );
 
-                if ($result === null || $dataset->status === Dataset::STATUS_FAILED) {
+                if ($result === null || $dataset->status === DatasetStatus::FAILED) {
                     $failed[] = $owner->name.': gagal diproses — '.($dataset->error_message ?? 'coba periksa file.');
                 } else {
                     $imported[] = "{$owner->name}: {$result['imported']} baris";
@@ -346,7 +347,7 @@ class DatasetController extends Controller
     {
         $this->authorizeDivisionOwnership($dataset);
 
-        abort_if($dataset->status === Dataset::STATUS_ARCHIVED, 422, 'Dataset sudah diarsipkan.');
+        abort_if($dataset->status === DatasetStatus::ARCHIVED, 422, 'Dataset sudah diarsipkan.');
 
         $dataset->update(['status' => Dataset::STATUS_ARCHIVED]);
 

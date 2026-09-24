@@ -138,6 +138,17 @@ class DatasetCrudTest extends TestCase
         $this->assertSame(Dataset::STATUS_ARCHIVED, $this->datasetA->fresh()->status->value);
     }
 
+    public function test_archive_dataset_yang_sudah_archived_ditolak_422(): void
+    {
+        $this->datasetA->update(['status' => Dataset::STATUS_ARCHIVED]);
+
+        $this->actingAs($this->staffA)
+            ->patch(route('datasets.archive', $this->datasetA))
+            ->assertStatus(422);
+
+        $this->assertSame(Dataset::STATUS_ARCHIVED, $this->datasetA->fresh()->status->value);
+    }
+
     public function test_archive_oleh_staf_divisi_lain_ditolak_403(): void
     {
         $this->actingAs($this->staffB)

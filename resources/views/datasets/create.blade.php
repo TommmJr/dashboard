@@ -13,7 +13,7 @@
         <p class="mt-2 text-sm text-gray-600">
             Gunakan file Excel/CSV dengan kolom <code class="rounded bg-gray-100 px-1">metric_name</code>,
             <code class="rounded bg-gray-100 px-1">value</code> (numerik),
-            <code class="rounded bg-gray-100 px-1">period</code> (format DD-MM-YYYY).
+            <code class="rounded bg-gray-100 px-1">period</code> (format DD/MM/YYYY atau YYYY-MM-DD).
         </p>
 
         @if ($errors->any())
