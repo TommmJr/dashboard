@@ -93,6 +93,42 @@ class DashboardWidgetScopingTest extends TestCase
         $response->assertDontSee('Masuk');
     }
 
+    public function test_admin_summary_uses_operational_counts_and_failed_dataset_details(): void
+    {
+        $division = Division::factory()->create(['name' => 'Divisi Operasional']);
+        $admin = User::factory()->withRole(Role::ADMIN)->create();
+        $ready = Dataset::factory()->create([
+            'status' => Dataset::STATUS_READY,
+            'division_id' => $division->id,
+        ]);
+        $failed = Dataset::factory()->create([
+            'status' => Dataset::STATUS_FAILED,
+            'division_id' => $division->id,
+            'original_name' => 'dataset-gagal-ujian.xlsx',
+        ]);
+
+        AuditLog::record(
+            AuditLog::ACTION_UPDATE,
+            $failed,
+            ['status' => Dataset::STATUS_READY],
+            ['status' => Dataset::STATUS_FAILED],
+        );
+
+        $response = $this->actingAs($admin)
+            ->get(route('dashboard'))
+            ->assertOk();
+
+        $response->assertSee('Total Dataset')
+            ->assertSee('Aktivitas Audit Hari Ini')
+            ->assertSee('Total Pengguna')
+            ->assertSee('Aksi Cepat')
+            ->assertSee('dataset-gagal-ujian.xlsx')
+            ->assertSee($division->name)
+            ->assertSee('1 dataset gagal diproses dan memerlukan peninjauan segera.');
+
+        $this->assertSame(Dataset::STATUS_READY, $ready->fresh()->status->value);
+    }
+
     public function test_nko_ranking_widget_shows_all_units_to_privileged_roles(): void
     {
         $divA = Division::factory()->create(['name' => 'Divisi Pengusahaan']);

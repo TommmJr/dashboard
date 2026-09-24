@@ -32,8 +32,11 @@ class DashboardWidgetLayoutTest extends TestCase
         $this->actingAs($admin)
             ->get(route('dashboard'))
             ->assertOk()
+            ->assertSee('Total Dataset')
+            ->assertSee('Total Pengguna')
             ->assertSee('Audit Terbaru')
             ->assertSee('Dataset Gagal')
+            ->assertSee('Aksi Cepat')
             ->assertDontSee('Ringkasan KPI')
             ->assertDontSee('Grafik Tren Kinerja')
             ->assertDontSee('Peringkat NKO Unit');
@@ -63,6 +66,8 @@ class DashboardWidgetLayoutTest extends TestCase
             ->get(route('dashboard'))
             ->assertOk()
             ->assertSee('Grafik Tren Kinerja')
+            ->assertDontSee('Ringkasan Operasional')
+            ->assertDontSee('Aksi Cepat')
             ->assertDontSee('Audit Terbaru')
             ->assertDontSee('Dataset Gagal')
             ->assertDontSee('Editor Layout');
@@ -83,6 +88,7 @@ class DashboardWidgetLayoutTest extends TestCase
     public function test_staff_divisi_melihat_layout_default(): void
     {
         $staff = User::factory()->withRole(Role::STAFF_DIVISI)->create();
+        $user = User::factory()->create();
 
         $this->actingAs($staff)
             ->get(route('dashboard'))
@@ -92,11 +98,6 @@ class DashboardWidgetLayoutTest extends TestCase
             ->assertDontSee('Audit Terbaru')
             ->assertDontSee('Dataset Gagal')
             ->assertDontSee('Editor Layout');
-    }
-
-    public function test_user_tanpa_role_mendapat_layout_default(): void
-    {
-        $user = User::factory()->create();
 
         $this->actingAs($user)
             ->get(route('dashboard'))

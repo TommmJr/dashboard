@@ -1,7 +1,7 @@
 @props(['widget' => [], 'data' => null])
 
 {{-- Area chart ECharts --}}
-<div class="mt-8 rounded-lg bg-white p-6 shadow">
+<div class="rounded-lg bg-white p-6 shadow">
     <h3 class="text-lg font-bold text-primary">{{ $widget['label'] ?? 'Grafik Tren Kinerja' }}</h3>
 
     <div x-show="loading" class="mt-6 flex h-80 items-center justify-center text-sm text-gray-500 sm:h-96 lg:h-[32rem]">

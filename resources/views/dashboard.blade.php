@@ -12,19 +12,34 @@
 --}}
 @extends('layouts.app')
 
-@section('title', 'Dashboard')
+@section('title')
+    {{ auth()->user()?->role?->slug === \App\Models\Role::ADMIN ? 'Dashboard Admin' : 'Dashboard' }}
+@endsection
+
+@php
+    $isAdminDashboard = auth()->user()?->role?->slug === \App\Models\Role::ADMIN;
+@endphp
 
 @section('content')
-<div class="mx-auto max-w-7xl" x-data="performanceDashboard()" x-init="load()">
-    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h1 class="text-2xl font-bold text-primary">Welcome, {{ auth()->user()->name }}</h1>
+<div class="mx-auto max-w-7xl" @if (! $isAdminDashboard) x-data="performanceDashboard()" x-init="load()" @endif>
+    @if ($isAdminDashboard)
+        <div class="mb-6">
+            <p class="text-xs font-medium text-slate-500">Beranda / Dashboard Admin</p>
+            <h1 class="mt-2 text-2xl font-bold text-primary">Dashboard Admin</h1>
+            <p class="mt-1 text-sm text-slate-500">Ringkasan operasional data dan aktivitas sistem</p>
+        </div>
+    @else
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <h1 class="text-2xl font-bold text-primary">Welcome, {{ auth()->user()->name }}</h1>
 
-        @if (auth()->user()->role)
-            <span class="inline-flex rounded-full bg-surface px-2.5 py-0.5 text-xs font-medium text-primary">{{ auth()->user()->role->name }}</span>
-        @endif
-    </div>
+            @if (auth()->user()->role)
+                <span class="inline-flex rounded-full bg-surface px-2.5 py-0.5 text-xs font-medium text-primary">{{ auth()->user()->role->name }}</span>
+            @endif
+        </div>
+    @endif
 
-    <form class="mt-6 grid gap-4 border border-muted bg-white p-4 shadow sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1.25fr_auto_auto] lg:items-end" @submit.prevent="applyFilters">
+    @if (! $isAdminDashboard)
+        <form class="mt-6 grid gap-4 border border-muted bg-white p-4 shadow sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1.25fr_auto_auto] lg:items-end" @submit.prevent="applyFilters">
         <div class="flex flex-col gap-1.5">
             <label for="start_date" class="text-xs font-semibold uppercase tracking-wide text-gray-500">Dari tanggal</label>
             <input id="start_date" x-model="filters.start_date" type="date" class="h-10 rounded border border-muted bg-white px-3 text-sm text-primary outline-none focus:border-accent focus:ring-2 focus:ring-accent/20">
@@ -61,13 +76,26 @@
             <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7M3 4v5h5" stroke-linecap="round" stroke-linejoin="round" /></svg>
             Reset
         </button>
-    </form>
-    <p x-show="error" x-cloak class="mt-2 text-sm font-medium text-red-700" x-text="error" role="alert"></p>
+        </form>
+        <p x-show="error" x-cloak class="mt-2 text-sm font-medium text-red-700" x-text="error" role="alert"></p>
+    @endif
 
     {{-- Widget per role: satu loop generik, urutan & komposisi dari config. --}}
-    @foreach ($widgets as $widget)
-        <x-dynamic-component :component="$widget['view']" :widget="$widget" :data="$widget['data'] ?? null" />
-    @endforeach
+    <div class="{{ $isAdminDashboard ? 'grid gap-6 lg:grid-cols-3' : 'space-y-8' }}">
+        @foreach ($widgets as $widget)
+            @php
+                $widgetClass = match ($widget['key']) {
+                    'admin-summary' => 'lg:col-span-3',
+                    'recent-audit' => 'lg:col-span-2',
+                    'admin-quick-actions' => 'lg:col-span-3',
+                    default => '',
+                };
+            @endphp
+            <div class="{{ $widgetClass }}">
+                <x-dynamic-component :component="$widget['view']" :widget="$widget" :data="$widget['data'] ?? null" />
+            </div>
+        @endforeach
+    </div>
 </div>
 
 <script>
@@ -167,7 +195,7 @@
             },
 
             renderChart(payload) {
-                const palette = ['#14a2ba', '#125d72', '#efe62f', '#d9d9d9'];
+                const palette = ['#16a3b8', '#0b6175', '#f1dc3a', '#d8e3e7'];
                 const el = document.getElementById('performanceChart');
                 if (this.chart) { this.chart.dispose(); }
                 this.chart = window.echarts.init(el);
@@ -185,7 +213,7 @@
                     type: 'line',
                     smooth: true,
                     data: s.data,
-                    itemStyle: { color: '#125d72' },
+                    itemStyle: { color: '#0b6175' },
                 }));
 
                 this.chart.setOption({

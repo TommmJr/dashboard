@@ -39,6 +39,8 @@ return [
         'aset-upt-chart' => ['label' => 'Stok Aset per UPT', 'view' => 'widgets.aset-upt-chart', 'permission' => 'dashboard.view'],
         'recent-audit' => ['label' => 'Audit Terbaru',      'view' => 'widgets.recent-audit',         'permission' => 'audit.view'],
         'failed-datasets' => ['label' => 'Dataset Gagal',      'view' => 'widgets.failed-datasets',      'permission' => 'dataset.view'],
+        'admin-summary' => ['label' => 'Ringkasan Operasional', 'view' => 'widgets.admin-summary',      'permission' => 'dashboard.view'],
+        'admin-quick-actions' => ['label' => 'Aksi Cepat',      'view' => 'widgets.admin-quick-actions',  'permission' => 'dashboard.view'],
         'layout-editor-placeholder' => ['label' => 'Editor Layout',      'view' => 'widgets.layout-editor-placeholder', 'permission' => 'dashboard.update'],
     ],
 
@@ -52,7 +54,7 @@ return [
      * tidak bermakna untuk staf divisi yang scoping datanya satu divisi saja.
      */
     'layouts' => [
-        'admin' => ['recent-audit', 'failed-datasets'],
+        'admin' => ['admin-summary', 'recent-audit', 'failed-datasets', 'admin-quick-actions'],
         'management' => ['kpi-summary', 'trend-chart', 'nko-ranking'],
         'editor_dashboard' => ['kpi-summary', 'trend-chart', 'nko-ranking', 'layout-editor-placeholder'],
         'staff_divisi' => ['kpi-summary', 'trend-chart'],

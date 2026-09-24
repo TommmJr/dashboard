@@ -65,11 +65,45 @@ class DashboardController extends Controller
             'nko-ranking' => $this->nkoRanking($user),
             'aset-upt-chart' => $this->asetUptChart(),
             'recent-audit' => $this->recentAudit($user),
-            'failed-datasets' => Dataset::query()
-                ->where('status', DatasetStatus::FAILED)
-                ->count(),
+            'failed-datasets' => $this->failedDatasets(),
+            'admin-summary' => $this->adminSummary(),
+            'admin-quick-actions' => null,
             default => null,
         };
+    }
+
+    private function adminSummary(): array
+    {
+        return [
+            'total_datasets' => Dataset::query()->count(),
+            'failed_datasets' => Dataset::query()
+                ->where('status', DatasetStatus::FAILED)
+                ->count(),
+            'audit_today' => AuditLog::query()
+                ->whereDate('created_at', today())
+                ->count(),
+            'total_users' => User::query()->count(),
+        ];
+    }
+
+    /**
+     * Data ringkasan dan detail dataset gagal untuk dashboard admin.
+     *
+     * @return array{count: int, rows: Collection<int, Dataset>}
+     */
+    private function failedDatasets(): array
+    {
+        return [
+            'count' => Dataset::query()
+                ->where('status', DatasetStatus::FAILED)
+                ->count(),
+            'rows' => Dataset::query()
+                ->with(['division:id,name', 'user:id,name'])
+                ->where('status', DatasetStatus::FAILED)
+                ->latest()
+                ->limit(3)
+                ->get(),
+        ];
     }
 
     /**
