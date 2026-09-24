@@ -12,5 +12,5 @@
 @endphp
 
 <span {{ $attributes->merge(['class' => "rounded-full px-2 py-1 text-xs font-semibold {$class}"]) }}>
-    {{ $status }}
+    {{ \App\Enums\DatasetStatus::tryFrom($status)?->label() ?? $status }}
 </span>

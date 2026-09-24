@@ -19,8 +19,8 @@
             <select id="status" name="status" onchange="this.form.submit()"
                     class="rounded-md border-gray-300 text-sm">
                 <option value="">Aktif (non-arsip)</option>
-                @foreach (['UPLOADING', 'VALIDATING', 'READY', 'FAILED', 'ARCHIVED'] as $s)
-                    <option value="{{ $s }}" @selected(request('status') === $s)>{{ $s }}</option>
+                @foreach (\App\Enums\DatasetStatus::cases() as $case)
+                    <option value="{{ $case->value }}" @selected(request('status') === $case->value)>{{ $case->label() }}</option>
                 @endforeach
             </select>
         </form>
