@@ -231,7 +231,14 @@ class AssetStockConverter
     {
         $highestColumn = Coordinate::columnIndexFromString($sheet->getHighestColumn());
         $groups = $this->headerRowLabels($sheet, $headerRow, $ultgCol + 1, $highestColumn, true);
-        $subTypes = $this->headerRowLabels($sheet, $headerRow + 1, $ultgCol + 1, $highestColumn, true);
+        $subTypes = $this->headerRowLabels(
+            $sheet,
+            $headerRow + 1,
+            $ultgCol + 1,
+            $highestColumn,
+            true,
+            $groups,
+        );
         $units = $this->headerRowLabels($sheet, $headerRow + 2, $ultgCol + 1, $highestColumn, false);
         $attributes = [];
 
@@ -251,14 +258,25 @@ class AssetStockConverter
      * mewarisi label tak-kosong terakhir di kirinya (pengganti info merge yang
      * tidak tersedia saat readDataOnly).
      *
+     * @param  array<int, string|null>  $resetAt  boundary labels; forward-fill resets when they change
      * @return array<int, string|null>
      */
-    private function headerRowLabels(Worksheet $sheet, int $row, int $fromCol, int $toCol, bool $fill): array
-    {
+    private function headerRowLabels(
+        Worksheet $sheet,
+        int $row,
+        int $fromCol,
+        int $toCol,
+        bool $fill,
+        array $resetAt = [],
+    ): array {
         $labels = [];
         $last = null;
 
         for ($col = $fromCol; $col <= $toCol; $col++) {
+            if ($resetAt !== [] && ($resetAt[$col] ?? null) !== ($resetAt[$col - 1] ?? null)) {
+                $last = null;
+            }
+
             $text = $this->cellText($sheet->getCell([$col, $row])->getValue());
 
             if ($text !== null) {

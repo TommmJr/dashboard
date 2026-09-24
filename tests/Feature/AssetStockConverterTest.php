@@ -55,6 +55,21 @@ class AssetStockConverterTest extends TestCase
         ], $rows);
     }
 
+    public function test_subtype_label_does_not_cross_category_boundary(): void
+    {
+        $rows = app(AssetStockConverter::class)->extract($this->makeSparseSubtypeHeaderReport(), '2026-08-31');
+        $metricNames = array_column($rows, 0);
+
+        $this->assertContains(
+            'ASET | BOGOR | BOGOR | SIRKIT | Unit',
+            $metricNames,
+        );
+        $this->assertNotContains(
+            'ASET | BOGOR | BOGOR | SIRKIT | CUT OFF CB | Unit',
+            $metricNames,
+        );
+    }
+
     public function test_sel_error_dilewati_bukan_nol_dan_nilai_nol_tetap_diimpor(): void
     {
         $rows = app(AssetStockConverter::class)->extract($this->makeAssetReport(), '2026-08-31');
@@ -119,6 +134,38 @@ class AssetStockConverterTest extends TestCase
             ->sole();
         $this->assertSame(100.5, (float) $metric->value);
         $this->assertSame('2026-08-31', $metric->period->format('Y-m-d'));
+    }
+
+    /**
+     * Fixture probe: sub-tipe DIAMETER terisi, lalu sub-tipe SIRKIT kosong.
+     */
+    private function makeSparseSubtypeHeaderReport(): string
+    {
+        $spreadsheet = new Spreadsheet;
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('KIN26 - STOP ONLY');
+
+        $sheet->setCellValue('A5', 'No');
+        $sheet->setCellValue('B5', 'UPT');
+        $sheet->setCellValue('C5', 'ULTG');
+        $sheet->setCellValue('D5', 'DIAMETER');
+        $sheet->mergeCells('D5:F5');
+        $sheet->setCellValue('G5', 'SIRKIT');
+        $sheet->setCellValue('D6', 'CUT OFF CB');
+        $sheet->mergeCells('D6:F6');
+        $sheet->setCellValue('D7', 'Bank');
+        $sheet->setCellValue('E7', 'Unit/Set');
+        $sheet->setCellValue('F7', 'MVA');
+        $sheet->setCellValue('G7', 'Unit');
+
+        $sheet->setCellValue('B8', 'BOGOR');
+        $sheet->setCellValue('C8', 'BOGOR');
+        $sheet->setCellValue('D8', 1);
+        $sheet->setCellValue('E8', 2);
+        $sheet->setCellValue('F8', 3);
+        $sheet->setCellValue('G8', 4);
+
+        return $this->saveFixture($spreadsheet);
     }
 
     /**
