@@ -57,7 +57,7 @@ return [
         'admin' => ['admin-summary', 'recent-audit', 'failed-datasets', 'admin-quick-actions'],
         'management' => ['kpi-summary', 'trend-chart', 'nko-ranking'],
         'editor_dashboard' => ['kpi-summary', 'trend-chart', 'nko-ranking', 'layout-editor-placeholder'],
-        'staff_divisi' => ['kpi-summary', 'trend-chart'],
+        'staff_divisi' => ['kpi-summary', 'trend-chart', 'aset-upt-chart'],
     ],
 
     // Fallback: role null / slug tidak dikenal -> KPI + chart saja.

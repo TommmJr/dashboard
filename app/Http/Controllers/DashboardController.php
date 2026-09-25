@@ -145,7 +145,19 @@ class DashboardController extends Controller
         $report = app(AssetStockReport::class)->totalsByUpt();
 
         $upts = $report['totals']->pluck('upt')->unique()->values();
-        $attributes = $report['totals']->pluck('attribute')->unique()->values();
+
+        // Filter atribut untuk memprioritaskan Tower & Transmisi sesuai instruksi mentor 2026-09-25
+        $allAttributes = $report['totals']->pluck('attribute')->unique()->values();
+        $towerTransmisi = $allAttributes->filter(function (string $attr): bool {
+            return str_contains($attr, 'Tower')
+                || str_contains($attr, 'Transmisi')
+                || str_contains($attr, 'Trafo')
+                || str_contains($attr, 'SIRKIT')
+                || str_contains($attr, 'GI')
+                || str_contains($attr, 'CUT OFF CB');
+        })->values();
+
+        $attributes = $towerTransmisi->isNotEmpty() ? $towerTransmisi : $allAttributes;
         $byKey = $report['totals']->keyBy(fn (object $total): string => $total->upt."\0".$total->attribute);
 
         $series = $attributes->map(fn (string $attribute): array => [
