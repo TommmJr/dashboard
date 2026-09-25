@@ -81,14 +81,17 @@ class AssetStockReport
      * terjumlah karena converter memang tidak mengimpornya. Total nol
      * tetap dipertahankan sebagai grup (nol = data, bukan absen).
      *
+     * @param  string|null  $period  Periode Y-m-d; null = periode terbaru.
+     * @param  int|null  $divisionId  Batasi ke divisi pemilik data; null = lintas divisi.
      * @return array{period: ?string, totals: Collection<int, object{upt: string, attribute: string, total: float}>}
      */
-    public function totalsByUpt(?string $period = null): array
+    public function totalsByUpt(?string $period = null, ?int $divisionId = null): array
     {
         $base = fn () => DB::table('performance_metrics')
             ->join('datasets', 'datasets.id', '=', 'performance_metrics.dataset_id')
             ->where('datasets.status', Dataset::STATUS_READY)
-            ->where('performance_metrics.metric_name', 'like', AssetStockConverter::PREFIX.'%');
+            ->where('performance_metrics.metric_name', 'like', AssetStockConverter::PREFIX.'%')
+            ->when($divisionId !== null, fn ($query) => $query->where('performance_metrics.division_id', $divisionId));
 
         $period ??= $base()->max('performance_metrics.period');
 

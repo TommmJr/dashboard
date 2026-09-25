@@ -63,7 +63,7 @@ class DashboardController extends Controller
     {
         return match ($key) {
             'nko-ranking' => $this->nkoRanking($user),
-            'aset-upt-chart' => $this->asetUptChart(),
+            'aset-upt-chart' => $this->asetUptChart($user),
             'recent-audit' => $this->recentAudit($user),
             'failed-datasets' => $this->failedDatasets(),
             'admin-summary' => $this->adminSummary(),
@@ -134,15 +134,26 @@ class DashboardController extends Controller
      * Bentuk siap render ECharts bar: labels = UPT, satu series per atribut
      * (atribut tidak dicampur dalam satu series karena satuannya beda:
      * Bank, MVA, kms). Snapshot, bukan time-series — tanpa line/trend.
-     * Widget ini BELUM dipasang ke layout role mana pun (M2 sebagian
-     * terbuka: visual per UPT confirmed, workbook valid + mounting
-     * production masih blocked).
+     *
+     * Scoping divisi: hanya role privileged (Admin, Management, Editor
+     * Dashboard) yang melihat lintas divisi. Staf Divisi dibatasi ke
+     * divisinya sendiri; divisi selain pemilik data Aset mendapat data
+     * kosong sehingga widget menampilkan empty state, bukan kebocoran data.
+     * Pola ini sama dengan nkoRanking() dan PerformanceChartController.
      *
      * @return array{period: ?string, labels: list<string>, series: list<array{name: string, data: list<float>}>}
      */
-    private function asetUptChart(): array
+    private function asetUptChart(?User $user): array
     {
-        $report = app(AssetStockReport::class)->totalsByUpt();
+        $isPrivileged = $user && (
+            $user->hasRole(Role::ADMIN)
+            || $user->hasRole(Role::MANAGEMENT)
+            || $user->hasRole(Role::EDITOR_DASHBOARD)
+        );
+
+        $divisionId = $isPrivileged ? null : $user?->division_id;
+
+        $report = app(AssetStockReport::class)->totalsByUpt(divisionId: $divisionId);
 
         $upts = $report['totals']->pluck('upt')->unique()->values();
 

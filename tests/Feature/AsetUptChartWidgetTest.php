@@ -14,11 +14,12 @@ use Tests\TestCase;
 /**
  * Widget grafik stok aset per UPT (server-side, snapshot, bar chart).
  *
- * Widget BELUM dipasang ke layout role mana pun — test mengunci itu agar
- * user nyata tidak melihat grafik berisi data nol sebelum M2 dibuka.
- * Render diuji terisolasi via $this->blade(), tanpa route baru; pivot
- * controller (`asetUptChart()`) diuji lewat route dashboard dengan override
- * config layout HANYA di dalam test (production tetap unmounted).
+ * Widget dipasang di layout `staff_divisi`; test mengunci kontrak mounting
+ * itu sekaligus scoping divisi: hanya role privileged (Admin, Management,
+ * Editor Dashboard) yang melihat lintas divisi, sedangkan Staf Divisi
+ * dibatasi ke divisinya sendiri. Render diuji terisolasi via $this->blade(),
+ * tanpa route baru; pivot controller (`asetUptChart()`) diuji lewat route
+ * dashboard dengan override config layout HANYA di dalam test.
  */
 class AsetUptChartWidgetTest extends TestCase
 {
@@ -52,6 +53,49 @@ class AsetUptChartWidgetTest extends TestCase
             ->assertSee('Trafo 500\\/150 KV | Bank', false)
             ->assertSee('asetUptChart-aset-upt-chart-', false)
             ->assertSee('"type":"bar"', false);
+    }
+
+    public function test_staf_divisi_lain_tidak_melihat_data_aset(): void
+    {
+        $asetDivision = Division::factory()->create(['name' => 'Data Aset']);
+        $lainDivision = Division::factory()->create(['name' => 'Perencanaan Pengusahaan']);
+
+        $this->seedAsetRowsFor($asetDivision, '2026-08-31', [
+            ['BEKASI', 'BEKASI', 'Trafo 500/150 KV | Bank', 5],
+        ]);
+
+        $stafAset = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $asetDivision->id]);
+        $stafLain = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $lainDivision->id]);
+
+        // Staf divisi pemilik data: melihat grafik beserta nilainya.
+        $this->actingAs($stafAset)->get(route('dashboard'))->assertOk()
+            ->assertSee('Stok Aset per UPT', false)
+            ->assertSee('BEKASI', false)
+            ->assertSee('"data":[5]', false);
+
+        // Staf divisi lain: widget tetap dirender, tapi tanpa data Aset.
+        $this->actingAs($stafLain)->get(route('dashboard'))->assertOk()
+            ->assertSee('Stok Aset per UPT', false)
+            ->assertSee('Belum ada data aset.', false)
+            ->assertDontSee('asetUptChart', false);
+    }
+
+    public function test_role_privileged_melihat_lintas_divisi(): void
+    {
+        $asetDivision = Division::factory()->create(['name' => 'Data Aset']);
+
+        $this->seedAsetRowsFor($asetDivision, '2026-08-31', [
+            ['BEKASI', 'BEKASI', 'Trafo 500/150 KV | Bank', 5],
+        ]);
+
+        $this->mountAsetWidgetForTest();
+
+        $admin = User::factory()->withRole(Role::ADMIN)->create(['division_id' => null]);
+
+        $this->actingAs($admin)->get(route('dashboard'))->assertOk()
+            ->assertSee('Stok Aset per UPT', false)
+            ->assertSee('BEKASI', false)
+            ->assertSee('"data":[5]', false);
     }
 
     public function test_chart_id_unik_bila_widget_dirender_berulang(): void
@@ -119,6 +163,9 @@ class AsetUptChartWidgetTest extends TestCase
             'division_id' => Division::factory()->create()->id,
         ]);
 
+        // Staf divisi tanpa data Aset: widget dirender, isinya empty state,
+        // bukan 500. Regresi yang dijaga: totalsByUpt() tidak boleh
+        // menafsirkan division_id sebagai periode.
         $this->actingAs($staff)->get(route('dashboard'))->assertOk()
             ->assertSee('Stok Aset per UPT')
             ->assertSee('Belum ada data aset.', false);
@@ -175,7 +222,16 @@ class AsetUptChartWidgetTest extends TestCase
      */
     private function seedAsetRows(string $period, array $rows): void
     {
-        $division = Division::factory()->create();
+        $this->seedAsetRowsFor(Division::factory()->create(), $period, $rows);
+    }
+
+    /**
+     * Baris Aset milik divisi tertentu (untuk uji scoping divisi).
+     *
+     * @param  list<array{0: string, 1: string, 2: string, 3: float}>  $rows
+     */
+    private function seedAsetRowsFor(Division $division, string $period, array $rows): void
+    {
         $dataset = Dataset::factory()->create([
             'division_id' => $division->id,
             'status' => Dataset::STATUS_READY,
