@@ -14,6 +14,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
 
 /**
@@ -24,6 +25,19 @@ use Illuminate\View\View;
  */
 class DashboardController extends Controller
 {
+    /**
+     * Prefix atribut yang ditampilkan pada grafik Aset per UPT.
+     *
+     * Sesuai fokus prototype yang disetujui mentor (2026-09-25): Tower,
+     * Transmisi, dan Trafo. Sengaja daftar prefix eksplisit, BUKAN
+     * str_contains: nama atribut lain di rekap bisa memuat kata-kata ini di
+     * tengah (mis. "DIAMETER | CUT OFF CB") sehingga pencocokan substring
+     * meloloskan atribut di luar fokus.
+     *
+     * @var list<string>
+     */
+    private const ASET_ATTRIBUTE_PREFIXES = ['Tower ', 'Transmisi ', 'Trafo '];
+
     /**
      * Rakit daftar widget terurut untuk user aktif, lalu render view.
      */
@@ -135,6 +149,10 @@ class DashboardController extends Controller
      * (atribut tidak dicampur dalam satu series karena satuannya beda:
      * Bank, MVA, kms). Snapshot, bukan time-series — tanpa line/trend.
      *
+     * Series dibatasi ke prefix ASET_ATTRIBUTE_PREFIXES (Tower, Transmisi,
+     * Trafo) sesuai fokus prototype; atribut di luar fokus tetap tersimpan
+     * sebagai data, hanya tidak digambar.
+     *
      * Scoping divisi: hanya role privileged (Admin, Management, Editor
      * Dashboard) yang melihat lintas divisi. Staf Divisi dibatasi ke
      * divisinya sendiri; divisi selain pemilik data Aset mendapat data
@@ -157,18 +175,17 @@ class DashboardController extends Controller
 
         $upts = $report['totals']->pluck('upt')->unique()->values();
 
-        // Filter atribut untuk memprioritaskan Tower & Transmisi sesuai instruksi mentor 2026-09-25
+        // Batasi ke fokus prototype: hanya kelompok Tower, Transmisi, dan
+        // Trafo. Atribut di luar itu (SIRKIT, DIAMETER, Joint, Gardu Induk)
+        // tetap tersimpan sebagai data, hanya tidak digambar sebagai series.
+        // Kalau tidak ada satu pun yang cocok, series dikosongkan supaya
+        // widget menampilkan empty state — bukan diam-diam menampilkan
+        // seluruh atribut seperti perilaku lama.
         $allAttributes = $report['totals']->pluck('attribute')->unique()->values();
-        $towerTransmisi = $allAttributes->filter(function (string $attr): bool {
-            return str_contains($attr, 'Tower')
-                || str_contains($attr, 'Transmisi')
-                || str_contains($attr, 'Trafo')
-                || str_contains($attr, 'SIRKIT')
-                || str_contains($attr, 'GI')
-                || str_contains($attr, 'CUT OFF CB');
-        })->values();
+        $attributes = $allAttributes->filter(
+            fn (string $attr): bool => Str::startsWith($attr, self::ASET_ATTRIBUTE_PREFIXES)
+        )->values();
 
-        $attributes = $towerTransmisi->isNotEmpty() ? $towerTransmisi : $allAttributes;
         $byKey = $report['totals']->keyBy(fn (object $total): string => $total->upt."\0".$total->attribute);
 
         $series = $attributes->map(fn (string $attribute): array => [

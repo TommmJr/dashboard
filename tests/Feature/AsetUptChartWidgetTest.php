@@ -55,6 +55,57 @@ class AsetUptChartWidgetTest extends TestCase
             ->assertSee('"type":"bar"', false);
     }
 
+    public function test_series_dibatasi_ke_fokus_tower_transmisi_trafo(): void
+    {
+        $division = Division::factory()->create(['name' => 'Data Aset']);
+
+        // Campuran atribut dalam fokus (Tower/Transmisi/Trafo) dan di luar
+        // fokus (SIRKIT, DIAMETER, Joint, Gardu Induk) — semuanya ada di
+        // rekap 1b/OPR riil.
+        $this->seedAsetRowsFor($division, '2026-08-31', [
+            ['BEKASI', 'BEKASI', 'Tower 150 KV | SU', 10],
+            ['BEKASI', 'BEKASI', 'Transmisi 500 KV | SU | kms', 20],
+            ['BEKASI', 'BEKASI', 'Trafo 500/150 KV | Bank', 30],
+            ['BEKASI', 'BEKASI', 'SIRKIT | UPT', 40],
+            ['BEKASI', 'BEKASI', 'DIAMETER | CUT OFF CB', 50],
+            ['BEKASI', 'BEKASI', 'Joint | SK', 60],
+            ['BEKASI', 'BEKASI', 'Gardu Induk Milik Unit Pengusahaan | GI/GITET | 150kV', 70],
+        ]);
+
+        $staf = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $division->id]);
+
+        $response = $this->actingAs($staf)->get(route('dashboard'))->assertOk();
+
+        // Dalam fokus: digambar sebagai series.
+        $response->assertSee('Tower 150 KV | SU', false)
+            ->assertSee('Transmisi 500 KV | SU | kms', false)
+            ->assertSee('Trafo 500\\/150 KV | Bank', false);
+
+        // Di luar fokus: TIDAK digambar, meski nilainya ada di dataset.
+        $response->assertDontSee('SIRKIT | UPT', false)
+            ->assertDontSee('DIAMETER | CUT OFF CB', false)
+            ->assertDontSee('Joint | SK', false)
+            ->assertDontSee('GI\\/GITET', false);
+    }
+
+    public function test_series_kosong_bila_tidak_ada_atribut_dalam_fokus(): void
+    {
+        $division = Division::factory()->create(['name' => 'Data Aset']);
+
+        // Hanya atribut di luar fokus: widget harus empty state, bukan
+        // menampilkan seluruh atribut seperti perilaku lama.
+        $this->seedAsetRowsFor($division, '2026-08-31', [
+            ['BEKASI', 'BEKASI', 'SIRKIT | UPT', 40],
+        ]);
+
+        $staf = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $division->id]);
+
+        $this->actingAs($staf)->get(route('dashboard'))->assertOk()
+            ->assertSee('Stok Aset per UPT', false)
+            ->assertSee('Belum ada data aset.', false)
+            ->assertDontSee('asetUptChart', false);
+    }
+
     public function test_staf_divisi_lain_tidak_melihat_data_aset(): void
     {
         $asetDivision = Division::factory()->create(['name' => 'Data Aset']);
