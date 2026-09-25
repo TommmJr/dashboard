@@ -1,6 +1,6 @@
 # Figma mockup: Dashboard Admin
 
-`admin-dashboard-mockup.html` is a standalone HTML/CSS source based on the current admin dashboard shell and widgets. It has no Laravel, Vite, database, or external asset dependency, so it can be opened in a browser before importing it into Figma.
+`admin-dashboard-mockup.html` and `dataset-dashboard-mockup.html` are standalone HTML/CSS sources based on the current admin dashboard and Datasets UI. They have no Laravel, Vite, database, or external asset dependency, so they can be opened in a browser before importing them into Figma.
 
 The values and names in the mockup are sample UI data. They are not production metrics.
 
@@ -13,9 +13,10 @@ The values and names in the mockup are sample UI data. They are not production m
    php -S 127.0.0.1:8000 -t docs/figma
    ```
 
-3. Import this URL in the plugin:
+3. Import one of these URLs in the plugin:
 
-   `http://127.0.0.1:8000/admin-dashboard-mockup.html`
+   - Admin dashboard: `http://127.0.0.1:8000/admin-dashboard-mockup.html`
+   - Datasets: `http://127.0.0.1:8000/dataset-dashboard-mockup.html`
 4. Use a `1440 x 1188` desktop frame and keep the default scale at `100%`.
 5. The main regions have `data-figma-name` attributes for easier layer naming after import.
 
