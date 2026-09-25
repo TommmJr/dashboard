@@ -103,17 +103,25 @@ class AsetUptChartWidgetTest extends TestCase
             ->assertDontSee('asetUptChart', false);
     }
 
-    public function test_widget_belum_tampil_di_layout_role_mana_pun(): void
+    public function test_widget_tampil_hanya_di_layout_staff_divisi_untuk_prototype(): void
     {
-        foreach ([Role::ADMIN, Role::MANAGEMENT, Role::EDITOR_DASHBOARD, Role::STAFF_DIVISI] as $role) {
+        foreach ([Role::ADMIN, Role::MANAGEMENT, Role::EDITOR_DASHBOARD] as $role) {
             $user = User::factory()->withRole($role)->create([
-                'division_id' => $role === Role::STAFF_DIVISI ? Division::factory()->create()->id : null,
+                'division_id' => null,
             ]);
 
             $this->actingAs($user)->get(route('dashboard'))->assertOk()
                 ->assertDontSee('Stok Aset per UPT')
                 ->assertDontSee('asetUptChart', false);
         }
+
+        $staff = User::factory()->withRole(Role::STAFF_DIVISI)->create([
+            'division_id' => Division::factory()->create()->id,
+        ]);
+
+        $this->actingAs($staff)->get(route('dashboard'))->assertOk()
+            ->assertSee('Stok Aset per UPT')
+            ->assertSee('Belum ada data aset.', false);
     }
 
     public function test_pivot_controller_menjumlah_ultg_dan_mengisi_nol(): void
