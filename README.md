@@ -127,8 +127,8 @@ docker compose exec -T db mysql -udashboard_app -ppassword dashboard \
 Authorization is enforced on the backend through granular permissions. Dashboard Editors are read-only for data, while Division Staff may change only their own division's data.
 
 Audit log protection is partial, and the limits matter:
-- Row data: blocked. The hardened grants stop the application user from running `UPDATE` or `DELETE` on `audit_logs`.
-- Row deletion through the model: blocked for single records (`LogicException`), but **not** for bulk operations. `AuditLog::query()->update()` and `query()->delete()` bypass the model hooks. This is a known gap with a regression test in place; the fix is not implemented yet.
+- Row changes through the model: blocked. Single records throw `LogicException` on `update()`/`delete()`, and every bulk path (`update`, `upsert`, `updateFrom`, `touch`, `increment`, `decrement`, `incrementEach`, `decrementEach`, `delete`, `forceDelete`) is rejected by `App\Models\Builders\AuditLogBuilder`. Adding rows is still allowed: append-only means rows may be appended, not changed.
+- Row data at the database level: blocked. The hardened grants stop the application user from running `UPDATE` or `DELETE` on `audit_logs`.
 - Table structure: **not** protected. The application user can still run `TRUNCATE`, `ALTER TABLE`, and `DROP TABLE` on `audit_logs`, because migrations need DDL grants across the database.
 - Deleting a user is safe: `audit_logs.user_id` becomes `NULL` and the audit rows remain.
 
