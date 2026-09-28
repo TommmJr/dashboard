@@ -1,0 +1,191 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # Test suite. phpunit.xml memaksa DB_CONNECTION=sqlite dan CACHE_STORE=array,
+  # dan Tests\TestCase memanggil withoutVite(), jadi job ini tidak butuh
+  # service database maupun build frontend.
+  tests:
+    name: Tests (SQLite)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Butuh riwayat untuk menghitung file PHP yang berubah (langkah Pint).
+          fetch-depth: 0
+
+      # PHP 8.4 mengikuti Dockerfile (php:8.4-apache) supaya CI mencerminkan
+      # runtime produksi, bukan hanya minimum composer.json (^8.3).
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: pdo_mysql, mbstring, exif, pcntl, bcmath, gd, zip
+          coverage: none
+
+      - name: Cache Composer
+        uses: actions/cache@v4
+        with:
+          path: ~/.composer/cache
+          key: composer-${{ runner.os }}-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-${{ runner.os }}-
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Prepare environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate --no-interaction
+
+      # Cakupan sengaja dibatasi ke file PHP yang berubah di PR/push ini.
+      # Repo sudah punya 7 file lama yang gagal Pint (PerformanceUploadController,
+      # Role, UserFactory, 4 migration). Menjalankan Pint penuh akan membuat CI
+      # merah permanen sejak hari pertama sehingga sinyalnya tidak berguna.
+      # Memperbaiki 7 file itu di luar scope sesi ini; kalau sudah dibersihkan,
+      # ubah langkah ini menjadi `vendor/bin/pint --test`.
+      - name: Pint (changed PHP files only)
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE="origin/${{ github.base_ref }}"
+          else
+            BASE="${{ github.event.before }}"
+          fi
+
+          if ! git rev-parse --verify --quiet "$BASE^{commit}" >/dev/null; then
+            echo "Base commit '$BASE' tidak tersedia; lewati Pint (bukan error)."
+            exit 0
+          fi
+
+          CHANGED="$(git diff --name-only --diff-filter=ACMR "$BASE"...HEAD -- '*.php' || true)"
+
+          if [ -z "$CHANGED" ]; then
+            echo "Tidak ada file PHP yang berubah; lewati Pint."
+            exit 0
+          fi
+
+          echo "File PHP yang dicek:"
+          echo "$CHANGED"
+          # shellcheck disable=SC2086
+          vendor/bin/pint --test $CHANGED
+
+      - name: Run tests
+        run: php artisan test
+
+  # Verifikasi bahwa docker/mysql/harden-audit-log.sql benar-benar mengunci
+  # data audit log. Ini kelas masalah yang TIDAK bisa ditangkap job "tests",
+  # karena test suite berjalan di SQLite dan SQLite tidak punya GRANT.
+  db-grants:
+    name: Audit log grants (MySQL 8.4)
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_DATABASE: dashboard
+          MYSQL_USER: dashboard_app
+          MYSQL_PASSWORD: ci_password
+          MYSQL_ROOT_PASSWORD: ci_root_password
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -pci_root_password"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    env:
+      DB_CONNECTION: mysql
+      DB_HOST: 127.0.0.1
+      DB_PORT: '3306'
+      DB_DATABASE: dashboard
+      DB_USERNAME: dashboard_app
+      # Kredensial ephemeral khusus CI, bukan kredensial production.
+      DB_PASSWORD: ci_password
+      DB_ROOT_PASSWORD: ci_root_password
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: pdo_mysql, mbstring, exif, pcntl, bcmath, gd, zip
+          coverage: none
+
+      - name: Cache Composer
+        uses: actions/cache@v4
+        with:
+          path: ~/.composer/cache
+          key: composer-${{ runner.os }}-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-${{ runner.os }}-
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      # Runner GitHub biasanya sudah menyertakan mysql-client, tapi langkah ini
+      # dipasang eksplisit supaya job tidak bergantung pada asumsi image.
+      - name: Ensure MySQL client
+        run: |
+          if ! command -v mysql >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends mysql-client
+          fi
+          mysql --version
+
+      - name: Prepare environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate --no-interaction
+
+      - name: Wait for MySQL
+        run: |
+          for attempt in $(seq 1 30); do
+            if mysqladmin ping -h 127.0.0.1 -P 3306 -uroot -p"$DB_ROOT_PASSWORD" --silent 2>/dev/null; then
+              echo "MySQL siap setelah $attempt percobaan."
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "MySQL tidak siap dalam batas waktu."
+          exit 1
+
+      # Tanpa langkah ini, database_app masih punya ALL PRIVILEGES dan
+      # audit_logs bisa di-UPDATE/DELETE. Assertion di bawah akan menangkapnya.
+      - name: Run migrate
+        run: php artisan migrate --force --no-interaction
+
+      # Dijalankan DUA KALI untuk membuktikan skrip idempotent
+      # (REVOKE IF EXISTS).
+      - name: Apply audit log grant hardening (twice, idempotency)
+        run: |
+          for run in 1 2; do
+            echo "--- harden run $run ---"
+            mysql -h 127.0.0.1 -P 3306 -uroot -p"$DB_ROOT_PASSWORD" \
+              < docker/mysql/harden-audit-log.sql
+          done
+
+      - name: Assert audit log grants
+        run: bash .github/scripts/assert-audit-grants.sh
+
+      # Known gap: grant membatasi DATA, bukan STRUKTUR. TRUNCATE/ALTER/DROP
+      # audit_logs masih berhasil (probe 2026-09-28). Dilaporkan tanpa
+      # menggagalkan build. Ubah blok ini menjadi assert setelah user
+      # migration dipisahkan dari user aplikasi.
+      - name: Report known gap (DDL remains possible)
+        run: |
+          echo "::notice title=Known gap::Grant audit_logs membatasi UPDATE/DELETE, tetapi TRUNCATE/ALTER/DROP masih mungkin karena migration butuh grant DDL di seluruh database."
