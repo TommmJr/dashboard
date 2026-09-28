@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\PerformanceMetric;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
-use App\Models\PerformanceMetric;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -46,7 +46,7 @@ class PerformanceUploadController extends Controller
             // Baca header (tidak di-log untuk mencegah kebocoran data).
             $header = fgetcsv($handle);
 
-            while (($data = fgetcsv($handle, 1000, ",")) !== false) {
+            while (($data = fgetcsv($handle, 1000, ',')) !== false) {
                 $rowNumber++;
                 // PENTING: jangan log isi baris mentah - data performance bersifat
                 // sensitif. Cukup log nomor baris + error message saja.
@@ -55,6 +55,7 @@ class PerformanceUploadController extends Controller
                 if (count($data) < 3) {
                     $skippedCount++;
                     $skippedReasons[$rowNumber] = 'kolom tidak cukup';
+
                     continue;
                 }
 
@@ -67,6 +68,7 @@ class PerformanceUploadController extends Controller
                 if (! is_numeric($valueRaw)) {
                     $skippedCount++;
                     $skippedReasons[$rowNumber] = 'value bukan numerik';
+
                     continue;
                 }
 
@@ -82,18 +84,19 @@ class PerformanceUploadController extends Controller
                 } catch (Throwable) {
                     $skippedCount++;
                     $skippedReasons[$rowNumber] = 'period bukan tanggal Y-m-d';
+
                     continue;
                 }
 
                 try {
                     PerformanceMetric::create([
-                        'metric_name'  => $metricName,
-                        'value'        => $valueRaw,
-                        'period'       => $period->format('Y-m-d'),
-                        'unit_id'      => $unitId,
+                        'metric_name' => $metricName,
+                        'value' => $valueRaw,
+                        'period' => $period->format('Y-m-d'),
+                        'unit_id' => $unitId,
                         // Auto-tag dengan division_id uploader agar controller
                         // chart bisa melakukan scoping per-divisi (audit #3).
-                        'division_id'  => $uploaderDivisionId,
+                        'division_id' => $uploaderDivisionId,
                     ]);
                     $importedCount++;
                 } catch (Throwable $e) {

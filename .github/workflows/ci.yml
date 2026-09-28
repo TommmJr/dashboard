@@ -21,9 +21,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          # Butuh riwayat untuk menghitung file PHP yang berubah (langkah Pint).
-          fetch-depth: 0
 
       # PHP 8.4 mengikuti Dockerfile (php:8.4-apache) supaya CI mencerminkan
       # runtime produksi, bukan hanya minimum composer.json (^8.3).
@@ -49,36 +46,12 @@ jobs:
           cp .env.example .env
           php artisan key:generate --no-interaction
 
-      # Cakupan sengaja dibatasi ke file PHP yang berubah di PR/push ini.
-      # Repo sudah punya 7 file lama yang gagal Pint (PerformanceUploadController,
-      # Role, UserFactory, 4 migration). Menjalankan Pint penuh akan membuat CI
-      # merah permanen sejak hari pertama sehingga sinyalnya tidak berguna.
-      # Memperbaiki 7 file itu di luar scope sesi ini; kalau sudah dibersihkan,
-      # ubah langkah ini menjadi `vendor/bin/pint --test`.
-      - name: Pint (changed PHP files only)
-        run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            BASE="origin/${{ github.base_ref }}"
-          else
-            BASE="${{ github.event.before }}"
-          fi
-
-          if ! git rev-parse --verify --quiet "$BASE^{commit}" >/dev/null; then
-            echo "Base commit '$BASE' tidak tersedia; lewati Pint (bukan error)."
-            exit 0
-          fi
-
-          CHANGED="$(git diff --name-only --diff-filter=ACMR "$BASE"...HEAD -- '*.php' || true)"
-
-          if [ -z "$CHANGED" ]; then
-            echo "Tidak ada file PHP yang berubah; lewati Pint."
-            exit 0
-          fi
-
-          echo "File PHP yang dicek:"
-          echo "$CHANGED"
-          # shellcheck disable=SC2086
-          vendor/bin/pint --test $CHANGED
+      # Cakupan penuh seluruh repo. Sebelumnya dibatasi ke file yang berubah
+      # karena ada 7 file lama yang gagal Pint; ketujuhnya sudah diformat di
+      # commit ini, jadi sekarang Pint bisa tegas dan file lama tidak bisa
+      # makin kotor tanpa ketahuan.
+      - name: Pint (full repository)
+        run: vendor/bin/pint --test
 
       - name: Run tests
         run: php artisan test

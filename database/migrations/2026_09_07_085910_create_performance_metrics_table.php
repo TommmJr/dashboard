@@ -16,7 +16,7 @@ return new class extends Migration
             $table->string('metric_name');
             $table->decimal('value', 15, 2);
             $table->date('period');
-            $table->foreignId('unit_id')->nullable()->constrained('users')->nullOnDelete(); 
+            $table->foreignId('unit_id')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamps();
         });
     }
