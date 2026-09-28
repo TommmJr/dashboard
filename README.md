@@ -139,6 +139,72 @@ docker compose exec -T db mysql -udashboard_app -ppassword dashboard \
   -e "SELECT COUNT(*) FROM audit_logs;"
 ```
 
+## Deployment
+
+The steps below follow the container setup from Getting Started, run with the
+environment values of the deployed instance. Run them in this order.
+
+1. Build and start the containers.
+
+   ```bash
+   docker compose up -d --build
+   ```
+
+2. Generate the application key once per environment.
+
+   ```bash
+   docker compose exec app php artisan key:generate
+   ```
+
+3. Run migrations with the migration user, not the application user.
+
+   ```bash
+   docker compose exec \
+     -e DB_USERNAME="$DB_MIGRATOR_USERNAME" \
+     -e DB_PASSWORD="$DB_MIGRATOR_PASSWORD" \
+     app php artisan migrate --no-interaction
+   ```
+
+4. Harden the audit log grants. Run this after `migrate`, and again after
+   every migration that adds a table: a new table holds no privileges until
+   the script runs again.
+
+   ```bash
+   docker cp docker/mysql/harden-audit-log.sql plnjbt_db:/tmp/harden.sql
+   docker compose exec -T db bash -c \
+     "mysql -uroot -pchange_this_in_production < /tmp/harden.sql"
+   ```
+
+   Replace `change_this_in_production` with the value of `DB_ROOT_PASSWORD`.
+
+5. Build the frontend assets.
+
+   ```bash
+   npm run build
+   ```
+
+Required `.env` values for a deployed environment:
+
+| Variable | Value | Purpose |
+| --- | --- | --- |
+| `APP_DEBUG` | `false` | Do not expose stack traces or environment details in responses. |
+| `LOG_LEVEL` | `error` | Keep request-level log noise out of the deployed log. |
+| `DB_MIGRATOR_USERNAME` | migration user name | Used only for `php artisan migrate`, so the application user keeps no DDL rights. |
+| `DB_MIGRATOR_PASSWORD` | migration user password | Same reason as above. |
+
+Note on existing database volumes: `docker/mysql/init/01-create-migrator.sh`
+runs only when the MySQL data directory is empty, that is, on a fresh volume.
+On an existing volume it does not run again, so create the migration user
+manually before step 3:
+
+```bash
+docker compose exec -T db bash /docker-entrypoint-initdb.d/01-create-migrator.sh
+```
+
+Scope note: this section covers application and database setup only.
+Production data validation and permanent widget mounting remain pending
+mentor/PIC confirmation.
+
 ## Security and Access
 
 Authorization is enforced on the backend through granular permissions. Dashboard Editors are read-only for data, while Division Staff may change only their own division's data.
