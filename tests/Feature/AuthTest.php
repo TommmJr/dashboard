@@ -49,7 +49,7 @@ class AuthTest extends TestCase
         $response->assertSessionHasErrors('email');
         $this->assertGuest();
     }
-    
+
     // Test that the dashboard requires authentication
     public function test_dashboard_requires_authentication(): void
     {
@@ -65,7 +65,7 @@ class AuthTest extends TestCase
             ->assertOk()
             ->assertSee($user->name);
     }
-    
+
     // Test that an authenticated user can log out successfully
     public function test_user_can_logout(): void
     {
@@ -74,6 +74,64 @@ class AuthTest extends TestCase
         $response = $this->actingAs($user)->post(route('logout'));
 
         $response->assertRedirect(route('login'));
+        $this->assertGuest();
+    }
+
+    // Rate limit login: 5 percobaan gagal per email+IP, percobaan ke-6 -> 429.
+    public function test_login_diblokir_setelah_lima_percobaan_gagal(): void
+    {
+        $user = User::factory()->create(['email' => 'limit@example.test']);
+
+        for ($attempt = 1; $attempt <= 5; $attempt++) {
+            $this->post(route('login.store'), [
+                'email' => $user->email,
+                'password' => 'wrong-password',
+            ])->assertSessionHasErrors('email');
+        }
+
+        $this->post(route('login.store'), [
+            'email' => $user->email,
+            'password' => 'wrong-password',
+        ])->assertStatus(429);
+    }
+
+    // Rate limit dihitung per kombinasi email+IP, bukan per IP saja.
+    public function test_rate_limit_terpisah_per_email_pada_ip_yang_sama(): void
+    {
+        User::factory()->create(['email' => 'kena-limit@example.test']);
+        $lain = User::factory()->create(['email' => 'aman@example.test']);
+
+        for ($attempt = 1; $attempt <= 5; $attempt++) {
+            $this->post(route('login.store'), [
+                'email' => 'kena-limit@example.test',
+                'password' => 'wrong-password',
+            ]);
+        }
+
+        $this->post(route('login.store'), [
+            'email' => 'aman@example.test',
+            'password' => 'wrong-password',
+        ])->assertSessionHasErrors('email');
+    }
+
+    // Throttle berjalan sebelum controller: password benar pun tetap 429
+    // dan user tidak jadi terautentikasi.
+    public function test_password_benar_tetap_diblokir_setelah_limit(): void
+    {
+        $user = User::factory()->create(['email' => 'benar@example.test']);
+
+        for ($attempt = 1; $attempt <= 5; $attempt++) {
+            $this->post(route('login.store'), [
+                'email' => $user->email,
+                'password' => 'wrong-password',
+            ]);
+        }
+
+        $this->post(route('login.store'), [
+            'email' => $user->email,
+            'password' => 'password',
+        ])->assertStatus(429);
+
         $this->assertGuest();
     }
 }
