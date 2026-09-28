@@ -27,11 +27,21 @@ services:
       MYSQL_USER: ${DB_USERNAME:-dashboard_app}
       MYSQL_PASSWORD: ${DB_PASSWORD:-password}
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-change_this_in_production}
+      # User migrasi terpisah: punya DDL, dipakai HANYA oleh `artisan migrate`.
+      # User aplikasi (MYSQL_USER di atas) tidak boleh punya DDL, supaya
+      # TRUNCATE/ALTER/DROP pada audit_logs tidak mungkin dari runtime.
+      DB_MIGRATOR_USERNAME: ${DB_MIGRATOR_USERNAME:-dashboard_migrator}
+      DB_MIGRATOR_PASSWORD: ${DB_MIGRATOR_PASSWORD:-migrator_password}
     # Port hanya di-expose untuk dev lokal. Hapus blok ini di production.
     ports:
       - "3306:3306"
     volumes:
       - db_data:/var/lib/mysql
+      # Dijalankan otomatis HANYA saat volume db_data masih kosong (container
+      # pertama kali). Untuk container yang sudah ada, jalankan manual:
+      #   docker compose exec -T db \
+      #     bash /docker-entrypoint-initdb.d/01-create-migrator.sh
+      - ./docker/mysql/init:/docker-entrypoint-initdb.d:ro
     networks:
       - plnjbt_network
 

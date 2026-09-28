@@ -115,6 +115,9 @@ jobs:
       # Kredensial ephemeral khusus CI, bukan kredensial production.
       DB_PASSWORD: ci_password
       DB_ROOT_PASSWORD: ci_root_password
+      # User migrasi terpisah, dibuat oleh langkah "Create migrator user".
+      DB_MIGRATOR_USERNAME: dashboard_migrator
+      DB_MIGRATOR_PASSWORD: ci_migrator_password
 
     steps:
       - name: Checkout
@@ -164,10 +167,21 @@ jobs:
           echo "MySQL tidak siap dalam batas waktu."
           exit 1
 
-      # Tanpa langkah ini, database_app masih punya ALL PRIVILEGES dan
-      # audit_logs bisa di-UPDATE/DELETE. Assertion di bawah akan menangkapnya.
-      - name: Run migrate
-        run: php artisan migrate --force --no-interaction
+      # User migrasi terpisah, punya DDL. Aplikasi (dashboard_app) TIDAK boleh
+      # punya DDL, supaya struktur audit_logs tidak bisa dimusnahkan dari runtime.
+      - name: Create migrator user
+        run: |
+          mysql -h 127.0.0.1 -P 3306 -uroot -p"$DB_ROOT_PASSWORD" <<SQL
+          CREATE USER IF NOT EXISTS '${DB_MIGRATOR_USERNAME}'@'%' IDENTIFIED BY '${DB_MIGRATOR_PASSWORD}';
+          GRANT ALL PRIVILEGES ON \`${DB_DATABASE}\`.* TO '${DB_MIGRATOR_USERNAME}'@'%';
+          FLUSH PRIVILEGES;
+          SQL
+
+      # Migration dijalankan dengan user MIGRATOR, bukan user aplikasi.
+      - name: Run migrate (as migrator)
+        run: |
+          DB_USERNAME="$DB_MIGRATOR_USERNAME" DB_PASSWORD="$DB_MIGRATOR_PASSWORD" \
+            php artisan migrate --force --no-interaction
 
       # Dijalankan DUA KALI untuk membuktikan skrip idempotent
       # (REVOKE IF EXISTS).
@@ -179,13 +193,31 @@ jobs:
               < docker/mysql/harden-audit-log.sql
           done
 
+      # Menuntut UPDATE/DELETE DITOLAK dan TRUNCATE/ALTER/DROP DITOLAK.
+      # Sejak P0-6 gap DDL sudah tertutup, jadi tidak ada lagi known gap di sini.
       - name: Assert audit log grants
         run: bash .github/scripts/assert-audit-grants.sh
 
-      # Known gap: grant membatasi DATA, bukan STRUKTUR. TRUNCATE/ALTER/DROP
-      # audit_logs masih berhasil (probe 2026-09-28). Dilaporkan tanpa
-      # menggagalkan build. Ubah blok ini menjadi assert setelah user
-      # migration dipisahkan dari user aplikasi.
-      - name: Report known gap (DDL remains possible)
+      # Membuktikan pemisahan user benar-benar berlaku: migration HARUS gagal
+      # dengan kredensial aplikasi, karena user aplikasi tidak punya DDL.
+      - name: Assert migration rejected for app user
         run: |
-          echo "::notice title=Known gap::Grant audit_logs membatasi UPDATE/DELETE, tetapi TRUNCATE/ALTER/DROP masih mungkin karena migration butuh grant DDL di seluruh database."
+          set +e
+          output="$(DB_USERNAME="$DB_USERNAME" DB_PASSWORD="$DB_PASSWORD" \
+            php artisan migrate:fresh --force --no-interaction 2>&1)"
+          status=$?
+          set -e
+
+          if [ "$status" -eq 0 ]; then
+            echo "FAIL: migrate:fresh berhasil sebagai user aplikasi."
+            echo "Artinya user aplikasi masih punya DDL dan gap P0-6 terbuka lagi."
+            exit 1
+          fi
+
+          if ! grep -q "1142" <<<"$output"; then
+            echo "FAIL: migrate:fresh gagal, tapi bukan karena DDL ditolak (tidak ada ERROR 1142)."
+            echo "$output" | tail -n 20
+            exit 1
+          fi
+
+          echo "PASS: migrate:fresh ditolak untuk user aplikasi (ERROR 1142)."

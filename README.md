@@ -62,19 +62,31 @@ Provide a maintainable internal dashboard that reduces manual reporting work and
 
 3. Start the application and database containers, then initialize the application.
 
+   On a **fresh** database volume, `docker/mysql/init/01-create-migrator.sh`
+   runs automatically and creates the migration user. Migrations then run with
+   that user, not the application user:
+
    ```bash
    docker compose up -d --build
    docker compose exec app php artisan key:generate
-   docker compose exec app php artisan migrate --seed --no-interaction
+   docker compose exec -e DB_USERNAME="$DB_MIGRATOR_USERNAME" \
+     -e DB_PASSWORD="$DB_MIGRATOR_PASSWORD" app php artisan migrate --seed --no-interaction
    npm run build
+   ```
+
+   If the database volume already existed before this script was added, create
+   the migration user manually:
+
+   ```bash
+   docker compose exec -T db bash /docker-entrypoint-initdb.d/01-create-migrator.sh
    ```
 
 4. Harden the database grants for the audit log.
 
-   Docker creates the application database user with full privileges on the
-   whole database, which also allows `UPDATE` and `DELETE` on `audit_logs`.
-   Run the grant script after `migrate` to restrict that table's row data to
-   `SELECT` and `INSERT`:
+   Docker grants the application user full privileges on the whole database,
+   including DDL. That would allow `UPDATE`, `DELETE`, `TRUNCATE`, `ALTER`, and
+   `DROP` on `audit_logs`, so the audit trail could be destroyed with runtime
+   credentials. Run the grant script after `migrate`:
 
    ```bash
    docker cp docker/mysql/harden-audit-log.sql plnjbt_db:/tmp/harden.sql
@@ -87,18 +99,19 @@ Provide a maintainable internal dashboard that reduces manual reporting work and
    otherwise the new table has no privileges. The script is safe to run
    repeatedly.
 
-   **What this does and does not protect.** The script locks row data: the
-   application user can no longer `UPDATE` or `DELETE` audit rows. It does
-   **not** protect the table structure. Because migrations need DDL grants
-   across the whole database, the application user can still run `TRUNCATE`,
-   `ALTER TABLE`, and `DROP TABLE` on `audit_logs`, which would destroy the
-   audit trail entirely. Closing that gap requires a separate migration user
-   with DDL rights and an application user without them.
+   **Two users, two roles.** The script gives the application user DML only,
+   with no DDL at all:
 
-   Do not describe this audit log as "append-only at both layers" until the
-   migration user is split out. The accurate statement today is: row-level
-   `UPDATE`/`DELETE` are blocked in the database, while the table structure
-   and its contents can still be destroyed with application credentials.
+   | User | Rights | Used by |
+   | --- | --- | --- |
+   | `dashboard_migrator` | Full privileges on the database, including DDL | `php artisan migrate` only |
+   | `dashboard_app` | DML per table; `audit_logs` limited to `SELECT` and `INSERT` | The running application |
+
+   With no DDL, `TRUNCATE`, `ALTER TABLE`, and `DROP TABLE` on `audit_logs`
+   are all rejected for the application user, so the audit trail can no longer
+   be destroyed from runtime credentials. The CI job `db-grants` asserts this,
+   and also asserts that `migrate:fresh` fails when run with the application
+   user.
 
 5. Open [http://localhost:8000](http://localhost:8000).
 
@@ -117,6 +130,10 @@ checks below.
 docker compose exec -T db mysql -udashboard_app -ppassword dashboard \
   -e "UPDATE audit_logs SET action='x' WHERE id=1;"
 
+# Must also fail (no DDL for the application user):
+docker compose exec -T db mysql -udashboard_app -ppassword dashboard \
+  -e "TRUNCATE TABLE audit_logs;"
+
 # Must succeed:
 docker compose exec -T db mysql -udashboard_app -ppassword dashboard \
   -e "SELECT COUNT(*) FROM audit_logs;"
@@ -126,10 +143,10 @@ docker compose exec -T db mysql -udashboard_app -ppassword dashboard \
 
 Authorization is enforced on the backend through granular permissions. Dashboard Editors are read-only for data, while Division Staff may change only their own division's data.
 
-Audit log protection is partial, and the limits matter:
+Audit log protection, layer by layer:
 - Row changes through the model: blocked. Single records throw `LogicException` on `update()`/`delete()`, and every bulk path (`update`, `upsert`, `updateFrom`, `touch`, `increment`, `decrement`, `incrementEach`, `decrementEach`, `delete`, `forceDelete`) is rejected by `App\Models\Builders\AuditLogBuilder`. Adding rows is still allowed: append-only means rows may be appended, not changed.
-- Row data at the database level: blocked. The hardened grants stop the application user from running `UPDATE` or `DELETE` on `audit_logs`.
-- Table structure: **not** protected. The application user can still run `TRUNCATE`, `ALTER TABLE`, and `DROP TABLE` on `audit_logs`, because migrations need DDL grants across the database.
+- Row data at the database level: blocked. The hardened grants limit the application user to `SELECT` and `INSERT` on `audit_logs`.
+- Table structure: blocked. The application user has no DDL rights, so `TRUNCATE`, `ALTER TABLE`, and `DROP TABLE` on `audit_logs` are rejected. Migration runs as `dashboard_migrator`, a separate user that holds the DDL rights.
 - Deleting a user is safe: `audit_logs.user_id` becomes `NULL` and the audit rows remain.
 
-So the audit trail is not yet append-only at both layers. Do not claim it is until the migration user is separated from the application user.
+The CI job `db-grants` asserts all of the above, plus that `migrate:fresh` fails when attempted with the application user. Note that the PHPUnit suite runs on in-memory SQLite and therefore cannot cover any of these MySQL grant rules.
