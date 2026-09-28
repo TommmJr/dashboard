@@ -202,6 +202,52 @@ class AssetStockReportTest extends TestCase
         $this->assertTrue($report['totals']->isEmpty());
     }
 
+    public function test_total_per_upt_menjumlahkan_dua_dataset_ready_pada_periode_dan_divisi_sama(): void
+    {
+        // BEHAVIOR LOCK, bukan aturan bisnis. Production code saat ini
+        // menjumlahkan SEMUA baris ASET dari dataset berstatus READY pada
+        // periode terbaru, tanpa pembatas "satu dataset aktif per periode".
+        // Akibatnya dua dataset READY pada divisi + periode yang sama ikut
+        // teragregasi. Test ini merekam perilaku itu apa adanya supaya
+        // perubahan perilaku di masa depan terlihat, bukan disembunyikan.
+        // Nilai sintetis 5 + 7 (bukan angka bisnis).
+        $division = Division::factory()->create();
+
+        $datasetA = Dataset::factory()->create([
+            'division_id' => $division->id,
+            'status' => Dataset::STATUS_READY,
+        ]);
+        $datasetB = Dataset::factory()->create([
+            'division_id' => $division->id,
+            'status' => Dataset::STATUS_READY,
+        ]);
+
+        $row = fn (Dataset $dataset, float $value) => PerformanceMetric::factory()->create([
+            'metric_name' => 'ASET | BEKASI | BEKASI | Trafo 500/150 KV | Bank',
+            'dataset_id' => $dataset->id,
+            'division_id' => $division->id,
+            'period' => '2026-01-31',
+            'value' => $value,
+        ]);
+
+        $row($datasetA, 5);
+        $row($datasetB, 7);
+
+        // Sanity check fixture: benar ada dua dataset READY di divisi yang sama.
+        $this->assertSame(2, Dataset::where('division_id', $division->id)
+            ->where('status', Dataset::STATUS_READY)
+            ->count());
+
+        $report = app(AssetStockReport::class)->totalsByUpt();
+
+        // 5 + 7 = 12: kedua dataset ikut terjumlah karena tidak ada
+        // pemisahan per dataset di query agregasi.
+        $this->assertSame('2026-01-31', $report['period']);
+        $this->assertSame([
+            ['upt' => 'BEKASI', 'attribute' => 'Trafo 500/150 KV | Bank', 'total' => 12.0],
+        ], $report['totals']->map(fn ($t) => ['upt' => $t->upt, 'attribute' => $t->attribute, 'total' => $t->total])->all());
+    }
+
     /**
      * @param  list<array{0: string, 1: string, 2: string, 3: float}>  $rows
      */
