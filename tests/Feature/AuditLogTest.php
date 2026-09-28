@@ -129,26 +129,84 @@ class AuditLogTest extends TestCase
         ]);
     }
 
-    public function test_entri_audit_tidak_bisa_diubah_atau_dihapus(): void
+    public function test_entri_audit_tidak_bisa_diubah_lewat_instance(): void
     {
         $log = AuditLog::record(AuditLog::ACTION_LOGIN);
 
-        $this->expectException(LogicException::class);
-        try {
-            $log->update(['action' => 'X']);
-        } finally {
-            // Pastikan delete juga dilempar, dengan assertion terpisah.
-        }
-
-        $fresh = AuditLog::find($log->id);
         $thrown = false;
         try {
-            $fresh->delete();
+            $log->update(['action' => 'X']);
         } catch (LogicException) {
             $thrown = true;
         }
-        $this->assertTrue($thrown);
+
+        $this->assertTrue($thrown, 'instance update harus melempar LogicException');
+        $this->assertDatabaseHas('audit_logs', [
+            'id' => $log->id,
+            'action' => AuditLog::ACTION_LOGIN,
+        ]);
+    }
+
+    public function test_entri_audit_tidak_bisa_dihapus_lewat_instance(): void
+    {
+        $log = AuditLog::record(AuditLog::ACTION_LOGIN);
+
+        $thrown = false;
+        try {
+            $log->delete();
+        } catch (LogicException) {
+            $thrown = true;
+        }
+
+        $this->assertTrue($thrown, 'instance delete harus melempar LogicException');
         $this->assertDatabaseHas('audit_logs', ['id' => $log->id]);
+    }
+
+    /**
+     * GAP PRODUCTION — didokumentasikan apa adanya, TIDAK diperbaiki di sini.
+     *
+     * Hook Eloquent `updating` pada AuditLog::booted() tidak dipicu oleh
+     * operasi massal lewat query builder, sehingga mass update BERHASIL
+     * mengubah entri audit tanpa LogicException.
+     */
+    public function test_mass_update_menembus_guard_dan_terdokumentasi_sebagai_gap(): void
+    {
+        $log = AuditLog::record(AuditLog::ACTION_LOGIN);
+
+        $thrown = false;
+        try {
+            AuditLog::query()->update(['action' => 'MASS_TAMPERED']);
+        } catch (LogicException) {
+            $thrown = true;
+        }
+
+        // Fakta saat ini: tidak ada exception, dan data benar-benar berubah.
+        $this->assertFalse($thrown, 'hook updating tidak menangkap operasi massal');
+        $this->assertDatabaseHas('audit_logs', [
+            'id' => $log->id,
+            'action' => 'MASS_TAMPERED',
+        ]);
+    }
+
+    /**
+     * GAP PRODUCTION — didokumentasikan apa adanya, TIDAK diperbaiki di sini.
+     *
+     * Sama seperti mass update: hook `deleting` tidak menangkap mass delete,
+     * sehingga entri audit bisa dihapus seluruhnya tanpa perlawanan.
+     */
+    public function test_mass_delete_menembus_guard_dan_terdokumentasi_sebagai_gap(): void
+    {
+        $log = AuditLog::record(AuditLog::ACTION_LOGIN);
+
+        $thrown = false;
+        try {
+            AuditLog::query()->delete();
+        } catch (LogicException) {
+            $thrown = true;
+        }
+
+        $this->assertFalse($thrown, 'hook deleting tidak menangkap operasi massal');
+        $this->assertDatabaseMissing('audit_logs', ['id' => $log->id]);
     }
 
     public function test_halaman_audit_200_untuk_berhak_dan_403_untuk_staf(): void
