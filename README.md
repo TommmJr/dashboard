@@ -13,7 +13,7 @@ Provide a maintainable internal dashboard that reduces manual reporting work and
 ## Current Scope
 
 - Session authentication and granular RBAC for Admin, Management, Dashboard Editor, and Division Staff.
-- Excel/CSV dataset import, FATAL/WARNING validation, archiving, and append-only audit logs.
+- Excel/CSV dataset import, FATAL/WARNING validation, archiving, and an audit log whose row data is append-only at the database level (see the grant limits below).
 - One-click hierarchical KPI report import. Valid unit sheets are stored under the canonical `Perencanaan Pengusahaan` data owner (`perencanaan-pengusahaan`).
 - KPI/NKO dashboard charts and rankings powered by Apache ECharts.
 - Dashboard filters for date ranges and multiple units through `start_date`, `end_date`, and `unit[]`.
@@ -69,11 +69,11 @@ Provide a maintainable internal dashboard that reduces manual reporting work and
    npm run build
    ```
 
-4. Harden the database grants for the append-only audit log.
+4. Harden the database grants for the audit log.
 
    Docker creates the application database user with full privileges on the
    whole database, which also allows `UPDATE` and `DELETE` on `audit_logs`.
-   Run the grant script after `migrate` to restrict that table to
+   Run the grant script after `migrate` to restrict that table's row data to
    `SELECT` and `INSERT`:
 
    ```bash
@@ -86,6 +86,19 @@ Provide a maintainable internal dashboard that reduces manual reporting work and
    in `.env`. Run the script again whenever a migration adds a new table,
    otherwise the new table has no privileges. The script is safe to run
    repeatedly.
+
+   **What this does and does not protect.** The script locks row data: the
+   application user can no longer `UPDATE` or `DELETE` audit rows. It does
+   **not** protect the table structure. Because migrations need DDL grants
+   across the whole database, the application user can still run `TRUNCATE`,
+   `ALTER TABLE`, and `DROP TABLE` on `audit_logs`, which would destroy the
+   audit trail entirely. Closing that gap requires a separate migration user
+   with DDL rights and an application user without them.
+
+   Do not describe this audit log as "append-only at both layers" until the
+   migration user is split out. The accurate statement today is: row-level
+   `UPDATE`/`DELETE` are blocked in the database, while the table structure
+   and its contents can still be destroyed with application credentials.
 
 5. Open [http://localhost:8000](http://localhost:8000).
 
@@ -111,8 +124,12 @@ docker compose exec -T db mysql -udashboard_app -ppassword dashboard \
 
 ## Security and Access
 
-Authorization is enforced on the backend through granular permissions. Dashboard Editors are read-only for data, while Division Staff may change only their own division's data. Audit logs are append-only at both the application and database layers.
+Authorization is enforced on the backend through granular permissions. Dashboard Editors are read-only for data, while Division Staff may change only their own division's data.
 
-## Project Status
+Audit log protection is partial, and the limits matter:
+- Row data: blocked. The hardened grants stop the application user from running `UPDATE` or `DELETE` on `audit_logs`.
+- Row deletion through the model: blocked for single records (`LogicException`), but **not** for bulk operations. `AuditLog::query()->update()` and `query()->delete()` bypass the model hooks. This is a known gap with a regression test in place; the fix is not implemented yet.
+- Table structure: **not** protected. The application user can still run `TRUNCATE`, `ALTER TABLE`, and `DROP TABLE` on `audit_logs`, because migrations need DDL grants across the database.
+- Deleting a user is safe: `audit_logs.user_id` becomes `NULL` and the audit rows remain.
 
-The core MVP and dashboard filtering phase are complete. `progress.md` is the source of truth for implementation status; the local `Obsidian/` vault contains supporting requirements and design notes.
+So the audit trail is not yet append-only at both layers. Do not claim it is until the migration user is separated from the application user.
