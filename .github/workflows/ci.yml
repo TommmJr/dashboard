@@ -171,6 +171,37 @@ jobs:
       - name: Assert audit log grants
         run: bash .github/scripts/assert-audit-grants.sh
 
+      # Membuktikan detektor tabel-tanpa-grant benar-benar bisa merah. Tanpa
+      # langkah ini, assertion di atas hanya "hijau karena tidak ada masalah",
+      # yang tidak membuktikan detektornya bekerja.
+      - name: Verify grant detector catches an unregistered table
+        run: |
+          set -e
+
+          mysql -h 127.0.0.1 -P 3306 -uroot -p"$DB_ROOT_PASSWORD" "$DB_DATABASE" \
+            -e "CREATE TABLE ci_grant_detector_probe (id INT);"
+
+          set +e
+          output="$(bash .github/scripts/assert-audit-grants.sh 2>&1)"
+          status=$?
+          set -e
+
+          mysql -h 127.0.0.1 -P 3306 -uroot -p"$DB_ROOT_PASSWORD" "$DB_DATABASE" \
+            -e "DROP TABLE ci_grant_detector_probe;"
+
+          if [ "$status" -eq 0 ]; then
+            echo "FAIL: detektor tidak menangkap tabel tanpa grant."
+            exit 1
+          fi
+
+          if ! grep -q "ci_grant_detector_probe" <<<"$output"; then
+            echo "FAIL: detektor gagal, tapi tidak menyebut nama tabelnya."
+            echo "$output" | tail -n 20
+            exit 1
+          fi
+
+          echo "PASS: detektor menangkap tabel tanpa grant dan menyebut namanya."
+
       # Membuktikan pemisahan user benar-benar berlaku: migration HARUS gagal
       # dengan kredensial aplikasi, karena user aplikasi tidak punya DDL.
       - name: Assert migration rejected for app user

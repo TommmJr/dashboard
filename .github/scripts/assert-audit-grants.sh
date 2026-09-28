@@ -31,6 +31,11 @@ set -uo pipefail
 : "${DB_PASSWORD:?DB_PASSWORD wajib diisi}"
 DB_PORT="${DB_PORT:-3306}"
 
+# Root hanya dipakai untuk deteksi tabel-tanpa-grant. Lihat catatan di
+# langkah 0: user aplikasi TIDAK BISA melihat tabel yang belum dia punya
+# haknya, jadi deteksi dari sudut pandang user aplikasi selalu lolos palsu.
+DB_ROOT_PASSWORD="${DB_ROOT_PASSWORD:-}"
+
 MYSQL_BASE=(mysql --protocol=TCP -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USERNAME" "-p$DB_PASSWORD" "$DB_DATABASE")
 
 failures=0
@@ -43,7 +48,62 @@ run_sql() {
     -u "$DB_USERNAME" --skip-column-names "$DB_DATABASE" -e "$1" 2>&1
 }
 
+# Query sebagai root (privileged), untuk hal yang tidak terlihat user aplikasi.
+run_sql_root() {
+  MYSQL_PWD="$DB_ROOT_PASSWORD" mysql --protocol=TCP -h "$DB_HOST" -P "$DB_PORT" \
+    -uroot --skip-column-names "$DB_DATABASE" -e "$1" 2>&1
+}
+
 echo "== audit log grant assertions =="
+
+# 0. Setiap tabel harus punya grant eksplisit untuk user aplikasi.
+#
+# Grant di harden-audit-log.sql didaftarkan PER TABEL, jadi tabel yang lahir
+# dari migration baru TIDAK otomatis mendapat hak akses. Tanpa assertion ini,
+# tabel baru membuat aplikasi gagal diam-diam saat runtime ("command denied"),
+# bukan saat migrate. Lebih baik CI yang menangkapnya di sini.
+#
+# Catatan desain: ini DETEKTOR, bukan generator GRANT otomatis. Tabel baru
+# harus ditinjau manusia sebelum diberi hak — memberi UPDATE/DELETE otomatis
+# ke tabel apa pun justru berbahaya.
+#
+# JALANKAN SEBAGAI ROOT, BUKAN USER APLIKASI. MySQL menyembunyikan tabel yang
+# tidak dimiliki user dari information_schema, jadi user aplikasi hanya
+# melihat tabel yang SUDAH punya grant — deteksi dari sudut pandangnya
+# selalu melaporkan "semua aman". Dibuktikan 2026-09-28: root melihat 17
+# tabel, dashboard_app hanya 16, dan tabel tanpa grant itulah yang hilang.
+#
+# Nama schema ditulis LITERAL, bukan DATABASE(): di subquery
+# information_schema.table_privileges, DATABASE() tidak terikat ke schema
+# yang dituju dan query mengembalikan hasil kosong.
+if [ -z "$DB_ROOT_PASSWORD" ]; then
+  echo "FAIL: DB_ROOT_PASSWORD wajib diisi untuk deteksi tabel tanpa grant."
+  failures=$((failures + 1))
+else
+  missing_out="$(run_sql_root "SELECT t.table_name FROM information_schema.tables t WHERE t.table_schema = '${DB_DATABASE}' AND t.table_name NOT IN (SELECT p.table_name FROM information_schema.table_privileges p WHERE p.grantee = CONCAT(CHAR(39), '${DB_USERNAME}', CHAR(39), '@', CHAR(39), '%', CHAR(39)) AND p.table_schema = '${DB_DATABASE}') ORDER BY t.table_name;")"
+
+  # Kalau query gagal (mis. syntax error), JANGAN lanjut dengan daftar kosong:
+  # itu menghasilkan PASS palsu. Laporkan sebagai kegagalan assertion.
+  if grep -qE '^ERROR' <<<"$missing_out"; then
+    echo "FAIL: query pendaftaran grant gagal dijalankan:"
+    echo "        ${missing_out}"
+    failures=$((failures + 1))
+  fi
+
+  # Buang peringatan/banner mysql: sisakan nama tabel saja.
+  missing_tables="$(grep -E '^[A-Za-z0-9_]+$' <<<"$missing_out" | grep -v '^table_name$' || true)"
+
+  if [ -n "$missing_tables" ]; then
+    echo "FAIL: tabel berikut belum punya grant untuk '${DB_USERNAME}':"
+    while IFS= read -r table; do
+      echo "        - ${table}"
+    done <<<"$missing_tables"
+    echo "      Tambahkan GRANT untuk tabel itu di docker/mysql/harden-audit-log.sql."
+    failures=$((failures + 1))
+  else
+    echo "PASS: semua tabel punya grant eksplisit untuk '${DB_USERNAME}'"
+  fi
+fi
 
 # 1. UPDATE harus DITOLAK (ERROR 1142).
 update_out="$(run_sql "UPDATE audit_logs SET action = 'x' WHERE id = -1;")"
