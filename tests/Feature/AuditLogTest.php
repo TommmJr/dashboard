@@ -14,6 +14,7 @@ use Illuminate\Http\UploadedFile;
 use LogicException;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 /**
@@ -163,13 +164,14 @@ class AuditLogTest extends TestCase
     }
 
     /**
-     * GAP PRODUCTION — didokumentasikan apa adanya, TIDAK diperbaiki di sini.
+     * Jalur massal ditutup oleh AuditLogBuilder (P0-4d).
      *
-     * Hook Eloquent `updating` pada AuditLog::booted() tidak dipicu oleh
-     * operasi massal lewat query builder, sehingga mass update BERHASIL
-     * mengubah entri audit tanpa LogicException.
+     * Builder bawaan Eloquent menulis lewat toBase() sehingga event
+     * `updating` tidak menyala untuk operasi bulk; override di builder itulah
+     * yang menutupnya. Test ini sebelumnya canary yang membuktikan bypass —
+     * sekarang menuntut penolakan.
      */
-    public function test_mass_update_menembus_guard_dan_terdokumentasi_sebagai_gap(): void
+    public function test_mass_update_ditolak(): void
     {
         $log = AuditLog::record(AuditLog::ACTION_LOGIN);
 
@@ -180,21 +182,20 @@ class AuditLogTest extends TestCase
             $thrown = true;
         }
 
-        // Fakta saat ini: tidak ada exception, dan data benar-benar berubah.
-        $this->assertFalse($thrown, 'hook updating tidak menangkap operasi massal');
+        $this->assertTrue($thrown, 'mass update harus melempar LogicException');
         $this->assertDatabaseHas('audit_logs', [
             'id' => $log->id,
-            'action' => 'MASS_TAMPERED',
+            'action' => AuditLog::ACTION_LOGIN,
         ]);
     }
 
     /**
-     * GAP PRODUCTION — didokumentasikan apa adanya, TIDAK diperbaiki di sini.
+     * Jalur massal ditutup oleh AuditLogBuilder (P0-4d).
      *
-     * Sama seperti mass update: hook `deleting` tidak menangkap mass delete,
-     * sehingga entri audit bisa dihapus seluruhnya tanpa perlawanan.
+     * Sama seperti mass update: override delete() di builder menolak
+     * penghapusan massal, sehingga entri audit tidak bisa dimusnahkan.
      */
-    public function test_mass_delete_menembus_guard_dan_terdokumentasi_sebagai_gap(): void
+    public function test_mass_delete_ditolak(): void
     {
         $log = AuditLog::record(AuditLog::ACTION_LOGIN);
 
@@ -205,8 +206,84 @@ class AuditLogTest extends TestCase
             $thrown = true;
         }
 
-        $this->assertFalse($thrown, 'hook deleting tidak menangkap operasi massal');
-        $this->assertDatabaseMissing('audit_logs', ['id' => $log->id]);
+        $this->assertTrue($thrown, 'mass delete harus melempar LogicException');
+        $this->assertDatabaseHas('audit_logs', ['id' => $log->id]);
+    }
+
+    /**
+     * Protokol lengkap jalur massal yang menulis tanpa model event.
+     *
+     * Dipetakan dari Eloquent\Builder: setiap method di bawah memakai
+     * toBase()/$this->query langsung. forceDelete() khusus, karena memakai
+     * $this->query->delete() dan TIDAK lewat toBase() — sempat lolos saat
+     * override hanya menutup update()/delete().
+     *
+     * @return array<string, array{0: \Closure}>
+     */
+    public static function jalurMassalProvider(): array
+    {
+        return [
+            'update' => [fn () => AuditLog::query()->update(['action' => 'x'])],
+            'where update' => [fn () => AuditLog::where('action', AuditLog::ACTION_LOGIN)->update(['action' => 'x'])],
+            'upsert' => [fn () => AuditLog::query()->upsert([['action' => 'x']], ['id'], ['action'])],
+            'touch' => [fn () => AuditLog::query()->touch('created_at')],
+            'increment' => [fn () => AuditLog::query()->increment('id')],
+            'decrement' => [fn () => AuditLog::query()->decrement('id')],
+            'incrementEach' => [fn () => AuditLog::query()->incrementEach(['id' => 1])],
+            'decrementEach' => [fn () => AuditLog::query()->decrementEach(['id' => 1])],
+            'delete' => [fn () => AuditLog::query()->delete()],
+            'where delete' => [fn () => AuditLog::where('action', AuditLog::ACTION_LOGIN)->delete()],
+            'forceDelete' => [fn () => AuditLog::query()->forceDelete()],
+        ];
+    }
+
+    /**
+     * @param  \Closure(): mixed  $call
+     */
+    #[DataProvider('jalurMassalProvider')]
+    public function test_semua_jalur_massal_ditolak(\Closure $call): void
+    {
+        $log = AuditLog::record(AuditLog::ACTION_LOGIN);
+
+        $thrown = false;
+        $other = null;
+        try {
+            $call();
+        } catch (LogicException) {
+            $thrown = true;
+        } catch (\Throwable $e) {
+            $other = $e::class.': '.$e->getMessage();
+        }
+
+        $this->assertTrue(
+            $thrown,
+            $other === null
+                ? 'jalur massal harus melempar LogicException'
+                : 'melempar exception lain yang tidak diharapkan -> '.$other
+        );
+
+        $this->assertDatabaseHas('audit_logs', [
+            'id' => $log->id,
+            'action' => AuditLog::ACTION_LOGIN,
+        ]);
+    }
+
+    /**
+     * Guard massal TIDAK boleh ikut memblokir jalur tulis yang sah.
+     * Append-only berarti entri boleh ditambah, hanya tidak boleh diubah.
+     */
+    public function test_jalur_tulis_sah_tetap_jalan(): void
+    {
+        // record() + create() tetap boleh menambah entri.
+        $a = AuditLog::record(AuditLog::ACTION_LOGIN);
+        $b = AuditLog::create(['action' => AuditLog::ACTION_LOGOUT]);
+
+        $this->assertTrue($a->exists);
+        $this->assertTrue($b->exists);
+
+        // Baca tetap jalan.
+        $this->assertSame(1, AuditLog::where('action', AuditLog::ACTION_LOGIN)->count());
+        $this->assertNotNull(AuditLog::query()->first());
     }
 
     public function test_halaman_audit_200_untuk_berhak_dan_403_untuk_staf(): void

@@ -2,7 +2,9 @@
 
 namespace App\Models;
 
+use App\Models\Builders\AuditLogBuilder;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\UseEloquentBuilder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -13,9 +15,16 @@ use LogicException;
  * Audit log append-only.
  *
  * - Tidak ada updated_at: entri hanya dibuat, tidak pernah diubah.
- * - update()/delete() dilempar LogicException supaya jalur "perubahan
- *   tanpa jejak" mustahil lewat model (prinsip audit mentor).
+ * - Jalur INSTANCE: update()/delete() di-override jadi `never` dan melempar
+ *   LogicException.
+ * - Jalur MASSAL: ditangani AuditLogBuilder (lihat atribut
+ *   UseEloquentBuilder). Builder bawaan Eloquent memanggil toBase() langsung
+ *   sehingga event updating/deleting tidak menyala untuk operasi bulk; override
+ *   di builder itulah yang menutupnya.
+ * - Lapisan terakhir tetap grant DB (docker/mysql/harden-audit-log.sql), karena
+ *   DB::table() tidak bisa dijangkau dari model maupun builder.
  */
+#[UseEloquentBuilder(AuditLogBuilder::class)]
 #[Fillable(['user_id', 'action', 'auditable_type', 'auditable_id', 'old_values', 'new_values', 'ip', 'user_agent', 'created_at'])]
 class AuditLog extends Model
 {
@@ -87,8 +96,9 @@ class AuditLog extends Model
     }
 
     /**
-     * Boot: blokir mass update/delete via Eloquent Builder (selain
-     * instance method). DB::table() masih perlu dilindungi di level DB.
+     * Boot: blokir update/delete lewat event model (jalur instance dan
+     * save()). Operasi MASSAL tidak lewat sini — lihat AuditLogBuilder.
+     * DB::table() tetap perlu dilindungi di level DB.
      */
     protected static function booted(): void
     {
