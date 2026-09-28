@@ -69,12 +69,44 @@ Provide a maintainable internal dashboard that reduces manual reporting work and
    npm run build
    ```
 
-4. Open [http://localhost:8000](http://localhost:8000).
+4. Harden the database grants for the append-only audit log.
+
+   Docker creates the application database user with full privileges on the
+   whole database, which also allows `UPDATE` and `DELETE` on `audit_logs`.
+   Run the grant script after `migrate` to restrict that table to
+   `SELECT` and `INSERT`:
+
+   ```bash
+   docker cp docker/mysql/harden-audit-log.sql plnjbt_db:/tmp/harden.sql
+   docker compose exec -T db bash -c \
+     "mysql -uroot -pchange_this_in_production < /tmp/harden.sql"
+   ```
+
+   Replace the root password with your own `DB_ROOT_PASSWORD` if you set one
+   in `.env`. Run the script again whenever a migration adds a new table,
+   otherwise the new table has no privileges. The script is safe to run
+   repeatedly.
+
+5. Open [http://localhost:8000](http://localhost:8000).
 
 ## Testing
 
 ```bash
 docker compose exec app php artisan test --compact
+```
+
+Note: the test suite runs against an in-memory SQLite database, so it does
+not exercise MySQL grants. Verify the audit log hardening manually with the
+checks below.
+
+```bash
+# Must fail with ERROR 1142 (command denied):
+docker compose exec -T db mysql -udashboard_app -ppassword dashboard \
+  -e "UPDATE audit_logs SET action='x' WHERE id=1;"
+
+# Must succeed:
+docker compose exec -T db mysql -udashboard_app -ppassword dashboard \
+  -e "SELECT COUNT(*) FROM audit_logs;"
 ```
 
 ## Security and Access
