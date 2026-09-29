@@ -36,6 +36,22 @@ class AuthTest extends TestCase
         $this->assertAuthenticatedAs($user);
     }
 
+    // Fallback route: pengunjung tanpa login diarahkan ke halaman login.
+    public function test_alamat_tidak_dikenal_diarahkan_ke_login_saat_guest(): void
+    {
+        $this->get('/halaman-tidak-ada')->assertRedirect(route('login'));
+    }
+
+    // Fallback route: user yang sudah login tidak dilempar balik ke login.
+    public function test_alamat_tidak_dikenal_diarahkan_ke_dashboard_saat_login(): void
+    {
+        $user = User::factory()->create();
+
+        $this->actingAs($user)
+            ->get('/halaman-tidak-ada')
+            ->assertRedirect(route('dashboard'));
+    }
+
     // Test that a user cannot log in with invalid credentials
     public function test_user_cannot_login_with_invalid_credentials(): void
     {

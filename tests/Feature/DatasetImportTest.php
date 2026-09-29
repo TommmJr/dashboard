@@ -74,6 +74,7 @@ class DatasetImportTest extends TestCase
     public function test_upload_sukses_dataset_ready_dan_baris_masuk(): void
     {
         $file = $this->makeXlsx($this->validRows());
+        $fileSize = $file->getSize();
 
         $response = $this->actingAs($this->staff)->post(route('datasets.store'), ['file' => $file]);
 
@@ -84,6 +85,12 @@ class DatasetImportTest extends TestCase
         $this->assertSame($this->division->id, $dataset->division_id);
         $this->assertSame($this->staff->id, $dataset->user_id);
         $this->assertSame('laporan.xlsx', $dataset->original_name);
+
+        // Metadata penyimpanan: nama file tersimpan (dipakai delete/export),
+        // ukuran asli, dan mime yang terdeteksi harus terisi.
+        $this->assertMatchesRegularExpression('/^[A-Za-z0-9]{32}\.xlsx$/', $dataset->filename);
+        $this->assertSame($fileSize, $dataset->size);
+        $this->assertNotEmpty($dataset->mime_type);
 
         $this->assertSame(2, $dataset->metrics()->count());
         $metric = $dataset->metrics()->where('period', '2026-01-31')->sole();

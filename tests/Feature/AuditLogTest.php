@@ -112,15 +112,24 @@ class AuditLogTest extends TestCase
 
     public function test_login_dan_logout_tercatat(): void
     {
-        $this->post(route('login.store'), [
-            'email' => $this->staff->email,
-            'password' => 'password',
-        ]);
+        $this->withHeader('User-Agent', 'phpunit-audit-probe')
+            ->post(route('login.store'), [
+                'email' => $this->staff->email,
+                'password' => 'password',
+            ]);
 
         $this->assertDatabaseHas('audit_logs', [
             'action' => AuditLog::ACTION_LOGIN,
             'user_id' => $this->staff->id,
         ]);
+
+        // Provenance audit: ip dan user_agent diambil dari request aktif,
+        // bukan dibiarkan kosong (dipakai untuk menelusuri asal aksi).
+        $login = AuditLog::where('action', AuditLog::ACTION_LOGIN)
+            ->where('user_id', $this->staff->id)
+            ->sole();
+        $this->assertSame('127.0.0.1', $login->ip);
+        $this->assertSame('phpunit-audit-probe', $login->user_agent);
 
         $this->actingAs($this->staff)->post(route('logout'));
 
