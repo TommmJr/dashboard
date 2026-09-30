@@ -107,6 +107,9 @@
             chart: null,
             error: '',
             units: [],
+            periodLabels: [],
+            chartPeriodCount: 0,
+            chartUnitCount: 0,
             filters: {
                 start_date: '',
                 end_date: '',
@@ -115,6 +118,21 @@
 
             formatNumber(value) {
                 return new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 }).format(value);
+            },
+
+            // ponytail: subjudul mengikuti jumlah periode yang BENAR-BENAR ada.
+            // 1 periode = snapshot (bukan tren); >1 periode = tren. Batas ini
+            // cukup sampai agregasi bulanan riil tersedia.
+            chartSubtitle() {
+                if (this.loading || this.empty) {
+                    return '';
+                }
+
+                if (this.chartPeriodCount <= 1) {
+                    return `Snapshot ${this.chartUnitCount} unit — ${this.periodLabels[0] ?? ''}`;
+                }
+
+                return `Tren ${this.chartPeriodCount} periode — ${this.periodLabels[0]} s.d. ${this.periodLabels[this.periodLabels.length - 1]}`;
             },
 
             hasFilters() {
@@ -182,6 +200,9 @@
                     }
                     this.kpi = payload.kpi;
                     this.empty = payload.labels.length === 0;
+                    this.periodLabels = payload.labels;
+                    this.chartPeriodCount = payload.labels.length;
+                    this.chartUnitCount = payload.series.length;
 
                     if (!this.empty) {
                         this.$nextTick(() => this.renderChart(payload));
@@ -200,21 +221,28 @@
                 if (this.chart) { this.chart.dispose(); }
                 this.chart = window.echarts.init(el);
 
-                // Setiap divisi: satu bar series; series pertama juga
-                // digambar ulang sebagai line untuk menunjukkan trend.
                 const barSeries = payload.series.map((s, i) => ({
                     name: s.name,
                     type: 'bar',
                     data: s.data,
                     itemStyle: { color: palette[i % palette.length] },
                 }));
-                const lineSeries = payload.series.slice(0, 1).map((s) => ({
-                    name: s.name + ' (trend)',
-                    type: 'line',
-                    smooth: true,
-                    data: s.data,
-                    itemStyle: { color: '#0b6175' },
-                }));
+
+                // ponytail: garis "tren" HANYA digambar kalau ada >1 periode.
+                // Dengan 1 periode, garis hanya mengikuti satu unit pertama
+                // dan terbaca seperti bug; snapshot cukup ditampilkan sebagai
+                // bar per unit. Begitu periode kedua masuk, tren otomatis
+                // muncul tanpa perubahan kode lagi.
+                const hasTrend = payload.labels.length > 1;
+                const lineSeries = hasTrend
+                    ? payload.series.slice(0, 1).map((s) => ({
+                        name: s.name + ' (trend)',
+                        type: 'line',
+                        smooth: true,
+                        data: s.data,
+                        itemStyle: { color: '#0b6175' },
+                    }))
+                    : [];
 
                 this.chart.setOption({
                     tooltip: { trigger: 'axis' },

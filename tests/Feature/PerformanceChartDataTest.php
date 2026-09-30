@@ -221,6 +221,18 @@ class PerformanceChartDataTest extends TestCase
             ->assertSee(route('performance.data'), false);
     }
 
+    public function test_widget_tren_punya_subjudul_dinamis(): void
+    {
+        // Subjudul mengikuti jumlah periode yang nyata (snapshot vs tren),
+        // supaya "grafik tren" tidak mengklaim tren saat data cuma 1 periode.
+        $user = User::factory()->withRole(Role::MANAGEMENT)->create();
+
+        $this->actingAs($user)->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('chartSubtitle()', false)
+            ->assertSee('chartPeriodCount', false);
+    }
+
     public function test_y_axis_min_dihitung_dinamis_dari_nko_terendah(): void
     {
         // NKO terendah 95 -> margin 5 -> (95-5)/5=18 -> floor*5=90.

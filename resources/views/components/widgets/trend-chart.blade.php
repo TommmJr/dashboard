@@ -2,7 +2,11 @@
 
 {{-- Area chart ECharts --}}
 <div class="rounded-lg bg-white p-6 shadow">
-    <h3 class="text-lg font-bold text-primary">{{ $widget['label'] ?? 'Grafik Tren Kinerja' }}</h3>
+    <div class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <h3 class="text-lg font-bold text-primary">{{ $widget['label'] ?? 'Grafik Tren Kinerja' }}</h3>
+        {{-- Subjudul dinamis: jujur soal jumlah periode yang tersedia. --}}
+        <p class="text-sm text-slate-500" x-text="chartSubtitle()" x-cloak></p>
+    </div>
 
     <div x-show="loading" class="mt-6 flex h-80 items-center justify-center text-sm text-gray-500 sm:h-96 lg:h-[32rem]">
         Memuat data chart...
