@@ -32,10 +32,14 @@ return [
         'kpi-summary' => ['label' => 'Ringkasan KPI',      'view' => 'widgets.kpi-summary',          'permission' => null],
         'trend-chart' => ['label' => 'Grafik Tren Kinerja', 'view' => 'widgets.trend-chart',         'permission' => null],
         'nko-ranking' => ['label' => 'Peringkat NKO Unit',   'view' => 'widgets.nko-ranking',          'permission' => 'dashboard.view'],
-        // Katalog saja, BELUM dipasang ke layout role mana pun (M2: visual
-        // per UPT confirmed, mounting production masih blocked agar user
-        // nyata tidak melihat grafik berisi data nol). Daftar series
-        // provisional mengikuti data; subset final menunggu data valid.
+        // Katalog saja, TIDAK dipasang ke layout role mana pun. Data Aset
+        // dimiliki divisi Managemen Aset (MANSET), sedangkan layout
+        // `staff_divisi` di-scope ke divisi staf yang login — memasang widget
+        // Aset di sana membuat staf divisi lain hanya melihat empty state.
+        // (Keputusan 2026-09-30: widget dicabut dari `staff_divisi` agar
+        // dashboard divisi bersih; mounting ulang menunggu pekerjaan MANSET.)
+        // Daftar series provisional mengikuti data; subset final menunggu
+        // keputusan MANSET.
         'aset-upt-chart' => ['label' => 'Stok Aset per UPT', 'view' => 'widgets.aset-upt-chart', 'permission' => 'dashboard.view'],
         'recent-audit' => ['label' => 'Audit Terbaru',      'view' => 'widgets.recent-audit',         'permission' => 'audit.view'],
         'failed-datasets' => ['label' => 'Dataset Gagal',      'view' => 'widgets.failed-datasets',      'permission' => 'dataset.view'],
@@ -52,12 +56,16 @@ return [
      * dashboard tiap divisi. nko-ranking HANYA di layout lintas divisi yang
      * memakai KPI (management, editor_dashboard). Peringkat lintas-unit
      * tidak bermakna untuk staf divisi yang scoping datanya satu divisi saja.
+     *
+     * staff_divisi = KPI + tren Kinerja saja. Widget Aset TIDAK dipasang di
+     * sini (keputusan 2026-09-30): datanya milik divisi Managemen Aset, jadi
+     * untuk staf divisi lain widget hanya menampilkan empty state.
      */
     'layouts' => [
         'admin' => ['admin-summary', 'recent-audit', 'failed-datasets', 'admin-quick-actions'],
         'management' => ['kpi-summary', 'trend-chart', 'nko-ranking'],
         'editor_dashboard' => ['kpi-summary', 'trend-chart', 'nko-ranking', 'layout-editor-placeholder'],
-        'staff_divisi' => ['kpi-summary', 'trend-chart', 'aset-upt-chart'],
+        'staff_divisi' => ['kpi-summary', 'trend-chart'],
     ],
 
     // Fallback: role null / slug tidak dikenal -> KPI + chart saja.

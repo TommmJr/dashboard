@@ -14,12 +14,12 @@ use Tests\TestCase;
 /**
  * Widget grafik stok aset per UPT (server-side, snapshot, bar chart).
  *
- * Widget dipasang di layout `staff_divisi`; test mengunci kontrak mounting
- * itu sekaligus scoping divisi: hanya role privileged (Admin, Management,
- * Editor Dashboard) yang melihat lintas divisi, sedangkan Staf Divisi
- * dibatasi ke divisinya sendiri. Render diuji terisolasi via $this->blade(),
- * tanpa route baru; pivot controller (`asetUptChart()`) diuji lewat route
- * dashboard dengan override config layout HANYA di dalam test.
+ * Widget diuji terisolasi via `$this->blade()`, plus scoping divisi lewat route
+ * dashboard. Sejak keputusan 2026-09-30 widget TIDAK lagi dipasang di layout
+ * `staff_divisi` (datanya milik divisi Managemen Aset), sehingga mounting-nya
+ * diuji lewat override config HANYA di dalam test. Kontrak scoping tetap
+ * dikunci: role privileged (Admin, Management, Editor Dashboard) melihat
+ * lintas divisi, Staf Divisi dibatasi ke divisinya sendiri.
  */
 class AsetUptChartWidgetTest extends TestCase
 {
@@ -74,6 +74,8 @@ class AsetUptChartWidgetTest extends TestCase
 
         $staf = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $division->id]);
 
+        $this->mountAsetWidgetForStaffForTest();
+
         $response = $this->actingAs($staf)->get(route('dashboard'))->assertOk();
 
         // Dalam fokus: digambar sebagai series.
@@ -100,6 +102,8 @@ class AsetUptChartWidgetTest extends TestCase
 
         $staf = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $division->id]);
 
+        $this->mountAsetWidgetForStaffForTest();
+
         $this->actingAs($staf)->get(route('dashboard'))->assertOk()
             ->assertSee('Stok Aset per UPT', false)
             ->assertSee('Belum ada data aset.', false)
@@ -114,6 +118,8 @@ class AsetUptChartWidgetTest extends TestCase
         $this->seedAsetRowsFor($asetDivision, '2026-08-31', [
             ['BEKASI', 'BEKASI', 'Trafo 500/150 KV | Bank', 5],
         ]);
+
+        $this->mountAsetWidgetForStaffForTest();
 
         $stafAset = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $asetDivision->id]);
         $stafLain = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $lainDivision->id]);
@@ -198,6 +204,20 @@ class AsetUptChartWidgetTest extends TestCase
             ->assertDontSee('asetUptChart', false);
     }
 
+    public function test_widget_aset_tidak_tampil_di_layout_staff_divisi_default(): void
+    {
+        // Keputusan 2026-09-30: widget Aset dicabut dari layout staff_divisi
+        // karena datanya milik divisi Managemen Aset. Staf divisi mana pun
+        // (termasuk pemilik data) TIDAK melihat widget di layout default.
+        $staff = User::factory()->withRole(Role::STAFF_DIVISI)->create([
+            'division_id' => Division::factory()->create()->id,
+        ]);
+
+        $this->actingAs($staff)->get(route('dashboard'))->assertOk()
+            ->assertDontSee('Stok Aset per UPT')
+            ->assertDontSee('asetUptChart', false);
+    }
+
     public function test_widget_tampil_hanya_di_layout_staff_divisi_untuk_prototype(): void
     {
         foreach ([Role::ADMIN, Role::MANAGEMENT, Role::EDITOR_DASHBOARD] as $role) {
@@ -209,6 +229,9 @@ class AsetUptChartWidgetTest extends TestCase
                 ->assertDontSee('Stok Aset per UPT')
                 ->assertDontSee('asetUptChart', false);
         }
+
+        // Override config: widget dipasang di staff_divisi HANYA untuk test ini.
+        $this->mountAsetWidgetForStaffForTest();
 
         $staff = User::factory()->withRole(Role::STAFF_DIVISI)->create([
             'division_id' => Division::factory()->create()->id,
@@ -266,6 +289,17 @@ class AsetUptChartWidgetTest extends TestCase
     private function mountAsetWidgetForTest(): void
     {
         config(['dashboard_layouts.layouts.admin' => ['aset-upt-chart']]);
+    }
+
+    /**
+     * Pasang widget Aset ke layout staff_divisi HANYA untuk test ini.
+     *
+     * Sejak 2026-09-30 widget Aset dicabut dari layout staff_divisi, sehingga
+     * kontrak scoping-nya diuji via override config ini, bukan mounting nyata.
+     */
+    private function mountAsetWidgetForStaffForTest(): void
+    {
+        config(['dashboard_layouts.layouts.staff_divisi' => ['kpi-summary', 'trend-chart', 'aset-upt-chart']]);
     }
 
     /**
