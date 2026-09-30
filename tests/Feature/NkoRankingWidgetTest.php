@@ -47,18 +47,27 @@ class NkoRankingWidgetTest extends TestCase
             ->assertSeeInOrder(['TJBT', 'TRANS', 'RST']);
     }
 
-    public function test_staff_divisi_tidak_melihat_widget_peringkat(): void
+    public function test_staff_divisi_melihat_widget_peringkat_divisinya_sendiri(): void
     {
-        // Peringkat lintas-unit tidak bermakna untuk staf yang datanya
-        // di-scope satu divisi; widget sengaja tidak ada di layoutnya.
-        $this->nko($this->division('TJBT'), 'TJBT', 105.5);
+        // REVISI 2026-10-01 (membatalkan larangan 2026-09-30): nko-ranking
+        // dipasang di staff_divisi. Yang tampil = peringkat ANTAR-UNIT di dalam
+        // divisi staf (bermakna); peringkat divisi lain tetap tidak terlihat
+        // karena widget sudah di-scope ke division_id user.
+        $own = $this->division('Divisi Sendiri');
+        $other = $this->division('Divisi Lain');
+        $this->nko($own, 'TJBT', 105.5);
+        $this->nko($other, 'TRANS', 99.0);
 
-        $staff = User::factory()->withRole(Role::STAFF_DIVISI)->create();
+        $staff = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $own->id]);
 
         $this->actingAs($staff)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertDontSee('Peringkat NKO Unit');
+            ->assertSee('Peringkat NKO Unit')
+            ->assertSee('105.50')
+            ->assertSee('TJBT')
+            ->assertDontSee('99.00')
+            ->assertDontSee('TRANS');
     }
 
     public function test_management_melihat_widget_peringkat(): void

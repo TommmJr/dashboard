@@ -53,13 +53,21 @@ return [
      * konstanta di App\Models\Role), value = daftar widget_key terurut.
      *
      * Admin = operasional saja (audit, dataset); widget KPI/NKO milik
-     * dashboard tiap divisi. nko-ranking HANYA di layout lintas divisi yang
-     * memakai KPI (management, editor_dashboard). Peringkat lintas-unit
-     * tidak bermakna untuk staf divisi yang scoping datanya satu divisi saja.
+     * dashboard tiap divisi. nko-ranking dipasang di layout lintas divisi
+     * (management, editor_dashboard) DAN di staff_divisi.
      *
-     * staff_divisi = KPI + tren Kinerja saja. Widget Aset TIDAK dipasang di
-     * sini (keputusan 2026-09-30): datanya milik divisi Managemen Aset, jadi
-     * untuk staf divisi lain widget hanya menampilkan empty state.
+     * REVISI 2026-10-01 (pembatalan larangan 2026-09-30): sebelumnya nko-ranking
+     * sengaja TIDAK dipasang di staff_divisi dengan alasan "peringkat
+     * lintas-unit tidak bermakna untuk staf yang scoping-nya satu divisi".
+     * Alasan itu keliru konteks: widget ini SUDAH scoped ke divisi user, jadi
+     * yang tampil adalah peringkat ANTAR-UNIT DI DALAM divisi staf (mis. 15
+     * unit pada divisi Perencanaan Pengusahaan) — justru bermakna. Yang tidak
+     * bermakna adalah peringkat lintas DIVISI, dan itu tetap tidak ditampilkan.
+     * Keputusan user 2026-10-01.
+     *
+     * staff_divisi = KPI + tren Kinerja + peringkat unit. Widget Aset TIDAK
+     * dipasang di sini (keputusan 2026-09-30): datanya milik divisi Managemen
+     * Aset, jadi untuk staf divisi lain widget hanya menampilkan empty state.
      *
      * KETERBATASAN DIKETAHUI (2026-10-01): resolusi layout HANYA per role,
      * belum per divisi — semua divisi berbagi layout `staff_divisi`. Karena
@@ -71,7 +79,7 @@ return [
         'admin' => ['admin-summary', 'recent-audit', 'failed-datasets', 'admin-quick-actions'],
         'management' => ['kpi-summary', 'trend-chart', 'nko-ranking'],
         'editor_dashboard' => ['kpi-summary', 'trend-chart', 'nko-ranking', 'layout-editor-placeholder'],
-        'staff_divisi' => ['kpi-summary', 'trend-chart'],
+        'staff_divisi' => ['kpi-summary', 'trend-chart', 'nko-ranking'],
     ],
 
     // Fallback: role null / slug tidak dikenal -> KPI + chart saja.
