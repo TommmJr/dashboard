@@ -140,6 +140,31 @@ class NkoRankingWidgetTest extends TestCase
             ->assertSee('Belum ada data NKO');
     }
 
+    public function test_peringkat_mengikuti_filter_tanggal(): void
+    {
+        // Filter tanggal menggeser "periode terbaru" ke dalam rentang.
+        // NKO bukan besaran aditif, jadi rentang tidak dijumlahkan.
+        $division = $this->division('TJBT');
+        $dataset = Dataset::factory()->create(['division_id' => $division->id]);
+        $this->nko($division, 'TJBT', 90.0, '2026-07-31', $dataset);
+        $this->nko($division, 'TJBT', 105.5, '2026-08-31', $dataset);
+
+        $management = User::factory()->withRole(Role::MANAGEMENT)->create();
+
+        // Tanpa filter: periode terbaru = Agustus.
+        $this->actingAs($management)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('105.50');
+
+        // Rentang Juli saja: peringkat memakai Juli, bukan Agustus.
+        $this->actingAs($management)
+            ->get(route('dashboard', ['start_date' => '2026-07-01', 'end_date' => '2026-07-31']))
+            ->assertOk()
+            ->assertSee('90.00')
+            ->assertDontSee('105.50');
+    }
+
     private function division(string $unit): Division
     {
         return Division::factory()->create(['name' => $unit]);

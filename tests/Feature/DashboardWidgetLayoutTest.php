@@ -2,6 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Models\Dataset;
+use App\Models\Division;
+use App\Models\PerformanceMetric;
 use App\Models\Role;
 use App\Models\User;
 use Database\Seeders\RolePermissionSeeder;
@@ -44,6 +47,20 @@ class DashboardWidgetLayoutTest extends TestCase
 
     public function test_dashboard_merender_kontrol_filter_performance(): void
     {
+        // Isi satu unit NKO supaya dropdown unit punya isi (tanpa data,
+        // dropdown memang kosong dan checkbox-nya tidak dirender).
+        $dataset = Dataset::factory()->create([
+            'status' => Dataset::STATUS_READY,
+            'division_id' => Division::factory()->create()->id,
+        ]);
+        PerformanceMetric::factory()->create([
+            'dataset_id' => $dataset->id,
+            'division_id' => $dataset->division_id,
+            'metric_name' => 'TJBT | NKO',
+            'value' => 105.5,
+            'period' => '2026-08-31',
+        ]);
+
         $management = User::factory()->withRole(Role::MANAGEMENT)->create();
 
         $this->actingAs($management)
@@ -52,7 +69,13 @@ class DashboardWidgetLayoutTest extends TestCase
             ->assertSee('id="start_date"', false)
             ->assertSee('id="end_date"', false)
             ->assertSee('id="unit"', false)
-            ->assertSee('x-model="filters.units"', false)
+            // Form GET (bukan fetch): halaman reload supaya widget server-side
+            // (peringkat NKO) ikut terfilter bersama chart.
+            ->assertSee('name="start_date"', false)
+            ->assertSee('name="end_date"', false)
+            ->assertSee('name="unit[]"', false)
+            ->assertSee('method="GET"', false)
+            ->assertSee('TJBT')
             ->assertSee('Semua unit')
             ->assertSee('Terapkan')
             ->assertSee('Reset');

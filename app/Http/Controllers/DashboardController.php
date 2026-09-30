@@ -10,6 +10,7 @@ use App\Models\Role;
 use App\Models\User;
 use App\Services\AssetStockReport;
 use App\Services\KpiReportConverter;
+use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -41,12 +42,31 @@ class DashboardController extends Controller
     /**
      * Rakit daftar widget terurut untuk user aktif, lalu render view.
      */
-    public function __invoke(): View
+    public function __invoke(Request $request): View
     {
         $config = config('dashboard_layouts');
         $user = Auth::user();
         $roleSlug = $user?->loadMissing('role')->role?->slug;
         $layout = $config['layouts'][$roleSlug] ?? $config['default'];
+
+        // Filter dashboard datang dari query string (form GET, bukan fetch):
+        // halaman dimuat ulang sehingga widget SERVER-SIDE (nko-ranking) dan
+        // widget CLIENT-SIDE (chart) memakai rentang yang sama. Tanggal tidak
+        // valid diabaikan, bukan error — ini halaman GET, bukan endpoint API.
+        $filters = [
+            'start_date' => $this->dateOrNull($request->query('start_date')),
+            'end_date' => $this->dateOrNull($request->query('end_date')),
+            'units' => array_values(array_filter(
+                (array) $request->query('unit', []),
+                fn ($unit): bool => is_string($unit) && $unit !== '',
+            )),
+        ];
+
+        if ($filters['start_date'] !== null && $filters['end_date'] !== null
+            && $filters['start_date'] > $filters['end_date']) {
+            $filters['start_date'] = null;
+            $filters['end_date'] = null;
+        }
 
         $widgets = collect($layout)
             ->map(fn (string $key) => isset($config['widgets'][$key])
@@ -55,28 +75,82 @@ class DashboardController extends Controller
             ->filter()
             ->filter(fn (array $widget) => $widget['permission'] === null
                 || Gate::allows($widget['permission']))
-            ->map(function (array $widget, int $key) use ($user) {
+            ->map(function (array $widget, int $key) use ($user, $filters) {
                 // Instance = indeks layout: unik per render dalam satu
                 // response meski widget key yang sama tampil berulang.
                 $widget['instance'] = $key;
-                $widget['data'] = $this->dataFor($widget['key'], $user);
+                $widget['data'] = $this->dataFor($widget['key'], $user, $filters);
 
                 return $widget;
             })
             ->values()
             ->all();
 
-        return view('dashboard', ['widgets' => $widgets]);
+        return view('dashboard', [
+            'widgets' => $widgets,
+            'filters' => $filters,
+            'availableUnits' => $this->availableUnits($user),
+        ]);
+    }
+
+    /**
+     * Terima hanya tanggal Y-m-d; selain itu null. Dipakai untuk query string
+     * halaman dashboard agar nilai rusak tidak pernah sampai ke query DB.
+     */
+    private function dateOrNull(mixed $value): ?string
+    {
+        if (! is_string($value) || preg_match('/^\d{4}-\d{2}-\d{2}$/', $value) !== 1) {
+            return null;
+        }
+
+        return $value;
+    }
+
+    /**
+     * Semua unit yang punya baris NKO di divisi user (untuk dropdown filter).
+     * Ditampilkan SERVER-SIDE agar dropdown tetap lengkap meski filter aktif
+     * (kalau diambil dari payload API, unit yang ter-filter akan menghilang
+     * dari daftar pilihannya sendiri).
+     *
+     * @return list<string>
+     */
+    private function availableUnits(?User $user): array
+    {
+        $isPrivileged = $this->isPrivileged($user);
+
+        return DB::table('performance_metrics')
+            ->join('datasets', 'datasets.id', '=', 'performance_metrics.dataset_id')
+            ->where('datasets.status', Dataset::STATUS_READY)
+            ->where('performance_metrics.metric_name', 'like', '%'.KpiReportConverter::NKO_SUFFIX)
+            ->when(! $isPrivileged, fn ($query) => $query->where('performance_metrics.division_id', $user?->division_id))
+            ->distinct()
+            ->pluck('performance_metrics.metric_name')
+            ->map(fn (string $metric): string => explode(' | ', $metric, 2)[0])
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
+    }
+
+    private function isPrivileged(?User $user): bool
+    {
+        return $user !== null && (
+            $user->hasRole(Role::ADMIN)
+            || $user->hasRole(Role::MANAGEMENT)
+            || $user->hasRole(Role::EDITOR_DASHBOARD)
+        );
     }
 
     /**
      * Data server-side ringan per widget. Widget client-side (kpi-summary,
      * trend-chart) mengambil data sendiri via /api/performance-data -> null.
+     *
+     * @param  array{start_date: ?string, end_date: ?string}  $filters
      */
-    private function dataFor(string $key, ?User $user = null): mixed
+    private function dataFor(string $key, ?User $user = null, array $filters = []): mixed
     {
         return match ($key) {
-            'nko-ranking' => $this->nkoRanking($user),
+            'nko-ranking' => $this->nkoRanking($user, $filters['start_date'] ?? null, $filters['end_date'] ?? null),
             'aset-upt-chart' => $this->asetUptChart($user),
             'recent-audit' => $this->recentAudit($user),
             'failed-datasets' => $this->failedDatasets(),
@@ -197,28 +271,32 @@ class DashboardController extends Controller
     }
 
     /**
-     * Peringkat NKO per unit untuk periode terbaru.
+     * Peringkat NKO per unit.
      *
      * Hanya baris berakhiran '| NKO' (dihasilkan KpiReportConverter) yang dihitung.
      * Aturan scoping divisi:
      * - Admin, Management, dan Editor Dashboard: lintas divisi.
      * - Staf Divisi / role lain: hanya divisinya sendiri.
      *
+     * Filter tanggal (opsi 2026-10-01): bila rentang diberikan, periode yang
+     * dipakai = periode TERAKHIR DI DALAM rentang itu. NKO adalah indeks, bukan
+     * besaran aditif, jadi rentang tidak dijumlahkan/dirata-ratakan — hanya
+     * menggeser "periode terbaru" ke dalam rentang. Filter unit sengaja TIDAK
+     * diterapkan di sini (keputusan user 2026-10-01).
+     *
      * @return Collection<int, object>
      */
-    private function nkoRanking(?User $user): Collection
+    private function nkoRanking(?User $user, ?string $startDate = null, ?string $endDate = null): Collection
     {
-        $isPrivileged = $user && (
-            $user->hasRole(Role::ADMIN)
-            || $user->hasRole(Role::MANAGEMENT)
-            || $user->hasRole(Role::EDITOR_DASHBOARD)
-        );
+        $isPrivileged = $this->isPrivileged($user);
 
         $base = fn () => DB::table('performance_metrics')
             ->join('datasets', 'datasets.id', '=', 'performance_metrics.dataset_id')
             ->where('datasets.status', Dataset::STATUS_READY)
             ->where('performance_metrics.metric_name', 'like', '%'.KpiReportConverter::NKO_SUFFIX)
-            ->when(! $isPrivileged, fn ($query) => $query->where('performance_metrics.division_id', $user?->division_id));
+            ->when(! $isPrivileged, fn ($query) => $query->where('performance_metrics.division_id', $user?->division_id))
+            ->when($startDate !== null, fn ($query) => $query->where('performance_metrics.period', '>=', $startDate))
+            ->when($endDate !== null, fn ($query) => $query->where('performance_metrics.period', '<=', $endDate));
 
         $latestPeriod = $base()->max('performance_metrics.period');
 
