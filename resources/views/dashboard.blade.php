@@ -204,7 +204,7 @@
                     this.chartPeriodCount = payload.labels.length;
                     this.chartUnitCount = payload.series.length;
 
-                    if (!this.empty) {
+                    if (!this.empty && this.chartPeriodCount > 1) {
                         this.$nextTick(() => this.renderChart(payload));
                     }
                 } catch (e) {
@@ -216,41 +216,29 @@
             },
 
             renderChart(payload) {
+                // Dipanggil HANYA saat ada >1 periode (lihat load()). Mode tren
+                // = garis per unit, mengikuti mockup; bar tidak dipakai karena
+                // dengan beberapa periode bar bertumpuk sulit dibaca.
                 const palette = ['#16a3b8', '#0b6175', '#f1dc3a', '#d8e3e7'];
                 const el = document.getElementById('performanceChart');
                 if (this.chart) { this.chart.dispose(); }
                 this.chart = window.echarts.init(el);
 
-                const barSeries = payload.series.map((s, i) => ({
+                const lineSeries = payload.series.map((s, i) => ({
                     name: s.name,
-                    type: 'bar',
-                    data: s.data,
+                    type: 'line',
+        true,
+                    data: s.da            smooth: ta,
                     itemStyle: { color: palette[i % palette.length] },
                 }));
 
-                // ponytail: garis "tren" HANYA digambar kalau ada >1 periode.
-                // Dengan 1 periode, garis hanya mengikuti satu unit pertama
-                // dan terbaca seperti bug; snapshot cukup ditampilkan sebagai
-                // bar per unit. Begitu periode kedua masuk, tren otomatis
-                // muncul tanpa perubahan kode lagi.
-                const hasTrend = payload.labels.length > 1;
-                const lineSeries = hasTrend
-                    ? payload.series.slice(0, 1).map((s) => ({
-                        name: s.name + ' (trend)',
-                        type: 'line',
-                        smooth: true,
-                        data: s.data,
-                        itemStyle: { color: '#0b6175' },
-                    }))
-                    : [];
-
                 this.chart.setOption({
                     tooltip: { trigger: 'axis' },
-                    legend: { bottom: 0 },
+                    legend: { bottom: 0, type: 'scroll' },
                     grid: { left: 60, right: 20, top: 20, bottom: 40 },
                     xAxis: { type: 'category', data: payload.labels },
                     yAxis: { type: 'value', min: payload.y_axis_min ?? 0 },
-                    series: [...barSeries, ...lineSeries],
+                    series: lineSeries,
                 });
 
                 // Resize chart otomatis kalau ukuran containernya berubah 

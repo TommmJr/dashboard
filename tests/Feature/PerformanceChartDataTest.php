@@ -233,6 +233,21 @@ class PerformanceChartDataTest extends TestCase
             ->assertSee('chartPeriodCount', false);
     }
 
+    public function test_widget_tren_menampilkan_state_menunggu_periode_kedua(): void
+    {
+        // C1: dengan 1 periode, chart tidak digambar; panel menyatakan jujur
+        // bahwa tren butuh >=2 periode. Elemen chart tetap ada di HTML (hidden
+        // via Alpine) supaya tidak ada error init saat data bertambah.
+        $user = User::factory()->withRole(Role::MANAGEMENT)->create();
+
+        $this->actingAs($user)->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('Tren akan tampil setelah ada 2 periode atau lebih')
+            ->assertSee('chartPeriodCount <= 1', false)
+            ->assertSee('chartPeriodCount > 1', false)
+            ->assertSee('id="performanceChart"', false);
+    }
+
     public function test_y_axis_min_dihitung_dinamis_dari_nko_terendah(): void
     {
         // NKO terendah 95 -> margin 5 -> (95-5)/5=18 -> floor*5=90.
