@@ -233,19 +233,17 @@ class PerformanceChartDataTest extends TestCase
             ->assertSee('chartPeriodCount', false);
     }
 
-    public function test_widget_tren_menampilkan_state_menunggu_periode_kedua(): void
+    public function test_widget_tren_selalu_menampilkan_chart(): void
     {
-        // C1: dengan 1 periode, chart tidak digambar; panel menyatakan jujur
-        // bahwa tren butuh >=2 periode. Elemen chart tetap ada di HTML (hidden
-        // via Alpine) supaya tidak ada error init saat data bertambah.
+        // C1 dibatalkan 2026-10-01: chart selalu tampil. Bentuknya menyesuaikan
+        // jumlah periode (bar untuk snapshot, garis untuk tren), bukan disembunyikan.
         $user = User::factory()->withRole(Role::MANAGEMENT)->create();
 
         $this->actingAs($user)->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('Tren akan tampil setelah ada 2 periode atau lebih')
-            ->assertSee('chartPeriodCount <= 1', false)
-            ->assertSee('chartPeriodCount > 1', false)
-            ->assertSee('id="performanceChart"', false);
+            ->assertDontSee('Tren akan tampil setelah ada 2 periode')
+            ->assertSee('id="performanceChart"', false)
+            ->assertSee('chartSubtitle()', false);
     }
 
     /**

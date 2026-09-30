@@ -204,7 +204,7 @@
                     this.chartPeriodCount = payload.labels.length;
                     this.chartUnitCount = payload.series.length;
 
-                    if (!this.empty && this.chartPeriodCount > 1) {
+                    if (!this.empty) {
                         this.$nextTick(() => this.renderChart(payload));
                     }
                 } catch (e) {
@@ -216,30 +216,61 @@
             },
 
             renderChart(payload) {
-                // Dipanggil HANYA saat ada >1 periode (lihat load()). Mode tren
-                // = garis per unit, mengikuti mockup; bar tidak dipakai karena
-                // dengan beberapa periode bar bertumpuk sulit dibaca.
-                const palette = ['#16a3b8', '#0b6175', '#f1dc3a', '#d8e3e7'];
                 const el = document.getElementById('performanceChart');
                 if (this.chart) { this.chart.dispose(); }
                 this.chart = window.echarts.init(el);
 
-                const lineSeries = payload.series.map((s, i) => ({
-                    name: s.name,
-                    type: 'line',
-                    smooth: true,
-                    data: s.data,
-                    itemStyle: { color: palette[i % palette.length] },
-                }));
+                // Dua bentuk, dipilih oleh jumlah periode:
+                // - 1 periode  = bar per unit, SATU warna, diurutkan tertinggi,
+                //   sumbu Y dari 0. Snapshot dengan nilai hampir seragam jadi
+                //   terbaca jujur (tanpa legend 15 unit & tanpa bar terpotong).
+                // - >1 periode = garis per unit (tren), warna dari palet.
+                if (payload.labels.length <= 1) {
+                    const ranked = payload.series
+                        .map((s) => ({ name: s.name, value: Number(s.data[0] ?? 0) }))
+                        .sort((a, b) => b.value - a.value);
 
-                this.chart.setOption({
-                    tooltip: { trigger: 'axis' },
-                    legend: { bottom: 0, type: 'scroll' },
-                    grid: { left: 60, right: 20, top: 20, bottom: 40 },
-                    xAxis: { type: 'category', data: payload.labels },
-                    yAxis: { type: 'value', min: payload.y_axis_min ?? 0 },
-                    series: lineSeries,
-                });
+                    this.chart.setOption({
+                        tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+                        grid: { left: 70, right: 20, top: 20, bottom: 40 },
+                        xAxis: {
+                            type: 'category',
+                            data: ranked.map((row) => row.name),
+                            axisLabel: { interval: 0, rotate: ranked.length > 8 ? 45 : 0 },
+                        },
+                        yAxis: { type: 'value', min: 0 },
+                        series: [{
+                            type: 'bar',
+                            data: ranked.map((row) => row.value),
+                            itemStyle: { color: '#16a3b8', borderRadius: [4, 4, 0, 0] },
+                            label: {
+                                show: true,
+                                position: 'top',
+                                color: '#0b6175',
+                                fontSize: 11,
+                                formatter: (params) => Number(params.value).toFixed(1),
+                            },
+                        }],
+                    });
+                } else {
+                    const palette = ['#16a3b8', '#0b6175', '#f1dc3a', '#d8e3e7'];
+                    const lineSeries = payload.series.map((s, i) => ({
+                        name: s.name,
+                        type: 'line',
+                        smooth: true,
+                        data: s.data,
+                        itemStyle: { color: palette[i % palette.length] },
+                    }));
+
+                    this.chart.setOption({
+                        tooltip: { trigger: 'axis' },
+                        legend: { bottom: 0, type: 'scroll' },
+                        grid: { left: 60, right: 20, top: 20, bottom: 40 },
+                        xAxis: { type: 'category', data: payload.labels },
+                        yAxis: { type: 'value', min: payload.y_axis_min ?? 0 },
+                        series: lineSeries,
+                    });
+                }
 
                 // Resize chart otomatis kalau ukuran containernya berubah 
                 if (this.resizeObserver) {
