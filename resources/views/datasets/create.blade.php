@@ -22,6 +22,14 @@
             </div>
         @endif
 
+        @if (session('success'))
+            <div class="mt-4 rounded-md bg-green-50 p-3 text-sm text-green-700">{{ session('success') }}</div>
+        @endif
+
+        @if (session('error'))
+            <div class="mt-4 rounded-md bg-red-50 p-3 text-sm text-red-700">{{ session('error') }}</div>
+        @endif
+
         <form method="POST" action="{{ route('datasets.store') }}" enctype="multipart/form-data" class="mt-5 flex flex-col gap-4">
             @csrf
             @if ($divisions->isNotEmpty())

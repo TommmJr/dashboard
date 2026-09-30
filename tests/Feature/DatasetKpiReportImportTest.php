@@ -151,6 +151,59 @@ class DatasetKpiReportImportTest extends TestCase
         ])->assertForbidden();
     }
 
+    public function test_import_periode_sama_mengarsipkan_dataset_lama(): void
+    {
+        // B2: periode sama = revisi. Dataset READY lama di-ARCHIVE (bukan
+        // dihapus) supaya agregasi chart tidak menjumlah dua dataset periode
+        // sama. Dataset baru tetap READY.
+        $admin = User::factory()->withRole(Role::ADMIN)->create(['division_id' => null]);
+
+        $this->actingAs($admin)->post(route('datasets.kpi-import'), [
+            'file' => $this->makeKpiReport(),
+            'period' => '2026-08-31',
+        ])->assertRedirect(route('datasets.create'));
+
+        $first = Dataset::sole();
+        $this->assertSame(Dataset::STATUS_READY, $first->status->value);
+
+        $response = $this->actingAs($admin)->post(route('datasets.kpi-import'), [
+            'file' => $this->makeKpiReport(),
+            'period' => '2026-08-31',
+        ]);
+
+        $response->assertRedirect(route('datasets.create'))
+            ->assertSessionHas('success', fn ($message) => str_contains($message, 'diarsipkan otomatis'));
+
+        $this->assertSame(2, Dataset::count());
+        $this->assertSame(1, Dataset::where('status', Dataset::STATUS_READY)->count());
+        $this->assertSame(1, Dataset::where('status', Dataset::STATUS_ARCHIVED)->count());
+        $this->assertSame(
+            Dataset::STATUS_ARCHIVED,
+            $first->fresh()->status->value,
+            'Dataset pertama harus diarsipkan, bukan dibiarkan READY.',
+        );
+    }
+
+    public function test_import_periode_beda_tidak_mengarsipkan_dataset_lama(): void
+    {
+        // Guard B2 harus spesifik periode: periode lain tidak boleh tersentuh.
+        $admin = User::factory()->withRole(Role::ADMIN)->create(['division_id' => null]);
+
+        $this->actingAs($admin)->post(route('datasets.kpi-import'), [
+            'file' => $this->makeKpiReport(),
+            'period' => '2026-08-31',
+        ])->assertRedirect(route('datasets.create'));
+
+        $this->actingAs($admin)->post(route('datasets.kpi-import'), [
+            'file' => $this->makeKpiReport(),
+            'period' => '2026-09-30',
+        ])->assertRedirect(route('datasets.create'));
+
+        $this->assertSame(2, Dataset::count());
+        $this->assertSame(2, Dataset::where('status', Dataset::STATUS_READY)->count());
+        $this->assertSame(0, Dataset::where('status', Dataset::STATUS_ARCHIVED)->count());
+    }
+
     private function makeKpiReport(bool $withBrokenSheet = false): UploadedFile
     {
         $spreadsheet = new Spreadsheet;

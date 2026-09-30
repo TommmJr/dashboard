@@ -146,12 +146,14 @@ class DatasetController extends Controller
         }
 
         $imported = [];
+        $superseded = collect();
+        $period = $request->string('period')->toString();
 
         if ($validRows !== []) {
             $convertedPath = $converter->write($validRows);
 
             try {
-                $file = new UploadedFile($convertedPath, 'laporan-kpi-'.$request->string('period')->toString().'.xlsx',
+                $file = new UploadedFile($convertedPath, 'laporan-kpi-'.$period.'.xlsx',
                     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', null, true);
 
                 ['dataset' => $dataset, 'result' => $result] = $this->storeAndImport(
@@ -162,6 +164,24 @@ class DatasetController extends Controller
                     $failed[] = $owner->name.': gagal diproses — '.($dataset->error_message ?? 'coba periksa file.');
                 } else {
                     $imported[] = "{$owner->name}: {$result['imported']} baris";
+
+                    // B2: periode sama = revisi, bukan duplikat. Dataset READY
+                    // lama untuk periode + divisi yang sama di-ARCHIVE SETELAH
+                    // import sukses (kalau diarsipkan lebih dulu, import gagal
+                    // akan meninggalkan periode tanpa dataset aktif). Diarsipkan,
+                    // bukan dihapus — data lama tetap reversible, sesuai pola
+                    // archive-vs-delete. Tanpa langkah ini, dua dataset periode
+                    // sama membuat metric_count dan sisa agregasi berlipat.
+                    $superseded = Dataset::query()
+                        ->where('division_id', $owner->id)
+                        ->where('status', Dataset::STATUS_READY)
+                        ->whereKeyNot($dataset->id)
+                        ->whereHas('metrics', fn ($query) => $query->where('period', $period))
+                        ->get();
+
+                    foreach ($superseded as $previous) {
+                        $previous->update(['status' => Dataset::STATUS_ARCHIVED]);
+                    }
                 }
             } finally {
                 @unlink($convertedPath);
@@ -171,6 +191,10 @@ class DatasetController extends Controller
         $message = $imported !== []
             ? 'Berhasil mengimpor '.count($imported)." dataset.\n".implode("\n", $imported)
             : 'Tidak ada unit yang berhasil diimpor.';
+
+        if ($superseded->isNotEmpty()) {
+            $message .= "\n\nDataset periode {$period} sebelumnya diarsipkan otomatis (".$superseded->count().' dataset) agar data tidak berlipat.';
+        }
 
         return redirect()
             ->route('datasets.create')
