@@ -109,10 +109,29 @@ class DatasetKpiReportImportTest extends TestCase
         $this->assertSame(0, Dataset::count());
     }
 
-    public function test_staf_ditolak_403(): void
+    public function test_staf_pemilik_import_sukses(): void
     {
         $owner = Division::where('slug', 'perencanaan-pengusahaan')->sole();
         $staff = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $owner->id]);
+
+        $this->actingAs($staff)->post(route('datasets.kpi-import'), [
+            'file' => $this->makeKpiReport(),
+            'period' => '2026-08-31',
+        ])->assertRedirect(route('datasets.create'));
+
+        $this->assertSame(1, Dataset::count());
+        $this->assertSame($owner->id, Dataset::sole()->division_id);
+    }
+
+    public function test_staf_divisi_lain_tetap_ditolak_403(): void
+    {
+        // Staf divisi bukan pemilik data KPI (mis. Managemen Aset) tidak boleh
+        // memasukkan data ke divisi yang bukan miliknya.
+        $other = Division::firstOrCreate(
+            ['slug' => 'managemen-aset'],
+            ['name' => 'Managemen Aset'],
+        );
+        $staff = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $other->id]);
 
         $this->actingAs($staff)->post(route('datasets.kpi-import'), [
             'file' => $this->makeKpiReport(),

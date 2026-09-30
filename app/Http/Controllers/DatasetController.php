@@ -91,7 +91,17 @@ class DatasetController extends Controller
     {
         $user = Auth::user();
 
-        abort_unless($user->division_id === null, 403, 'Import laporan KPI hanya untuk user tanpa divisi tetap.');
+        $owner = Division::where('slug', 'perencanaan-pengusahaan')->firstOrFail();
+
+        // Admin (tanpa divisi) dan staf divisi PEMILIK data KPI boleh impor.
+        // Staf divisi lain ditolak: mereka tidak boleh memasukkan data ke
+        // divisi yang bukan miliknya (scoping divisi, sama seperti alasan
+        // widget Aset tidak dipasang di layout staf divisi lain).
+        abort_unless(
+            $user->division_id === null || $user->division_id === $owner->id,
+            403,
+            'Import laporan KPI hanya untuk admin atau staf divisi Perencanaan Pengusahaan.',
+        );
 
         $maxKb = config('dataset_import.max_size_kb');
 
@@ -116,7 +126,6 @@ class DatasetController extends Controller
             return back()->with('error', 'File tidak dapat dibaca. Pastikan file Excel laporan KPI dari mentor tidak rusak.');
         }
 
-        $owner = Division::where('slug', 'perencanaan-pengusahaan')->firstOrFail();
         $failed = [];
         $validRows = [];
 
