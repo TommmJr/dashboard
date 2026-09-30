@@ -60,6 +60,12 @@ return [
      * staff_divisi = KPI + tren Kinerja saja. Widget Aset TIDAK dipasang di
      * sini (keputusan 2026-09-30): datanya milik divisi Managemen Aset, jadi
      * untuk staf divisi lain widget hanya menampilkan empty state.
+     *
+     * KETERBATASAN DIKETAHUI (2026-10-01): resolusi layout HANYA per role,
+     * belum per divisi — semua divisi berbagi layout `staff_divisi`. Karena
+     * itu widget milik satu divisi tidak boleh dipasang di sana: divisi lain
+     * akan melihat empty state yang membingungkan. Pemisahan layout per
+     * divisi ditunda ke era pekerjaan MANSET (keputusan user 2026-10-01).
      */
     'layouts' => [
         'admin' => ['admin-summary', 'recent-audit', 'failed-datasets', 'admin-quick-actions'],
