@@ -248,6 +248,40 @@ class PerformanceChartDataTest extends TestCase
             ->assertSee('id="performanceChart"', false);
     }
 
+    /**
+     * Inline script dashboard WAJIB utuh — tidak boleh rusak sebagian.
+     *
+     * assertSee tidak mem-parse JS, sehingga blok yang rusak bisa lolos dari
+     * seluruh suite. Pernah terjadi 2026-10-01: potongan renderChart terpotong
+     * dan tergabung acak, Alpine gagal init, semua x-show/x-text jadi kosong.
+     * Guard ini mengecek fragmen kunci tetap utuh dan tidak tergabung.
+     */
+    public function test_inline_script_dashboard_utuh(): void
+    {
+        $user = User::factory()->withRole(Role::MANAGEMENT)->create();
+        $html = $this->actingAs($user)->get(route('dashboard'))->assertOk()->getContent();
+
+        preg_match_all('#<script>(.*?)</script>#s', $html, $matches);
+
+        $scripts = array_values(array_filter(
+            $matches[1] ?? [],
+            fn (string $script): bool => str_contains($script, 'performanceDashboard'),
+        ));
+
+        $this->assertNotEmpty($scripts, 'Blok script performanceDashboard tidak ditemukan di dashboard.');
+
+        $script = $scripts[0];
+
+        // Fragmen yang harus utuh di dalam renderChart().
+        $this->assertStringContainsString('type: \'line\',', $script);
+        $this->assertStringContainsString('smooth: true,', $script);
+        $this->assertStringContainsString('data: s.data,', $script);
+
+        // Pola rusak yang pernah lolos: dua properti tergabung dalam satu baris.
+        $this->assertStringNotContainsString('s.da ', $script);
+        $this->assertStringNotContainsString('smooth: ta,', $script);
+    }
+
     public function test_y_axis_min_dihitung_dinamis_dari_nko_terendah(): void
     {
         // NKO terendah 95 -> margin 5 -> (95-5)/5=18 -> floor*5=90.

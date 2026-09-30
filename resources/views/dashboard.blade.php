@@ -227,8 +227,8 @@
                 const lineSeries = payload.series.map((s, i) => ({
                     name: s.name,
                     type: 'line',
-        true,
-                    data: s.da            smooth: ta,
+                    smooth: true,
+                    data: s.data,
                     itemStyle: { color: palette[i % palette.length] },
                 }));
 
