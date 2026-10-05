@@ -35,3 +35,8 @@ Thumbs.db
 /kilo.json
 /task.md
 .ai
+repomix-*.xml
+repomix.config.json
+prompt.md
+/docs
+/figma-plugin

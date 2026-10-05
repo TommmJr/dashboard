@@ -29,12 +29,10 @@
             <p class="mt-1 text-sm text-slate-500">Ringkasan operasional data dan aktivitas sistem</p>
         </div>
     @else
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <h1 class="text-2xl font-bold text-primary">Welcome, {{ auth()->user()->name }}</h1>
-
-            @if (auth()->user()->role)
-                <span class="inline-flex rounded-full bg-surface px-2.5 py-0.5 text-xs font-medium text-primary">{{ auth()->user()->role->name }}</span>
-            @endif
+        <div class="mb-6">
+            <p class="text-xs font-medium text-slate-500">Beranda / Dashboard</p>
+            <h1 class="mt-2 text-2xl font-bold text-primary">Dashboard</h1>
+            <p class="mt-1 text-sm text-slate-500">Ringkasan kinerja dan dataset untuk divisi Anda.</p>
         </div>
     @endif
 
@@ -42,26 +40,26 @@
         {{-- Form GET (bukan fetch): halaman dimuat ulang sehingga widget
              SERVER-SIDE (peringkat NKO) dan CLIENT-SIDE (chart) memakai rentang
              filter yang sama. Tanpa reload, peringkat tidak akan ikut terfilter. --}}
-        <form method="GET" action="{{ route('dashboard') }}" class="mt-6 grid gap-4 border border-muted bg-white p-4 shadow sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1.25fr_auto_auto] lg:items-end">
+        <form method="GET" action="{{ route('dashboard') }}" class="mt-6 grid gap-4 border border-slate-200 bg-white p-4 shadow sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1.25fr_auto_auto] lg:items-end">
         <div class="flex flex-col gap-1.5">
             <label for="start_date" class="text-xs font-semibold uppercase tracking-wide text-gray-500">Dari tanggal</label>
-            <input id="start_date" name="start_date" type="date" value="{{ $filters['start_date'] ?? '' }}" class="h-10 rounded border border-muted bg-white px-3 text-sm text-primary outline-none focus:border-accent focus:ring-2 focus:ring-accent/20">
+            <input id="start_date" name="start_date" type="date" value="{{ $filters['start_date'] ?? '' }}" class="h-10 rounded border border-slate-200 bg-white px-3 text-sm text-primary outline-none focus:border-accent focus:ring-2 focus:ring-accent/20">
         </div>
         <div class="flex flex-col gap-1.5">
             <label for="end_date" class="text-xs font-semibold uppercase tracking-wide text-gray-500">Sampai tanggal</label>
-            <input id="end_date" name="end_date" type="date" value="{{ $filters['end_date'] ?? '' }}" class="h-10 rounded border border-muted bg-white px-3 text-sm text-primary outline-none focus:border-accent focus:ring-2 focus:ring-accent/20">
+            <input id="end_date" name="end_date" type="date" value="{{ $filters['end_date'] ?? '' }}" class="h-10 rounded border border-slate-200 bg-white px-3 text-sm text-primary outline-none focus:border-accent focus:ring-2 focus:ring-accent/20">
         </div>
         <div class="flex flex-col gap-1.5">
             <label for="unit" class="text-xs font-semibold uppercase tracking-wide text-gray-500">Unit</label>
             <details class="group relative">
-                <summary id="unit" class="flex h-10 w-full cursor-pointer list-none items-center justify-between gap-3 rounded border border-muted bg-white px-3 text-left text-sm text-primary outline-none transition hover:border-accent focus:border-accent focus:ring-2 focus:ring-accent/20">
+                <summary id="unit" class="flex h-10 w-full cursor-pointer list-none items-center justify-between gap-3 rounded border border-slate-200 bg-white px-3 text-left text-sm text-primary outline-none transition hover:border-accent focus:border-accent focus:ring-2 focus:ring-accent/20">
                     <span x-text="selectedUnitLabel()">{{ count($filters['units'] ?? []) > 0 ? count($filters['units']).' unit dipilih' : 'Semua unit' }}</span>
                     <svg class="h-4 w-4 shrink-0 text-gray-500 transition group-open:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 9 6 6 6-6" stroke-linecap="round" stroke-linejoin="round" /></svg>
                 </summary>
-                <div class="absolute left-0 right-0 z-20 mt-2 max-h-60 overflow-y-auto rounded border border-muted bg-white p-2 shadow-lg" role="group" aria-label="Pilihan unit">
+                <div class="absolute left-0 right-0 z-20 mt-2 max-h-60 overflow-y-auto rounded border border-slate-200 bg-white p-2 shadow-lg" role="group" aria-label="Pilihan unit">
                     @forelse ($availableUnits ?? [] as $unitName)
                         <label class="flex cursor-pointer items-center gap-2 rounded px-2 py-2 text-sm text-primary hover:bg-surface">
-                            <input type="checkbox" name="unit[]" value="{{ $unitName }}" @checked(in_array($unitName, $filters['units'] ?? [], true)) class="h-4 w-4 rounded border-muted text-accent focus:ring-accent/30">
+                            <input type="checkbox" name="unit[]" value="{{ $unitName }}" @checked(in_array($unitName, $filters['units'] ?? [], true)) class="h-4 w-4 rounded border-slate-200 text-accent focus:ring-accent/30">
                             <span>{{ $unitName }}</span>
                         </label>
                     @empty
@@ -74,7 +72,7 @@
             <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 4h18M6 12h12M10 20h4" stroke-linecap="round" /></svg>
             Terapkan
         </button>
-        <a href="{{ route('dashboard') }}" class="inline-flex h-10 items-center justify-center gap-2 rounded border border-muted px-4 text-sm font-semibold text-primary transition hover:border-accent hover:text-accent">
+        <a href="{{ route('dashboard') }}" class="inline-flex h-10 items-center justify-center gap-2 rounded border border-slate-200 px-4 text-sm font-semibold text-primary transition hover:border-accent hover:text-accent">
             <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7M3 4v5h5" stroke-linecap="round" stroke-linejoin="round" /></svg>
             Reset
         </a>
@@ -83,13 +81,17 @@
     @endif
 
     {{-- Widget per role: satu loop generik, urutan & komposisi dari config. --}}
-    <div class="{{ $isAdminDashboard ? 'grid gap-6 lg:grid-cols-3' : 'space-y-8' }}">
+    <div class="grid gap-6 lg:grid-cols-3">
         @foreach ($widgets as $widget)
             @php
                 $widgetClass = match ($widget['key']) {
                     'admin-summary' => 'lg:col-span-3',
                     'recent-audit' => 'lg:col-span-2',
                     'admin-quick-actions' => 'lg:col-span-3',
+                    'kpi-summary' => 'lg:col-span-3',
+                    'trend-chart' => 'lg:col-span-2',
+                    'nko-ranking' => 'lg:col-span-1',
+                    'layout-editor-placeholder' => 'lg:col-span-3',
                     default => '',
                 };
             @endphp

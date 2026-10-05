@@ -16,11 +16,11 @@
     };
 @endphp
 
-<div class="rounded-lg bg-white p-6 shadow">
+<div class="rounded-lg bg-white p-6 shadow-sm border border-slate-200">
     <h3 class="text-lg font-bold text-primary">{{ $widget['label'] ?? 'Peringkat NKO Unit' }}</h3>
 
     @if ($rows->isEmpty())
-        <p class="mt-4 rounded-lg bg-surface p-5 text-sm text-gray-600">
+        <p class="mt-4 rounded-lg bg-slate-50 p-5 text-sm text-gray-600">
             Belum ada data NKO. Konversi laporan KPI lalu unggah berkasnya lewat menu Upload Dataset.
         </p>
     @else

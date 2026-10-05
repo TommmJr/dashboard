@@ -1,7 +1,7 @@
 @props(['widget' => [], 'data' => null])
 
 {{-- Area chart ECharts --}}
-<div class="rounded-lg bg-white p-6 shadow">
+<div class="rounded-lg bg-white p-6 shadow-sm border border-slate-200">
     <div class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <h3 class="text-lg font-bold text-primary">{{ $widget['label'] ?? 'Grafik Tren Kinerja' }}</h3>
         {{-- Subjudul dinamis: jujur soal jumlah periode yang tersedia. --}}
