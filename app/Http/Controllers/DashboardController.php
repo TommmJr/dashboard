@@ -105,7 +105,7 @@ class DashboardController extends Controller
             ->values()
             ->all();
 
-        return view('dashboard', [
+        return view('dashboard.index', [
             'widgets' => $widgets,
             'filters' => $filters,
             'availableUnits' => $this->availableUnits($user),
