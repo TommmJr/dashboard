@@ -35,6 +35,7 @@ return [
         'dataset-status' => ['label' => 'Status Dataset',   'view' => 'widgets.dataset-status',       'permission' => null],
         'kinerja-realisasi' => ['label' => 'Realisasi vs Target', 'view' => 'widgets.kinerja-realisasi', 'permission' => null],
         'kinerja-detail' => ['label' => 'Detail Metrik KPI', 'view' => 'widgets.kinerja-detail',       'permission' => null],
+        'target-vs-realisasi' => ['label' => 'Target vs Realisasi', 'view' => 'widgets.target-vs-realisasi', 'permission' => null],
         // Katalog saja, TIDAK dipasang ke layout role mana pun. Data Aset
         // dimiliki divisi Managemen Aset (MANSET), sedangkan layout
         // `staff_divisi` di-scope ke divisi staf yang login — memasang widget
@@ -82,7 +83,7 @@ return [
         'admin' => ['admin-summary', 'recent-audit', 'failed-datasets', 'admin-quick-actions'],
         'management' => ['kpi-summary', 'trend-chart', 'nko-ranking'],
         'editor_dashboard' => ['kpi-summary', 'trend-chart', 'nko-ranking', 'layout-editor-placeholder'],
-        'staff_divisi' => ['kpi-summary', 'trend-chart', 'nko-ranking', 'dataset-status', 'kinerja-realisasi', 'kinerja-detail'],
+        'staff_divisi' => ['kpi-summary', 'trend-chart', 'nko-ranking', 'dataset-status', 'kinerja-realisasi', 'kinerja-detail', 'target-vs-realisasi'],
     ],
 
     // Fallback: role null / slug tidak dikenal -> KPI + chart saja.

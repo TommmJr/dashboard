@@ -94,6 +94,7 @@
                     'dataset-status' => 'lg:col-span-1',
                     'kinerja-realisasi' => 'lg:col-span-2',
                     'kinerja-detail' => 'lg:col-span-3',
+                    'target-vs-realisasi' => 'lg:col-span-3',
                     'layout-editor-placeholder' => 'lg:col-span-3',
                     default => '',
                 };

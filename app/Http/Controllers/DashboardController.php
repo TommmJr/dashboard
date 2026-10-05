@@ -159,6 +159,7 @@ class DashboardController extends Controller
             'dataset-status' => $this->datasetStatus($user),
             'kinerja-realisasi' => $this->kinerjaRealisasi($user, $filters['start_date'] ?? null, $filters['end_date'] ?? null),
             'kinerja-detail' => $this->kinerjaDetail($user, $filters['start_date'] ?? null, $filters['end_date'] ?? null),
+            'target-vs-realisasi' => $this->targetVsRealisasi($user, $filters['start_date'] ?? null, $filters['end_date'] ?? null),
             default => null,
         };
     }
@@ -512,5 +513,53 @@ class DashboardController extends Controller
         }
 
         return ['period' => $period, 'rows' => $rows, 'truncated' => $truncated, 'total_rows' => $total];
+    }
+
+    /**
+     * Bar grouped Target vs Realisasi per unit untuk periode terbaru.
+     * Agregasi dari baris '| target' dan '| realisasi' yang punya dataset
+     * READY di divisi user. Satu bar per unit,dua seri: Target, Realisasi.
+     */
+    private function targetVsRealisasi(?User $user, ?string $startDate = null, ?string $endDate = null): array
+    {
+        $period = $this->latestReadyPeriod($user, $startDate, $endDate);
+
+        if ($period === null) {
+            return ['period' => null, 'labels' => [], 'target' => [], 'realisasi' => []];
+        }
+
+        $isPrivileged = $this->isPrivileged($user);
+        $unitTotals = [];
+
+        DB::table('performance_metrics')
+            ->join('datasets', 'datasets.id', '=', 'performance_metrics.dataset_id')
+            ->where('datasets.status', Dataset::STATUS_READY)
+            ->where('performance_metrics.period', $period)
+            ->where(function ($query) {
+                $query->where('performance_metrics.metric_name', 'like', '%| target')
+                    ->orWhere('performance_metrics.metric_name', 'like', '%| realisasi');
+            })
+            ->when(! $isPrivileged, fn ($q) => $q->where('performance_metrics.division_id', $user?->division_id))
+            ->select('performance_metrics.metric_name', 'performance_metrics.value')
+            ->get()
+            ->each(function (object $row) use (&$unitTotals) {
+                $parts = explode(' | ', $row->metric_name);
+                if (count($parts) !== 3) {
+                    return;
+                }
+                [$unit, $indikator, $jenis] = $parts;
+                $jenis = strtolower($jenis);
+                if ($jenis === 'target') {
+                    $unitTotals[$unit]['target'] = ($unitTotals[$unit]['target'] ?? 0.0) + (float) $row->value;
+                } elseif ($jenis === 'realisasi') {
+                    $unitTotals[$unit]['realisasi'] = ($unitTotals[$unit]['realisasi'] ?? 0.0) + (float) $row->value;
+                }
+            });
+
+        $labels = array_values(array_keys($unitTotals));
+        $target = array_map(fn ($unit) => $unitTotals[$unit]['target'] ?? 0.0, $labels);
+        $realisasi = array_map(fn ($unit) => $unitTotals[$unit]['realisasi'] ?? 0.0, $labels);
+
+        return ['period' => $period, 'labels' => $labels, 'target' => $target, 'realisasi' => $realisasi];
     }
 }
