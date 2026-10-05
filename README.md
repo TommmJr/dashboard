@@ -34,6 +34,52 @@ Provide a maintainable internal dashboard that reduces manual reporting work and
 - PhpSpreadsheet 5.9
 - Docker Compose
 
+## Project Structure
+
+### Application
+
+- `app/` — PHP code: `Http/` controllers, requests, middleware, and kernel-level wiring, `Models/` Eloquent models, `Services/` import and report logic, `Enums/` shared constants, `Console/` commands, `Providers/` service providers.
+- `bootstrap/` — framework bootstrap files; `app.php` wires the application container.
+- `config/` — published configuration, including `config/dashboard_layouts.php` for the Phase 1 role layout and `config/dataset_import.php` for importer rules.
+- `routes/` — route definitions; `web.php` serves the session-based UI, `auth.php` the authentication flows.
+- `database/` — migrations, seeders, and factories.
+
+### Frontend and assets
+
+- `resources/` — Blade templates in `views/`, CSS entrypoint in `css/`, and Alpine.js modules in `js/`.
+- `public/` — web root served by Apache; compiled Vite output lands in `public/build`.
+
+### Infrastructure
+
+- `docker/` — container support files: `docker/mysql/init/` scripts that run on a fresh volume, and `docker/mysql/harden-audit-log.sql` that strips DDL rights from the application user.
+- `Dockerfile` and `docker-compose.yml` — image build and the app, web, and database service definitions.
+- `storage/` — framework-writable runtime files: logs, cache, compiled views, and sessions. Writable by the container only.
+
+### Tests
+
+- `tests/` — PHPUnit feature and unit tests, run against in-memory SQLite.
+
+### Agent and documentation files
+
+These exist for AI-assisted development and are not part of the application runtime:
+
+- `.ai/` — agent working notes: `checkpoint.md`, `context.md`, `progress.md`, and tool notes.
+- `Obsidian/` — Obsidian vault copy of the requirements, security, meeting, and report notes.
+- `AGENTS.md` — rules the agent follows when working on this repository.
+- `task.md` — current backlog and next task.
+- `prompt.md` — standing prompt context for the agent.
+- `.vscode/`, `.mcp.json`, `opencode.json`, `boost.json`, `repomix.config.json` — editor and agent tooling configuration.
+
+### Not tracked by git
+
+The following top-level entries are excluded by `.gitignore` and exist only
+on a configured working copy:
+
+- `node_modules/` and `vendor/` — dependencies restored by `npm install` and `composer install`.
+- `.ai/`, `Obsidian/`, `task.md`, `prompt.md`, `figma-plugin/` — local agent notes, vault, task file, and the Figma plugin.
+
+`.env` is also ignored; use `.env.example` as the template.
+
 ## Prerequisites
 
 - Git
