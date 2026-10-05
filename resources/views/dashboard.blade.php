@@ -91,10 +91,11 @@
                     'kpi-summary' => 'lg:col-span-3',
                     'trend-chart' => 'lg:col-span-2',
                     'nko-ranking' => 'lg:col-span-1',
-                    'dataset-status' => 'lg:col-span-1',
+                    'dataset-status' => 'lg:col-span-3',
                     'kinerja-realisasi' => 'lg:col-span-2',
                     'kinerja-detail' => 'lg:col-span-3',
                     'target-vs-realisasi' => 'lg:col-span-3',
+                    'pencapaian-nko' => 'lg:col-span-1',
                     'layout-editor-placeholder' => 'lg:col-span-3',
                     default => '',
                 };

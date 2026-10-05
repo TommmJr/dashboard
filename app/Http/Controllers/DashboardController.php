@@ -160,6 +160,7 @@ class DashboardController extends Controller
             'kinerja-realisasi' => $this->kinerjaRealisasi($user, $filters['start_date'] ?? null, $filters['end_date'] ?? null),
             'kinerja-detail' => $this->kinerjaDetail($user, $filters['start_date'] ?? null, $filters['end_date'] ?? null),
             'target-vs-realisasi' => $this->targetVsRealisasi($user, $filters['start_date'] ?? null, $filters['end_date'] ?? null),
+            'pencapaian-nko' => $this->pencapaianNko($user, $filters['start_date'] ?? null, $filters['end_date'] ?? null),
             default => null,
         };
     }
@@ -561,5 +562,20 @@ class DashboardController extends Controller
         $realisasi = array_map(fn ($unit) => $unitTotals[$unit]['realisasi'] ?? 0.0, $labels);
 
         return ['period' => $period, 'labels' => $labels, 'target' => $target, 'realisasi' => $realisasi];
+    }
+
+    /**
+     * Bar sederhana: pencapaian rata-rata (%) per unit, agar satu periode
+     * terbaca sebagai "berapa persen dari target tercapai" per unit.
+     */
+    private function pencapaianNko(?User $user, ?string $startDate = null, ?string $endDate = null): array
+    {
+        $rekap = $this->kinerjaRealisasi($user, $startDate, $endDate);
+
+        return [
+            'period' => $rekap['period'] ?? null,
+            'labels' => array_map(fn ($row) => $row['unit'], $rekap['rows']),
+            'data' => array_map(fn ($row) => $row['avg'], $rekap['rows']),
+        ];
     }
 }
