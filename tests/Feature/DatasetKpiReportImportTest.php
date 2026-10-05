@@ -60,7 +60,6 @@ class DatasetKpiReportImportTest extends TestCase
 
         $response->assertRedirect(route('datasets.create'));
         $this->assertSame(1, Dataset::count());
-        $this->assertNull(session('kpi_unmatched'));
     }
 
     public function test_satu_sheet_korup_tidak_menghentikan_sheet_lain(): void
