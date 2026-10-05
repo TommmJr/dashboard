@@ -46,8 +46,27 @@ class DashboardController extends Controller
     {
         $config = config('dashboard_layouts');
         $user = Auth::user();
-        $roleSlug = $user?->loadMissing('role')->role?->slug;
-        $layout = $config['layouts'][$roleSlug] ?? $config['default'];
+        $user->loadMissing('role', 'division');
+        $roleSlug = $user?->role?->slug;
+
+        // Staff resolution is per-division: a staff member only gets the
+        // full Kinerja widgets when their division is explicitly mapped.
+        // Other roles keep their role-keyed layout.
+        $layoutKey = $roleSlug;
+        if ($roleSlug === Role::STAFF_DIVISI) {
+            $divisionSlug = $user?->division?->slug;
+            $layoutKey = $divisionSlug !== null && $divisionSlug !== ''
+                ? "staff_divisi:{$divisionSlug}"
+                : 'staff_divisi';
+        }
+
+        if (isset($config['layouts'][$layoutKey])) {
+            $layout = $config['layouts'][$layoutKey];
+        } elseif ($roleSlug === Role::STAFF_DIVISI) {
+            $layout = $config['layouts']['staff_divisi'];
+        } else {
+            $layout = $config['default'];
+        }
 
         // Filter dashboard datang dari query string (form GET, bukan fetch):
         // halaman dimuat ulang sehingga widget SERVER-SIDE (nko-ranking) dan

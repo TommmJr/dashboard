@@ -80,12 +80,23 @@ return [
      * itu widget milik satu divisi tidak boleh dipasang di sana: divisi lain
      * akan melihat empty state yang membingungkan. Pemisahan layout per
      * divisi ditunda ke era pekerjaan MANSET (keputusan user 2026-10-01).
+     *
+     * Revisi 2026-10-05: per-divisi untuk staf. Role lain tetap per-role;
+     * staff_divisi punya key fallback dan override per-divisi dengan format
+     * `staff_divisi:<division.slug>`.
      */
     'layouts' => [
         'admin' => ['admin-summary', 'recent-audit', 'failed-datasets', 'admin-quick-actions'],
         'management' => ['kpi-summary', 'trend-chart', 'nko-ranking'],
         'editor_dashboard' => ['kpi-summary', 'trend-chart', 'nko-ranking', 'layout-editor-placeholder'],
-        'staff_divisi' => ['kpi-summary', 'trend-chart', 'nko-ranking', 'target-vs-realisasi', 'nko-donut', 'dataset-status', 'kinerja-realisasi', 'pencapaian-nko', 'kinerja-detail'],
+        // Default staf divisi yang belum punya override: hanya dataset-status.
+        'staff_divisi' => ['dataset-status'],
+        // Override per-divisi: divisi Perencanaan Pengusahaan mendapat seluruh
+        // widget KPI/Kinerja yang tersedia.
+        'staff_divisi:perencanaan-pengusahaan' => [
+            'kpi-summary', 'trend-chart', 'nko-ranking', 'target-vs-realisasi', 'nko-donut',
+            'dataset-status', 'kinerja-realisasi', 'pencapaian-nko', 'kinerja-detail',
+        ],
     ],
 
     // Fallback: role null / slug tidak dikenal -> KPI + chart saja.

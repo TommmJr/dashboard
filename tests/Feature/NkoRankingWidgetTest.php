@@ -53,8 +53,14 @@ class NkoRankingWidgetTest extends TestCase
         // dipasang di staff_divisi. Yang tampil = peringkat ANTAR-UNIT di dalam
         // divisi staf (bermakna); peringkat divisi lain tetap tidak terlihat
         // karena widget sudah di-scope ke division_id user.
-        $own = $this->division('Divisi Sendiri');
-        $other = $this->division('Divisi Lain');
+        // Revisi 2026-10-05: nko-ranking sekarang hanya muncul untuk divisi
+        // Perencanaan Pengusahaan (layout per-divisi), tidak untuk staf divisi lain.
+        // slug harus di-set eksplisit: factory menurunkan slug dari nama default-nya,
+        // sehingga cukup memberi 'name' tidak cukup. Pengusahaan = override slug.
+        $own = Division::factory()->create(['name' => 'Perencanaan Pengusahaan', 'slug' => 'perencanaan-pengusahaan']);
+        $other = Division::factory()->create(['name' => 'Divisi Lain']);
+        // $other intentionally slug acak (bukan perencanaan-pengusahaan) supaya staf
+        // Pengusahaan tidak melihat datanya.
         $this->nko($own, 'TJBT', 105.5);
         $this->nko($other, 'TRANS', 99.0);
 

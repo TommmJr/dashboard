@@ -108,24 +108,43 @@ class DashboardWidgetLayoutTest extends TestCase
             ->assertDontSee('Audit Terbaru');
     }
 
-    public function test_staff_divisi_melihat_layout_default(): void
+    public function test_staff_divisi_non_pengusahaan_melihat_status_dataset_saja(): void
     {
-        $staff = User::factory()->withRole(Role::STAFF_DIVISI)->create();
+        $division = Division::factory()->create();
+        $staff = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $division->id]);
         $user = User::factory()->create();
 
         $this->actingAs($staff)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('Rata-rata NKO')
-            ->assertSee('Grafik Tren Kinerja')
-            ->assertDontSee('Audit Terbaru')
-            ->assertDontSee('Dataset Gagal')
-            ->assertDontSee('Editor Layout');
+            ->assertSee('Status Dataset')
+            ->assertDontSee('Rata-rata NKO')
+            ->assertDontSee('Grafik Tren Kinerja')
+            ->assertDontSee('Peringkat NKO Unit')
+            ->assertDontSee('Target vs Realisasi')
+            ->assertDontSee('Distribusi NKO');
 
         $this->actingAs($user)
             ->get(route('dashboard'))
             ->assertOk()
             ->assertSee('Grafik Tren Kinerja')
             ->assertDontSee('Audit Terbaru');
+    }
+
+    public function test_staff_pengusahaan_melihat_layout_kpi(): void
+    {
+        $division = Division::factory()->create(['slug' => 'perencanaan-pengusahaan']);
+        $staff = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $division->id]);
+
+        $this->actingAs($staff)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('Rata-rata NKO')
+            ->assertSee('Grafik Tren Kinerja')
+            ->assertSee('Target vs Realisasi')
+            ->assertSee('Distribusi NKO')
+            ->assertDontSee('Audit Terbaru')
+            ->assertDontSee('Dataset Gagal')
+            ->assertDontSee('Editor Layout');
     }
 }
