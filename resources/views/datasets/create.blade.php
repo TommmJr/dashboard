@@ -81,8 +81,20 @@
                     <label for="period" class="block text-sm font-medium text-gray-700">Periode data</label>
                     <input type="date" id="period" name="period" required value="{{ old('period') }}"
                            class="mt-1 block rounded-md border-gray-300 text-sm">
+                    @if ($kpiPeriods->isNotEmpty())
+                        <div class="mt-2 rounded-md bg-amber-50 p-3 text-sm text-amber-800">
+                            Periode yang sudah pernah diimpor: <span class="font-semibold">{{ $kpiPeriods->implode(', ') }}</span>.
+                            Memilih periode yang sudah ada berarti merevisi data tersebut: dataset lamanya diarsipkan
+                            otomatis (tetap tersimpan, tidak dihapus).
+                        </div>
+                    @endif
                 </div>
                 <x-dropzone name="file" accept=".xlsx" required />
+                <label class="flex items-start gap-2 text-sm text-gray-700">
+                    <input type="checkbox" name="confirm_archive" value="1" @checked(old('confirm_archive'))
+                           class="mt-1 rounded border-gray-300">
+                    <span>Saya sudah memastikan periodenya benar, dan memahami bahwa import ini merevisi periode tersebut.</span>
+                </label>
                 <button type="submit"
                         class="self-start rounded bg-gray-700 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-800">
                     Import Otomatis

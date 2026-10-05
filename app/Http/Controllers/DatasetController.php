@@ -11,7 +11,10 @@ use App\Services\DatasetImportService;
 use App\Services\KpiReportConverter;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -30,7 +33,42 @@ class DatasetController extends Controller
             ? Division::query()->orderBy('name')->get(['id', 'name', 'description'])
             : collect();
 
-        return view('datasets.create', compact('divisions', 'user'));
+        return view('datasets.create', [
+            'divisions' => $divisions,
+            'user' => $user,
+            'kpiPeriods' => $this->importedKpiPeriods($user),
+        ]);
+    }
+
+    /**
+     * Periode yang sudah pernah diimpor pada laporan KPI, untuk ditampilkan
+     * di form import. Mencegah salah ketik: `period` berasal dari form,
+     * bukan dari isi file, jadi kalau periode sudah ada isinya berarti
+     * merevisi (dataset lama diarsipkan).
+     *
+     * Hanya ditampilkan ke pihak yang boleh mengimpor KPI saja. Period lewat
+     * DB::table + format eksplisit Y-m-d, sama seperti PerformanceChartController:
+     * cast 'date' pada model menggeser tanggal saat serialisasi (timezone).
+     *
+     * @return Collection<int, string>
+     */
+    private function importedKpiPeriods(User $user)
+    {
+        $owner = Division::where('slug', 'perencanaan-pengusahaan')->first();
+
+        if ($owner === null || ($user->division_id !== null && $user->division_id !== $owner->id)) {
+            return collect();
+        }
+
+        return DB::table('performance_metrics')
+            ->join('datasets', 'datasets.id', '=', 'performance_metrics.dataset_id')
+            ->where('datasets.status', Dataset::STATUS_READY)
+            ->where('datasets.division_id', $owner->id)
+            ->distinct()
+            ->orderByDesc('performance_metrics.period')
+            ->pluck('performance_metrics.period')
+            ->map(fn ($period) => Carbon::parse($period)->format('Y-m-d'))
+            ->values();
     }
 
     /**
@@ -111,7 +149,31 @@ class DatasetController extends Controller
             // Date picker form selalu mengirim Y-m-d; format dipatok agar
             // tidak ada silent-rolling (pola sama dengan kpi:convert --period).
             'period' => 'required|date_format:Y-m-d',
+            // Diajukan hanya bila import akan mengarsipkan dataset periode
+            // yang sama. BUKAN kontrol keamanan, hanya pengaman salah ketik.
+            'confirm_archive' => ['nullable', 'boolean'],
         ]);
+
+        $period = $request->string('period')->toString();
+
+        // Pre-flight: periode sudah ada = merevisi, bukan menambah. Arsipkan
+        // adalah satu arah (tidak ada route un-archive), jadi minta persetujuan
+        // eksplisit SEBELUM file dibaca dan dataset ditulis. Dicek di sini, bukan
+        // dengan memindahkan query arsip ke atas: query itu juga menyumbang
+        // pesan "diarsipkan otomatis", dan harus tetap kosong saat import gagal.
+        $willSupersede = Dataset::query()
+            ->where('division_id', $owner->id)
+            ->where('status', Dataset::STATUS_READY)
+            ->whereHas('metrics', fn ($query) => $query->where('period', $period))
+            ->exists();
+
+        if ($willSupersede && ! $request->boolean('confirm_archive')) {
+            return back()
+                ->withInput()
+                ->withErrors([
+                    'period' => "Periode {$period} sudah pernah diimpor. Mengimpor periode yang sama akan mengarsipkan dataset lama (data lama tetap tersimpan). Periksa kembali periodenya, lalu centang konfirmasi bila ini memang revisi.",
+                ]);
+        }
 
         try {
             $perUnit = $converter->extractPerUnit(
@@ -148,7 +210,6 @@ class DatasetController extends Controller
 
         $imported = [];
         $superseded = collect();
-        $period = $request->string('period')->toString();
 
         if ($validRows !== []) {
             $convertedPath = $converter->write($validRows);

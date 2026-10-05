@@ -165,9 +165,12 @@ class DatasetKpiReportImportTest extends TestCase
         $first = Dataset::sole();
         $this->assertSame(Dataset::STATUS_READY, $first->status->value);
 
+        // Konfirmasi wajib: periode sama = revisi, jadi archive dipaksa
+        // eksplisit agar salah ketik periode tidak mengarsipkan data diam-diam.
         $response = $this->actingAs($admin)->post(route('datasets.kpi-import'), [
             'file' => $this->makeKpiReport(),
             'period' => '2026-08-31',
+            'confirm_archive' => 1,
         ]);
 
         $response->assertRedirect(route('datasets.create'))
@@ -201,6 +204,43 @@ class DatasetKpiReportImportTest extends TestCase
         $this->assertSame(2, Dataset::count());
         $this->assertSame(2, Dataset::where('status', Dataset::STATUS_READY)->count());
         $this->assertSame(0, Dataset::where('status', Dataset::STATUS_ARCHIVED)->count());
+    }
+
+    public function test_import_periode_sama_tanpa_konfirmasi_tidak_mengarsipkan(): void
+    {
+        // Arsip satu arah (tidak ada route un-archive), jadi revisi periode
+        // yang sama harus minta persetujuan eksplisit. Tanpa konfirmasi,
+        // dataset lama TETAP READY dan tidak ada yang berubah sama sekali.
+        $admin = User::factory()->withRole(Role::ADMIN)->create(['division_id' => null]);
+
+        $this->actingAs($admin)->post(route('datasets.kpi-import'), [
+            'file' => $this->makeKpiReport(),
+            'period' => '2026-08-31',
+        ])->assertRedirect(route('datasets.create'));
+
+        $this->actingAs($admin)->post(route('datasets.kpi-import'), [
+            'file' => $this->makeKpiReport(),
+            'period' => '2026-08-31',
+        ])
+            ->assertRedirect()
+            ->assertSessionHasErrors('period');
+
+        $this->assertSame(1, Dataset::count());
+        $this->assertSame(1, Dataset::where('status', Dataset::STATUS_READY)->count());
+        $this->assertSame(0, Dataset::where('status', Dataset::STATUS_ARCHIVED)->count());
+    }
+
+    public function test_periode_kosong_tidak_muncul_di_form_untuk_divisi_bukan_pemilik(): void
+    {
+        // Staf divisi lain tidak boleh impor KPI, jadi tidak perlu melihat
+        // daftar periode milik divisi pemilik data.
+        $staff = User::factory()->withRole(Role::STAFF_DIVISI)->create([
+            'division_id' => Division::factory()->create()->id,
+        ]);
+
+        $this->actingAs($staff)->get(route('datasets.create'))
+            ->assertOk()
+            ->assertDontSee('Periode yang sudah pernah diimpor');
     }
 
     private function makeKpiReport(bool $withBrokenSheet = false): UploadedFile
