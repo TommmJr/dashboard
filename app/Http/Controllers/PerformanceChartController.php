@@ -20,7 +20,9 @@ class PerformanceChartController extends Controller
      * - labels : daftar periode (Y-m-d) urut naik.
      * - series : [{ name: <nama unit>, data: [<NKO per periode>] }]
      *            — satu series per unit agar ECharts bisa menumpuk
-     *            bar + line trend per unit.
+     *            bar + line trend per unit. Periode yang belum dilaporkan
+     *            bernilai null (bukan 0), supaya garis tren terputus dan
+     *            tidak terbaca sebagai "NKO nol".
      * - y_axis_min : batas bawah sumbu Y chart (dihitung dinamis dari
      *            nilai NKO mentah terendah; NKO bukan besaran mulai 0).
      * - kpi    : { average_nko, ready_datasets, metric_count }
@@ -106,7 +108,7 @@ class PerformanceChartController extends Controller
 
             return [
                 'name' => $name,
-                'data' => $labels->map(fn ($label) => (float) ($byPeriod[$label]->nko ?? 0))->values(),
+                'data' => $labels->map(fn ($label) => isset($byPeriod[$label]) ? (float) $byPeriod[$label]->nko : null)->values(),
             ];
         })->values();
 

@@ -80,10 +80,12 @@ class PerformanceChartDataTest extends TestCase
         $this->assertSame(1, $response->json('kpi.metric_count'));
     }
 
-    public function test_series_per_divisi_dengan_padding_nol(): void
+    public function test_series_per_divisi_dengan_periode_kosong_null(): void
     {
         // RST punya NKO di Jan & Feb; TEK hanya di Feb dan berbagi owner.
-        // Series RST harus [100, 200], series TEK harus [0, 999].
+        // Series RST harus [100, 200], series TEK harus [null, 999] —
+        // periode tanpa laporan = null, BUKAN 0 (NKO indeks 0-110, jadi 0
+        // akan terbaca "nilai nol/gagal", bukan "belum lapor").
         $this->datasetWithNko($this->divA, Dataset::STATUS_READY, '2026-01-31', 100, 'RST');
         $this->datasetWithNko($this->divA, Dataset::STATUS_READY, '2026-02-28', 200, 'RST');
         $this->datasetWithNko($this->divA, Dataset::STATUS_READY, '2026-02-28', 999, 'TEK');
@@ -95,7 +97,29 @@ class PerformanceChartDataTest extends TestCase
 
         $series = collect($response->json('series'))->keyBy('name');
         $this->assertEquals([100.0, 200.0], array_map('floatval', $series['RST']['data']));
-        $this->assertEquals([0.0, 999.0], array_map('floatval', $series['TEK']['data']));
+        $this->assertNull($series['TEK']['data'][0]);
+        $this->assertEquals(999.0, (float) $series['TEK']['data'][1]);
+    }
+
+    public function test_periode_belum_dilapor_bernilai_null_bukan_nol(): void
+    {
+        // Unit TEK hanya lapor periode Jan; Feb belum. Nilai Feb harus null
+        // agar garis tren terputus di frontend (bukan jatuh ke 0).
+        $this->datasetWithNko($this->divA, Dataset::STATUS_READY, '2026-01-31', 105, 'TEK');
+        $this->datasetWithNko($this->divA, Dataset::STATUS_READY, '2026-01-31', 100, 'RST');
+        $this->datasetWithNko($this->divA, Dataset::STATUS_READY, '2026-02-28', 110, 'RST');
+
+        $admin = User::factory()->withRole(Role::ADMIN)->create();
+        $response = $this->actingAs($admin)->getJson(route('performance.data'))->assertOk();
+
+        $series = collect($response->json('series'))->keyBy('name');
+
+        // JSON harus memuat null literal, bukan 0.
+        $this->assertNull($series['TEK']['data'][1]);
+        $this->assertEquals(105.0, (float) $series['TEK']['data'][0]);
+
+        // Series TEK masih dikirim (punya data di satu periode), RST dua periode.
+        $this->assertCount(2, $series['TEK']['data']);
     }
 
     public function test_upload_ganda_unit_dan_periode_yang_sama_memakai_nilai_maksimum(): void
@@ -292,11 +316,12 @@ class PerformanceChartDataTest extends TestCase
         $this->assertEquals(90.0, (float) $response->json('y_axis_min'));
     }
 
-    public function test_y_axis_min_tidak_terseret_oleh_padding_nol_periode_kosong(): void
+    public function test_y_axis_min_tidak_terseret_oleh_periode_kosong(): void
     {
-        // Divisi B hanya punya NKO di Feb; series-nya di-pad 0 di Jan (lihat
-        // test_series_per_divisi_dengan_padding_nol). y_axis_min HARUS dihitung
-        // dari nilai NKO mentah (min 100), bukan dari padding 0 di series.
+        // Divisi A: TEK hanya punya NKO di Feb, jadi Jan untuk TEK = null
+        // (lihat test_series_per_divisi_dengan_periode_kosong_null).
+        // y_axis_min HARUS dihitung dari nilai NKO mentah (min 100), bukan
+        // dari periode kosong di series.
         $this->datasetWithNko($this->divA, Dataset::STATUS_READY, '2026-01-31', 100, 'RST');
         $this->datasetWithNko($this->divA, Dataset::STATUS_READY, '2026-02-28', 105, 'RST');
         $this->datasetWithNko($this->divA, Dataset::STATUS_READY, '2026-02-28', 999, 'TEK');

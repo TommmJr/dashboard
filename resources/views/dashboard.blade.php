@@ -124,7 +124,8 @@
 
             // ponytail: subjudul mengikuti jumlah periode yang BENAR-BENAR ada.
             // 1 periode = snapshot (bukan tren); >1 periode = tren. Batas ini
-            // cukup sampai agregasi bulanan riil tersedia.
+            // cukup sampai agregasi bulanan riil tersedia. Unit tanpa data di
+            // periode yang tampil TIDAK dihitung sebagai unit di snapshot.
             chartSubtitle() {
                 if (this.loading || this.empty) {
                     return '';
@@ -229,7 +230,8 @@
                 // - >1 periode = garis per unit (tren), warna dari palet.
                 if (payload.labels.length <= 1) {
                     const ranked = payload.series
-                        .map((s) => ({ name: s.name, value: Number(s.data[0] ?? 0) }))
+                        .filter((s) => s.data[0] !== null && s.data[0] !== undefined)
+                        .map((s) => ({ name: s.name, value: Number(s.data[0]) }))
                         .sort((a, b) => b.value - a.value);
 
                     this.chart.setOption({
