@@ -5,7 +5,7 @@ import Alpine from 'alpinejs';
 // Apache ECharts: import MODULAR (bukan 'echarts' penuh) agar bundle kecil.
 // Hanya chart + komponen yang dipakai dashboard yang di-register.
 import * as echarts from 'echarts/core';
-import { BarChart, LineChart } from 'echarts/charts';
+import { BarChart, LineChart, PieChart } from 'echarts/charts';
 import {
     GridComponent,
     LegendComponent,
@@ -13,7 +13,7 @@ import {
 } from 'echarts/components';
 import { CanvasRenderer } from 'echarts/renderers';
 
-echarts.use([BarChart, LineChart, GridComponent, LegendComponent, TooltipComponent, CanvasRenderer]);
+echarts.use([BarChart, LineChart, PieChart, GridComponent, LegendComponent, TooltipComponent, CanvasRenderer]);
 
 // Design token warna — selaraskan dengan @theme di resources/css/app.css.
 // Satu sumber untuk semua series chart di aplikasi.

@@ -161,6 +161,7 @@ class DashboardController extends Controller
             'kinerja-detail' => $this->kinerjaDetail($user, $filters['start_date'] ?? null, $filters['end_date'] ?? null),
             'target-vs-realisasi' => $this->targetVsRealisasi($user, $filters['start_date'] ?? null, $filters['end_date'] ?? null),
             'pencapaian-nko' => $this->pencapaianNko($user, $filters['start_date'] ?? null, $filters['end_date'] ?? null),
+            'nko-donut' => $this->nkoDonut($user, $filters['start_date'] ?? null, $filters['end_date'] ?? null),
             default => null,
         };
     }
@@ -577,5 +578,54 @@ class DashboardController extends Controller
             'labels' => array_map(fn ($row) => $row['unit'], $rekap['rows']),
             'data' => array_map(fn ($row) => $row['avg'], $rekap['rows']),
         ];
+    }
+
+    /**
+     *Donut klasifikasi NKO per kategori pada periode aktif:
+     * Tercapai (>=100), Hampir Tercapai (95-<100), Perlu Peningkatan (<95).
+     * Persamaan kategori dengan nko-ranking agar konsisten.
+     */
+    private function nkoDonut(?User $user, ?string $startDate = null, ?string $endDate = null): array
+    {
+        $isPrivileged = $this->isPrivileged($user);
+        $base = fn () => DB::table('performance_metrics')
+            ->join('datasets', 'datasets.id', '=', 'performance_metrics.dataset_id')
+            ->where('datasets.status', Dataset::STATUS_READY)
+            ->where('performance_metrics.metric_name', 'like', '%'.KpiReportConverter::NKO_SUFFIX)
+            ->when(! $isPrivileged, fn ($q) => $q->where('performance_metrics.division_id', $user?->division_id))
+            ->when($startDate !== null, fn ($q) => $q->where('performance_metrics.period', '>=', $startDate))
+            ->when($endDate !== null, fn ($q) => $q->where('performance_metrics.period', '<=', $endDate));
+
+        $period = $base()->max('performance_metrics.period');
+
+        if ($period === null) {
+            return ['period' => null, 'data' => []];
+        }
+
+        $counts = ['Tercapai' => 0, 'Hampir Tercapai' => 0, 'Perlu Peningkatan' => 0];
+
+        $base()
+            ->where('performance_metrics.period', $period)
+            ->select('performance_metrics.value')
+            ->get()
+            ->each(function (object $row) use (&$counts) {
+                $v = (float) $row->value;
+                if ($v >= 100) {
+                    $counts['Tercapai']++;
+                } elseif ($v >= 95) {
+                    $counts['Hampir Tercapai']++;
+                } else {
+                    $counts['Perlu Peningkatan']++;
+                }
+            });
+
+        $data = [];
+        foreach ($counts as $name => $value) {
+            if ($value > 0) {
+                $data[] = ['name' => $name, 'value' => $value];
+            }
+        }
+
+        return ['period' => $period, 'data' => $data];
     }
 }

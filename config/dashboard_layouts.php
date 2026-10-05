@@ -37,6 +37,7 @@ return [
         'kinerja-detail' => ['label' => 'Detail Metrik KPI', 'view' => 'widgets.kinerja-detail',       'permission' => null],
         'target-vs-realisasi' => ['label' => 'Target vs Realisasi', 'view' => 'widgets.target-vs-realisasi', 'permission' => null],
         'pencapaian-nko' => ['label' => 'Pencapaian % per Unit', 'view' => 'widgets.pencapaian-nko', 'permission' => null],
+        'nko-donut' => ['label' => 'Distribusi NKO', 'view' => 'widgets.nko-donut', 'permission' => null],
         // Katalog saja, TIDAK dipasang ke layout role mana pun. Data Aset
         // dimiliki divisi Managemen Aset (MANSET), sedangkan layout
         // `staff_divisi` di-scope ke divisi staf yang login — memasang widget
@@ -84,7 +85,7 @@ return [
         'admin' => ['admin-summary', 'recent-audit', 'failed-datasets', 'admin-quick-actions'],
         'management' => ['kpi-summary', 'trend-chart', 'nko-ranking'],
         'editor_dashboard' => ['kpi-summary', 'trend-chart', 'nko-ranking', 'layout-editor-placeholder'],
-        'staff_divisi' => ['kpi-summary', 'trend-chart', 'nko-ranking', 'dataset-status', 'kinerja-realisasi', 'pencapaian-nko', 'kinerja-detail', 'target-vs-realisasi'],
+        'staff_divisi' => ['kpi-summary', 'trend-chart', 'nko-ranking', 'target-vs-realisasi', 'nko-donut', 'dataset-status', 'kinerja-realisasi', 'pencapaian-nko', 'kinerja-detail'],
     ],
 
     // Fallback: role null / slug tidak dikenal -> KPI + chart saja.
