@@ -156,6 +156,9 @@ class DashboardController extends Controller
             'failed-datasets' => $this->failedDatasets(),
             'admin-summary' => $this->adminSummary(),
             'admin-quick-actions' => null,
+            'dataset-status' => $this->datasetStatus($user),
+            'kinerja-realisasi' => $this->kinerjaRealisasi($user, $filters['start_date'] ?? null, $filters['end_date'] ?? null),
+            'kinerja-detail' => $this->kinerjaDetail($user, $filters['start_date'] ?? null, $filters['end_date'] ?? null),
             default => null,
         };
     }
@@ -314,5 +317,200 @@ class DashboardController extends Controller
 
                 return $row;
             });
+    }
+
+    /**
+     * Periode terbaru dengan data READY di divisi user (atau lintas divisi
+     * untuk role privileged). Sama sumberarnya dengan nkoRanking, tapi tanpa
+     * filter nama NKO supaya widget Aset/Kinerja lain bisa memakai aturan
+     * tanggal yang konsisten.
+     */
+    private function latestReadyPeriod(?User $user, ?string $startDate = null, ?string $endDate = null): ?string
+    {
+        $isPrivileged = $this->isPrivileged($user);
+
+        $base = fn () => DB::table('performance_metrics')
+            ->join('datasets', 'datasets.id', '=', 'performance_metrics.dataset_id')
+            ->where('datasets.status', Dataset::STATUS_READY)
+            ->when(! $isPrivileged, fn ($query) => $query->where('performance_metrics.division_id', $user?->division_id))
+            ->when($startDate !== null, fn ($query) => $query->where('performance_metrics.period', '>=', $startDate))
+            ->when($endDate !== null, fn ($query) => $query->where('performance_metrics.period', '<=', $endDate));
+
+        return $base()->max('performance_metrics.period');
+    }
+
+    /**
+     * Ringkasan dataset organisasi: periode data terbaru yang aktif, jumlah
+     * dataset per status, danjumlah baris aktif periode terbaru.
+     */
+    private function datasetStatus(?User $user): array
+    {
+        $isPrivileged = $this->isPrivileged($user);
+        $scope = fn ($query) => $query->when(! $isPrivileged, fn ($q) => $q->where('division_id', $user?->division_id));
+
+        $latestPeriod = $this->latestReadyPeriod($user);
+        $latestRows = 0;
+        if ($latestPeriod !== null) {
+            $latestRows = DB::table('performance_metrics')
+                ->join('datasets', 'datasets.id', '=', 'performance_metrics.dataset_id')
+                ->where('datasets.status', Dataset::STATUS_READY)
+                ->where('performance_metrics.period', $latestPeriod)
+                ->when(! $isPrivileged, fn ($q) => $q->where('performance_metrics.division_id', $user?->division_id))
+                ->count();
+        }
+
+        return [
+            'latest_period' => $latestPeriod,
+            'ready' => $scope(Dataset::query())->where('status', Dataset::STATUS_READY)->count(),
+            'archived' => $scope(Dataset::query())->where('status', Dataset::STATUS_ARCHIVED)->count(),
+            'failed' => $scope(Dataset::query())->where('status', DatasetStatus::FAILED)->count(),
+            'latest_rows' => $latestRows,
+            'fresh' => $latestPeriod !== null && $latestPeriod >= now()->subDays(45)->toDateString(),
+        ];
+    }
+
+    /**
+     * Per unit: berapa indikator yang realisasi >= target (pencapaian >=100%),
+     * rata-rata pencapaian, dan status kategori. Sumber: baris '| target'
+     * dan '| realisasi' pada periode terbaru di divisi user.
+     */
+    private function kinerjaRealisasi(?User $user, ?string $startDate = null, ?string $endDate = null): array
+    {
+        $period = $this->latestReadyPeriod($user, $startDate, $endDate);
+
+        if ($period === null) {
+            return ['period' => null, 'rows' => [], 'has_data' => false];
+        }
+
+        $isPrivileged = $this->isPrivileged($user);
+        $pairs = [];
+
+        DB::table('performance_metrics')
+            ->join('datasets', 'datasets.id', '=', 'performance_metrics.dataset_id')
+            ->where('datasets.status', Dataset::STATUS_READY)
+            ->where('performance_metrics.period', $period)
+            ->where(function ($query) {
+                $query->where('performance_metrics.metric_name', 'like', '%| target')
+                    ->orWhere('performance_metrics.metric_name', 'like', '%| realisasi');
+            })
+            ->when(! $isPrivileged, fn ($q) => $q->where('performance_metrics.division_id', $user?->division_id))
+            ->select('performance_metrics.metric_name', 'performance_metrics.value')
+            ->get()
+            ->each(function (object $row) use (&$pairs) {
+                $parts = explode(' | ', $row->metric_name);
+                if (count($parts) !== 3) {
+                    return;
+                }
+                [$unit, $indikator, $jenis] = $parts;
+                $pairs[$unit][$indikator][strtolower($jenis)] = (float) $row->value;
+            });
+
+        $rows = [];
+        foreach ($pairs as $unit => $indikators) {
+            $total = 0;
+            $achieved = 0;
+            $pencapaianSum = 0;
+            $counted = 0;
+
+            foreach ($indikators as $vals) {
+                $target = $vals['target'] ?? null;
+                $realisasi = $vals['realisasi'] ?? null;
+
+                if ($target !== null && $target > 0 && $realisasi !== null) {
+                    $total++;
+                    $p = ($realisasi / $target) * 100;
+                    $pencapaianSum += $p;
+                    $counted++;
+                    if ($p >= 100) {
+                        $achieved++;
+                    }
+                }
+            }
+
+            if ($total > 0) {
+                $avg = $pencapaianSum / $counted;
+                $rows[] = [
+                    'unit' => $unit,
+                    'achieved' => $achieved,
+                    'total' => $total,
+                    'avg' => round($avg, 1),
+                    'status' => $avg >= 100 ? 'Tercapai' : ($avg >= 95 ? 'Hampir Tercapai' : 'Perlu Peningkatan'),
+                ];
+            }
+        }
+
+        usort($rows, fn ($a, $b) => $b['avg'] <=> $a['avg']);
+
+        return ['period' => $period, 'rows' => $rows, 'has_data' => $rows !== []];
+    }
+
+    /**
+     * Detail baris metrik per unit+indikator pada periode terbaru: target,
+     * realisasi, pencapaian %, dan NKO unit. Cap 50 baris + flag truncated.
+     */
+    private function kinerjaDetail(?User $user, ?string $startDate = null, ?string $endDate = null): array
+    {
+        $period = $this->latestReadyPeriod($user, $startDate, $endDate);
+
+        if ($period === null) {
+            return ['period' => null, 'rows' => [], 'truncated' => false, 'total_rows' => 0];
+        }
+
+        $isPrivileged = $this->isPrivileged($user);
+        $pairs = [];
+        $nko = [];
+
+        DB::table('performance_metrics')
+            ->join('datasets', 'datasets.id', '=', 'performance_metrics.dataset_id')
+            ->where('datasets.status', Dataset::STATUS_READY)
+            ->where('performance_metrics.period', $period)
+            ->when(! $isPrivileged, fn ($q) => $q->where('performance_metrics.division_id', $user?->division_id))
+            ->where(function ($query) {
+                $query->where('performance_metrics.metric_name', 'like', '%| target')
+                    ->orWhere('performance_metrics.metric_name', 'like', '%| realisasi')
+                    ->orWhere('performance_metrics.metric_name', 'like', '%| NKO');
+            })
+            ->select('performance_metrics.metric_name', 'performance_metrics.value')
+            ->get()
+            ->each(function (object $row) use (&$pairs, &$nko) {
+                $parts = explode(' | ', $row->metric_name);
+                if (count($parts) === 2 && strtolower($parts[1]) === 'nko') {
+                    $nko[$parts[0]] = (float) $row->value;
+
+                    return;
+                }
+                if (count($parts) !== 3) {
+                    return;
+                }
+                [$unit, $indikator, $jenis] = $parts;
+                $pairs[$unit][$indikator][strtolower($jenis)] = (float) $row->value;
+            });
+
+        $rows = [];
+        foreach ($pairs as $unit => $indikators) {
+            foreach ($indikators as $indikator => $vals) {
+                $target = $vals['target'] ?? null;
+                $realisasi = $vals['realisasi'] ?? null;
+                $rows[] = [
+                    'unit' => $unit,
+                    'indikator' => $indikator,
+                    'target' => $target,
+                    'realisasi' => $realisasi,
+                    'pencapaian' => ($target !== null && $target > 0 && $realisasi !== null)
+                        ? round($realisasi / $target * 100, 1) : null,
+                    'nko' => $nko[$unit] ?? null,
+                ];
+            }
+        }
+
+        usort($rows, fn ($a, $b) => [$a['unit'], $a['indikator']] <=> [$b['unit'], $b['indikator']]);
+
+        $total = count($rows);
+        $truncated = $total > 50;
+        if ($truncated) {
+            $rows = array_slice($rows, 0, 50);
+        }
+
+        return ['period' => $period, 'rows' => $rows, 'truncated' => $truncated, 'total_rows' => $total];
     }
 }
