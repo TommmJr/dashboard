@@ -85,7 +85,8 @@ class DatasetController extends Controller
     /**
      * Import laporan KPI mentah dari mentor dalam 1 klik, tanpa command line.
      * Semua sheet unit pada workbook adalah dimensi pembanding dalam satu
-     * laporan milik TJBT, sehingga hasilnya digabung menjadi SATU dataset.
+     * laporan milik TJBT, sehingga hasilnya digabung menjadi SATU dataset
+     * milik divisi Perencanaan Pengusahaan.
      */
     public function importKpiReport(Request $request, KpiReportConverter $converter, DatasetImportService $importService)
     {
@@ -123,7 +124,7 @@ class DatasetController extends Controller
                 'error' => $e->getMessage(),
             ]);
 
-            return back()->with('error', 'File tidak dapat dibaca. Pastikan file Excel laporan KPI dari mentor tidak rusak.');
+            return back()->with('error', 'File tidak dapat dibaca. Pastikan file Excel tidak rusak.');
         }
 
         $failed = [];
@@ -131,7 +132,7 @@ class DatasetController extends Controller
 
         foreach ($perUnit as $unit => $outcome) {
             if ($outcome instanceof Throwable) {
-                $failed[] = "{$unit}: layout sheet tidak dikenali — periksa file dari mentor.";
+                $failed[] = "{$unit}: layout sheet tidak dikenali — periksa file.";
 
                 continue;
             }
