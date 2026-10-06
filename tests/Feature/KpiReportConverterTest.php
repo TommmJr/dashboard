@@ -45,18 +45,26 @@ class KpiReportConverterTest extends TestCase
     {
         $path = $this->makeKpiReport();
 
-        $rows = app(KpiReportConverter::class)->extract($path, '2026-08-31');
+        $converter = app(KpiReportConverter::class);
+        $rows = $converter->extract($path, '2026-08-31');
 
         $this->assertSame([
             ['TJBT | Faktor Ketersediaan Trafo dan Transmisi', 41.0, '2026-08-31'],
             ['TJBT | a. Faktor Ketersediaan Trafo | target', 99.5, '2026-08-31'],
             ['TJBT | a. Faktor Ketersediaan Trafo | realisasi', 99.75, '2026-08-31'],
             ['TJBT | c. Indikator Nol', 0.0, '2026-08-31'],
-            ['TJBT | TOTAL BOBOT', 94.5, '2026-08-31'],
             ['TJBT | NKO', 105.5, '2026-08-31'],
             ['TJBB | Indikator TJBB', 50.5, '2026-08-31'],
             ['TJBB | NKO', 100.0, '2026-08-31'],
         ], $rows);
+
+        // "TOTAL BOBOT" (B39) dan judul sheet "INDIKATOR KINERJA KUNCI" (B6)
+        // ada di fixture dengan nilai numerik, tetapi bukan indikator: harus
+        // ditolak dan tercatat, bukan ikut ter-import.
+        $this->assertSame(
+            2,
+            $converter->diagnostics()['TJBT']['rows_rejected'][KpiReportConverter::REASON_NON_INDICATOR],
+        );
     }
 
     public function test_filter_unit_hanya_mengambil_unit_yang_diminta(): void
@@ -113,7 +121,7 @@ class KpiReportConverterTest extends TestCase
 
         $dataset = Dataset::sole();
         $this->assertSame(Dataset::STATUS_READY, $dataset->status->value);
-        $this->assertSame(6, $dataset->metrics()->count());
+        $this->assertSame(5, $dataset->metrics()->count());
 
         $nko = $dataset->metrics()->where('metric_name', 'TJBT | NKO')->sole();
         $this->assertSame(105.5, (float) $nko->value);
@@ -138,9 +146,9 @@ class KpiReportConverterTest extends TestCase
         $spreadsheet = $reader->load($output);
         $sheet = $spreadsheet->getActiveSheet();
 
-        // 6 baris data + 1 header.
-        $this->assertSame(7, $sheet->getHighestRow());
-        $this->assertSame('TJBT | NKO', $sheet->getCell('A7')->getValue());
+        // 5 baris data + 1 header. "TOTAL BOBOT" ditolak sebagai non-indikator.
+        $this->assertSame(6, $sheet->getHighestRow());
+        $this->assertSame('TJBT | NKO', $sheet->getCell('A6')->getValue());
 
         $spreadsheet->disconnectWorksheets();
     }
@@ -219,6 +227,168 @@ class KpiReportConverterTest extends TestCase
             ->assertSee('Peringkat NKO Unit')
             ->assertSee('TJBT')
             ->assertSee('105.50');
+    }
+
+    public function test_label_dengan_delimiter_pipe_ditolak_dan_tercatat(): void
+    {
+        // Label ber-delimiter akan memecah metric_name jadi >3 bagian dan
+        // hilang senyap di dashboard (guard count($parts) !== 3). Harus ditolak.
+        $path = $this->makeSingleSheet('TJBT', function (Worksheet $sheet): void {
+            $sheet->setCellValue('B10', 'Indikator Normal');
+            $sheet->setCellValue('N10', 10);
+            $sheet->setCellValue('B11', 'Indikator | Aneh | target');
+            $sheet->setCellValue('N11', 20);
+            $sheet->setCellValue('B40', 'NILAI KINERJA ORGANISASI (NKO)');
+            $sheet->setCellValue('N40', 100);
+        });
+
+        $converter = app(KpiReportConverter::class);
+        $rows = $converter->extract($path, '2026-08-31');
+
+        $this->assertSame([
+            ['TJBT | Indikator Normal', 10.0, '2026-08-31'],
+            ['TJBT | NKO', 100.0, '2026-08-31'],
+        ], $rows);
+
+        $this->assertSame(
+            1,
+            $converter->diagnostics()['TJBT']['rows_rejected'][KpiReportConverter::REASON_AMBIGUOUS_DELIMITER],
+        );
+    }
+
+    public function test_nilai_teks_dicatat_dan_tidak_dibuat_baris(): void
+    {
+        // Target berupa teks ("Sesuai Buku Prioritas KKP 2025") tidak bisa
+        // dijadikan angka; harus tercatat sebagai alasan, bukan hilang senyap.
+        $path = $this->makeSingleSheet('TJBT', function (Worksheet $sheet): void {
+            $sheet->setCellValue('B10', 'Penyelesaian KKP');
+            $sheet->setCellValue('N10', 5);
+            $sheet->setCellValue('K10', 'Sesuai Buku Prioritas KKP 2025');
+            $sheet->setCellValue('L10', 3);
+            $sheet->setCellValue('B40', 'NILAI KINERJA ORGANISASI (NKO)');
+            $sheet->setCellValue('N40', 100);
+        });
+
+        $converter = app(KpiReportConverter::class);
+        $rows = $converter->extract($path, '2026-08-31');
+
+        $this->assertSame([
+            ['TJBT | Penyelesaian KKP', 5.0, '2026-08-31'],
+            ['TJBT | Penyelesaian KKP | realisasi', 3.0, '2026-08-31'],
+            ['TJBT | NKO', 100.0, '2026-08-31'],
+        ], $rows);
+
+        $this->assertSame(1, $converter->diagnostics()['TJBT']['columns']['target'][KpiReportConverter::REASON_TEXT]);
+    }
+
+    public function test_formula_tanpa_cached_value_dicatat_bukan_dibuang_senyap(): void
+    {
+        // Berkas yang disimpan dengan autocalc mati: cached value NULL.
+        // Sebelumnya baris ini hilang tanpa jejak; sekarang harus tercatat.
+        $path = $this->makeSingleSheet('TJBT', function (Worksheet $sheet): void {
+            $sheet->setCellValue('B10', 'Indikator Cached');
+            $sheet->setCellValue('N10', 12);
+            $sheet->setCellValue('B11', 'Indikator Tanpa Cache');
+            $sheet->setCellValue('N11', '=F11*2');
+            $sheet->setCellValue('B40', 'NILAI KINERJA ORGANISASI (NKO)');
+            $sheet->setCellValue('N40', 100);
+        }, preCalculate: false);
+
+        $converter = app(KpiReportConverter::class);
+        $rows = $converter->extract($path, '2026-08-31');
+
+        $this->assertSame([
+            ['TJBT | Indikator Cached', 12.0, '2026-08-31'],
+            ['TJBT | NKO', 100.0, '2026-08-31'],
+        ], $rows);
+
+        $this->assertSame(
+            1,
+            $converter->diagnostics()['TJBT']['columns']['nilai'][KpiReportConverter::REASON_UNCACHED_FORMULA],
+        );
+    }
+
+    public function test_baris_legenda_dan_seksi_ditolak_walau_bernilai_angka(): void
+    {
+        // Baris legenda/section punya angka pembawa (total kolom) di sumber
+        // nyata; tanpa blocklist, baris ini jadi metrik palsu.
+        $path = $this->makeSingleSheet('TJBT', function (Worksheet $sheet): void {
+            $sheet->setCellValue('B10', 'TOTAL BOBOT');
+            $sheet->setCellValue('N10', 100);
+            $sheet->setCellValue('B11', 'KEY PERFORMANCE INDICATORS');
+            $sheet->setCellValue('N11', 40);
+            $sheet->setCellValue('B12', 'Target Tercapai (Pencapaian >= 100)');
+            $sheet->setCellValue('N12', 99);
+            $sheet->setCellValue('B13', 'Belum Dilakukan Penilaian');
+            $sheet->setCellValue('N13', 88);
+            $sheet->setCellValue('B14', 'Indikator Asli');
+            $sheet->setCellValue('N14', 7);
+            $sheet->setCellValue('B40', 'NILAI KINERJA ORGANISASI (NKO)');
+            $sheet->setCellValue('N40', 100);
+        });
+
+        $converter = app(KpiReportConverter::class);
+        $rows = $converter->extract($path, '2026-08-31');
+
+        $this->assertSame([
+            ['TJBT | Indikator Asli', 7.0, '2026-08-31'],
+            ['TJBT | NKO', 100.0, '2026-08-31'],
+        ], $rows);
+
+        $this->assertSame(
+            4,
+            $converter->diagnostics()['TJBT']['rows_rejected'][KpiReportConverter::REASON_NON_INDICATOR],
+        );
+    }
+
+    public function test_nilai_numerik_target_ditandai_unverified_numeric(): void
+    {
+        // Serial tanggal tidak bisa dibedakan dari angka biasa tanpa number
+        // format, jadi nilai TARGET/REALISASI ditandai (bukan diubah/dibuang).
+        $path = $this->makeSingleSheet('TJBT', function (Worksheet $sheet): void {
+            $sheet->setCellValue('B10', 'Indikator Bertarget');
+            $sheet->setCellValue('K10', 45900); // serial tanggal Excel
+            $sheet->setCellValue('L10', 99.5);
+            $sheet->setCellValue('B40', 'NILAI KINERJA ORGANISASI (NKO)');
+            $sheet->setCellValue('N40', 100);
+        });
+
+        $converter = app(KpiReportConverter::class);
+        $rows = $converter->extract($path, '2026-08-31');
+
+        $this->assertSame([
+            ['TJBT | Indikator Bertarget | target', 45900.0, '2026-08-31'],
+            ['TJBT | Indikator Bertarget | realisasi', 99.5, '2026-08-31'],
+            ['TJBT | NKO', 100.0, '2026-08-31'],
+        ], $rows);
+
+        $this->assertSame(2, $converter->diagnostics()['TJBT']['unverified_numeric']);
+    }
+
+    public function test_diagnostics_mencatat_sheet_yang_gagal(): void
+    {
+        $converter = app(KpiReportConverter::class);
+
+        $path = $this->makeReportWithoutValueHeaders();
+        $results = $converter->extractPerUnit($path, '2026-08-31');
+
+        $this->assertInstanceOf(RuntimeException::class, $results['RUSAK']);
+        $this->assertArrayHasKey('failed', $converter->diagnostics()['RUSAK']);
+    }
+
+    public function test_diagnostics_per_unit_memisahkan_hitungan_antar_sheet(): void
+    {
+        $path = $this->makeKpiReport();
+
+        $converter = app(KpiReportConverter::class);
+        $converter->extract($path, '2026-08-31');
+
+        $diagnostics = $converter->diagnostics();
+
+        $this->assertArrayHasKey('TJBT', $diagnostics);
+        $this->assertArrayHasKey('TJBB', $diagnostics);
+        $this->assertGreaterThan(0, $diagnostics['TJBT']['rows_emitted']);
+        $this->assertSame(0, $diagnostics['TJBB']['rows_rejected'][KpiReportConverter::REASON_NON_INDICATOR] ?? 0);
     }
 
     /**
@@ -324,14 +494,34 @@ class KpiReportConverterTest extends TestCase
 
     /**
      * Simpan fixture ke file sementara dan daftarkan untuk dibersihkan.
+     *
+     * $preCalculate=false menghasilkan sel formula TANPA cached value, meniru
+     * berkas yang disimpan dengan autocalc mati — satu-satunya cara menguji
+     * jalur REASON_UNCACHED_FORMULA.
      */
-    private function saveFixture(Spreadsheet $spreadsheet): string
+    private function saveFixture(Spreadsheet $spreadsheet, bool $preCalculate = true): string
     {
         $path = $this->tempFile(tempnam(sys_get_temp_dir(), 'kpi_fixture_').'.xlsx');
-        (new Xlsx($spreadsheet))->save($path);
+        $writer = new Xlsx($spreadsheet);
+        $writer->setPreCalculateFormulas($preCalculate);
+        $writer->save($path);
         $spreadsheet->disconnectWorksheets();
 
         return $path;
+    }
+
+    /**
+     * Fixture satu sheet dengan header value standar (baris 7, kolom K/L/M/N).
+     */
+    private function makeSingleSheet(string $unit, callable $fill, bool $preCalculate = true): string
+    {
+        $spreadsheet = new Spreadsheet;
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle($unit);
+        $this->setValueHeaders($sheet, 'K', 'L', 'M', 'N');
+        $fill($sheet);
+
+        return $this->saveFixture($spreadsheet, $preCalculate);
     }
 
     /**

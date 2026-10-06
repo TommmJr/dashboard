@@ -4,6 +4,7 @@ namespace App\Services;
 
 use PhpOffice\PhpSpreadsheet\Cell\Cell;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
+use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
@@ -33,6 +34,12 @@ use RuntimeException;
  * - "{UNIT} | {indikator}"             -> NILAI (bobot x pencapaian)
  * - "{UNIT} | {indikator} | target"    -> TARGET kumulatif s.d. periode
  * - "{UNIT} | {indikator} | realisasi" -> REALISASI kumulatif s.d. periode
+ *
+ * LOSS-AWARE: setiap sel yang tidak menghasilkan angka dihitung beserta
+ * alasannya (kosong, teks, formula tanpa cached value, error) dan setiap
+ * baris yang ditolak dicatat (baris seksi/legenda, label ber-delimiter).
+ * Ringkasannya tersedia lewat diagnostics(). Tidak ada lagi baris yang
+ * dibuang tanpa jejak.
  */
 class KpiReportConverter
 {
@@ -57,6 +64,67 @@ class KpiReportConverter
 
     public const NKO_SUFFIX = ' | '.self::NKO_METRIC;
 
+    /** Sel terbaca sebagai angka dan dipakai apa adanya. */
+    public const REASON_OK = 'ok';
+
+    /** Sel kosong: nilainya memang tidak ada di sumber. */
+    public const REASON_EMPTY = 'empty';
+
+    /** Sel berisi teks (mis. target "Sesuai Buku Prioritas KKP 2025"). */
+    public const REASON_TEXT = 'text';
+
+    /** Sel formula tanpa cached value: hasil hitung tidak ikut tersimpan. */
+    public const REASON_UNCACHED_FORMULA = 'uncached_formula';
+
+    /** Sel error Excel (#REF!, #N/A, ...). */
+    public const REASON_ERROR = 'error';
+
+    /**
+     * Nilai numerik pada TARGET/REALISASI yang TIDAK dapat dipastikan bukan
+     * serial tanggal Excel. Nilainya tetap dipakai (tidak diubah), hanya
+     * ditandai: readDataOnly(true) membuang number format, jadi tanggal dan
+     * angka biasa tidak terbedakan tanpa membaca styling (yang OOM di berkas
+     * besar). Bukan kegagalan — sinyal untuk audit.
+     */
+    public const REASON_UNVERIFIED_NUMERIC = 'unverified_numeric';
+
+    /** Baris seksi/agregat, bukan indikator. */
+    public const REASON_NON_INDICATOR = 'non_indicator';
+
+    /** Label memuat delimiter ' | ' sehingga metric_name-nya ambigu. */
+    public const REASON_AMBIGUOUS_DELIMITER = 'ambiguous_delimiter';
+
+    /**
+     * Baris seksi/agregat yang muncul di kolom label tiap sheet tetapi bukan
+     * indikator. Kolom nilainya sering berisi angka (total kolom), jadi tanpa
+     * blocklist baris ini ikut ter-import sebagai metrik palsu.
+     */
+    private const NON_INDICATOR_LABELS = [
+        'KPI BERSAMA KORPORAT',
+        'KPI DIREKTORAT',
+        'KEY PERFORMANCE INDICATORS',
+        'PERFORMANCE INDICATORS',
+        'TOTAL BOBOT',
+        'INDIKATOR KINERJA KUNCI',
+    ];
+
+    /**
+     * Baris legenda status di kolom label (mis. "Target Tercapai (Pencapaian
+     * >= 100)"). Bukan indikator; harus ditolak walau kolom nilainya berisi
+     * angka.
+     */
+    private const LEGEND_PATTERN = '/Tercapai\s*\(|Dilakukan\s+Penilaian/iu';
+
+    /**
+     * Diagnostics per unit dari pemanggilan extract()/extractPerUnit()
+     * terakhir. Kanal tambahan supaya tidak ada baris yang dibuang senyap;
+     * bentuk return kedua method itu sengaja tidak diubah agar caller lama
+     * tetap jalan.
+     *
+     * @var array<string, array<string, mixed>>
+     */
+    private array $diagnostics = [];
+
     /**
      * Ekstrak baris (metric_name, value, period) dari laporan KPI.
      *
@@ -69,6 +137,7 @@ class KpiReportConverter
 
         $only = array_map('strtoupper', $onlyUnits);
         $rows = [];
+        $this->diagnostics = [];
 
         try {
             foreach ($spreadsheet->getAllSheets() as $sheet) {
@@ -82,7 +151,10 @@ class KpiReportConverter
                     continue;
                 }
 
-                foreach ($this->extractSheet($sheet, $unit, $period) as $row) {
+                $result = $this->extractSheet($sheet, $unit, $period);
+                $this->diagnostics[$unit] = $result['diagnostics'];
+
+                foreach ($result['rows'] as $row) {
                     $rows[] = $row;
                 }
             }
@@ -109,6 +181,7 @@ class KpiReportConverter
         $spreadsheet = $this->load($sourcePath);
 
         $results = [];
+        $this->diagnostics = [];
 
         try {
             foreach ($spreadsheet->getAllSheets() as $sheet) {
@@ -119,9 +192,12 @@ class KpiReportConverter
                 }
 
                 try {
-                    $results[$unit] = $this->extractSheet($sheet, $unit, $period);
+                    $result = $this->extractSheet($sheet, $unit, $period);
+                    $results[$unit] = $result['rows'];
+                    $this->diagnostics[$unit] = $result['diagnostics'];
                 } catch (RuntimeException $e) {
                     $results[$unit] = $e;
+                    $this->diagnostics[$unit] = ['failed' => $e->getMessage()];
                 }
             }
         } finally {
@@ -129,6 +205,21 @@ class KpiReportConverter
         }
 
         return $results;
+    }
+
+    /**
+     * Ringkasan data yang dipakai, ditandai, dan dibuang dari pemanggilan
+     * extract()/extractPerUnit() terakhir, per unit.
+     *
+     * Bentuk return kedua method itu TIDAK berubah supaya caller lama tetap
+     * jalan; diagnostics adalah kanal tambahan supaya tidak ada baris yang
+     * hilang tanpa jejak. Sheet yang gagal dicatat sebagai ['failed' => pesan].
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    public function diagnostics(): array
+    {
+        return $this->diagnostics;
     }
 
     /**
@@ -187,9 +278,10 @@ class KpiReportConverter
     }
 
     /**
-     * Ekstrak satu sheet unit menjadi baris-baris metric.
+     * Ekstrak satu sheet unit menjadi baris-baris metric, plus diagnostics
+     * per kolom supaya baris yang tidak dipakai punya jejak.
      *
-     * @return array<int, array{0: string, 1: float, 2: string}>
+     * @return array{rows: array<int, array{0: string, 1: float, 2: string}>, diagnostics: array<string, mixed>}
      */
     private function extractSheet(Worksheet $sheet, string $unit, string $period): array
     {
@@ -198,6 +290,18 @@ class KpiReportConverter
         $nkoRow = $this->findNkoRow($sheet, $highestRow);
         $rows = [];
 
+        // Hitungan alasan per kolom value + alasan baris ditolak.
+        $diagnostics = [
+            'rows_emitted' => 0,
+            'columns' => [
+                'nilai' => [],
+                'target' => [],
+                'realisasi' => [],
+            ],
+            'rows_rejected' => [],
+            'unverified_numeric' => 0,
+        ];
+
         for ($row = 1; $row <= $highestRow; $row++) {
             $label = $this->cleanLabel($sheet->getCell(self::LABEL_COLUMN.$row)->getValue());
 
@@ -205,30 +309,81 @@ class KpiReportConverter
                 continue;
             }
 
+            if ($this->isNonIndicatorLabel($label)) {
+                $this->count($diagnostics['rows_rejected'], self::REASON_NON_INDICATOR);
+
+                continue;
+            }
+
+            if (str_contains($label, ' | ')) {
+                $this->count($diagnostics['rows_rejected'], self::REASON_AMBIGUOUS_DELIMITER);
+
+                continue;
+            }
+
             $nilai = $this->number($sheet->getCell($columns['nilai'].$row));
 
             if ($row === $nkoRow) {
-                if ($nilai !== null) {
-                    $rows[] = ["{$unit}".self::NKO_SUFFIX, $nilai, $period];
+                if ($nilai['value'] !== null) {
+                    $rows[] = ["{$unit}".self::NKO_SUFFIX, $nilai['value'], $period];
+                    $diagnostics['rows_emitted']++;
+                } else {
+                    $this->count($diagnostics['columns']['nilai'], $nilai['reason']);
                 }
 
                 continue;
             }
 
-            if ($nilai !== null) {
-                $rows[] = ["{$unit} | {$label}", $nilai, $period];
+            if ($nilai['value'] !== null) {
+                $rows[] = ["{$unit} | {$label}", $nilai['value'], $period];
+                $diagnostics['rows_emitted']++;
+            } else {
+                $this->count($diagnostics['columns']['nilai'], $nilai['reason']);
             }
 
             foreach (['target' => $columns['target'], 'realisasi' => $columns['realisasi']] as $suffix => $column) {
-                $value = $this->number($sheet->getCell($column.$row));
+                $value = $this->number($sheet->getCell($column.$row), dateSensitive: true);
 
-                if ($value !== null) {
-                    $rows[] = ["{$unit} | {$label} | {$suffix}", $value, $period];
+                if ($value['reason'] === self::REASON_UNVERIFIED_NUMERIC) {
+                    $diagnostics['unverified_numeric']++;
+                }
+
+                if ($value['value'] !== null) {
+                    $rows[] = ["{$unit} | {$label} | {$suffix}", $value['value'], $period];
+                    $diagnostics['rows_emitted']++;
+                } else {
+                    $this->count($diagnostics['columns'][$suffix], $value['reason']);
                 }
             }
         }
 
-        return $rows;
+        return ['rows' => $rows, 'diagnostics' => $diagnostics];
+    }
+
+    /**
+     * Baris seksi/legenda, bukan indikator. Diekstrak dari kolom label supaya
+     * tidak ikut ter-import sebagai metrik palsu walau kolom nilainya berisi
+     * angka (mis. total kolom pada baris "TOTAL BOBOT").
+     */
+    private function isNonIndicatorLabel(string $label): bool
+    {
+        $normalized = mb_strtoupper($label);
+
+        if (in_array($normalized, self::NON_INDICATOR_LABELS, true)) {
+            return true;
+        }
+
+        return preg_match(self::LEGEND_PATTERN, $label) === 1;
+    }
+
+    /**
+     * Tambah satu hitungan pada array asosiatif alasan.
+     *
+     * @param  array<string, int>  $counter
+     */
+    private function count(array &$counter, string $reason): void
+    {
+        $counter[$reason] = ($counter[$reason] ?? 0) + 1;
     }
 
     /**
@@ -323,17 +478,60 @@ class KpiReportConverter
      * Sel formula: getValue() mengembalikan string "=...", sedangkan hasil
      * hitungnya tersimpan sebagai cached value di file (getOldCalculatedValue()).
      * Dengan begitu nilai NKO/NILAI bisa dibaca tanpa membuka Excel untuk recalculate.
+     *
+     * Mengembalikan nilai BESERTA alasan, bukan nilai saja: semua jalur yang
+     * tidak menghasilkan angka harus bisa dihitung pemanggil, bukan dibuang
+     * diam-diam (lihat diagnostics()).
+     *
+     * Batasan yang disengaja: readDataOnly(true) membuang number format, jadi
+     * sel tanggal Excel tidak terbedakan dari angka biasa. Sel numerik pada
+     * kolom tanggal-sensitif ditandai REASON_UNVERIFIED_NUMERIC tanpa mengubah
+     * nilainya — lebih baik memberi sinyal daripada menebak atau membuka
+     * styling (yang OOM di berkas besar).
+     *
+     * @param  bool  $dateSensitive  true untuk TARGET/REALISASI yang boleh berisi tanggal
+     * @return array{value: ?float, reason: string}
      */
-    private function number(Cell $cell): ?float
+    private function number(Cell $cell, bool $dateSensitive = false): array
     {
         $value = $cell->getValue();
 
-        if (is_numeric($value)) {
-            return (float) $value;
+        if ($value === null || (is_string($value) && trim($value) === '')) {
+            return ['value' => null, 'reason' => self::REASON_EMPTY];
         }
 
-        $cached = $cell->getOldCalculatedValue();
+        if (is_bool($value)) {
+            return ['value' => null, 'reason' => self::REASON_TEXT];
+        }
 
-        return is_numeric($cached) ? (float) $cached : null;
+        if ($cell->getDataType() === DataType::TYPE_ERROR) {
+            return ['value' => null, 'reason' => self::REASON_ERROR];
+        }
+
+        if (is_numeric($value)) {
+            return [
+                'value' => (float) $value,
+                'reason' => $dateSensitive ? self::REASON_UNVERIFIED_NUMERIC : self::REASON_OK,
+            ];
+        }
+
+        if (is_string($value) && str_starts_with($value, '=')) {
+            $cached = $cell->getOldCalculatedValue();
+
+            if (is_numeric($cached)) {
+                return [
+                    'value' => (float) $cached,
+                    'reason' => $dateSensitive ? self::REASON_UNVERIFIED_NUMERIC : self::REASON_OK,
+                ];
+            }
+
+            if (is_string($cached) && trim($cached) !== '') {
+                return ['value' => null, 'reason' => self::REASON_TEXT];
+            }
+
+            return ['value' => null, 'reason' => self::REASON_UNCACHED_FORMULA];
+        }
+
+        return ['value' => null, 'reason' => self::REASON_TEXT];
     }
 }
