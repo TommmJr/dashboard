@@ -44,11 +44,14 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON `dashboard`.`cache_locks` TO 'dashboard_
 GRANT SELECT, INSERT, UPDATE, DELETE ON `dashboard`.`datasets` TO 'dashboard_app'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON `dashboard`.`divisions` TO 'dashboard_app'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON `dashboard`.`failed_jobs` TO 'dashboard_app'@'%';
+GRANT SELECT, INSERT, UPDATE, DELETE ON `dashboard`.`indicators` TO 'dashboard_app'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON `dashboard`.`job_batches` TO 'dashboard_app'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON `dashboard`.`jobs` TO 'dashboard_app'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON `dashboard`.`migrations` TO 'dashboard_app'@'%';
+GRANT SELECT, INSERT, UPDATE, DELETE ON `dashboard`.`org_units` TO 'dashboard_app'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON `dashboard`.`password_reset_tokens` TO 'dashboard_app'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON `dashboard`.`performance_metrics` TO 'dashboard_app'@'%';
+GRANT SELECT, INSERT, UPDATE, DELETE ON `dashboard`.`performance_observations` TO 'dashboard_app'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON `dashboard`.`permission_role` TO 'dashboard_app'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON `dashboard`.`permissions` TO 'dashboard_app'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON `dashboard`.`roles` TO 'dashboard_app'@'%';
