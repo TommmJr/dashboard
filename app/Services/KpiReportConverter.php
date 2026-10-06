@@ -6,6 +6,7 @@ use PhpOffice\PhpSpreadsheet\Cell\Cell;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\IOFactory;
+use PhpOffice\PhpSpreadsheet\Shared\Date;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -93,6 +94,63 @@ class KpiReportConverter
 
     /** Label memuat delimiter ' | ' sehingga metric_name-nya ambigu. */
     public const REASON_AMBIGUOUS_DELIMITER = 'ambiguous_delimiter';
+
+    /**
+     * Kolom metadata sumber, stabil di semua sheet sampel: A nomor indikator,
+     * B label, C aggregation/polarity code, D formula source, E satuan,
+     * F bobot. Dipakai extractStructured() saja; extract() tidak butuh.
+     */
+    private const NO_COLUMN = 'A';
+
+    private const AGGREGATION_COLUMN = 'C';
+
+    private const FORMULA_COLUMN = 'D';
+
+    private const SATUAN_COLUMN = 'E';
+
+    private const BOBOT_COLUMN = 'F';
+
+    /** Jenis nilai terstruktur untuk target/realisasi/pencapaian/nilai/ket. */
+    public const TYPE_NUMERIC = 'numeric';
+
+    public const TYPE_DATE = 'date';
+
+    public const TYPE_TEXT = 'text';
+
+    public const TYPE_EMPTY = 'empty';
+
+    /**
+     * Rentang serial tanggal Excel 1900 yang dianggap tanggal: 2000-01-01 s/d
+     * 2100-12-31. readDataOnly(true) membuang number format (wajib, berkas
+     * ~3 MB OOM kalau style ikut dimuat), jadi tanggal dan angka biasa tidak
+     * bisa dibedakan lewat format sel; deteksi di sini heuristik rentang yang
+     * wajar untuk periode laporan KPI, bukan bukti format.
+     *
+     * ponytail: heuristik rentang, bukan bukti numFmt. Kalau nanti ada cara
+     * murah membaca numFmt per sel, ganti ke deteksi format yang pasti.
+     */
+    private const EXCEL_DATE_MIN = 36526.0;
+
+    private const EXCEL_DATE_MAX = 73415.0;
+
+    /**
+     * Bentuk formula kolom PENCAPAIAN yang benar-benar terlihat di workbook.
+     * Selain pola ini -> null (jangan mengarang).
+     *
+     * - 'average'        : =AVERAGE(...) agregasi anak pada baris grup (TJBT M10)
+     * - 'date_delta'     : memakai selisih tanggal $L-$K (RSL M13, tenggat)
+     * - 'polarity_ratio' : bercabang pada $C (L/K atau 2-(L/K), TJBT M11 / TRANS L10)
+     */
+    public const PENCAPAIAN_FORMULA_AVERAGE = 'average';
+
+    public const PENCAPAIAN_FORMULA_DATE_DELTA = 'date_delta';
+
+    public const PENCAPAIAN_FORMULA_POLARITY_RATIO = 'polarity_ratio';
+
+    /** Polaritas dari aggregation code; hanya 1 dan 3 yang punya bukti. */
+    public const POLARITY_HIGHER_IS_BETTER = 'higher_is_better';
+
+    public const POLARITY_LOWER_IS_BETTER = 'lower_is_better';
 
     /**
      * Baris seksi/agregat yang muncul di kolom label tiap sheet tetapi bukan
@@ -223,6 +281,76 @@ class KpiReportConverter
     }
 
     /**
+     * Ekstrak baris KPI terstruktur dari laporan: SATU baris sumber menjadi
+     * SATU observation, dengan metadata sumber (kolom A-F) dan tipe nilai yang
+     * dipertahankan apa adanya.
+     *
+     * Ini jalur TERPISAH dari extract()/extractPerUnit(). extract() membuang
+     * kolom C-F, hierarki, dan tipe target/realisasi (semuanya jadi 3 kolom
+     * metric_name/value/period) sehingga TIDAK bisa dipakai sebagai sumber
+     * metadata terstruktur. Method ini tidak mengubah extract()/extractPerUnit()
+     * sama sekali.
+     *
+     * Hierarki ditentukan dari kolom A (nomor), BUKAN dari bobot:
+     * - A terisi + C kosong -> kepala grup (mis. TJBT r10 "Faktor Ketersediaan
+     *   Trafo dan Transmisi", bobot 20; P3B KAL r10 "Keandalan Line Transmisi").
+     * - A terisi + C terisi -> KPI independen (mis. TJBT r17 "Emergency Response
+     *   Time", C=1, bobot 12). Tanda A ada, tetapi bukan grup.
+     * - A kosong -> anak dari kepala grup terakhir (mis. TJBT r11, r36).
+     * Bobot sengaja TIDAK dipakai sebagai pembeda: parent boleh F=NULL
+     * (TJBT r35) dan anak boleh F="Max -3" (TJBT r36).
+     *
+     * Nilai target/realisasi disimpan bertipe (numeric/date/text/empty). Karena
+     * readDataOnly(true) membuang number format, serial tanggal dikenali lewat
+     * rentang serial yang wajar (EXCEL_DATE_MIN..EXCEL_DATE_MAX) dan HANYA pada
+     * kolom target/realisasi. Ini heuristik yang disengaja: lebih baik menandai
+     * tanggal daripada menyimpannya sebagai angka 45900.
+     *
+     * period: nilai dari pemanggil (fallbackPeriod) dipakai apa adanya.
+     * sheet_period dari banner K6/J6 HANYA dilaporkan sebagai bukti dan TIDAK
+     * dipakai menimpa period sampai blocker G3 (periode otoritatif 14 sheet
+     * hidden) diputus.
+     *
+     * REKAP dilewati (derived recap). Sheet legacy/suspect berbasis nama bulan
+     * (JAN..DES) dilewati.
+     *
+     * @param  ?string  $fallbackPeriod  periode dari pemanggil, boleh null
+     * @return list<array<string, mixed>>
+     */
+    public function extractStructured(string $sourcePath, ?string $fallbackPeriod = null): array
+    {
+        $spreadsheet = $this->load($sourcePath);
+
+        $rows = [];
+        $this->diagnostics = [];
+
+        try {
+            foreach ($spreadsheet->getAllSheets() as $sheet) {
+                $unit = trim($sheet->getTitle());
+
+                if (strtoupper($unit) === self::SUMMARY_SHEET) {
+                    continue;
+                }
+
+                if ($this->isSuspectSheet($unit)) {
+                    continue;
+                }
+
+                $result = $this->extractStructuredSheet($sheet, $unit, $fallbackPeriod);
+                $this->diagnostics[$unit] = $result['diagnostics'];
+
+                foreach ($result['rows'] as $row) {
+                    $rows[] = $row;
+                }
+            }
+        } finally {
+            $spreadsheet->disconnectWorksheets();
+        }
+
+        return $rows;
+    }
+
+    /**
      * Muat workbook read-only. readDataOnly wajib: laporan 16 sheet ~3 MB
      * mati OOM di 128M kalau style sel ikut dimuat (lihat
      * DatasetImportService::parseRows).
@@ -233,6 +361,19 @@ class KpiReportConverter
         $reader->setReadDataOnly(true);
 
         return $reader->load($sourcePath);
+    }
+
+    /**
+     * Sheet legacy/suspect berbasis nama bulan (JAN..DES, ID maupun EN) yang
+     * tidak boleh menjadi observation. Tidak ada di workbook sampel, tetapi
+     * dijaga agar varian berkas lama tidak ikut terbaca.
+     */
+    private function isSuspectSheet(string $unit): bool
+    {
+        return in_array(mb_strtoupper(trim($unit)), [
+            'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC',
+            'MEI', 'AGU', 'OKT', 'DES',
+        ], true);
     }
 
     /**
@@ -358,6 +499,367 @@ class KpiReportConverter
         }
 
         return ['rows' => $rows, 'diagnostics' => $diagnostics];
+    }
+
+    /**
+     * Ekstrak satu sheet unit menjadi baris KPI terstruktur.
+     *
+     * Satu baris indikator -> satu entri dengan metadata sumber lengkap
+     * (lihat extractStructured()). Baris seksi/legenda memakai blocklist yang
+     * sama dengan extractSheet() supaya tidak ada baris yang diperlakukan
+     * beda antara jalur lama dan jalur terstruktur.
+     *
+     * @return array{rows: list<array<string, mixed>>, diagnostics: array<string, mixed>}
+     */
+    private function extractStructuredSheet(Worksheet $sheet, string $unit, ?string $fallbackPeriod): array
+    {
+        $columns = $this->locateStructuredColumns($sheet, $unit);
+        $highestRow = $sheet->getHighestRow();
+        $nkoRow = $this->findNkoRow($sheet, $highestRow);
+        $sheetPeriod = $this->sheetPeriod($sheet, $columns);
+
+        $rows = [];
+        $diagnostics = ['rows_emitted' => 0, 'rows_rejected' => []];
+        $parentRow = null;
+
+        for ($row = 1; $row <= $highestRow; $row++) {
+            $label = $this->cleanLabel($sheet->getCell(self::LABEL_COLUMN.$row)->getValue());
+
+            if ($label === null) {
+                continue;
+            }
+
+            if ($this->isNonIndicatorLabel($label)) {
+                $this->count($diagnostics['rows_rejected'], self::REASON_NON_INDICATOR);
+
+                continue;
+            }
+
+            if (str_contains($label, ' | ')) {
+                $this->count($diagnostics['rows_rejected'], self::REASON_AMBIGUOUS_DELIMITER);
+
+                continue;
+            }
+
+            $aggregationCode = $this->rawString($sheet->getCell(self::AGGREGATION_COLUMN.$row)->getValue());
+            $isNko = $row === $nkoRow;
+
+            if ($isNko) {
+                // NKO agregat level unit, bukan indikator anak.
+                $isGroup = false;
+                $parent = null;
+            } elseif ($this->hasRowNumber($sheet->getCell(self::NO_COLUMN.$row)->getValue())) {
+                // A terisi = baris top-level. Kepala grup bila C kosong; bila C
+                // terisi (KPI independen) tetap top-level tetapi bukan induk.
+                // Keduanya jadi kandidat induk untuk anak di bawahnya.
+                $isGroup = $aggregationCode === null;
+                $parent = null;
+                $parentRow = $row;
+            } else {
+                $isGroup = false;
+                $parent = $parentRow;
+            }
+
+            $bobot = $this->bobot($sheet->getCell(self::BOBOT_COLUMN.$row));
+
+            $rows[] = [
+                'org_unit' => $unit,
+                'row' => $row,
+                'label' => $label,
+                'aggregation_code' => $aggregationCode,
+                'polarity' => $this->polarity($aggregationCode),
+                'formula' => $this->rawText($sheet->getCell(self::FORMULA_COLUMN.$row)->getValue()),
+                'satuan' => $this->rawText($sheet->getCell(self::SATUAN_COLUMN.$row)->getValue()),
+                'bobot' => $bobot['raw'],
+                'bobot_value' => $bobot['value'],
+                'bobot_min' => null,
+                'bobot_max' => null,
+                'is_group' => $isGroup,
+                'parent_row' => $parent,
+                'pencapaian_formula_kind' => $this->pencapaianFormulaKind(
+                    $this->columnValue($sheet, $columns['pencapaian'], $row)
+                ),
+                'target' => $this->typedValue($this->columnCell($sheet, $columns['target'], $row), dateSensitive: true),
+                'realisasi' => $this->typedValue($this->columnCell($sheet, $columns['realisasi'], $row), dateSensitive: true),
+                'pencapaian' => $this->typedValue($this->columnCell($sheet, $columns['pencapaian'], $row)),
+                'nilai' => $this->typedValue($this->columnCell($sheet, $columns['nilai'], $row)),
+                'ket' => $this->typedValue($this->columnCell($sheet, $columns['ket'], $row)),
+                'period' => $fallbackPeriod,
+                'sheet_period' => $sheetPeriod,
+            ];
+            $diagnostics['rows_emitted']++;
+        }
+
+        return ['rows' => $rows, 'diagnostics' => $diagnostics];
+    }
+
+    /**
+     * Temukan kolom TARGET/REALISASI/PENCAPAIAN/NILAI/KET dari baris header.
+     *
+     * Baris header yang sama dengan locateValueColumns() (yang memuat TARGET,
+     * REALISASI, dan NILAI); PENCAPAIAN dan KET dicari di baris itu juga tetapi
+     * boleh tidak ada (null) supaya sheet tanpa kolom itu tetap terbaca.
+     *
+     * @return array{target: string, realisasi: string, pencapaian: ?string, nilai: string, ket: ?string, header_row: int}
+     */
+    private function locateStructuredColumns(Worksheet $sheet, string $unit): array
+    {
+        $highestColumn = Coordinate::columnIndexFromString($sheet->getHighestColumn());
+        $expected = [
+            'target' => 'TARGET',
+            'realisasi' => 'REALISASI',
+            'pencapaian' => 'PENCAPAIAN',
+            'nilai' => 'NILAI',
+            'ket' => 'KET',
+        ];
+
+        for ($row = 1; $row <= min(15, $sheet->getHighestRow()); $row++) {
+            $found = [];
+
+            for ($col = 1; $col <= $highestColumn; $col++) {
+                $label = $this->normalizeHeader($sheet->getCell([$col, $row])->getValue());
+
+                if ($label === null) {
+                    continue;
+                }
+
+                foreach ($expected as $key => $header) {
+                    if ($label === $header && ! isset($found[$key])) {
+                        $found[$key] = Coordinate::stringFromColumnIndex($col);
+                    }
+                }
+            }
+
+            if (isset($found['target'], $found['realisasi'], $found['nilai'])) {
+                return [
+                    'target' => $found['target'],
+                    'realisasi' => $found['realisasi'],
+                    'pencapaian' => $found['pencapaian'] ?? null,
+                    'nilai' => $found['nilai'],
+                    'ket' => $found['ket'] ?? null,
+                    'header_row' => $row,
+                ];
+            }
+        }
+
+        throw new RuntimeException(
+            "Sheet '{$unit}': kolom TARGET/REALISASI/NILAI tidak ditemukan di header. "
+            .'Layout laporan berubah — periksa berkas sebelum mengonversi.'
+        );
+    }
+
+    /**
+     * Banner periode sheet dari sel tepat di atas baris header pada kolom
+     * TARGET (mis. TJBT K6 "S.D. AGUSTUS 2026", TRANS J6 "S.D. FEBRUARI 2025").
+     *
+     * HANYA dilaporkan sebagai bukti; jangan dipakai menimpa period sampai
+     * blocker G3 (periode otoritatif 14 sheet hidden) diputus.
+     *
+     * @param  array{target: string, header_row: int}  $columns
+     */
+    private function sheetPeriod(Worksheet $sheet, array $columns): ?string
+    {
+        $value = $sheet->getCell($columns['target'].($columns['header_row'] - 1))->getValue();
+
+        return is_string($value) && trim($value) !== '' ? trim($value) : null;
+    }
+
+    /**
+     * Baca satu sel menjadi nilai bertipe: numeric, date, text, atau empty.
+     *
+     * dateSensitive hanya untuk TARGET/REALISASI yang boleh berisi tenggat.
+     * Karena readDataOnly membuang number format, serial tanggal dikenali
+     * lewat rentang seri yang wajar (lihat EXCEL_DATE_MIN/MAX), bukan format sel.
+     *
+     * @return array{value: ?float, text: ?string, date: ?string, type: string}
+     */
+    private function typedValue(?Cell $cell, bool $dateSensitive = false): array
+    {
+        $empty = ['value' => null, 'text' => null, 'date' => null, 'type' => self::TYPE_EMPTY];
+
+        if ($cell === null) {
+            return $empty;
+        }
+
+        $value = $cell->getValue();
+
+        if ($value === null || (is_string($value) && trim($value) === '')) {
+            return $empty;
+        }
+
+        if ($cell->getDataType() === DataType::TYPE_ERROR) {
+            return ['value' => null, 'text' => (string) $value, 'date' => null, 'type' => self::TYPE_TEXT];
+        }
+
+        if (is_bool($value)) {
+            return ['value' => null, 'text' => $value ? 'TRUE' : 'FALSE', 'date' => null, 'type' => self::TYPE_TEXT];
+        }
+
+        if (is_string($value) && str_starts_with($value, '=')) {
+            $cached = $cell->getOldCalculatedValue();
+
+            if ($cached === null || (is_string($cached) && trim($cached) === '')) {
+                // Formula tanpa cached value: tidak ada nilai yang bisa dipakai.
+                return $empty;
+            }
+
+            $value = $cached;
+        }
+
+        if (is_numeric($value)) {
+            return $this->numericOrDate((float) $value, $dateSensitive);
+        }
+
+        return [
+            'value' => null,
+            'text' => is_string($value) ? $value : (string) $value,
+            'date' => null,
+            'type' => self::TYPE_TEXT,
+        ];
+    }
+
+    /**
+     * Angka biasa, atau tanggal bila dateSensitive dan angkanya bulat di dalam
+     * rentang serial tanggal yang wajar.
+     *
+     * @return array{value: ?float, text: ?string, date: ?string, type: string}
+     */
+    private function numericOrDate(float $number, bool $dateSensitive): array
+    {
+        if ($dateSensitive
+            && floor($number) === $number
+            && $number >= self::EXCEL_DATE_MIN
+            && $number <= self::EXCEL_DATE_MAX) {
+            return [
+                'value' => null,
+                'text' => null,
+                'date' => Date::excelToDateTimeObject((int) $number)->format('Y-m-d'),
+                'type' => self::TYPE_DATE,
+            ];
+        }
+
+        return ['value' => $number, 'text' => null, 'date' => null, 'type' => self::TYPE_NUMERIC];
+    }
+
+    /**
+     * Baca bobot (kolom F): raw dipertahankan apa adanya, value hanya bila
+     * benar-benar numerik.
+     *
+     * Band seperti "Max -3" TIDAK diubah jadi batas: "Max -3" bisa berarti
+     * pengurangan maksimum 3 (rentang -3..0) atau nilai maksimum -3, jadi
+     * bobot_min/bobot_max dibiarkan null alih-alih mengarang batas.
+     *
+     * @return array{raw: ?string, value: ?float}
+     */
+    private function bobot(Cell $cell): array
+    {
+        $raw = $cell->getValue();
+
+        if ($raw === null || (is_string($raw) && trim($raw) === '')) {
+            return ['raw' => null, 'value' => null];
+        }
+
+        if (is_string($raw) && str_starts_with($raw, '=')) {
+            $cached = $cell->getOldCalculatedValue();
+
+            return ['raw' => $raw, 'value' => is_numeric($cached) ? (float) $cached : null];
+        }
+
+        return [
+            'raw' => is_string($raw) ? $raw : (string) $raw,
+            'value' => is_numeric($raw) ? (float) $raw : null,
+        ];
+    }
+
+    /**
+     * Polaritas dari aggregation code. Hanya 1 dan 3 yang punya bukti di
+     * formula pencapaian (IF($C=3, L/K, IF($C=1, 2-(L/K)))); nilai lain
+     * dibiarkan null sampai blocker "apakah C hanya 1/3" diputus.
+     */
+    private function polarity(?string $code): ?string
+    {
+        return match ($code) {
+            '3' => self::POLARITY_HIGHER_IS_BETTER,
+            '1' => self::POLARITY_LOWER_IS_BETTER,
+            default => null,
+        };
+    }
+
+    /**
+     * Klasifikasi jenis formula PENCAPAIAN dari teks formula (kolom yang
+     * ditunjuk header PENCAPAIAN). Hanya pola yang punya bukti di workbook
+     * sampel yang dikenali; selain itu null (jangan mengarang).
+     *
+     * @param  mixed  $formula  nilai mentah sel pencapaian
+     */
+    private function pencapaianFormulaKind(mixed $formula): ?string
+    {
+        if (! is_string($formula) || ! str_starts_with($formula, '=')) {
+            return null;
+        }
+
+        if (str_contains($formula, 'AVERAGE(')) {
+            return self::PENCAPAIAN_FORMULA_AVERAGE;
+        }
+
+        if (preg_match('/\$L\d+\s*-\s*\$K\d+/', $formula) === 1) {
+            return self::PENCAPAIAN_FORMULA_DATE_DELTA;
+        }
+
+        if (preg_match('/\$C\d+\s*=\s*[13]/', $formula) === 1) {
+            return self::PENCAPAIAN_FORMULA_POLARITY_RATIO;
+        }
+
+        return null;
+    }
+
+    /**
+     * Baris punya nomor di kolom A (indikator bernomor), bukan anak.
+     */
+    private function hasRowNumber(mixed $value): bool
+    {
+        return $value !== null && ! (is_string($value) && trim($value) === '');
+    }
+
+    /**
+     * Nilai sel sebagai string (untuk code/bobot), null bila kosong.
+     */
+    private function rawString(mixed $value): ?string
+    {
+        if ($value === null || (is_string($value) && trim($value) === '')) {
+            return null;
+        }
+
+        return is_string($value) ? $value : (string) $value;
+    }
+
+    /**
+     * Nilai sel sebagai teks apa adanya (untuk satuan/formula source), null
+     * bila kosong. Tidak di-trim supaya teks sumber tidak berubah.
+     */
+    private function rawText(mixed $value): ?string
+    {
+        if ($value === null || (is_string($value) && trim($value) === '')) {
+            return null;
+        }
+
+        return is_string($value) ? $value : (string) $value;
+    }
+
+    /**
+     * Sel pada kolom opsional (mis. PENCAPAIAN/KET yang bisa tidak ada).
+     */
+    private function columnCell(Worksheet $sheet, ?string $column, int $row): ?Cell
+    {
+        return $column === null ? null : $sheet->getCell($column.$row);
+    }
+
+    /**
+     * Nilai mentah sel pada kolom opsional.
+     */
+    private function columnValue(Worksheet $sheet, ?string $column, int $row): mixed
+    {
+        return $column === null ? null : $sheet->getCell($column.$row)->getValue();
     }
 
     /**
