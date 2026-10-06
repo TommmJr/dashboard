@@ -131,11 +131,37 @@ class DashboardController extends Controller
      * (kalau diambil dari payload API, unit yang ter-filter akan menghilang
      * dari daftar pilihannya sendiri).
      *
+     * Flag-gated sejak Unit 5B: default 'legacy' -> query lama persis.
+     * Branch 'structured' membaca nama unit dari org_units.name.
+     *
      * @return list<string>
      */
     private function availableUnits(?User $user): array
     {
         $isPrivileged = $this->isPrivileged($user);
+
+        if ($this->kpiReadModelStructured()) {
+            // Nama unit = identity asli importer terstruktur, jadi dibaca
+            // langsung dari org_units.name; metric_name legacy TIDAK di-parse.
+            //
+            // Selisih semantik yang disadari: versi legacy menyaring unit yang
+            // punya baris NKO, sedangkan tabel terstruktur sengaja tidak
+            // menyimpan NKO sama sekali (StructuredKpiImporter mengecualikan
+            // baris NKO). Jadi di sini unit = unit yang punya observasi pada
+            // dataset READY. Untuk workbook asli keduanya sama (15 unit), tapi
+            // ini BUKAN jaminan model.
+            return DB::table('performance_observations')
+                ->join('datasets', 'datasets.id', '=', 'performance_observations.dataset_id')
+                ->join('org_units', 'org_units.id', '=', 'performance_observations.org_unit_id')
+                ->where('datasets.status', Dataset::STATUS_READY)
+                ->when(! $isPrivileged, fn ($query) => $query->where('performance_observations.division_id', $user?->division_id))
+                ->distinct()
+                ->pluck('org_units.name')
+                ->unique()
+                ->sort()
+                ->values()
+                ->all();
+        }
 
         return DB::table('performance_metrics')
             ->join('datasets', 'datasets.id', '=', 'performance_metrics.dataset_id')
@@ -343,11 +369,48 @@ class DashboardController extends Controller
 
     /**
      * Periode terbaru dengan data READY di divisi user (atau lintas divisi
-     * untuk role privileged). Sama sumberarnya dengan nkoRanking, tapi tanpa
+     * untuk role privileged). Sama sumbernya dengan nkoRanking, tapi tanpa
      * filter nama NKO supaya widget Aset/Kinerja lain bisa memakai aturan
      * tanggal yang konsisten.
+     *
+     * Sejak Unit 5B reader ini flag-gated (config('kpi.read_model')); default
+     * 'legacy' -> query lama persis. Lihat kpiReadModelStructured().
+     *
+     * Caller yang BELUM boleh ikut flag (datasetStatus, kinerjaRealisasi,
+     * kinerjaDetail, targetVsRealisasi) memanggil latestLegacyReadyPeriod()
+     * secara eksplisit — lihat catatan pada helper itu.
      */
     private function latestReadyPeriod(?User $user, ?string $startDate = null, ?string $endDate = null): ?string
+    {
+        return $this->kpiReadModelStructured()
+            ? $this->latestStructuredReadyPeriod($user, $startDate, $endDate)
+            : $this->latestLegacyReadyPeriod($user, $startDate, $endDate);
+    }
+
+    /**
+     * Apakah reader yang SUDAH dimigrasi harus membaca tabel terstruktur.
+     *
+     * Sengaja bukan switch global: hanya availableUnits (R2) dan
+     * latestReadyPeriod (R4) yang membacanya. Reader yang belum dimigrasi
+     * (NKO, kinerja, dataset-status) tetap legacy berapa pun nilainya, supaya
+     * menyalakan 'structured' tidak membuat widget NKO kosong/rusak — NKO
+     * memang belum punya sumber terstruktur.
+     */
+    private function kpiReadModelStructured(): bool
+    {
+        return config('kpi.read_model') === 'structured';
+    }
+
+    /**
+     * Periode terbaru dari tabel legacy performance_metrics.
+     *
+     * Dipakai eksplisit oleh reader yang BELUM dimigrasi. Caller tersebut
+     * menggabungkan periode ini dengan agregasi performance_metrics, jadi
+     * membiarkannya mengikuti flag 'structured' akan membuat mereka membaca
+     * periode terstruktur sementara datanya tetap legacy -> widget kosong.
+     * Karena itu mereka dipin ke sini, bukan ke latestReadyPeriod().
+     */
+    private function latestLegacyReadyPeriod(?User $user, ?string $startDate = null, ?string $endDate = null): ?string
     {
         $isPrivileged = $this->isPrivileged($user);
 
@@ -362,6 +425,28 @@ class DashboardController extends Controller
     }
 
     /**
+     * Periode terbaru dari read model terstruktur (performance_observations).
+     *
+     * Bentuk query sengaja kembar dengan versi legacy: join datasets untuk
+     * hormati status READY, scope division_id, dan rentang start/end. Tidak ada
+     * konversi periode: nilai yang tersimpan dikembalikan apa adanya
+     * (2026-08-01 tetap 2026-08-01, bukan digeser ke akhir bulan).
+     */
+    private function latestStructuredReadyPeriod(?User $user, ?string $startDate = null, ?string $endDate = null): ?string
+    {
+        $isPrivileged = $this->isPrivileged($user);
+
+        $base = fn () => DB::table('performance_observations')
+            ->join('datasets', 'datasets.id', '=', 'performance_observations.dataset_id')
+            ->where('datasets.status', Dataset::STATUS_READY)
+            ->when(! $isPrivileged, fn ($query) => $query->where('performance_observations.division_id', $user?->division_id))
+            ->when($startDate !== null, fn ($query) => $query->where('performance_observations.period', '>=', $startDate))
+            ->when($endDate !== null, fn ($query) => $query->where('performance_observations.period', '<=', $endDate));
+
+        return $base()->max('performance_observations.period');
+    }
+
+    /**
      * Ringkasan dataset organisasi: periode data terbaru yang aktif, jumlah
      * dataset per status, danjumlah baris aktif periode terbaru.
      */
@@ -370,7 +455,7 @@ class DashboardController extends Controller
         $isPrivileged = $this->isPrivileged($user);
         $scope = fn ($query) => $query->when(! $isPrivileged, fn ($q) => $q->where('division_id', $user?->division_id));
 
-        $latestPeriod = $this->latestReadyPeriod($user);
+        $latestPeriod = $this->latestLegacyReadyPeriod($user);
         $latestRows = 0;
         if ($latestPeriod !== null) {
             $latestRows = DB::table('performance_metrics')
@@ -398,7 +483,8 @@ class DashboardController extends Controller
      */
     private function kinerjaRealisasi(?User $user, ?string $startDate = null, ?string $endDate = null): array
     {
-        $period = $this->latestReadyPeriod($user, $startDate, $endDate);
+        // Reader ini belum dimigrasi: periode maupun agregasinya tetap legacy.
+        $period = $this->latestLegacyReadyPeriod($user, $startDate, $endDate);
 
         if ($period === null) {
             return ['period' => null, 'rows' => [], 'has_data' => false];
@@ -472,7 +558,8 @@ class DashboardController extends Controller
      */
     private function kinerjaDetail(?User $user, ?string $startDate = null, ?string $endDate = null): array
     {
-        $period = $this->latestReadyPeriod($user, $startDate, $endDate);
+        // Reader ini belum dimigrasi: periode maupun agregasinya tetap legacy.
+        $period = $this->latestLegacyReadyPeriod($user, $startDate, $endDate);
 
         if ($period === null) {
             return ['period' => null, 'rows' => [], 'truncated' => false, 'total_rows' => 0];
@@ -543,7 +630,8 @@ class DashboardController extends Controller
      */
     private function targetVsRealisasi(?User $user, ?string $startDate = null, ?string $endDate = null): array
     {
-        $period = $this->latestReadyPeriod($user, $startDate, $endDate);
+        // Reader ini belum dimigrasi (C-1 belum diputuskan): tetap legacy.
+        $period = $this->latestLegacyReadyPeriod($user, $startDate, $endDate);
 
         if ($period === null) {
             return ['period' => null, 'labels' => [], 'target' => [], 'realisasi' => []];
