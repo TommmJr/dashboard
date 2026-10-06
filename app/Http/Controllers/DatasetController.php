@@ -9,6 +9,7 @@ use App\Models\Role;
 use App\Models\User;
 use App\Services\DatasetImportService;
 use App\Services\KpiReportConverter;
+use App\Services\StructuredKpiImporter;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
@@ -126,8 +127,12 @@ class DatasetController extends Controller
      * laporan milik TJBT, sehingga hasilnya digabung menjadi SATU dataset
      * milik divisi Perencanaan Pengusahaan.
      */
-    public function importKpiReport(Request $request, KpiReportConverter $converter, DatasetImportService $importService)
-    {
+    public function importKpiReport(
+        Request $request,
+        KpiReportConverter $converter,
+        DatasetImportService $importService,
+        StructuredKpiImporter $structuredImporter,
+    ) {
         $user = Auth::user();
 
         $owner = Division::where('slug', 'perencanaan-pengusahaan')->firstOrFail();
@@ -175,9 +180,14 @@ class DatasetController extends Controller
                 ]);
         }
 
+        // Path file asli dipegang di sini (bukan dibaca ulang dari request di
+        // dalam blok import) supaya jalur tulis terstruktur memakai berkas yang
+        // sama persis dengan yang divalidasi dan dibaca extractPerUnit().
+        $originalPath = $request->file('file')->getRealPath();
+
         try {
             $perUnit = $converter->extractPerUnit(
-                $request->file('file')->getRealPath(),
+                $originalPath,
                 $request->string('period')->toString(),
             );
         } catch (Throwable $e) {
@@ -226,6 +236,34 @@ class DatasetController extends Controller
                     $failed[] = $owner->name.': gagal diproses — '.($dataset->error_message ?? 'coba periksa file.');
                 } else {
                     $imported[] = "{$owner->name}: {$result['imported']} baris";
+
+                    // Unit 4B — dual-write. Setelah jalur legacy sukses, sumber
+                    // yang sama ditulis juga ke tabel struktural (org_units /
+                    // indicators / performance_observations). Keduanya BERDIRI
+                    // SENDIRI: tidak digabung, dan kegagalan sisi terstruktur
+                    // tidak boleh membatalkan data legacy yang sudah commit —
+                    // itu sebabnya exception-nya ditangkap, bukan dibiarkan naik.
+                    // Periodenya tetap period eksplisit dari form; banner tiap
+                    // sheet (sheet_period) tidak menimpanya (blocker G3).
+                    try {
+                        $structured = $structuredImporter->import(
+                            $originalPath, $dataset, $period,
+                        );
+
+                        $imported[array_key_last($imported)] .= sprintf(
+                            ' (+%d indikator, %d observasi terstruktur)',
+                            $structured['indicators'],
+                            $structured['observations'],
+                        );
+                    } catch (Throwable $e) {
+                        Log::warning('Tulis terstruktur KPI gagal (data legacy tetap tersimpan)', [
+                            'user_id' => $user->id,
+                            'dataset_id' => $dataset->id,
+                            'error' => $e->getMessage(),
+                        ]);
+
+                        $failed[] = $owner->name.': data legacy tersimpan, tetapi penulisan tabel terstruktur gagal.';
+                    }
 
                     // B2: periode sama = revisi, bukan duplikat. Dataset READY
                     // lama untuk periode + divisi yang sama di-ARCHIVE SETELAH

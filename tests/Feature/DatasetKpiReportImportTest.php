@@ -4,6 +4,8 @@ namespace Tests\Feature;
 
 use App\Models\Dataset;
 use App\Models\Division;
+use App\Models\Indicator;
+use App\Models\PerformanceObservation;
 use App\Models\Role;
 use App\Models\User;
 use Database\Seeders\RolePermissionSeeder;
@@ -73,9 +75,25 @@ class DatasetKpiReportImportTest extends TestCase
 
         $response->assertRedirect(route('datasets.create'));
         $this->assertSame(1, Dataset::count());
+        // Legacy tetap baris-demi-baris: sheet RUSAK dilewati, 7 baris sisanya
+        // masuk seperti sebelum dual-write.
         $this->assertSame(7, Dataset::sole()->metrics()->count());
-        $this->assertCount(1, session('kpi_failed'));
         $this->assertStringContainsString('RUSAK', session('kpi_failed')[0]);
+
+        // Sisi terstruktur ALL-OR-NOTHING. extractStructured() milik Unit 4A
+        // sengaja gagal keras saat layout sheet tak dikenali (lebih baik gagal
+        // terang daripada menulis sebagian), jadi satu sheet korup membatalkan
+        // seluruh penulisan terstruktur — termasuk baris dari sheet yang sehat.
+        // Yang penting: data legacy tidak ikut hilang, dan kegagalannya
+        // dilaporkan ke pengguna, bukan ditelan senyap.
+        $this->assertSame(0, Indicator::count());
+        $this->assertSame(0, PerformanceObservation::count());
+
+        $this->assertCount(2, session('kpi_failed'));
+        $this->assertStringContainsString(
+            'penulisan tabel terstruktur gagal',
+            implode(' | ', session('kpi_failed')),
+        );
     }
 
     public function test_file_korup_ditolak_dengan_pesan_awam(): void
