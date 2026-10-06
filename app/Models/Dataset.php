@@ -66,4 +66,13 @@ class Dataset extends Model
     {
         return $this->hasMany(PerformanceMetric::class);
     }
+
+    /**
+     * Observation KPI terstruktur dari dataset ini (model baru, hidup
+     * berdampingan dengan metrics() selama transisi read-model).
+     */
+    public function observations(): HasMany
+    {
+        return $this->hasMany(PerformanceObservation::class);
+    }
 }
