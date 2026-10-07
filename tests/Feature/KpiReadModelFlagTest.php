@@ -277,9 +277,13 @@ class KpiReadModelFlagTest extends TestCase
     // --------------------------------- reader belum dimigrasi tetap legacy ----
 
     /**
-     * Jaring pengaman utama: menyalakan 'structured' dengan data legacy saja
-     * TIDAK boleh mengosongkan reader yang belum dimigrasi. Kalau test ini
-     * gagal, berarti ada caller yang ikut flag padahal sumbernya masih legacy.
+     * Reader yang BELUM dimigrasi TIDAK boleh ikut flag: dengan data legacy
+     * saja mereka harus tetap mengembalikan hasil legacy, bukan kosong.
+     *
+     * R3/R7/R10 SUDAH pindah ke sumber terstruktur (NKO punya
+     * representasi), jadi mereka TIDAK lagi diuji di sini. Yang masih dipin ke
+     * legacy: R5 datasetStatus, R6 kinerjaRealisasi, R8 targetVsRealisasi, dan
+     * R9 pencapaianNko (delegasi ke R6).
      */
     public function test_reader_belum_dimigrasi_tetap_legacy_saat_flag_structured(): void
     {
@@ -294,21 +298,10 @@ class KpiReadModelFlagTest extends TestCase
 
         $user = $this->management();
 
-        // R3 nkoRanking: tetap lintas divisi, tetap membaca baris NKO legacy.
-        $ranking = $this->reader('nkoRanking', [$user]);
-        $this->assertSame(['TJBT'], $ranking->pluck('unit')->all());
-        $this->assertSame(105.5, (float) $ranking->first()->nko);
-
         // R6 kinerjaRealisasi: periode dan agregasi tetap legacy.
         $realisasi = $this->reader('kinerjaRealisasi', [$user]);
         $this->assertSame('2026-08-31', $realisasi['period']);
         $this->assertTrue($realisasi['has_data']);
-
-        // R7 kinerjaDetail: tetap membaca target/realisasi + NKO legacy.
-        $detail = $this->reader('kinerjaDetail', [$user]);
-        $this->assertSame('2026-08-31', $detail['period']);
-        $this->assertSame(1, $detail['total_rows']);
-        $this->assertSame(105.5, $detail['rows'][0]['nko']);
 
         // R8 targetVsRealisasi: tetap legacy, tidak kosong.
         $tvr = $this->reader('targetVsRealisasi', [$user]);
@@ -319,11 +312,28 @@ class KpiReadModelFlagTest extends TestCase
         $pencapaian = $this->reader('pencapaianNko', [$user]);
         $this->assertSame('2026-08-31', $pencapaian['period']);
         $this->assertSame(['TJBT'], $pencapaian['labels']);
+    }
 
-        // R10 nkoDonut: tetap membaca baris NKO legacy.
+    /**
+     * Konsekuensi baru yang harus disadari: menyalakan 'structured' dengan data
+     * legacy SAJA membuat R3/R10 kosong, karena keduanya sekarang benar-benar
+     * membaca tabel terstruktur. Ini bukan bug — itu memang arti flag.
+     */
+    public function test_nko_reader_structured_kosong_tanpa_data_terstruktur(): void
+    {
+        config(['kpi.read_model' => 'structured']);
+
+        $division = $this->division('Pengusahaan');
+        $dataset = Dataset::factory()->create(['division_id' => $division->id]);
+        $this->legacyMetric($dataset, $division, 'TJBT | NKO', 105.5, '2026-08-31');
+
+        $user = $this->management();
+
+        $this->assertSame([], $this->reader('nkoRanking', [$user])->all());
+
         $donut = $this->reader('nkoDonut', [$user]);
-        $this->assertSame('2026-08-31', $donut['period']);
-        $this->assertSame([['name' => 'Tercapai', 'value' => 1]], $donut['data']);
+        $this->assertNull($donut['period']);
+        $this->assertSame([], $donut['data']);
     }
 
     /**

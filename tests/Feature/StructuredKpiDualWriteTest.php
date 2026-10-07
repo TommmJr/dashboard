@@ -10,6 +10,7 @@ use App\Models\PerformanceMetric;
 use App\Models\PerformanceObservation;
 use App\Models\Role;
 use App\Models\User;
+use App\Services\KpiReportConverter;
 use App\Services\StructuredKpiImporter;
 use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\UnitDivisionSeeder;
@@ -99,8 +100,10 @@ class StructuredKpiDualWriteTest extends TestCase
         );
 
         // Sumber yang sama juga mengisi tabel terstruktur.
-        $this->assertSame(11, Indicator::count());
-        $this->assertSame(11, PerformanceObservation::count());
+        // 11 indikator KPI + 2 baris NKO kanonis (TJBT, TJBB) = 13.
+        $this->assertSame(13, Indicator::count());
+        $this->assertSame(13, PerformanceObservation::count());
+        $this->assertSame(2, Indicator::where('category', 'nko')->count());
     }
 
     public function test_dua_tabel_tetap_terpisah_bukan_digabung(): void
@@ -295,15 +298,46 @@ class StructuredKpiDualWriteTest extends TestCase
         $this->assertSame(0, Indicator::where('name', 'like', '%TOTAL BOBOT%')->count());
     }
 
-    public function test_nko_tidak_menjadi_indikator_atau_observation(): void
+    public function test_nko_menjadi_indikator_kanonis_berkategori_nko(): void
     {
         $this->importViaRoute($this->makeKpiReport());
 
-        $this->assertSame(0, Indicator::where('name', 'like', '%NKO%')->count());
-        $this->assertSame(0, Indicator::where('name', 'like', '%NILAI KINERJA ORGANISASI%')->count());
+        // Dua sheet ber-NKO (TJBT + TJBB) -> satu indikator NKO per unit.
+        $nko = Indicator::where('category', 'nko')->get();
+
+        $this->assertCount(2, $nko);
+        // Varian label "NILAI KINERJA ORGANISASI (NKO)" dikerucutkan ke satu
+        // nama kanonis, bukan disimpan mentah.
+        $this->assertSame(
+            [KpiReportConverter::NKO_LABEL, KpiReportConverter::NKO_LABEL],
+            $nko->pluck('name')->sort()->values()->all(),
+        );
+
+        // NKO tidak menyamar sebagai KPI: tanpa bobot, tanpa jenjang.
+        foreach ($nko as $indicator) {
+            $this->assertNull($indicator->bobot);
+            $this->assertNull($indicator->bobot_value);
+            $this->assertFalse($indicator->is_group);
+            $this->assertNull($indicator->parent_id);
+        }
 
         // NKO tetap dilayani jalur legacy seperti sebelumnya.
         $this->assertSame(1, PerformanceMetric::where('metric_name', 'TJBB | NKO')->count());
+    }
+
+    public function test_nilai_nko_mentah_disimpan_di_kolom_nilai(): void
+    {
+        $this->importViaRoute($this->makeKpiReport());
+
+        $observation = PerformanceObservation::whereHas(
+            'indicator',
+            fn ($q) => $q->where('category', 'nko'),
+        )->whereHas('orgUnit', fn ($q) => $q->where('name', 'TJBT'))->sole();
+
+        // NKO = nilai mentah workbook (N21 = 105.5), bukan hasil hitung ulang.
+        $this->assertSame(105.5, (float) $observation->nilai);
+        $this->assertSame('TJBT', $observation->source_sheet);
+        $this->assertSame(21, $observation->source_row);
     }
 
     public function test_baris_kop_laporan_tidak_menjadi_indikator(): void
@@ -527,8 +561,8 @@ class StructuredKpiDualWriteTest extends TestCase
         $second = $importer->import($path, $dataset, self::PERIOD);
 
         $this->assertSame(2, $first['org_units']);
-        $this->assertSame(11, $first['indicators']);
-        $this->assertSame(11, $first['observations']);
+        $this->assertSame(13, $first['indicators']);
+        $this->assertSame(13, $first['observations']);
 
         // Impor ulang = pembaruan, bukan penggandaan.
         $this->assertSame(0, $second['org_units']);
@@ -536,7 +570,7 @@ class StructuredKpiDualWriteTest extends TestCase
         $this->assertSame(0, $second['observations']);
 
         $this->assertSame(2, OrgUnit::count());
-        $this->assertSame(11, Indicator::count());
+        $this->assertSame(13, Indicator::count());
         $this->assertSame($observationsBefore, PerformanceObservation::count());
     }
 

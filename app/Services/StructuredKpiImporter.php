@@ -31,28 +31,74 @@ use RuntimeException;
 class StructuredKpiImporter
 {
     /**
-     * Baris yang TIDAK boleh jadi indikator/observation meski extractStructured()
-     * mengeluarkannya sebagai baris biasa.
+     * Penanda baris NKO dipakai lewat KpiReportConverter::NKO_LABEL supaya
+     * deteksi di sini identik dengan deteksi di converter.
      *
-     * - "NILAI KINERJA ORGANISASI (NKO)": hasil turunan kinerja organisasi per
-     *   unit, bukan KPI. Converter sengaja tetap mengeluarkannya (baris 4A), jadi
-     *   penyaringnya ada di sini. F40=100 adalah konstanta skala NKO, bukan bobot
-     *   indikator, jadi baris ini tidak boleh ikut terhitung sebagai KPI.
-     *
-     * Total bobot ("TOTAL BOBOT") tidak perlu disebut di sini: blocklist
-     * NON_INDICATOR_LABELS di converter sudah menolaknya lebih dulu.
+     * Baris NKO TIDAK lagi dibuang. Ia masuk tabel
+     * terstruktur sebagai indikator berkategori 'nko', satu per unit, dengan
+     * nilai mentah workbook di `nilai` dan bobot NULL.
      */
-    private const EXCLUDED_LABEL_PATTERN = '/NILAI KINERJA ORGANISASI|\(NKO\)|\bNKO\b/iu';
+    public function __construct(private readonly KpiReportConverter $converter) {}
 
     /**
-     * Konstanta turunan dari extractStructured() yang tidak boleh dihitung
-     * sebagai nilai KPI bila muncul sebagai label indikator nyata. Saat ini
-     * tidak ada di workbook terverifikasi; dijaga supaya varian berkas lama
-     * tidak menyeretnya masuk.
+     * Nama bulan (ID + EN) yang muncul di banner periode sheet -> nomor bulan.
+     * Dipakai HANYA untuk membandingkan banner dengan periode efektif; banner
+     * mentahnya tetap disimpan apa adanya di `sheet_period`.
      */
-    private const TOTAL_BOBOT_PATTERN = '/TOTAL\s+BOBOT/iu';
+    private const MONTH_NUMBERS = [
+        'JANUARI' => '01', 'FEBRUARI' => '02', 'MARET' => '03', 'APRIL' => '04',
+        'MEI' => '05', 'JUNI' => '06', 'JULI' => '07', 'AGUSTUS' => '08',
+        'SEPTEMBER' => '09', 'OKTOBER' => '10', 'NOVEMBER' => '11', 'DESEMBER' => '12',
+        'JANUARY' => '01', 'FEBRUARY' => '02', 'MARCH' => '03', 'MAY' => '05',
+        'JUNE' => '06', 'JULY' => '07', 'AUGUST' => '08', 'OCTOBER' => '10',
+        'DECEMBER' => '12', 'AGUST' => '08', 'SEPT' => '09', 'OKT' => '10',
+        'JAN' => '01', 'FEB' => '02', 'MAR' => '03', 'APR' => '04',
+        'JUN' => '06', 'JUL' => '07', 'AUG' => '08', 'SEP' => '09',
+        'OCT' => '10', 'NOV' => '11', 'DEC' => '12', 'AGU' => '08', 'DES' => '12',
+    ];
 
-    public function __construct(private readonly KpiReportConverter $converter) {}
+    /**
+     * Apakah label ini baris NKO (agregat level unit, bukan indikator KPI).
+     *
+     * Substring "NKO" saja TIDAK cukup: label seperti "JUMLAH NKO GANGGUAN"
+     * atau "NKO TEKNIS" juga memuat "NKO" tetapi itu indikator nyata, bukan
+     * baris agregat. Karena itu pencocokannya sempit:
+     *
+     *   - label memuat penanda kanonis "NILAI KINERJA ORGANISASI"; atau
+     *   - label PERSIS varian pendek "NKO" / "(NKO)".
+     *
+     * Varian panjang tetap terdeteksi lewat penanda kanonis, sehingga
+     * "NILAI KINERJA ORGANISASI (NKO)" juga mengerucut ke satu identitas.
+     */
+    private function isNkoIndicator(string $label): bool
+    {
+        $normalized = mb_strtoupper(trim(preg_replace('/\s+/', ' ', $label)));
+
+        if (str_contains($normalized, KpiReportConverter::NKO_LABEL)) {
+            return true;
+        }
+
+        return in_array($normalized, ['NKO', '(NKO)'], true);
+    }
+
+    /**
+     * Identitas tersimpan untuk satu baris sumber.
+     *
+     * Nama indikator = kolom B apa adanya, KECUALI baris NKO: varian labelnya
+     * dikerucutkan ke satu nama kanonis supaya "NILAI KINERJA ORGANISASI",
+     * "NILAI KINERJA ORGANISASI (NKO)", dan "NKO" tidak membuat identitas
+     * berbeda untuk unit yang sama (unique key-nya (org_unit_id, name)).
+     *
+     * @return array{name: string, category: ?string}
+     */
+    private function indicatorIdentity(string $label): array
+    {
+        if ($this->isNkoIndicator($label)) {
+            return ['name' => KpiReportConverter::NKO_LABEL, 'category' => KpiReportConverter::INDICATOR_CATEGORY_NKO];
+        }
+
+        return ['name' => $label, 'category' => null];
+    }
 
     /**
      * Tulis satu dataset KPI ke tabel struktural.
@@ -77,12 +123,7 @@ class StructuredKpiImporter
             foreach ($rows as $row) {
                 $unitName = $row['org_unit'];
                 $label = trim((string) $row['label']);
-
-                if ($this->isExcluded($label)) {
-                    $counts['excluded']++;
-
-                    continue;
-                }
+                $isNko = $this->isNkoIndicator($label);
 
                 if ($this->isBlankRow($row) && ! $row['is_group']) {
                     // Kop laporan / baris judul divisi: B terisi tetapi tanpa
@@ -106,6 +147,7 @@ class StructuredKpiImporter
                 }
 
                 $orgUnitId = $units[$unitName];
+                $identity = $this->indicatorIdentity($label);
                 $parentId = $row['parent_row'] !== null
                     ? ($indicatorByRow[$unitName][$row['parent_row']] ?? null)
                     : null;
@@ -113,23 +155,29 @@ class StructuredKpiImporter
                 // Identitas indikator = (org_unit_id, name). parent_row yang
                 // tidak ketemu dibiarkan null, BUKAN ditebak dari bobot atau
                 // dari baris di atasnya.
+                //
+                // Baris NKO tidak punya jenjang: `is_group` false, tanpa induk,
+                // dan metadata indikator lain dikosongkan. F40/F21=100 di
+                // workbook adalah konstanta skala NKO, jadi bobot WAJIB null
+                // (tidak boleh terbaca sebagai bobot indikator).
                 $indicator = Indicator::updateOrCreate(
-                    ['org_unit_id' => $orgUnitId, 'name' => $label],
+                    ['org_unit_id' => $orgUnitId, 'name' => $identity['name']],
                     [
-                        'parent_id' => $parentId,
-                        'aggregation_code' => $row['aggregation_code'],
-                        'polarity' => $row['polarity'],
-                        'formula' => $row['formula'],
-                        'satuan' => $row['satuan'],
+                        'parent_id' => $isNko ? null : $parentId,
+                        'aggregation_code' => $isNko ? null : $row['aggregation_code'],
+                        'polarity' => $isNko ? null : $row['polarity'],
+                        'formula' => $isNko ? null : $row['formula'],
+                        'satuan' => $isNko ? null : $row['satuan'],
                         // Normalisasi satuan masih blocker bisnis (blm ada
                         // daftar otoritatif) -> dibiarkan null, bukan dikarang.
                         'satuan_normalized' => null,
-                        'bobot' => $row['bobot'],
-                        'bobot_value' => $row['bobot_value'],
-                        'bobot_min' => $row['bobot_min'],
-                        'bobot_max' => $row['bobot_max'],
-                        'is_group' => $row['is_group'],
-                        'pencapaian_formula_kind' => $row['pencapaian_formula_kind'],
+                        'bobot' => $isNko ? null : $row['bobot'],
+                        'bobot_value' => $isNko ? null : $row['bobot_value'],
+                        'bobot_min' => $isNko ? null : $row['bobot_min'],
+                        'bobot_max' => $isNko ? null : $row['bobot_max'],
+                        'is_group' => $isNko ? false : $row['is_group'],
+                        'pencapaian_formula_kind' => $isNko ? null : $row['pencapaian_formula_kind'],
+                        'category' => $identity['category'],
                     ],
                 );
 
@@ -141,7 +189,8 @@ class StructuredKpiImporter
 
                 // Kunci unik (dataset, indicator, org_unit, period) = satu baris
                 // per KPI per unit per periode. Impor ulang berkas yang sama
-                // karena itu memperbarui, bukan menggandakan.
+                // karena itu memperbarui, bukan menggandakan. NKO memakai
+                // identitas kanonis, jadi idempotensinya sama seperti KPI lain.
                 $observation = PerformanceObservation::updateOrCreate(
                     [
                         'dataset_id' => $dataset->id,
@@ -154,6 +203,8 @@ class StructuredKpiImporter
                         ...$this->observationValues($row),
                         'source_sheet' => $unitName,
                         'source_row' => $row['row'],
+                        'sheet_period' => $row['sheet_period'] ?? null,
+                        'period_conflict' => $this->periodConflicts($row['sheet_period'] ?? null, $period),
                     ],
                 );
 
@@ -181,13 +232,54 @@ class StructuredKpiImporter
         return true;
     }
 
-    private function isExcluded(string $label): bool
+    /**
+     * Apakah periode form dan banner sheet berbeda.
+     *
+     * Periode form adalah periode EFEKTIF (yang tersimpan di `period`); banner
+     * hanya provenance. Konflik dicatat, BUKAN menolak import.
+     *
+     * Banner adalah teks bebas ("S.D. AGUSTUS 2026"), jadi ia hanya dianggap
+     * konflik bila bisa dipetakan ke bulan+tahun DAN hasilnya beda. Banner yang
+     * tidak terbaca tidak diklaim konflik: tidak ada bukti perbedaan, dan
+     * menandai konflik tanpa bukti sama saja mengarang.
+     */
+    private function periodConflicts(?string $sheetPeriod, string $effectivePeriod): bool
     {
-        if (preg_match(self::EXCLUDED_LABEL_PATTERN, $label) === 1) {
-            return true;
+        $banner = $this->parseSheetPeriod($sheetPeriod);
+
+        if ($banner === null) {
+            return false;
         }
 
-        return preg_match(self::TOTAL_BOBOT_PATTERN, $label) === 1;
+        return $banner !== substr($effectivePeriod, 0, 7);
+    }
+
+    /**
+     * Petakan banner periode sheet ke 'Y-m', atau null bila tidak terbaca.
+     *
+     * Nama bulan Indonesia dan Inggris diterima karena banner berasal dari
+     * workbook yang bisa memakai keduanya. Pencocokan kata penuh (\b) supaya
+     * "JANUARI" tidak salah dikenali sebagai "JAN".
+     */
+    private function parseSheetPeriod(?string $banner): ?string
+    {
+        if ($banner === null || trim($banner) === '') {
+            return null;
+        }
+
+        $normalized = mb_strtoupper($banner);
+
+        if (preg_match('/(\d{4})/', $normalized, $year) !== 1) {
+            return null;
+        }
+
+        foreach (self::MONTH_NUMBERS as $name => $number) {
+            if (preg_match('/\b'.$name.'\b/', $normalized) === 1) {
+                return $year[1].'-'.$number;
+            }
+        }
+
+        return null;
     }
 
     /**

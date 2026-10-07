@@ -10,6 +10,7 @@ use App\Models\Role;
 use App\Models\User;
 use App\Services\AssetStockReport;
 use App\Services\KpiReportConverter;
+use App\Services\StructuredNkoReader;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
@@ -38,6 +39,8 @@ class DashboardController extends Controller
      * @var list<string>
      */
     private const ASET_ATTRIBUTE_PREFIXES = ['Tower ', 'Transmisi ', 'Trafo '];
+
+    public function __construct(private readonly StructuredNkoReader $structuredNko) {}
 
     /**
      * Rakit daftar widget terurut untuk user aktif, lalu render view.
@@ -339,6 +342,10 @@ class DashboardController extends Controller
      */
     private function nkoRanking(?User $user, ?string $startDate = null, ?string $endDate = null): Collection
     {
+        if ($this->kpiReadModelStructured()) {
+            return $this->nkoRankingStructured($user, $startDate, $endDate);
+        }
+
         $isPrivileged = $this->isPrivileged($user);
 
         $base = fn () => DB::table('performance_metrics')
@@ -558,6 +565,10 @@ class DashboardController extends Controller
      */
     private function kinerjaDetail(?User $user, ?string $startDate = null, ?string $endDate = null): array
     {
+        if ($this->kpiReadModelStructured()) {
+            return $this->kinerjaDetailStructured($user, $startDate, $endDate);
+        }
+
         // Reader ini belum dimigrasi: periode maupun agregasinya tetap legacy.
         $period = $this->latestLegacyReadyPeriod($user, $startDate, $endDate);
 
@@ -694,6 +705,10 @@ class DashboardController extends Controller
      */
     private function nkoDonut(?User $user, ?string $startDate = null, ?string $endDate = null): array
     {
+        if ($this->kpiReadModelStructured()) {
+            return $this->nkoDonutStructured($user, $startDate, $endDate);
+        }
+
         $isPrivileged = $this->isPrivileged($user);
         $base = fn () => DB::table('performance_metrics')
             ->join('datasets', 'datasets.id', '=', 'performance_metrics.dataset_id')
@@ -734,5 +749,180 @@ class DashboardController extends Controller
         }
 
         return ['period' => $period, 'data' => $data];
+    }
+
+    // ------------------------------------------------------------------
+    // Branch terstruktur. Hanya aktif bila
+    // config('kpi.read_model') === 'structured'; default tetap 'legacy'.
+    // ------------------------------------------------------------------
+
+    /**
+     * R3 branch terstruktur: peringkat NKO pada dataset terbaru.
+     *
+     * Semantik yang dipertahankan: periode = periode terbaru yang PUNYA baris
+     * NKO di dalam rentang tanggal, urut menurun. Yang berbeda: satu unit
+     * muncul sekali (dataset terbaru menang), bukan sekali per baris.
+     *
+     * `metric_name` disintesis dengan akhiran yang sama seperti jalur legacy
+     * supaya bentuk objeknya identik dan view tidak perlu tahu sumbernya.
+     *
+     * @return Collection<int, object>
+     */
+    private function nkoRankingStructured(?User $user, ?string $startDate = null, ?string $endDate = null): Collection
+    {
+        $divisionId = $this->isPrivileged($user) ? null : $user?->division_id;
+        $period = $this->structuredNkoPeriod($divisionId, $startDate, $endDate);
+
+        if ($period === null) {
+            return collect();
+        }
+
+        return $this->structuredNko->latestForPeriod($divisionId, $period)
+            ->map(fn (array $row): object => (object) [
+                'metric_name' => $row['unit'].KpiReportConverter::NKO_SUFFIX,
+                'nko' => $row['nko'],
+                'unit' => $row['unit'],
+            ]);
+    }
+
+    /**
+     * R10 branch terstruktur: sebaran kategori NKO pada dataset terbaru.
+     *
+     * Ambang dan URUTAN kategori disalin persis dari jalur legacy
+     * (>=100 / >=95 / else, dan urutan tetap Tercapai, Hampir Tercapai, Perlu
+     * Peningkatan). Kategori bernilai nol tetap di-omit.
+     */
+    private function nkoDonutStructured(?User $user, ?string $startDate = null, ?string $endDate = null): array
+    {
+        $divisionId = $this->isPrivileged($user) ? null : $user?->division_id;
+        $period = $this->structuredNkoPeriod($divisionId, $startDate, $endDate);
+
+        if ($period === null) {
+            return ['period' => null, 'data' => []];
+        }
+
+        $counts = ['Tercapai' => 0, 'Hampir Tercapai' => 0, 'Perlu Peningkatan' => 0];
+
+        foreach ($this->structuredNko->latestForPeriod($divisionId, $period) as $row) {
+            $value = $row['nko'];
+
+            if ($value >= 100) {
+                $counts['Tercapai']++;
+            } elseif ($value >= 95) {
+                $counts['Hampir Tercapai']++;
+            } else {
+                $counts['Perlu Peningkatan']++;
+            }
+        }
+
+        $data = [];
+        foreach ($counts as $name => $value) {
+            if ($value > 0) {
+                $data[] = ['name' => $name, 'value' => $value];
+            }
+        }
+
+        return ['period' => $period, 'data' => $data];
+    }
+
+    /**
+     * R7 branch terstruktur.
+     *
+     * Baris detail (target/realisasi/pencapaian) tetap dihitung dari
+     * `performance_metrics` pada periode legacy: struktur observasi belum
+     * terbukti setara untuk kolom-kolom itu, dan mengalihkannya sekarang akan
+     * mengubah angka. Yang dialihkan HANYA kolom `nko`, yang sudah punya
+     * sumber terstruktur.
+     *
+     * NKO diambil dari DATASET TERBARU (bukan unit mana pun yang punya baris
+     * NKO): dataset terbaru adalah versi otoritatif, jadi unit yang hanya ada
+     * di dataset lama tidak lagi menempelkan NKO basi.
+     */
+    private function kinerjaDetailStructured(?User $user, ?string $startDate = null, ?string $endDate = null): array
+    {
+        $period = $this->latestLegacyReadyPeriod($user, $startDate, $endDate);
+
+        if ($period === null) {
+            return ['period' => null, 'rows' => [], 'truncated' => false, 'total_rows' => 0];
+        }
+
+        $isPrivileged = $this->isPrivileged($user);
+        $divisionId = $isPrivileged ? null : $user?->division_id;
+        $pairs = [];
+
+        DB::table('performance_metrics')
+            ->join('datasets', 'datasets.id', '=', 'performance_metrics.dataset_id')
+            ->where('datasets.status', Dataset::STATUS_READY)
+            ->where('performance_metrics.period', $period)
+            ->when(! $isPrivileged, fn ($q) => $q->where('performance_metrics.division_id', $user?->division_id))
+            ->where(function ($query) {
+                $query->where('performance_metrics.metric_name', 'like', '%| target')
+                    ->orWhere('performance_metrics.metric_name', 'like', '%| realisasi');
+            })
+            ->select('performance_metrics.metric_name', 'performance_metrics.value')
+            ->get()
+            ->each(function (object $row) use (&$pairs) {
+                $parts = explode(' | ', $row->metric_name);
+
+                if (count($parts) !== 3) {
+                    return;
+                }
+
+                [$unit, $indikator, $jenis] = $parts;
+                $pairs[$unit][$indikator][strtolower($jenis)] = (float) $row->value;
+            });
+
+        $nko = $this->structuredNkoValues($divisionId, $period);
+
+        $rows = [];
+        foreach ($pairs as $unit => $indikators) {
+            foreach ($indikators as $indikator => $vals) {
+                $target = $vals['target'] ?? null;
+                $realisasi = $vals['realisasi'] ?? null;
+                $rows[] = [
+                    'unit' => $unit,
+                    'indikator' => $indikator,
+                    'target' => $target,
+                    'realisasi' => $realisasi,
+                    'pencapaian' => ($target !== null && $target > 0 && $realisasi !== null)
+                        ? round($realisasi / $target * 100, 1) : null,
+                    'nko' => $nko[$unit] ?? null,
+                ];
+            }
+        }
+
+        usort($rows, fn ($a, $b) => [$a['unit'], $a['indikator']] <=> [$b['unit'], $b['indikator']]);
+
+        $total = count($rows);
+        $truncated = $total > 50;
+        if ($truncated) {
+            $rows = array_slice($rows, 0, 50);
+        }
+
+        return ['period' => $period, 'rows' => $rows, 'truncated' => $truncated, 'total_rows' => $total];
+    }
+
+    /**
+     * Peta unit -> NKO dari dataset terbaru, untuk kolom `nko` R7.
+     *
+     * @return array<string, float>
+     */
+    private function structuredNkoValues(?string $divisionId, string $period): array
+    {
+        $values = [];
+
+        foreach ($this->structuredNko->latestForPeriod($divisionId, $period) as $row) {
+            $values[$row['unit']] = $row['nko'];
+        }
+
+        return $values;
+    }
+
+    /**
+     * Periode terbaru di dalam rentang yang punya baris NKO terstruktur.
+     */
+    private function structuredNkoPeriod(?string $divisionId, ?string $startDate, ?string $endDate): ?string
+    {
+        return $this->structuredNko->latestNkoPeriod($divisionId, $startDate, $endDate);
     }
 }

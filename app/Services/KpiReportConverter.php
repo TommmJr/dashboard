@@ -47,8 +47,23 @@ class KpiReportConverter
     /** Sheet ringkasan lintas-unit, bukan data unit. */
     private const SUMMARY_SHEET = 'REKAP';
 
-    /** Penanda baris NKO; nomor barisnya berbeda di tiap sheet. */
-    private const NKO_LABEL = 'NILAI KINERJA ORGANISASI';
+    /**
+     * Penanda baris NKO; nomor barisnya berbeda di tiap sheet.
+     *
+     * Publik supaya importer bisa memakai penanda yang SAMA untuk mendeteksi
+     * baris NKO: kalau deteksi converter dan importer berbeda, satu sisi bisa
+     * memperlakukan baris sebagai NKO dan sisi lain tidak. Nilai ini juga
+     * dipakai sebagai nama kanonis indikator NKO, sehingga varian label
+     * ("NILAI KINERJA ORGANISASI (NKO)", "NKO") mengerucut ke satu identitas.
+     */
+    public const NKO_LABEL = 'NILAI KINERJA ORGANISASI';
+
+    /**
+     * Kategori indikator untuk baris NKO (kolom `indicators.category`).
+     * Dipakai importer saat menulis dan reader terstruktur saat membaca,
+     * supaya keduanya tidak membekukan string yang sama di dua tempat.
+     */
+    public const INDICATOR_CATEGORY_NKO = 'nko';
 
     /** Kolom label indikator (stabil di semua sheet sampel). */
     private const LABEL_COLUMN = 'B';

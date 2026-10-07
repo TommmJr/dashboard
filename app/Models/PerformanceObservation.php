@@ -24,6 +24,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'target_value', 'target_text', 'target_date', 'target_type',
     'realisasi_value', 'realisasi_text', 'realisasi_date', 'realisasi_type',
     'pencapaian', 'nilai', 'ket', 'source_sheet', 'source_row',
+    'sheet_period', 'period_conflict',
 ])]
 class PerformanceObservation extends Model
 {
@@ -51,6 +52,7 @@ class PerformanceObservation extends Model
             'target_date' => 'date:Y-m-d',
             'realisasi_date' => 'date:Y-m-d',
             'source_row' => 'integer',
+            'period_conflict' => 'boolean',
         ];
     }
 

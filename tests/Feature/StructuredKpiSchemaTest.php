@@ -76,6 +76,46 @@ class StructuredKpiSchemaTest extends TestCase
         ]);
     }
 
+    public function test_kolom_provenance_periode_ada_dan_default_aman(): void
+    {
+        // provenance periode. Dua kolom ini MURNI bukti, bukan bagian
+        // identitas baris, jadi kehadirannya tidak boleh mengubah unique key.
+        $this->assertTrue(Schema::hasColumns('performance_observations', ['sheet_period', 'period_conflict']));
+
+        $observation = PerformanceObservation::factory()->create(['period' => '2026-08-31']);
+
+        // Banner periode sering tidak ada, jadi kolomnya nullable.
+        $this->assertNull($observation->sheet_period);
+        // Tanpa bukti perbedaan, default kolom di DB adalah false. Dibaca lewat
+        // fresh() karena default-nya diterapkan DB, bukan diisi model.
+        $this->assertFalse($observation->fresh()->period_conflict);
+
+        $observation->update([
+            'sheet_period' => 'S.D. AGUSTUS 2026',
+            'period_conflict' => true,
+        ]);
+
+        $this->assertSame('S.D. AGUSTUS 2026', $observation->fresh()->sheet_period);
+        $this->assertTrue($observation->fresh()->period_conflict);
+    }
+
+    public function test_migrasi_provenance_periode_reversible(): void
+    {
+        // Phase 1 mewajibkan migrasinya reversible. Diuji langsung ke kelas
+        // migrasinya (down lalu up), bukan lewat rollback batch, supaya
+        // hasilnya deterministik di SQLite in-memory.
+        $migration = require database_path(
+            'migrations/2026_10_07_100000_add_period_provenance_to_performance_observations_table.php',
+        );
+
+        $migration->down();
+        $this->assertFalse(Schema::hasColumn('performance_observations', 'sheet_period'));
+        $this->assertFalse(Schema::hasColumn('performance_observations', 'period_conflict'));
+
+        $migration->up();
+        $this->assertTrue(Schema::hasColumns('performance_observations', ['sheet_period', 'period_conflict']));
+    }
+
     public function test_target_bertipe_numeric_date_text_empty(): void
     {
         $numeric = PerformanceObservation::factory()->numeric()->create();
