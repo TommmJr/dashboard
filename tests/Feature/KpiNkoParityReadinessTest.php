@@ -142,6 +142,97 @@ class KpiNkoParityReadinessTest extends TestCase
     // 2. Aturan "data terbaru": beberapa dataset READY, periode sama
     // ------------------------------------------------------------------
 
+    /**
+     * Keputusan Pak Gama 2026-10-07: nilai NKO mengikuti data sumber apa
+     * adanya — tidak dibulatkan. Precision 4 desimal harus bertahan sampai
+     * reader (R3). Legacy sudah membulatkan ke 2 desimal; yang diuji di sini
+     * adalah kontrak sisi structured.
+     */
+    public function test_precision_nko_structured_setara_sumber(): void
+    {
+        $division = $this->division('Pengusahaan');
+        $dataset = Dataset::factory()->create(['division_id' => $division->id]);
+        $this->structuredNko($dataset, $division, 'TJBT', 99.9876);
+
+        $stored = PerformanceObservation::whereHas(
+            'indicator',
+            fn ($q) => $q->where('category', 'nko'),
+        )->sole();
+
+        $this->assertSame('99.9876', (string) $stored->nilai);
+
+        $ranking = $this->structured(fn () => $this->reader('nkoRanking', [$this->management()]));
+
+        $this->assertSame(99.9876, (float) $ranking->first()->nko);
+    }
+
+    public function test_precision_nko_structured_tetap_raw_di_r1_dan_threshold_r10(): void
+    {
+        $division = $this->division('Pengusahaan');
+        $dataset = Dataset::factory()->create(['division_id' => $division->id]);
+        $this->structuredNko($dataset, $division, 'TJBT', 99.9999);
+        $user = $this->management();
+
+        $chart = $this->structured(fn () => $this->chart($user));
+        $this->assertEquals([99.9999], $chart['series'][0]['data']);
+        $this->assertEquals(90, $chart['y_axis_min']);
+
+        $donut = $this->structured(fn () => $this->reader('nkoDonut', [$user]));
+        $this->assertSame([['name' => 'Hampir Tercapai', 'value' => 1]], $donut['data']);
+    }
+
+    /**
+     * Keputusan Pak Gama 2026-10-07: kapitalisasi nama unit dipertahankan,
+     * jadi TJBT dan tjbt adalah DUA unit berbeda. C8 (structured R7 mencari
+     * NKO per unit dengan lookup exact): TJBT tidak boleh menerima NKO
+     * milik tjbt dan sebaliknya. Bug lama pada MySQL (collation ci): lookup
+     * ini digabung lalu satu baris kehilangan NKO-nya.
+     */
+    public function test_r7_structured_tidak_menggabungkan_case_variant_unit(): void
+    {
+        $division = $this->division('Pengusahaan');
+        $dataset = Dataset::factory()->create(['division_id' => $division->id]);
+
+        $this->legacyMetric($dataset, $division, 'TJBT | Indikator A | target', 200.0);
+        $this->legacyMetric($dataset, $division, 'TJBT | Indikator A | realisasi', 100.0);
+        $this->legacyMetric($dataset, $division, 'tjbt | Indikator A | target', 200.0);
+        $this->legacyMetric($dataset, $division, 'tjbt | Indikator A | realisasi', 100.0);
+        $this->structuredNko($dataset, $division, 'TJBT', 105.5);
+        $this->structuredNko($dataset, $division, 'tjbt', 80.0);
+
+        // Kedua identitas tetap dua baris; unique(name) tidak mengabungkannya.
+        $this->assertSame(['TJBT', 'tjbt'], OrgUnit::orderBy('name')->pluck('name')->all());
+
+        $detail = $this->structured(fn () => $this->reader('kinerjaDetail', [$this->management()]));
+        $byUnit = collect($detail['rows'])->keyBy('unit');
+
+        // Masing-masing unit mengambil NKO miliknya sendiri, bukan null.
+        $this->assertSame(105.5, $byUnit['TJBT']['nko']);
+        $this->assertSame(80.0, $byUnit['tjbt']['nko']);
+    }
+
+    /**
+     * Visualisasi memakai periode terbaru, tetapi periode lama tidak boleh
+     * dihapus: keduanya harus tetap tersimpan dan dapat di-query.
+     */
+    public function test_semua_periode_tersimpan_walau_visualisasi_periode_terbaru(): void
+    {
+        $division = $this->division('Pengusahaan');
+        $dataset = Dataset::factory()->create(['division_id' => $division->id]);
+
+        $this->structuredNko($dataset, $division, 'TJBT', 90.0, '2026-07-31');
+        $this->structuredNko($dataset, $division, 'TJBT', 105.5, '2026-08-31');
+
+        $this->assertSame(2, PerformanceObservation::whereHas(
+            'indicator',
+            fn ($q) => $q->where('category', 'nko'),
+        )->count());
+
+        $ranking = $this->structured(fn () => $this->reader('nkoRanking', [$this->management()]));
+
+        $this->assertSame(105.5, (float) $ranking->first()->nko);
+    }
+
     public function test_dataset_terbaru_menang_saat_periode_sama(): void
     {
         $division = $this->division('Pengusahaan');

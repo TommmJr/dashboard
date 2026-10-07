@@ -30,6 +30,21 @@ class StructuredKpiSchemaTest extends TestCase
         OrgUnit::factory()->create(['name' => 'TJBT']);
     }
 
+    public function test_nama_org_unit_case_sensitive(): void
+    {
+        // Keputusan bisnis 2026-10-07: kapitalisasi mengikuti data, jadi
+        // TJBT dan tjbt adalah DUA unit berbeda.
+        //
+        // Test ini lewat di SQLite (BINARY) apa pun kondisinya, tetapi GAGAL
+        // di MySQL case-insensitive: unique(name) akan menolak 'tjbt' sebagai
+        // duplikat 'TJBT'. Karena itu ia berfungsi sebagai canary MySQL, bukan
+        // sekadar assertion SQLite.
+        OrgUnit::factory()->create(['name' => 'TJBT']);
+        OrgUnit::factory()->create(['name' => 'tjbt']);
+
+        $this->assertSame(['TJBT', 'tjbt'], OrgUnit::orderBy('name')->pluck('name')->all());
+    }
+
     public function test_identitas_indikator_per_unit_bukan_global(): void
     {
         $unitA = OrgUnit::factory()->create(['name' => 'TJBT']);
