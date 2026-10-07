@@ -426,6 +426,51 @@ class KpiNkoParityReadinessTest extends TestCase
     }
 
     // ------------------------------------------------------------------
+    // 9. Regresi: correlation divisi NULL-safe
+    // ------------------------------------------------------------------
+
+    /**
+     * Observation dengan division_id NULL tidak boleh membuat dataset lama
+     * ikut lolos sebagai "terbaru".
+     *
+     * Bug lama: `newer.division_id = po.division_id` bernilai UNKNOWN saat
+     * keduanya NULL, sehingga NOT EXISTS selalu TRUE dan SEMUA dataset READY
+     * pada periode itu dianggap terbaru.
+     */
+    public function test_dataset_terbaru_menang_saat_observation_tanpa_divisi(): void
+    {
+        $division = $this->division('Pengusahaan');
+
+        $older = Dataset::factory()->create([
+            'division_id' => $division->id,
+            'created_at' => now()->subDays(2),
+        ]);
+        $this->structuredNkoTanpaDivisi($older, 'TJBT', 105.5);
+
+        $newer = Dataset::factory()->create([
+            'division_id' => $division->id,
+            'created_at' => now(),
+        ]);
+        $this->structuredNkoTanpaDivisi($newer, 'TJBT', 101.0);
+
+        // Kedua versi tetap tersimpan (retensi tidak berubah).
+        $this->assertSame(2, PerformanceObservation::whereHas(
+            'indicator',
+            fn ($q) => $q->where('category', 'nko'),
+        )->count());
+
+        $reader = app(StructuredNkoReader::class);
+
+        // Hanya dataset terbaru yang boleh lolos seleksi.
+        $this->assertSame([$newer->id], $reader->latestDatasetIds(null, self::PERIOD));
+
+        $rows = $reader->latestForPeriod(null, self::PERIOD);
+
+        $this->assertCount(1, $rows);
+        $this->assertSame(101.0, $rows->first()['nko']);
+    }
+
+    // ------------------------------------------------------------------
     // Helpers
     // ------------------------------------------------------------------
 
@@ -507,6 +552,36 @@ class KpiNkoParityReadinessTest extends TestCase
             'division_id' => $division->id,
             'period' => $period,
             'nilai' => $value,
+            'source_sheet' => $unit,
+        ]);
+    }
+
+    /**
+     * Sama seperti structuredNko(), tetapi DIVISI SENGAJA dikosongkan.
+     *
+     * Merepresentasikan observation yang dibuat sebelum scoping divisi
+     * terpasang, atau baris yatim setelah divisi dihapus (kolomnya memang
+     * nullable). Baris seperti ini dulu membuat correlation divisi bernilai
+     * UNKNOWN sehingga tidak pernah tersupersede.
+     */
+    private function structuredNkoTanpaDivisi(Dataset $dataset, string $unit, float $value, string $period = self::PERIOD): PerformanceObservation
+    {
+        $orgUnit = OrgUnit::firstOrCreate(['name' => $unit]);
+
+        $indicator = Indicator::firstOrCreate(
+            ['org_unit_id' => $orgUnit->id, 'name' => KpiReportConverter::NKO_LABEL],
+            ['category' => 'nko', 'bobot' => null],
+        );
+
+        return PerformanceObservation::factory()->create([
+            'dataset_id' => $dataset->id,
+            'indicator_id' => $indicator->id,
+            'org_unit_id' => $orgUnit->id,
+            'division_id' => null,
+            'period' => $period,
+            'nilai' => $value,
+            'target_type' => PerformanceObservation::TYPE_EMPTY,
+            'realisasi_type' => PerformanceObservation::TYPE_EMPTY,
             'source_sheet' => $unit,
         ]);
     }

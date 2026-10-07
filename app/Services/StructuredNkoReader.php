@@ -132,7 +132,19 @@ class StructuredNkoReader
                     ->join('datasets as nd', 'nd.id', '=', 'newer.dataset_id')
                     ->where('nd.status', Dataset::STATUS_READY)
                     ->where('newer.period', $period)
-                    ->whereColumn('newer.division_id', 'po.division_id')
+                    ->where(function ($sameScope) {
+                        // Kesetaraan divisi NULL-safe. `newer.division_id = po.division_id`
+                        // bernilai UNKNOWN saat salah satu sisi NULL, jadi baris tanpa
+                        // divisi tidak pernah dianggap tersupersede dan SEMUA dataset-nya
+                        // lolos sebagai "terbaru". NULL harus jadi satu scope yang setara.
+                        // Ditulis sebagai OR + IS NULL supaya portabel MySQL 8 dan SQLite
+                        // (operator `<=>` MySQL tidak ada di SQLite).
+                        $sameScope->whereColumn('newer.division_id', 'po.division_id')
+                            ->orWhere(function ($bothNull) {
+                                $bothNull->whereNull('newer.division_id')
+                                    ->whereNull('po.division_id');
+                            });
+                    })
                     ->when($divisionId !== null, fn ($sub) => $sub->where('newer.division_id', $divisionId))
                     ->where(function ($better) {
                         // Dua kolom-ke-kolom, lalu tie-break id: created_at yang
