@@ -23,13 +23,15 @@ use Tests\TestCase;
  *
  * 1. Default 'legacy' -> R2 dan R4 membaca performance_metrics persis.
  * 2. 'structured' -> R2 dan R4 membaca performance_observations / org_units.
- * 3. Reader yang BELUM dimigrasi (R3, R5, R6, R7, R8, R9, R10) TIDAK ikut
- *    flag: dengan data legacy saja mereka harus tetap mengembalikan hasil
- *    legacy, bukan kosong. Ini alasan R5-R8 memanggil latestLegacyReadyPeriod().
+ * 3. Reader yang BELUM dimigrasi (R5 datasetStatus, R8 targetVsRealisasi) TIDAK
+ *    ikut flag: dengan data legacy saja mereka harus tetap mengembalikan hasil
+ *    legacy, bukan kosong. Ini alasan keduanya memanggil latestLegacyReadyPeriod().
+ * 4. R6 kinerjaRealisasi (dan R9 pencapaianNko yang mendelegasi ke sana) sudah
+ *    pindah ke sumber terstruktur; kontraknya diuji di bawah.
  *
- * Catatan: 'structured' sengaja TIDAK aman untuk production (NKO belum punya
- * sumber terstruktur). Test di sini menguji mekanisme flag, bukan kesiapan
- * produksi mode structured.
+ * Catatan: 'structured' sengaja TIDAK aman untuk production (R5/R8 belum
+ * dimigrasi). Test di sini menguji mekanisme flag, bukan kesiapan produksi
+ * mode structured.
  */
 class KpiReadModelFlagTest extends TestCase
 {
@@ -280,10 +282,10 @@ class KpiReadModelFlagTest extends TestCase
      * Reader yang BELUM dimigrasi TIDAK boleh ikut flag: dengan data legacy
      * saja mereka harus tetap mengembalikan hasil legacy, bukan kosong.
      *
-     * R3/R7/R10 SUDAH pindah ke sumber terstruktur (NKO punya
-     * representasi), jadi mereka TIDAK lagi diuji di sini. Yang masih dipin ke
-     * legacy: R5 datasetStatus, R6 kinerjaRealisasi, R8 targetVsRealisasi, dan
-     * R9 pencapaianNko (delegasi ke R6).
+     * R3/R7/R10 SUDAH pindah ke sumber terstruktur (NKO punya representasi),
+     * begitu juga R6 (+ R9 yang mendelegasi ke R6), jadi mereka TIDAK lagi
+     * diuji di sini. Yang masih dipin ke legacy: R5 datasetStatus dan
+     * R8 targetVsRealisasi.
      */
     public function test_reader_belum_dimigrasi_tetap_legacy_saat_flag_structured(): void
     {
@@ -294,24 +296,161 @@ class KpiReadModelFlagTest extends TestCase
 
         $this->legacyMetric($dataset, $division, 'TJBT | Indikator A | target', 100.0, '2026-08-31');
         $this->legacyMetric($dataset, $division, 'TJBT | Indikator A | realisasi', 110.0, '2026-08-31');
-        $this->legacyMetric($dataset, $division, 'TJBT | NKO', 105.5, '2026-08-31');
 
         $user = $this->management();
-
-        // R6 kinerjaRealisasi: periode dan agregasi tetap legacy.
-        $realisasi = $this->reader('kinerjaRealisasi', [$user]);
-        $this->assertSame('2026-08-31', $realisasi['period']);
-        $this->assertTrue($realisasi['has_data']);
 
         // R8 targetVsRealisasi: tetap legacy, tidak kosong.
         $tvr = $this->reader('targetVsRealisasi', [$user]);
         $this->assertSame('2026-08-31', $tvr['period']);
         $this->assertSame(['TJBT'], $tvr['labels']);
+    }
 
-        // R9 pencapaianNko: delegasi ke R6, jadi ikut legacy.
-        $pencapaian = $this->reader('pencapaianNko', [$user]);
-        $this->assertSame('2026-08-31', $pencapaian['period']);
-        $this->assertSame(['TJBT'], $pencapaian['labels']);
+    // ---------------------------------------------------------------- R6 ----
+
+    /**
+     * R6 kinerjaRealisasi dengan flag structured: periode dan nilai diambil
+     * dari performance_observations pada dataset TERBARU, sedangkan baris
+     * legacy diabaikan.
+     */
+    public function test_r6_kinerja_realisasi_structured_membaca_observasi(): void
+    {
+        config(['kpi.read_model' => 'structured']);
+
+        $division = $this->division('Pengusahaan');
+        $unit = OrgUnit::factory()->create(['name' => 'TJBT']);
+        $dataset = Dataset::factory()->create(['division_id' => $division->id]);
+
+        // Baris legacy di periode yang sama: HARUS diabaikan di mode structured.
+        $this->legacyMetric($dataset, $division, 'TJBT | Indikator A | target', 1.0, '2026-08-31');
+        $this->legacyMetric($dataset, $division, 'TJBT | Indikator A | realisasi', 1.0, '2026-08-31');
+
+        $this->observation($dataset, $unit, $division, '2026-08-31')
+            ->update(['target_value' => 100.0, 'realisasi_value' => 110.0]);
+
+        $result = $this->reader('kinerjaRealisasi', [$this->management()]);
+
+        $this->assertSame('2026-08-31', $result['period']);
+        $this->assertTrue($result['has_data']);
+        $this->assertSame(1, count($result['rows']));
+
+        $row = $result['rows'][0];
+        $this->assertSame('TJBT', $row['unit']);
+        $this->assertSame(110.0, $row['avg']);
+        $this->assertSame(1, $row['achieved']);
+        $this->assertSame('Tercapai', $row['status']);
+    }
+
+    /**
+     * Target bertipe tanggal/teks/kosong tidak punya target_value, jadi tidak
+     * ada pasangan target/realisasi yang bisa dihitung: unit TIDAK masuk tabel
+     * (bukan baris dengan pencapaian NULL). Jalur legacy meng-cast baris target
+     * apa pun ke float, jadi perilakunya berbeda.
+     */
+    public function test_r6_structured_target_non_numerik_tidak_dihitung_pencapaian(): void
+    {
+        config(['kpi.read_model' => 'structured']);
+
+        $division = $this->division('Pengusahaan');
+        $unit = OrgUnit::factory()->create(['name' => 'TJBT']);
+        $dataset = Dataset::factory()->create(['division_id' => $division->id]);
+
+        $this->observation($dataset, $unit, $division, '2026-08-31')
+            ->update([
+                'target_value' => null,
+                'target_date' => '2025-08-31',
+                'target_type' => PerformanceObservation::TYPE_DATE,
+                'realisasi_value' => 90.0,
+            ]);
+
+        $result = $this->reader('kinerjaRealisasi', [$this->management()]);
+
+        // Tidak ada pencapaian yang bisa dibandingkan -> unit tidak masuk tabel.
+        $this->assertSame('2026-08-31', $result['period']);
+        $this->assertSame([], $result['rows']);
+        $this->assertFalse($result['has_data']);
+    }
+
+    /**
+     * Dataset terbaru menang: dua dataset READY memuat (unit, indikator,
+     * periode) yang sama, hanya yang paling baru dipakai. Jalur legacy
+     * menampilkan keduanya (last-writer-wins), terstruktur tidak — divergensi
+     * yang disengaja dan dikunci di sini.
+     */
+    public function test_r6_structured_memakai_dataset_terbaru_saja(): void
+    {
+        config(['kpi.read_model' => 'structured']);
+
+        $division = $this->division('Pengusahaan');
+        $unit = OrgUnit::factory()->create(['name' => 'TJBT']);
+
+        $older = Dataset::factory()->create([
+            'division_id' => $division->id,
+            'created_at' => now()->subDay(),
+        ]);
+        $newer = Dataset::factory()->create([
+            'division_id' => $division->id,
+            'created_at' => now(),
+        ]);
+
+        $this->observation($older, $unit, $division, '2026-08-31')
+            ->update(['target_value' => 100.0, 'realisasi_value' => 10.0]);
+        $this->observation($newer, $unit, $division, '2026-08-31')
+            ->update(['target_value' => 100.0, 'realisasi_value' => 80.0]);
+
+        $result = $this->reader('kinerjaRealisasi', [$this->management()]);
+
+        $this->assertSame(1, count($result['rows']));
+        $this->assertSame(80.0, $result['rows'][0]['avg']);
+    }
+
+    /**
+     * Scoping divisi ikut aturan yang sama: staf divisi hanya melihat divisinya.
+     */
+    public function test_r6_structured_staf_divisi_hanya_melihat_divisinya(): void
+    {
+        config(['kpi.read_model' => 'structured']);
+
+        $own = $this->division('Pengusahaan');
+        $other = $this->division('Niaga');
+
+        $ownDataset = Dataset::factory()->create(['division_id' => $own->id]);
+        $otherDataset = Dataset::factory()->create(['division_id' => $other->id]);
+
+        $this->observation($ownDataset, OrgUnit::factory()->create(['name' => 'OWN']), $own, '2026-08-31')
+            ->update(['target_value' => 100.0, 'realisasi_value' => 100.0]);
+        $this->observation($otherDataset, OrgUnit::factory()->create(['name' => 'OTHER']), $other, '2026-08-31')
+            ->update(['target_value' => 100.0, 'realisasi_value' => 100.0]);
+
+        $staff = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $own->id]);
+
+        $result = $this->reader('kinerjaRealisasi', [$staff]);
+
+        $this->assertSame(['OWN'], array_column($result['rows'], 'unit'));
+    }
+
+    /**
+     * R9 pencapaianNko tidak punya cabang sendiri: ia mendelegasi ke R6, jadi
+     * begitu R6 structured, R9 ikut structured.
+     */
+    public function test_r9_pencapaian_nko_ikut_structured_lewat_r6(): void
+    {
+        config(['kpi.read_model' => 'structured']);
+
+        $division = $this->division('Pengusahaan');
+        $unit = OrgUnit::factory()->create(['name' => 'TJBT']);
+        $dataset = Dataset::factory()->create(['division_id' => $division->id]);
+
+        $this->legacyMetric($dataset, $division, 'TJBT | I | target', 1.0, '2026-08-31');
+        $this->legacyMetric($dataset, $division, 'TJBT | I | realisasi', 1.0, '2026-08-31');
+
+        $this->observation($dataset, $unit, $division, '2026-08-31')
+            ->update(['target_value' => 100.0, 'realisasi_value' => 105.0]);
+
+        $result = $this->reader('pencapaianNko', [$this->management()]);
+
+        $this->assertSame('2026-08-31', $result['period']);
+        $this->assertSame(['TJBT'], $result['labels']);
+        $this->assertSame([105.0], $result['data']);
     }
 
     /**

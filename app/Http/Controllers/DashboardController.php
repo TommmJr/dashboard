@@ -390,9 +390,11 @@ class DashboardController extends Controller
      * Sejak Unit 5B reader ini flag-gated (config('kpi.read_model')); default
      * 'legacy' -> query lama persis. Lihat kpiReadModelStructured().
      *
-     * Caller yang BELUM boleh ikut flag (datasetStatus, kinerjaRealisasi,
-     * kinerjaDetail, targetVsRealisasi) memanggil latestLegacyReadyPeriod()
-     * secara eksplisit — lihat catatan pada helper itu.
+     * Caller yang sengaja dipin ke versi legacy memanggil
+     * latestLegacyReadyPeriod() secara eksplisit: R5 datasetStatus, R8
+     * targetVsRealisasi, dan R7 kinerjaDetail (yang masih butuh baris
+     * performance_metrics untuk target/realisasi) — lihat catatan pada helper
+     * itu.
      */
     private function latestReadyPeriod(?User $user, ?string $startDate = null, ?string $endDate = null): ?string
     {
@@ -404,11 +406,10 @@ class DashboardController extends Controller
     /**
      * Apakah reader yang SUDAH dimigrasi harus membaca tabel terstruktur.
      *
-     * Sengaja bukan switch global: hanya availableUnits (R2) dan
-     * latestReadyPeriod (R4) yang membacanya. Reader yang belum dimigrasi
-     * (NKO, kinerja, dataset-status) tetap legacy berapa pun nilainya, supaya
-     * menyalakan 'structured' tidak membuat widget NKO kosong/rusak — NKO
-     * memang belum punya sumber terstruktur.
+     * Bukan switch global: R5 (datasetStatus) dan R8 (targetVsRealisasi) tetap
+     * legacy berapa pun nilainya, karena keduanya menunggu keputusan produk.
+     * Reader lain (R1, R2, R3, R4, R6, R7, R9, R10) ikut flag; R9 mengikuti R6
+     * karena mendelegasi ke sana.
      */
     private function kpiReadModelStructured(): bool
     {
@@ -494,10 +495,16 @@ class DashboardController extends Controller
      * Per unit: berapa indikator yang realisasi >= target (pencapaian >=100%),
      * rata-rata pencapaian, dan status kategori. Sumber: baris '| target'
      * dan '| realisasi' pada periode terbaru di divisi user.
+     *
+     * Sejak migrasi R6 reader ini flag-gated; default 'legacy' -> perilaku
+     * lama persis. R9 (pencapaianNko) mendelegasi ke sini, jadi ikut flag.
      */
     private function kinerjaRealisasi(?User $user, ?string $startDate = null, ?string $endDate = null): array
     {
-        // Reader ini belum dimigrasi: periode maupun agregasinya tetap legacy.
+        if ($this->kpiReadModelStructured()) {
+            return $this->kinerjaRealisasiStructured($user, $startDate, $endDate);
+        }
+
         $period = $this->latestLegacyReadyPeriod($user, $startDate, $endDate);
 
         if ($period === null) {
@@ -527,6 +534,19 @@ class DashboardController extends Controller
                 $pairs[$unit][$indikator][strtolower($jenis)] = (float) $row->value;
             });
 
+        return $this->kinerjaRealisasiRows($period, $pairs);
+    }
+
+    /**
+     * Agregasi target/realisasi per unit, dipakai bersama jalur legacy dan
+     * terstruktur supaya aturan pencapaian/status/urutan tidak bisa menyimpang
+     * antara dua sumber.
+     *
+     * @param  array<string, array<string, array{target?: ?float, realisasi?: ?float}>>  $pairs
+     * @return array{period: string, rows: list<array<string, mixed>>, has_data: bool}
+     */
+    private function kinerjaRealisasiRows(string $period, array $pairs): array
+    {
         $rows = [];
         foreach ($pairs as $unit => $indikators) {
             $total = 0;
@@ -959,6 +979,63 @@ class DashboardController extends Controller
         }
 
         return ['period' => $period, 'rows' => $rows, 'truncated' => $truncated, 'total_rows' => $total];
+    }
+
+    /**
+     * R6 branch terstruktur: pencapaian target/realisasi per unit pada dataset
+     * TERBARU periode terbaru di divisi user.
+     *
+     * Sumbernya performance_observations (kolom target_value/realisasi_value),
+     * bukan baris '| target'/'| realisasi' performance_metrics. Karena dataset
+     * terbaru yang otoritatif, satu (unit, indikator) hanya punya satu nilai
+     * per kolom — bukan last-writer-wins seperti jalur legacy. Aturan
+     * pencapaian/status/urutan tetap dipakai bersama lewat
+     * kinerjaRealisasiRows() supaya dua jalur tidak bisa menyimpang.
+     *
+     * Divergensi yang disengaja: hanya kolom numerik yang jadi sel. Target
+     * bertipe tanggal/teks/kosong (target_value NULL) tidak dihitung, sedangkan
+     * jalur legacy meng-cast baris target apa pun ke float.
+     */
+    private function kinerjaRealisasiStructured(?User $user, ?string $startDate = null, ?string $endDate = null): array
+    {
+        $period = $this->latestStructuredReadyPeriod($user, $startDate, $endDate);
+
+        if ($period === null) {
+            return ['period' => null, 'rows' => [], 'has_data' => false];
+        }
+
+        $divisionId = $this->isPrivileged($user) ? null : $user?->division_id;
+        $latestIds = $this->structuredNko->latestDatasetIds($divisionId, $period);
+
+        $pairs = [];
+
+        DB::table('performance_observations')
+            ->join('indicators', 'indicators.id', '=', 'performance_observations.indicator_id')
+            ->join('org_units', 'org_units.id', '=', 'performance_observations.org_unit_id')
+            ->where('performance_observations.period', $period)
+            ->when($divisionId !== null, fn ($q) => $q->where('performance_observations.division_id', $divisionId))
+            ->whereIn('performance_observations.dataset_id', $latestIds)
+            ->where(function ($query) {
+                $query->whereNotNull('performance_observations.target_value')
+                    ->orWhereNotNull('performance_observations.realisasi_value');
+            })
+            ->select(
+                'org_units.name as unit',
+                'indicators.name as indikator',
+                'performance_observations.target_value',
+                'performance_observations.realisasi_value',
+            )
+            ->get()
+            ->each(function (object $row) use (&$pairs) {
+                if ($row->target_value !== null) {
+                    $pairs[$row->unit][$row->indikator]['target'] = (float) $row->target_value;
+                }
+                if ($row->realisasi_value !== null) {
+                    $pairs[$row->unit][$row->indikator]['realisasi'] = (float) $row->realisasi_value;
+                }
+            });
+
+        return $this->kinerjaRealisasiRows($period, $pairs);
     }
 
     /**
