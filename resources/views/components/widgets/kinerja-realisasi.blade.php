@@ -39,8 +39,8 @@
                 @foreach ($rows as $row)
                     <tr class="border-b">
                         <td class="py-2 font-medium">{{ $row['unit'] ?? '—' }}</td>
-                        <td class="py-2">{{ number_format((float) ($row['achieved'] ?? 0)) }} dari {{ number_format((float) ($row['total'] ?? 0)) }}</td>
-                        <td class="py-2 text-right">{{ number_format((float) ($row['avg'] ?? 0), 1) }}%</td>
+                        <td class="py-2">{{ number_format((float) ($row['achieved'] ?? 0), 0, ',', '.') }} dari {{ number_format((float) ($row['total'] ?? 0), 0, ',', '.') }}</td>
+                        <td class="py-2 text-right">{{ number_format((float) ($row['avg'] ?? 0), 1, ',', '.') }}%</td>
                         <td class="py-2 text-right">
                             <span class="inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium {{ $pill((string) ($row['status'] ?? '')) }}">{{ $row['status'] ?? 'Perlu Peningkatan' }}</span>
                         </td>

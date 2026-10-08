@@ -37,8 +37,23 @@
                 const el = document.getElementById(@json($chartId));
                 if (!el || !window.echarts) { return; }
                 const chart = window.echarts.init(el);
+                // Display-only: ECharts default tooltip memakai addCommas yang
+                // MEMPERTAHANKAN ekor float (mis. 322,247.70999999996 dari
+                // penjumlahan float R8). valueFormatter membulatkan ke maksimal
+                // 2 desimal TANPA menyentuh data/payload/agregasi. Format ribuan
+                // (koma) dipertahankan seperti default; null/NaN tetap '-'.
+                const fmtTooltipNumber = (value) => (typeof value === 'number' && Number.isFinite(value))
+                    ? value.toLocaleString('id-ID', { maximumFractionDigits: 2 })
+                    : (value === null || value === undefined || typeof value === 'number') ? '-' : value;
+                const fmtTooltipValue = (value) => Array.isArray(value)
+                    ? value.map(fmtTooltipNumber)
+                    : fmtTooltipNumber(value);
                 chart.setOption({
-                    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+                    tooltip: {
+                        trigger: 'axis',
+                        axisPointer: { type: 'shadow' },
+                        valueFormatter: fmtTooltipValue,
+                    },
                     legend: { bottom: 0 },
                     grid: { left: 60, right: 20, top: 20, bottom: 60 },
                     xAxis: { type: 'category', data: @json($labels->all()) },

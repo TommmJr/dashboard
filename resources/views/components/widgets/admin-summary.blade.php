@@ -20,7 +20,7 @@
                 </svg>
             </span>
         </div>
-        <p class="mt-4 text-3xl font-bold text-primary">{{ number_format((int) $summary['total_datasets']) }}</p>
+        <p class="mt-4 text-3xl font-bold text-primary">{{ number_format((int) $summary['total_datasets'], 0, ',', '.') }}</p>
         <p class="mt-1 text-xs text-slate-500">total dalam sistem</p>
     </div>
 
@@ -33,7 +33,7 @@
                 </svg>
             </span>
         </div>
-        <p class="mt-4 text-3xl font-bold text-red-600">{{ number_format((int) $summary['failed_datasets']) }}</p>
+        <p class="mt-4 text-3xl font-bold text-red-600">{{ number_format((int) $summary['failed_datasets'], 0, ',', '.') }}</p>
         <p class="mt-1 text-xs text-slate-500">perlu tindak lanjut</p>
     </div>
 
@@ -47,7 +47,7 @@
                 </svg>
             </span>
         </div>
-        <p class="mt-4 text-3xl font-bold text-primary">{{ number_format((int) $summary['audit_today']) }}</p>
+        <p class="mt-4 text-3xl font-bold text-primary">{{ number_format((int) $summary['audit_today'], 0, ',', '.') }}</p>
         <p class="mt-1 text-xs text-slate-500">tercatat hari ini</p>
     </div>
 
@@ -60,7 +60,7 @@
                 </svg>
             </span>
         </div>
-        <p class="mt-4 text-3xl font-bold text-primary">{{ number_format((int) $summary['total_users']) }}</p>
+        <p class="mt-4 text-3xl font-bold text-primary">{{ number_format((int) $summary['total_users'], 0, ',', '.') }}</p>
         <p class="mt-1 text-xs text-slate-500">total akun terdaftar</p>
     </div>
 </div>

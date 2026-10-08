@@ -41,7 +41,7 @@
                     <tr class="border-b">
                         <td class="py-2">{{ $index + 1 }}</td>
                         <td class="py-2 font-medium">{{ $row->unit }}</td>
-                        <td class="py-2 text-right">{{ number_format((float) $row->nko, 2) }}</td>
+                        <td class="py-2 text-right">{{ number_format((float) $row->nko, 2, ',', '.') }}</td>
                         <td class="py-2 text-right">
                             <span class="inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium {{ $classes }}">{{ $label }}</span>
                         </td>

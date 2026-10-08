@@ -41,9 +41,9 @@ class NkoRankingWidgetTest extends TestCase
             ->get(route('dashboard'))
             ->assertOk()
             ->assertSee('Peringkat NKO Unit')
-            ->assertSee('105.50')
-            ->assertSee('100.74')
-            ->assertSee('99.50')
+            ->assertSee('105,50')
+            ->assertSee('100,74')
+            ->assertSee('99,50')
             ->assertSeeInOrder(['TJBT', 'TRANS', 'RST']);
     }
 
@@ -70,7 +70,7 @@ class NkoRankingWidgetTest extends TestCase
             ->get(route('dashboard'))
             ->assertOk()
             ->assertSee('Peringkat NKO Unit')
-            ->assertSee('105.50')
+            ->assertSee('105,50')
             ->assertSee('TJBT')
             ->assertDontSee('99.00')
             ->assertDontSee('TRANS');
@@ -99,7 +99,7 @@ class NkoRankingWidgetTest extends TestCase
         $this->actingAs($management)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('105.50')
+            ->assertSee('105,50')
             ->assertDontSee('90.00');
     }
 
@@ -161,13 +161,13 @@ class NkoRankingWidgetTest extends TestCase
         $this->actingAs($management)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('105.50');
+            ->assertSee('105,50');
 
         // Rentang Juli saja: peringkat memakai Juli, bukan Agustus.
         $this->actingAs($management)
             ->get(route('dashboard', ['start_date' => '2026-07-01', 'end_date' => '2026-07-31']))
             ->assertOk()
-            ->assertSee('90.00')
+            ->assertSee('90,00')
             ->assertDontSee('105.50');
     }
 

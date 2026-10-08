@@ -226,7 +226,7 @@ class KpiReportConverterTest extends TestCase
             ->assertOk()
             ->assertSee('Peringkat NKO Unit')
             ->assertSee('TJBT')
-            ->assertSee('105.50');
+            ->assertSee('105,50');
     }
 
     public function test_label_dengan_delimiter_pipe_ditolak_dan_tercatat(): void

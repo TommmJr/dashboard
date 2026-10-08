@@ -317,7 +317,7 @@ class StructuredNkoHttpTest extends TestCase
             ->assertOk()
             ->assertSee('Peringkat NKO Unit')
             ->assertSee('TJBT')
-            ->assertSee('105.50')
+            ->assertSee('105,50')
             ->assertSee('Tercapai')
             ->assertDontSee('Belum ada data NKO');
     }
@@ -336,7 +336,7 @@ class StructuredNkoHttpTest extends TestCase
             ->assertOk()
             ->assertSee('Peringkat NKO Unit')
             ->assertSee('TJBT')
-            ->assertSee('80.00')
+            ->assertSee('80,00')
             ->assertDontSee('GHOST')
             ->assertDontSee('105.50');
     }
@@ -353,8 +353,8 @@ class StructuredNkoHttpTest extends TestCase
         $this->actingAs($this->management())
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('80.00')
-            ->assertSee('105.50');
+            ->assertSee('80,00')
+            ->assertSee('105,50');
     }
 
     public function test_r3_terstruktur_dataset_terbaru_menang(): void
@@ -373,7 +373,7 @@ class StructuredNkoHttpTest extends TestCase
         $this->actingAs($this->management())
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('101.00')
+            ->assertSee('101,00')
             ->assertDontSee('105.50');
     }
 
@@ -388,7 +388,7 @@ class StructuredNkoHttpTest extends TestCase
         $this->actingAs($this->management())
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('105.50')
+            ->assertSee('105,50')
             ->assertDontSee('10.00');
     }
 
@@ -404,7 +404,7 @@ class StructuredNkoHttpTest extends TestCase
         $this->actingAs($this->management())
             ->get(route('dashboard', ['start_date' => '2026-06-01', 'end_date' => '2026-06-30']))
             ->assertOk()
-            ->assertSee('90.00')
+            ->assertSee('90,00')
             ->assertDontSee('105.50');
     }
 
@@ -419,7 +419,7 @@ class StructuredNkoHttpTest extends TestCase
         $this->actingAs($this->management())
             ->get(route('dashboard', ['start_date' => '2026-08-01', 'end_date' => '2026-06-01']))
             ->assertOk()
-            ->assertSee('105.50');
+            ->assertSee('105,50');
     }
 
     public function test_r3_tanpa_flag_tetap_membaca_legacy(): void
@@ -454,7 +454,7 @@ class StructuredNkoHttpTest extends TestCase
             ->get(route('dashboard'))
             ->assertOk()
             ->assertSee('Detail Metrik KPI')
-            ->assertSeeInOrder(['Indikator A', '200.00', '100.00', '50.0%', '105.50']);
+            ->assertSeeInOrder(['Indikator A', '200', '100', '50%', '105,5']);
     }
 
     public function test_r7_terstruktur_dataset_terbaru_menang(): void
@@ -476,7 +476,7 @@ class StructuredNkoHttpTest extends TestCase
         $this->actingAs($this->staffOf($division))
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('101.00')
+            ->assertSee('101')
             ->assertDontSee('105.50');
     }
 

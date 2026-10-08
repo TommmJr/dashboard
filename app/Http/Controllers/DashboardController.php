@@ -103,6 +103,13 @@ class DashboardController extends Controller
                 $widget['instance'] = $key;
                 $widget['data'] = $this->dataFor($widget['key'], $user, $filters);
 
+                // Daftar unit lengkap (di luar cap 50) hanya untuk dropdown
+                // kinerja-detail. Ditempel di wrapper widget, BUKAN di payload:
+                // payload reader dikunci karakterisasi (4 key).
+                if ($widget['key'] === 'kinerja-detail') {
+                    $widget['units'] = $this->kinerjaDetailUnits ?? [];
+                }
+
                 return $widget;
             })
             ->values()
@@ -206,7 +213,7 @@ class DashboardController extends Controller
             'admin-quick-actions' => null,
             'dataset-status' => $this->datasetStatus($user),
             'kinerja-realisasi' => $this->kinerjaRealisasi($user, $filters['start_date'] ?? null, $filters['end_date'] ?? null),
-            'kinerja-detail' => $this->kinerjaDetail($user, $filters['start_date'] ?? null, $filters['end_date'] ?? null),
+            'kinerja-detail' => $this->kinerjaDetail($user, $filters['start_date'] ?? null, $filters['end_date'] ?? null, $filters['units'] ?? []),
             'target-vs-realisasi' => $this->targetVsRealisasi($user, $filters['start_date'] ?? null, $filters['end_date'] ?? null),
             'pencapaian-nko' => $this->pencapaianNko($user, $filters['start_date'] ?? null, $filters['end_date'] ?? null),
             'nko-donut' => $this->nkoDonut($user, $filters['start_date'] ?? null, $filters['end_date'] ?? null),
@@ -560,10 +567,23 @@ class DashboardController extends Controller
     }
 
     /**
+     * DETAIL, bukan tabelnya: daftar lengkap unit pada periode terpilih,
+     * termasuk unit yang barisnya terpotong cap 50. Diambil dari `$rows` yang
+     * sudah jadi supaya dropdown tidak butuh query kedua dan tidak menambah
+     * key level-atas pada payload (payload tetap terkunci 4 key).
+     */
+    private ?array $kinerjaDetailUnits = null;
+
+    /**
      * Detail baris metrik per unit+indikator pada periode terbaru: target,
      * realisasi, pencapaian %, dan NKO unit. Cap 50 baris + flag truncated.
+     *
+     * `$units` = pilihan unit dari query (`?unit=TJBT`). Filter diterapkan
+     * SETELAH baris jadi dan SEBELUM cap, jadi cap 50 + total_rows + truncated
+     * dihitung per unit terpilih. Kosong atau tidak ada yang cocok di data ->
+     * perilaku lama PERSIS (seluruh baris, cap global).
      */
-    private function kinerjaDetail(?User $user, ?string $startDate = null, ?string $endDate = null): array
+    private function kinerjaDetail(?User $user, ?string $startDate = null, ?string $endDate = null, array $units = []): array
     {
         if ($this->kpiReadModelStructured()) {
             return $this->kinerjaDetailStructured($user, $startDate, $endDate);
@@ -573,6 +593,8 @@ class DashboardController extends Controller
         $period = $this->latestLegacyReadyPeriod($user, $startDate, $endDate);
 
         if ($period === null) {
+            $this->kinerjaDetailUnits = [];
+
             return ['period' => null, 'rows' => [], 'truncated' => false, 'total_rows' => 0];
         }
 
@@ -625,6 +647,22 @@ class DashboardController extends Controller
 
         usort($rows, fn ($a, $b) => [$a['unit'], $a['indikator']] <=> [$b['unit'], $b['indikator']]);
 
+        // Daftar unit lengkap (TJBT dulu) untuk dropdown, diambil SEBELUM
+        // filter/cap supaya unit yang barisnya terpotong tetap bisa dipilih.
+        $this->kinerjaDetailUnits = $this->kinerjaDetailUnitOrder(array_column($rows, 'unit'));
+
+        // Filter HANYA bila unit yang diminta ada di data; kalau tidak ada yang
+        // cocok, perilaku default (seluruh baris) yang berlaku.
+        if ($units !== []) {
+            $selected = array_values(array_intersect($units, $this->kinerjaDetailUnits));
+            if ($selected !== []) {
+                $rows = array_values(array_filter(
+                    $rows,
+                    fn (array $row): bool => in_array($row['unit'], $selected, true),
+                ));
+            }
+        }
+
         $total = count($rows);
         $truncated = $total > 50;
         if ($truncated) {
@@ -632,6 +670,27 @@ class DashboardController extends Controller
         }
 
         return ['period' => $period, 'rows' => $rows, 'truncated' => $truncated, 'total_rows' => $total];
+    }
+
+    /**
+     * Urutkan nama unit untuk dropdown: `TJBT` di depan bila ada, sisanya
+     * alfabetis. Dedup dulu supaya satu unit tidak muncul dua kali.
+     *
+     * @param  list<string>  $units
+     * @return list<string>
+     */
+    private function kinerjaDetailUnitOrder(array $units): array
+    {
+        $units = array_values(array_unique($units));
+        sort($units);
+
+        $index = array_search('TJBT', $units, true);
+        if ($index !== false) {
+            unset($units[$index]);
+            $units = array_merge(['TJBT'], $units);
+        }
+
+        return $units;
     }
 
     /**

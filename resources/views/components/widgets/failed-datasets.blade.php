@@ -13,7 +13,7 @@
     </div>
 
     <div class="mt-5 flex items-center gap-3">
-        <p class="text-4xl font-bold text-red-600">{{ number_format($count) }}</p>
+        <p class="text-4xl font-bold text-red-600">{{ number_format($count, 0, ',', '.') }}</p>
         @if ($count > 0)
             <span class="rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-red-700">Perlu Tindak Lanjut</span>
         @else

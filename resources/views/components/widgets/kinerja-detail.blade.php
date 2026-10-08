@@ -8,14 +8,85 @@
     $truncated = (bool) ($data['truncated'] ?? false);
     $totalRows = (int) ($data['total_rows'] ?? 0);
 
+    // Daftar SEMUA unit di data (termasuk yang barisnya terpotong cap 50),
+    // dipakai untuk dropdown pemilih unit. Payload reader tidak ditambah key.
+    $unitOptions = array_values(array_filter(
+        (array) ($widget['units'] ?? []),
+        fn ($unit): bool => is_string($unit) && $unit !== '',
+    ));
+
+    // Filter yang sedang aktif dibaca langsung dari request: komponen ini
+    // hanya menerima `widget` + `data`, bukan variabel $filters halaman.
+    $startDate = request('start_date');
+    $endDate = request('end_date');
+    $requestedUnit = request('unit');
+
+    // Unit terpilih hanya bila ada di daftar; kalau tidak, tidak ada highlight
+    // (perilaku default tetap berlaku).
+    $selectedUnit = is_string($requestedUnit) && in_array($requestedUnit, $unitOptions, true)
+        ? $requestedUnit
+        : null;
+
+    // ponytail: format Indonesia (desimal koma, ribuan titik). Nilai bulat tampil
+    // bulat (100,00 → 100, 100,0% → 100%); pecahan asli tetap maks 2 desimal
+    // (105,50 → 105,5).
     $fmt = function ($value, int $decimals, string $suffix = ''): string {
-        return $value === null ? '—' : number_format((float) $value, $decimals).$suffix;
+        if ($value === null) {
+            return '—';
+        }
+
+        $formatted = number_format((float) $value, $decimals, ',', '.');
+
+        if (str_contains($formatted, ',')) {
+            $formatted = rtrim(rtrim($formatted, '0'), ',');
+        }
+
+        return $formatted.$suffix;
     };
 @endphp
 
 <div class="rounded-lg bg-white border border-slate-200 shadow-sm p-6">
-    <h3 class="text-lg font-bold text-primary">{{ $widget['label'] ?? 'Detail Metrik KPI' }}</h3>
-    <p class="mt-1 text-sm text-gray-500">Periode {{ $period ?? '—' }}</p>
+    <div class="flex flex-wrap items-start justify-between gap-3">
+        <div>
+            <h3 class="text-lg font-bold text-primary">{{ $widget['label'] ?? 'Detail Metrik KPI' }}</h3>
+            <p class="mt-1 text-sm text-gray-500">Periode {{ $period ?? '—' }}</p>
+        </div>
+
+        @if (! empty($unitOptions))
+            {{-- Form GET: halaman dimuat ulang supaya widget server-side lain
+                 (kinerja-realisasi, target vs realisasi) ikut unit yang sama.
+                 Filter tanggal dibawa agar tidak hilang saat pindah unit. --}}
+            <form method="GET" action="{{ route('dashboard') }}" class="flex flex-wrap items-end gap-2">
+                @if (is_string($startDate) && $startDate !== '')
+                    <input type="hidden" name="start_date" value="{{ $startDate }}">
+                @endif
+                @if (is_string($endDate) && $endDate !== '')
+                    <input type="hidden" name="end_date" value="{{ $endDate }}">
+                @endif
+                <label for="kinerja-detail-unit" class="sr-only">Pilih unit</label>
+                <select id="kinerja-detail-unit" name="unit" onchange="this.form.submit()"
+                        class="h-9 rounded border border-slate-300 bg-white px-2 text-sm text-gray-700">
+                    <option value="">Semua unit</option>
+                    @foreach ($unitOptions as $unitOption)
+                        <option value="{{ $unitOption }}" @selected($selectedUnit === $unitOption)>{{ $unitOption }}</option>
+                    @endforeach
+                </select>
+                <noscript>
+                    <button type="submit" class="h-9 rounded border border-slate-300 bg-white px-3 text-sm text-gray-700">Tampilkan</button>
+                </noscript>
+                {{-- Jalan pintas supaya pembaca non-developer langsung menjangkau
+                     TJBT (di urutan pertama daftar). --}}
+                <a href="{{ route('dashboard', array_filter([
+                        'unit' => 'TJBT',
+                        'start_date' => is_string($startDate) ? $startDate : null,
+                        'end_date' => is_string($endDate) ? $endDate : null,
+                    ])) }}"
+                   class="inline-flex h-9 items-center rounded border border-primary px-3 text-sm font-medium text-primary hover:bg-primary hover:text-white">
+                    TJBT
+                </a>
+            </form>
+        @endif
+    </div>
 
     @if ($rows->isEmpty())
         <p class="mt-4 rounded-lg bg-slate-50 p-5 text-sm text-gray-600">
