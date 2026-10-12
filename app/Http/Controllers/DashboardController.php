@@ -475,15 +475,17 @@ class DashboardController extends Controller
         $isPrivileged = $this->isPrivileged($user);
         $scope = fn ($query) => $query->when(! $isPrivileged, fn ($q) => $q->where('division_id', $user?->division_id));
 
+        // Periode terbaru ditentukan TANPA filter unit (milik divisi); hanya
+        // hitungan baris yang dibatasi ke unit TAMPIL. Akibatnya latest_rows
+        // bisa 0 bila periode terbaru tidak memuat unit tampil.
         $latestPeriod = $this->latestLegacyReadyPeriod($user);
         $latestRows = 0;
         if ($latestPeriod !== null) {
-            $latestRows = DB::table('performance_metrics')
+            $latestRows = $this->countVisibleUnitRows(DB::table('performance_metrics')
                 ->join('datasets', 'datasets.id', '=', 'performance_metrics.dataset_id')
                 ->where('datasets.status', Dataset::STATUS_READY)
                 ->where('performance_metrics.period', $latestPeriod)
-                ->when(! $isPrivileged, fn ($q) => $q->where('performance_metrics.division_id', $user?->division_id))
-                ->count();
+                ->when(! $isPrivileged, fn ($q) => $q->where('performance_metrics.division_id', $user?->division_id)));
         }
 
         return [

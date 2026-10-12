@@ -153,9 +153,10 @@ class PerformanceChartController extends Controller
             ->filter(fn ($row) => Carbon::parse($row->period)->format('Y-m-d') === $latestPeriod)
             ->avg('nko');
 
-        $metricCount = $scoped($baseQuery())
-            ->where('performance_metrics.metric_name', 'not like', AssetStockConverter::PREFIX.'%')
-            ->count();
+        // metric_count = baris unit TAMPIL, semua periode. ready_datasets di
+        // atas sengaja TIDAK difilter unit: satu dataset memuat banyak unit.
+        $metricCount = $this->countVisibleUnitRows($scoped($baseQuery())
+            ->where('performance_metrics.metric_name', 'not like', AssetStockConverter::PREFIX.'%'));
 
         return response()->json([
             'labels' => $labels,
@@ -185,8 +186,8 @@ class PerformanceChartController extends Controller
      *      adalah nilai pada dataset terbaru saja.
      *
      * `kpi.ready_datasets` dan `kpi.metric_count` tetap dihitung dari
-     * performance_metrics (keduanya memang membaca baris metric, bukan NKO) —
-     * perilaku legacy dipertahankan apa adanya.
+     * performance_metrics (keduanya memang membaca baris metric, bukan NKO)
+     * dengan aturan yang sama persis seperti jalur legacy.
      *
      * @param  array<string, mixed>  $filters
      */
@@ -254,7 +255,8 @@ class PerformanceChartController extends Controller
                 $query->where('performance_metrics.division_id', $user->division_id);
             }
 
-            return $query->count();
+            // Sama persis dengan jalur legacy (unit TAMPIL, semua periode).
+            return $this->countVisibleUnitRows($query);
         })();
 
         $latestPeriod = $labels->last();

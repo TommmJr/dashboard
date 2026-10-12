@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Concerns;
 
+use Illuminate\Database\Query\Builder;
+
 /**
  * Pembatasan unit yang TAMPIL di dashboard KPI.
  *
@@ -67,6 +69,36 @@ trait ScopesKpiUnits
             $units,
             fn (string $unit): bool => in_array($unit, $visible, true),
         ));
+    }
+
+    /**
+     * Hitung baris performance_metrics milik unit yang boleh tampil.
+     *
+     * Unit = prefix `metric_name` sebelum " | " (pola legacy yang sama dengan
+     * reader lain); baris tanpa prefix unit tidak dihitung saat pembatasan
+     * aktif. Tanpa pembatasan (`null`) = COUNT apa adanya (perilaku lama).
+     *
+     * ponytail: LIKE prefix hanya prefilter kasar (case-insensitive di MySQL),
+     * kecocokan pasti case-sensitive dicek di PHP lewat unitVisible(). Pindah
+     * ke kolom unit terindeks bila jumlah baris membuat pluck terlalu berat.
+     */
+    private function countVisibleUnitRows(Builder $query): int
+    {
+        $visible = $this->visibleUnits();
+
+        if ($visible === null) {
+            return $query->count();
+        }
+
+        return $query
+            ->where(function (Builder $q) use ($visible): void {
+                foreach ($visible as $unit) {
+                    $q->orWhere('performance_metrics.metric_name', 'like', $unit.' | %');
+                }
+            })
+            ->pluck('performance_metrics.metric_name')
+            ->filter(fn (string $name): bool => $this->unitVisible(explode(' | ', $name, 2)[0]))
+            ->count();
     }
 
     /**

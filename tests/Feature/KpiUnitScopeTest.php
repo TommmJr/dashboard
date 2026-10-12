@@ -491,6 +491,148 @@ class KpiUnitScopeTest extends TestCase
         $this->assertSame(['MES', 'TJBT'], $rows->pluck('unit')->sort()->values()->all());
     }
 
+    // ------------------------------- kartu KPI R1 + R5 (kontrak sesi 36) -----
+    //
+    // metric_count : baris unit TAMPIL, semua periode READY, tanpa ASET.
+    // ready_datasets: jumlah dataset READY per divisi, TIDAK difilter unit.
+    // latest_rows  : baris unit TAMPIL pada periode terbaru; periode terbaru
+    //                ditentukan TANPA filter unit.
+    // Kontrak teknis sementara, BUKAN definisi KPI yang disahkan PLN.
+
+    /**
+     * Fixture campuran: D1 (TJBT 2 periode + MES), D2 (hanya MES),
+     * D3 ARCHIVED (TJBT), D4 (ASET), plus varian nama yang mirip TJBT.
+     */
+    private function mixedKpiFixture(Division $division): void
+    {
+        $d1 = $this->readyDataset($division);
+        $this->legacyNko($d1, $division, 'TJBT', 105.5);
+        $this->legacyNko($d1, $division, 'TJBT', 101.0, '2026-07-31');
+        $this->legacyNko($d1, $division, 'MES', 96.0);
+        $this->metric($d1, $division, 'tjbt | NKO', 1.0);
+        $this->metric($d1, $division, 'TJBTX | NKO', 1.0);
+
+        $d2 = $this->readyDataset($division);
+        $this->legacyNko($d2, $division, 'MES', 97.0);
+        $this->legacyNko($d2, $division, 'RST', 98.0);
+
+        $d3 = Dataset::factory()->archived()->create(['division_id' => $division->id]);
+        $this->legacyNko($d3, $division, 'TJBT', 50.0);
+
+        $d4 = $this->readyDataset($division);
+        $this->metric($d4, $division, 'ASET | TJBT | Trafo', 10.0);
+    }
+
+    public function test_kpi_card_legacy_metric_count_unit_tampil_ready_datasets_per_divisi(): void
+    {
+        $this->mixedKpiFixture($this->division());
+
+        $kpi = $this->actingAs($this->management())->getJson(route('performance.data'))->assertOk()->json('kpi');
+
+        // Hanya 2 baris TJBT di D1 (dua periode). MES/RST/tjbt/TJBTX, baris
+        // dataset ARCHIVED, dan baris ASET tidak dihitung.
+        $this->assertSame(2, $kpi['metric_count']);
+        // D1 + D2 (D2 hanya non-TJBT tetap dihitung); D3 ARCHIVED dan D4 ASET tidak.
+        $this->assertSame(2, $kpi['ready_datasets']);
+        // average_nko tetap hanya TJBT periode terbaru.
+        $this->assertSame(105.5, (float) $kpi['average_nko']);
+    }
+
+    public function test_kpi_card_structured_identik_dengan_legacy(): void
+    {
+        $this->mixedKpiFixture($this->division());
+
+        $legacy = $this->actingAs($this->management())->getJson(route('performance.data'))->assertOk()->json('kpi');
+
+        config(['kpi.read_model' => 'structured']);
+        $structured = $this->actingAs($this->management())->getJson(route('performance.data'))->assertOk()->json('kpi');
+
+        $this->assertSame($legacy['metric_count'], $structured['metric_count']);
+        $this->assertSame($legacy['ready_datasets'], $structured['ready_datasets']);
+    }
+
+    public function test_kpi_card_rollback_null_menghitung_semua_unit(): void
+    {
+        config(['kpi.visible_units' => null]);
+        $this->mixedKpiFixture($this->division());
+
+        $kpi = $this->actingAs($this->management())->getJson(route('performance.data'))->assertOk()->json('kpi');
+
+        // D1 5 baris + D2 2 baris; ARCHIVED dan ASET tetap dikecualikan.
+        $this->assertSame(7, $kpi['metric_count']);
+        $this->assertSame(2, $kpi['ready_datasets']);
+    }
+
+    public function test_kpi_card_staf_divisi_hanya_divisi_sendiri(): void
+    {
+        $own = $this->division('Own');
+        $other = $this->division('Other');
+
+        $ownDataset = $this->readyDataset($own);
+        $this->legacyNko($ownDataset, $own, 'TJBT', 105.5);
+
+        $otherDataset = $this->readyDataset($other);
+        $this->legacyNko($otherDataset, $other, 'TJBT', 99.0);
+        $this->legacyNko($otherDataset, $other, 'TJBT', 98.0, '2026-07-31');
+
+        $staff = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $own->id]);
+        $kpi = $this->actingAs($staff)->getJson(route('performance.data'))->assertOk()->json('kpi');
+
+        $this->assertSame(1, $kpi['metric_count']);
+        $this->assertSame(1, $kpi['ready_datasets']);
+
+        $status = $this->reader('datasetStatus', [$staff]);
+        $this->assertSame(1, $status['latest_rows']);
+    }
+
+    public function test_r5_latest_rows_hanya_unit_tampil_periode_terbaru(): void
+    {
+        $division = $this->division();
+        $dataset = $this->readyDataset($division);
+
+        $this->metric($dataset, $division, 'TJBT | A | target', 100.0);
+        $this->metric($dataset, $division, 'TJBT | A | realisasi', 90.0);
+        $this->metric($dataset, $division, 'MES | B | target', 100.0);
+        $this->metric($dataset, $division, 'MES | B | realisasi', 90.0);
+        $this->metric($dataset, $division, 'tjbt | NKO', 1.0);
+        // Periode lama TJBT tidak ikut dihitung.
+        $this->legacyNko($dataset, $division, 'TJBT', 100.0, '2026-07-31');
+
+        $status = $this->reader('datasetStatus', [$this->management()]);
+
+        $this->assertSame(self::PERIOD, $status['latest_period']);
+        $this->assertSame(2, $status['latest_rows']);
+    }
+
+    public function test_r5_periode_terbaru_tidak_ikut_filter_unit(): void
+    {
+        $division = $this->division();
+        $older = $this->readyDataset($division);
+        $this->legacyNko($older, $division, 'TJBT', 105.5, '2026-07-31');
+
+        // Periode terbaru hanya memuat unit di luar scope.
+        $newer = $this->readyDataset($division);
+        $this->legacyNko($newer, $division, 'MES', 96.0);
+
+        $status = $this->reader('datasetStatus', [$this->management()]);
+
+        $this->assertSame(self::PERIOD, $status['latest_period']);
+        $this->assertSame(0, $status['latest_rows']);
+        $this->assertSame(2, $status['ready']);
+    }
+
+    public function test_r5_rollback_null_menghitung_semua_unit(): void
+    {
+        config(['kpi.visible_units' => null]);
+
+        $division = $this->division();
+        $dataset = $this->readyDataset($division);
+        $this->legacyNko($dataset, $division, 'TJBT', 105.5);
+        $this->legacyNko($dataset, $division, 'MES', 96.0);
+
+        $this->assertSame(2, $this->reader('datasetStatus', [$this->management()])['latest_rows']);
+    }
+
     // -------------------------------------------------------- HTML smoke -----
 
     public function test_dashboard_html_nko_ranking_hanya_tjbt(): void
