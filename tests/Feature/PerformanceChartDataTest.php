@@ -33,6 +33,12 @@ class PerformanceChartDataTest extends TestCase
         parent::setUp();
         $this->seed(RolePermissionSeeder::class);
 
+        // Test kontrak chart (null-gap, MAX, rata-rata periode terbaru, y_axis)
+        // memakai nama unit sebagai stand-in. Batas unit TAMPIL (keputusan
+        // 2026-10-12, `kpi.visible_units`) dimatikan supaya stand-in non-TJBT
+        // tetap valid; batas itu diuji di `KpiUnitScopeTest`.
+        config(['kpi.visible_units' => null]);
+
         $this->divA = Division::factory()->create(['name' => 'Divisi A']);
         $this->divB = Division::factory()->create(['name' => 'Divisi B']);
     }

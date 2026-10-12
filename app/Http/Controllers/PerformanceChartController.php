@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\ScopesKpiUnits;
 use App\Models\Dataset;
 use App\Models\Role;
 use App\Models\User;
@@ -15,6 +16,8 @@ use Illuminate\Support\Facades\DB;
 
 class PerformanceChartController extends Controller
 {
+    use ScopesKpiUnits;
+
     public function __construct(private readonly StructuredNkoReader $structuredNko) {}
 
     /**
@@ -102,7 +105,13 @@ class PerformanceChartController extends Controller
                 $row->unit = explode(' | ', $row->metric_name, 2)[0];
 
                 return $row;
-            });
+            })
+            // Batas unit TAMPIL (keputusan 2026-10-12): series di luar scope
+            // dibuang sebelum pivot, sehingga label periode, series, dan
+            // average_nko hanya menyangkut unit yang boleh tampil. Filter
+            // query MAX/period di atas TIDAK diubah.
+            ->filter(fn (object $row): bool => $this->unitVisible($row->unit))
+            ->values();
 
         // Pivot: label periode unik + satu series per unit.
         $labels = $rows->pluck('period')
@@ -195,6 +204,11 @@ class PerformanceChartController extends Controller
         if (! empty($filters['unit'])) {
             $rows = $rows->filter(fn (array $row) => in_array($row['unit'], $filters['unit'], true));
         }
+
+        // Batas unit TAMPIL (keputusan 2026-10-12), sama seperti jalur legacy.
+        // Diterapkan SETELAH dataset terbaru per periode dipilih, jadi
+        // "latest dataset wins" tidak berubah.
+        $rows = $rows->filter(fn (array $row): bool => $this->unitVisible($row['unit']))->values();
 
         $labels = $rows->pluck('period')
             ->map(fn ($period) => Carbon::parse($period)->format('Y-m-d'))

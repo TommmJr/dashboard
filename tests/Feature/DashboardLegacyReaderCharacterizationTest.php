@@ -36,6 +36,13 @@ class DashboardLegacyReaderCharacterizationTest extends TestCase
     {
         parent::setUp();
         $this->seed(RolePermissionSeeder::class);
+
+        // Karakterisasi ini mengunci kontrak LAIN (rumus, polaritas, ambang,
+        // cap, MAX, urutan) memakai nama unit sebagai stand-in bebas. Batas
+        // unit TAMPIL (keputusan 2026-10-12, `kpi.visible_units`) dimatikan di
+        // sini supaya stand-in non-TJBT tetap valid; batas itu diuji tersendiri
+        // di `KpiUnitScopeTest`.
+        config(['kpi.visible_units' => null]);
     }
 
     /**

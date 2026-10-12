@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\DatasetStatus;
+use App\Http\Controllers\Concerns\ScopesKpiUnits;
 use App\Models\AuditLog;
 use App\Models\Dataset;
 use App\Models\PerformanceMetric;
@@ -27,6 +28,8 @@ use Illuminate\View\View;
  */
 class DashboardController extends Controller
 {
+    use ScopesKpiUnits;
+
     /**
      * Prefix atribut yang ditampilkan pada grafik Aset per UPT.
      *
@@ -160,7 +163,7 @@ class DashboardController extends Controller
             // baris NKO). Jadi di sini unit = unit yang punya observasi pada
             // dataset READY. Untuk workbook asli keduanya sama (15 unit), tapi
             // ini BUKAN jaminan model.
-            return DB::table('performance_observations')
+            return $this->scopeUnits(DB::table('performance_observations')
                 ->join('datasets', 'datasets.id', '=', 'performance_observations.dataset_id')
                 ->join('org_units', 'org_units.id', '=', 'performance_observations.org_unit_id')
                 ->where('datasets.status', Dataset::STATUS_READY)
@@ -170,10 +173,10 @@ class DashboardController extends Controller
                 ->unique()
                 ->sort()
                 ->values()
-                ->all();
+                ->all());
         }
 
-        return DB::table('performance_metrics')
+        return $this->scopeUnits(DB::table('performance_metrics')
             ->join('datasets', 'datasets.id', '=', 'performance_metrics.dataset_id')
             ->where('datasets.status', Dataset::STATUS_READY)
             ->where('performance_metrics.metric_name', 'like', '%'.KpiReportConverter::NKO_SUFFIX)
@@ -184,7 +187,7 @@ class DashboardController extends Controller
             ->unique()
             ->sort()
             ->values()
-            ->all();
+            ->all());
     }
 
     private function isPrivileged(?User $user): bool
@@ -378,7 +381,9 @@ class DashboardController extends Controller
                 $row->unit = explode(' | ', $row->metric_name, 2)[0];
 
                 return $row;
-            });
+            })
+            ->filter(fn (object $row): bool => $this->unitVisible($row->unit))
+            ->values();
     }
 
     /**
@@ -547,6 +552,12 @@ class DashboardController extends Controller
      */
     private function kinerjaRealisasiRows(string $period, array $pairs): array
     {
+        // Batas unit TAMPIL (keputusan 2026-10-12): unit di luar scope tidak
+        // masuk tabel. Diterapkan SETELAH pairs terbentuk, jadi agregasi di
+        // dalam unit yang tersisa tidak berubah. Menutup R6 (legacy+structured)
+        // sekaligus R9 yang mendelegasi ke sini.
+        $pairs = $this->scopeUnitMap($pairs);
+
         $rows = [];
         foreach ($pairs as $unit => $indikators) {
             $total = 0;
@@ -647,6 +658,11 @@ class DashboardController extends Controller
                 [$unit, $indikator, $jenis] = $parts;
                 $pairs[$unit][$indikator][strtolower($jenis)] = (float) $row->value;
             });
+
+        // Batas unit TAMPIL (keputusan 2026-10-12): unit di luar scope dibuang
+        // dari peta, sehingga baris, dropdown, dan cap 50 hanya menyangkut unit
+        // yang boleh tampil. Diterapkan SETELAH periode dipilih.
+        $pairs = $this->scopeUnitMap($pairs);
 
         $rows = [];
         foreach ($pairs as $unit => $indikators) {
@@ -755,6 +771,12 @@ class DashboardController extends Controller
                 }
             });
 
+        // Batas unit TAMPIL (keputusan 2026-10-12). HANYA cakupan unit yang
+        // disaring: agregasi C-1 di dalam unit (penjumlahan lintas indikator)
+        // TIDAK diubah — unit di luar scope dibuang sebagai satu kesatuan,
+        // bukan nilai per indikatornya. Periode sudah dipilih di atas.
+        $unitTotals = $this->scopeUnitMap($unitTotals);
+
         $labels = array_values(array_keys($unitTotals));
         $target = array_map(fn ($unit) => $unitTotals[$unit]['target'] ?? 0.0, $labels);
         $realisasi = array_map(fn ($unit) => $unitTotals[$unit]['realisasi'] ?? 0.0, $labels);
@@ -807,9 +829,16 @@ class DashboardController extends Controller
 
         $base()
             ->where('performance_metrics.period', $period)
-            ->select('performance_metrics.value')
+            ->select('performance_metrics.metric_name', 'performance_metrics.value')
             ->get()
             ->each(function (object $row) use (&$counts) {
+                // Batas unit TAMPIL (keputusan 2026-10-12): unit di luar scope
+                // tidak dihitung. Diterapkan SETELAH periode (dataset terbaru)
+                // dipilih, jadi klasifikasi periode aktif tidak berubah.
+                if (! $this->unitVisible(explode(' | ', $row->metric_name, 2)[0])) {
+                    return;
+                }
+
                 $v = (float) $row->value;
                 if ($v >= 100) {
                     $counts['Tercapai']++;
@@ -861,7 +890,12 @@ class DashboardController extends Controller
                 'metric_name' => $row['unit'].KpiReportConverter::NKO_SUFFIX,
                 'nko' => $row['nko'],
                 'unit' => $row['unit'],
-            ]);
+            ])
+            // Batas unit TAMPIL (keputusan 2026-10-12), sama seperti jalur
+            // legacy. Diterapkan SETELAH periode + dataset terbaru dipilih,
+            // jadi "latest dataset wins" tidak berubah.
+            ->filter(fn (object $row): bool => $this->unitVisible($row->unit))
+            ->values();
     }
 
     /**
@@ -883,6 +917,12 @@ class DashboardController extends Controller
         $counts = ['Tercapai' => 0, 'Hampir Tercapai' => 0, 'Perlu Peningkatan' => 0];
 
         foreach ($this->structuredNko->latestForPeriod($divisionId, $period) as $row) {
+            // Batas unit TAMPIL (keputusan 2026-10-12), sama seperti jalur
+            // legacy. Diterapkan SETELAH dataset terbaru dipilih.
+            if (! $this->unitVisible($row['unit'])) {
+                continue;
+            }
+
             $value = $row['nko'];
 
             if ($value >= 100) {
@@ -950,6 +990,12 @@ class DashboardController extends Controller
                 [$unit, $indikator, $jenis] = $parts;
                 $pairs[$unit][$indikator][strtolower($jenis)] = (float) $row->value;
             });
+
+        // Batas unit TAMPIL (keputusan 2026-10-12), sama seperti jalur legacy:
+        // baris (target/realisasi) tetap dihitung dari performance_metrics,
+        // hanya unit di luar scope yang dibuang. NKO sudah dibaca dari dataset
+        // terbaru sebelum penyaringan ini, jadi "latest wins" tidak berubah.
+        $pairs = $this->scopeUnitMap($pairs);
 
         $nko = $this->structuredNkoValues($divisionId, $period);
 

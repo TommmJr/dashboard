@@ -28,6 +28,11 @@ class PerformanceChartScopingTest extends TestCase
     {
         parent::setUp();
         $this->seed(RolePermissionSeeder::class);
+
+        // Test ini menguji scoping DIVISI (bukan batas unit TAMPIL). Batas unit
+        // (keputusan 2026-10-12, `kpi.visible_units`) dimatikan supaya nama unit
+        // stand-in lintas divisi tetap valid; batas itu diuji di `KpiUnitScopeTest`.
+        config(['kpi.visible_units' => null]);
     }
 
     private function seedDivisionsAndMetrics(): array

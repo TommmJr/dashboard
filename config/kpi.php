@@ -23,4 +23,29 @@
  */
 return [
     'read_model' => env('KPI_READ_MODEL', 'legacy'),
+
+    /*
+     * Unit yang boleh TAMPIL di dashboard KPI.
+     *
+     * Provenance: keputusan USER (2026-10-12), BUKAN sign-off formal mentor/Pak
+     * Gama. Dasar = kuotasi percakapan user yang dikonfirmasi user sendiri:
+     * "yang ditampilkan hanya unit kita saja, unit induk. kalau unit lainnya itu
+     * beda lagi."
+     *
+     * Kuotasi itu ambigu antara "hanya TJBT" dan "seluruh kelas Unit Induk"
+     * (7 sheet ber-B4 "Unit Induk ..."). Scope yang dipakai proyek ini = TJBT
+     * SAJA; pemilihan itu adalah INTERPRETASI scope oleh user, bukan kuotasi
+     * eksplisit, dan bukan persetujuan formal mentor.
+     *
+     * Batas = TAMPILAN saja (read-path): unit lain tetap diimpor, disimpan, dan
+     * TIDAK dihapus; hanya tidak ditampilkan di dashboard (legacy maupun
+     * structured). Impor unit lain TIDAK ditolak.
+     *
+     * `null` (atau array kosong) = TANPA pembatasan (perilaku lama), disediakan
+     * sebagai jaring rollback. Identitas unit case-sensitive: 'tjbt' bukan
+     * 'TJBT'.
+     *
+     * @var list<string>|null
+     */
+    'visible_units' => ['TJBT'],
 ];

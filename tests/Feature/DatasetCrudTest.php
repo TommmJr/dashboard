@@ -49,6 +49,12 @@ class DatasetCrudTest extends TestCase
 
         $this->seed(RolePermissionSeeder::class);
 
+        // Test CRUD dataset memakai nama divisi sebagai nama unit NKO stand-in.
+        // Batas unit TAMPIL (keputusan 2026-10-12, `kpi.visible_units`) dimatikan
+        // supaya stand-in non-TJBT tetap valid; batas itu diuji di
+        // `KpiUnitScopeTest`.
+        config(['kpi.visible_units' => null]);
+
         $this->divisionA = Division::factory()->create();
         $this->divisionB = Division::factory()->create();
 

@@ -30,6 +30,12 @@ class ChartTooltipFormatTest extends TestCase
     {
         parent::setUp();
         $this->seed(RolePermissionSeeder::class);
+
+        // Guard display-only tooltip memakai nama unit stand-in (TEK). Batas
+        // unit TAMPIL (keputusan 2026-10-12, `kpi.visible_units`) dimatikan
+        // supaya stand-in non-TJBT tetap valid; batas itu diuji di
+        // `KpiUnitScopeTest`.
+        config(['kpi.visible_units' => null]);
     }
 
     public function test_tooltip_target_vs_realisasi_memakai_formatter_dua_desimal(): void

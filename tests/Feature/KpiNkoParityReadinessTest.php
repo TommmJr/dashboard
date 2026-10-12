@@ -55,6 +55,12 @@ class KpiNkoParityReadinessTest extends TestCase
     {
         parent::setUp();
         $this->seed(RolePermissionSeeder::class);
+
+        // Parity legacy vs terstruktur diuji dengan nama unit stand-in bebas.
+        // Batas unit TAMPIL (keputusan 2026-10-12, `kpi.visible_units`) dimatikan
+        // supaya stand-in non-TJBT tetap valid; batas itu diuji di
+        // `KpiUnitScopeTest`.
+        config(['kpi.visible_units' => null]);
     }
 
     // ------------------------------------------------------------------

@@ -36,6 +36,12 @@ class KinerjaDetailUnitFilterTest extends TestCase
     {
         parent::setUp();
         $this->seed(RolePermissionSeeder::class);
+
+        // Test ini mengunci pemilih unit (R7) memakai nama unit stand-in (MES,
+        // OSL, ZZZ). Batas unit TAMPIL (keputusan 2026-10-12, `kpi.visible_units`)
+        // dimatikan supaya stand-in non-TJBT tetap valid; batas itu diuji di
+        // `KpiUnitScopeTest`.
+        config(['kpi.visible_units' => null]);
     }
 
     // ------------------------------------------------------------------

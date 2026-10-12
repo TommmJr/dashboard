@@ -31,6 +31,16 @@ class AssetIsolationTest extends TestCase
     /** @var list<string> */
     private array $tempFiles = [];
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // Isolasi domain Aset diuji dengan nama unit stand-in (RST). Batas unit
+        // TAMPIL (keputusan 2026-10-12, `kpi.visible_units`) dimatikan supaya
+        // stand-in non-TJBT tetap valid; batas itu diuji di `KpiUnitScopeTest`.
+        config(['kpi.visible_units' => null]);
+    }
+
     protected function tearDown(): void
     {
         foreach ($this->tempFiles as $file) {

@@ -25,6 +25,12 @@ class NkoRankingWidgetTest extends TestCase
     {
         parent::setUp();
         $this->seed(RolePermissionSeeder::class);
+
+        // Test ini mengunci kontrak peringkat (urutan, periode terbaru, dataset
+        // archived, cap) memakai nama unit sebagai stand-in. Batas unit TAMPIL
+        // (keputusan 2026-10-12, `kpi.visible_units`) dimatikan supaya stand-in
+        // non-TJBT tetap valid; batas itu diuji di `KpiUnitScopeTest`.
+        config(['kpi.visible_units' => null]);
     }
 
     public function test_management_melihat_peringkat_nko_urut_menurun(): void

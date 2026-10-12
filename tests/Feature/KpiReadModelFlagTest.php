@@ -41,6 +41,13 @@ class KpiReadModelFlagTest extends TestCase
     {
         parent::setUp();
         $this->seed(RolePermissionSeeder::class);
+
+        // Test flag read-model mengunci MEKANISME sumber data (legacy vs
+        // terstruktur) memakai nama unit stand-in bebas (RST, DARI_STRUKTUR,
+        // OWN/OTHER). Batas unit TAMPIL (keputusan 2026-10-12,
+        // `kpi.visible_units`) dimatikan supaya stand-in non-TJBT tetap valid;
+        // batas itu diuji di `KpiUnitScopeTest`.
+        config(['kpi.visible_units' => null]);
     }
 
     private function reader(string $method, array $args = []): mixed

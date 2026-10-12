@@ -29,6 +29,11 @@ class DashboardWidgetScopingTest extends TestCase
     {
         parent::setUp();
         $this->seed(RolePermissionSeeder::class);
+
+        // Test ini menguji scoping DIVISI (bukan batas unit TAMPIL). Batas unit
+        // (keputusan 2026-10-12, `kpi.visible_units`) dimatikan supaya nama unit
+        // stand-in lintas divisi tetap valid; batas itu diuji di `KpiUnitScopeTest`.
+        config(['kpi.visible_units' => null]);
     }
 
     public function test_recent_audit_widget_shows_all_entries_to_admin_and_management(): void

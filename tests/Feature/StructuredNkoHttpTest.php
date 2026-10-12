@@ -54,6 +54,13 @@ class StructuredNkoHttpTest extends TestCase
     {
         parent::setUp();
         $this->seed(RolePermissionSeeder::class);
+
+        // Uji lewat HTTP untuk kontrak terstruktur (routing, middleware, dataset
+        // terbaru, scoping divisi) memakai nama unit stand-in termasuk "GHOST".
+        // Batas unit TAMPIL (keputusan 2026-10-12, `kpi.visible_units`) dimatikan
+        // di sini supaya stand-in itu tetap valid; batas itu diuji di
+        // `KpiUnitScopeTest`.
+        config(['kpi.visible_units' => null]);
     }
 
     // ------------------------------------------------------------------
