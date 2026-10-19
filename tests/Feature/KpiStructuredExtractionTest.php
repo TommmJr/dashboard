@@ -212,6 +212,29 @@ class KpiStructuredExtractionTest extends TestCase
         $this->assertSame(KpiReportConverter::PENCAPAIAN_FORMULA_AVERAGE, $this->row($rows, 'TJBT', 10)['pencapaian_formula_kind']);
         $this->assertSame(KpiReportConverter::PENCAPAIAN_FORMULA_POLARITY_RATIO, $this->row($rows, 'TJBT', 11)['pencapaian_formula_kind']);
         $this->assertSame(KpiReportConverter::PENCAPAIAN_FORMULA_DATE_DELTA, $this->row($rows, 'TJBT', 14)['pencapaian_formula_kind']);
+        // Gaya RELATIF (TJBT r33 workbook asli: `L33-K33`), bukan hanya `$L-$K`.
+        $this->assertSame(KpiReportConverter::PENCAPAIAN_FORMULA_DATE_DELTA, $this->row($rows, 'TJBT', 15)['pencapaian_formula_kind']);
+    }
+
+    public function test_selisih_di_kolom_selain_target_realisasi_tidak_jadi_date_delta(): void
+    {
+        // TRANS menggeser kolom: TARGET=J, REALISASI=K. `L10-K10` di sana adalah
+        // arithmetic biasa, bukan selisih tanggal -> tidak boleh date_delta.
+        $rows = $this->fixture();
+
+        $this->assertNull($this->row($rows, 'TRANS', 11)['pencapaian_formula_kind']);
+    }
+
+    public function test_selisih_dengan_urutan_target_minus_realisasi_tidak_jadi_date_delta(): void
+    {
+        $rows = $this->fixture();
+
+        // Realisasi - target dengan posisi kolom yang benar -> date_delta.
+        $this->assertSame(KpiReportConverter::PENCAPAIAN_FORMULA_DATE_DELTA, $this->row($rows, 'TRANS', 23)['pencapaian_formula_kind']);
+        // Urutan sebaliknya (target - realisasi) -> null.
+        $this->assertNull($this->row($rows, 'TRANS', 22)['pencapaian_formula_kind']);
+        // Selisih dua kolom lain (NILAI - KET) -> null, walau barisnya sama.
+        $this->assertNull($this->row($rows, 'TRANS', 21)['pencapaian_formula_kind']);
     }
 
     public function test_rekap_dan_sheet_bulan_legacy_dilewati(): void
@@ -383,6 +406,19 @@ class KpiStructuredExtractionTest extends TestCase
         $tjbt->setCellValue('L14', 1.2);
         $tjbt->setCellValue('M14', '=IF((1-(1%/7*($L14-$K14))<=0),0,1)');
 
+        // Sama dengan TJBT M33 workbook asli: selisih tanggal bergaya RELATIF
+        // (tanpa `$`) dan tanpa `IF` berpolaritas. Wajib tetap date_delta.
+        $tjbt->setCellValue('B15', 'b. Selisih Tenggat Relatif');
+        $tjbt->setCellValue('C15', 1);
+        $tjbt->setCellValue('E15', 'Hari');
+        $tjbt->setCellValue('K15', 46173); // 2026-05-31
+        $tjbt->setCellValue('L15', 46163); // 2026-05-21
+        $tjbt->setCellValue(
+            'M15',
+            '=IF(AND(K15=0,L15=0),"-",IF(L15=0,0,IF((1-(0.01/7*(L15-K15)))<=0,0,'
+            .'IF((1-(0.01/7*(L15-K15)))>=1.1,1.1,1-(0.01/7*(L15-K15))))))'
+        );
+
         $tjbt->setCellValue('A17', 3);
         $tjbt->setCellValue('B17', 'Emergency Response Time');
         $tjbt->setCellValue('C17', 1);
@@ -487,6 +523,44 @@ class KpiStructuredExtractionTest extends TestCase
         $trans->setCellValue('L10', '=IF($C10=3,K10/J10,2-(K10/J10))');
         $trans->setCellValue('M10', '=TRUNC((L10*F10),2)');
         $trans->setCellValue('N10', 'Catatan penting');
+
+        // TARGET sheet ini = J, REALISASI = K (bukan L/K seperti sheet lain).
+        // `L11-K11` (PENCAPAIAN - REALISASI) adalah arithmetic biasa, bukan
+        // selisih tanggal: tidak boleh jadi date_delta.
+        $trans->setCellValue('B11', 'Pendapatan Lain');
+        $trans->setCellValue('C11', 3);
+        $trans->setCellValue('E11', 'Rp');
+        $trans->setCellValue('J11', 10);
+        $trans->setCellValue('K11', 11);
+        $trans->setCellValue('L11', '=L11-K11');
+
+        // Selisih dua kolom lain (NILAI - KET) pada baris yang sama: bukan
+        // pasangan TARGET/REALISASI, jadi tidak boleh jadi date_delta.
+        $trans->setCellValue('B21', 'B. Beban Lain');
+        $trans->setCellValue('C21', 3);
+        $trans->setCellValue('E21', 'Rp');
+        $trans->setCellValue('M21', 10);
+        $trans->setCellValue('N21', 11);
+        $trans->setCellValue('L21', '=M21-N21');
+
+        // Gaya relatif pada saat posisi target/realisasi BENAR, tetapi
+        // urutannya target - realisasi (bukan realisasi - target).
+        $trans->setCellValue('B22', 'B2. Selisih Terbalik');
+        $trans->setCellValue('C22', 3);
+        $trans->setCellValue('E22', 'Rp');
+        $trans->setCellValue('J22', 10);
+        $trans->setCellValue('K22', 11);
+        $trans->setCellValue('L22', '=J22-K22');
+
+        // Baris lain: selisih tanggal relatif yang sah (K = realisasi, J = target).
+        $trans->setCellValue('A23', 4);
+        $trans->setCellValue('B23', 'Tenggat Trans');
+        $trans->setCellValue('C23', 1);
+        $trans->setCellValue('E23', 'Hari');
+        $trans->setCellValue('J23', 46173); // 2026-05-31 (target)
+        $trans->setCellValue('K23', 46163); // 2026-05-21 (realisasi)
+        $trans->setCellValue('L23', '=IF(M16=0,0,K23-J23)');
+
         $trans->setCellValue('B26', 'TOTAL BOBOT');
         $trans->setCellValue('F26', '=+F10');
         $trans->setCellValue('B27', 'NILAI KINERJA ORGANISASI (NKO)');

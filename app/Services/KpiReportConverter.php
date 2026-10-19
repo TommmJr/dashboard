@@ -153,7 +153,9 @@ class KpiReportConverter
      * Selain pola ini -> null (jangan mengarang).
      *
      * - 'average'        : =AVERAGE(...) agregasi anak pada baris grup (TJBT M10)
-     * - 'date_delta'     : memakai selisih tanggal $L-$K (RSL M13, tenggat)
+     * - 'date_delta'     : selisih tanggal REALISASI - TARGET pada baris yang sama,
+     *                      absolut ($L14-$K14, RSL M13) maupun relatif (L33-K33,
+     *                      TJBT M33). Kolomnya diambil dari header sheet.
      * - 'polarity_ratio' : bercabang pada $C (L/K atau 2-(L/K), TJBT M11 / TRANS L10)
      */
     public const PENCAPAIAN_FORMULA_AVERAGE = 'average';
@@ -592,7 +594,10 @@ class KpiReportConverter
                 'is_group' => $isGroup,
                 'parent_row' => $parent,
                 'pencapaian_formula_kind' => $this->pencapaianFormulaKind(
-                    $this->columnValue($sheet, $columns['pencapaian'], $row)
+                    $this->columnValue($sheet, $columns['pencapaian'], $row),
+                    $row,
+                    $columns['target'],
+                    $columns['realisasi'],
                 ),
                 'target' => $this->typedValue($this->columnCell($sheet, $columns['target'], $row), dateSensitive: true),
                 'realisasi' => $this->typedValue($this->columnCell($sheet, $columns['realisasi'], $row), dateSensitive: true),
@@ -805,10 +810,27 @@ class KpiReportConverter
      * ditunjuk header PENCAPAIAN). Hanya pola yang punya bukti di workbook
      * sampel yang dikenali; selain itu null (jangan mengarang).
      *
+     * date_delta dikenali dari SELISIH REALISASI - TARGET pada baris itu
+     * sendiri, bukan dari huruf kolom:
+     * - absolut  : `$L14-$K14` (MES/TEK/RSL/RST)
+     * - relatif  : `L33-K33`   (TJBT M33)
+     * Kolom target/realisasi diambil dari header sheet ($targetColumn /
+     * $realisasiColumn), jadi `L-K` yang bukan selisih tanggal tetap null.
+     * Hanya urutan REALISASI - TARGET yang diterima: itulah satu-satunya
+     * bentuk yang terbukti di workbook. Urutan sebaliknya = skor negatif,
+     * tidak punya bukti, jadi sengaja tidak diklasifikasikan.
+     *
      * @param  mixed  $formula  nilai mentah sel pencapaian
+     * @param  int  $row  nomor baris yang sedang dibaca
+     * @param  string  $targetColumn  kolom TARGET hasil deteksi header
+     * @param  string  $realisasiColumn  kolom REALISASI hasil deteksi header
      */
-    private function pencapaianFormulaKind(mixed $formula): ?string
-    {
+    private function pencapaianFormulaKind(
+        mixed $formula,
+        int $row,
+        string $targetColumn,
+        string $realisasiColumn,
+    ): ?string {
         if (! is_string($formula) || ! str_starts_with($formula, '=')) {
             return null;
         }
@@ -817,7 +839,7 @@ class KpiReportConverter
             return self::PENCAPAIAN_FORMULA_AVERAGE;
         }
 
-        if (preg_match('/\$L\d+\s*-\s*\$K\d+/', $formula) === 1) {
+        if ($this->isDateDeltaFormula($formula, $row, $targetColumn, $realisasiColumn)) {
             return self::PENCAPAIAN_FORMULA_DATE_DELTA;
         }
 
@@ -826,6 +848,28 @@ class KpiReportConverter
         }
 
         return null;
+    }
+
+    /**
+     * Formula memuat `<realisasi><row> - <target><row>` (absolut atau relatif).
+     * Pemisah `-` tidak boleh direktif `$` milik kolom berikutnya; `\s*`
+     * sebelum `-` sudah menolak kasus itu (cell ref tidak diakhiri spasi).
+     */
+    private function isDateDeltaFormula(
+        string $formula,
+        int $row,
+        string $targetColumn,
+        string $realisasiColumn,
+    ): bool {
+        $reference = fn (string $column): string => sprintf(
+            '\$?%s\$?%d(?!\d)',
+            preg_quote($column, '/'),
+            $row,
+        );
+
+        $pattern = sprintf('/%s\s*-\s*%s/', $reference($realisasiColumn), $reference($targetColumn));
+
+        return preg_match($pattern, $formula) === 1;
     }
 
     /**
