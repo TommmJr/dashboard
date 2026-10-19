@@ -648,6 +648,7 @@ class DashboardController extends Controller
 
         $isPrivileged = $this->isPrivileged($user);
         $pairs = [];
+        $dateCandidates = [];
         $nko = [];
 
         DB::table('performance_metrics')
@@ -660,9 +661,9 @@ class DashboardController extends Controller
                     ->orWhere('performance_metrics.metric_name', 'like', '%| realisasi')
                     ->orWhere('performance_metrics.metric_name', 'like', '%| NKO');
             })
-            ->select('performance_metrics.metric_name', 'performance_metrics.value')
+            ->select('performance_metrics.dataset_id', 'performance_metrics.metric_name', 'performance_metrics.value')
             ->get()
-            ->each(function (object $row) use (&$pairs, &$nko) {
+            ->each(function (object $row) use (&$pairs, &$dateCandidates, &$nko) {
                 $parts = explode(' | ', $row->metric_name);
                 if (count($parts) === 2 && strtolower($parts[1]) === 'nko') {
                     $nko[$parts[0]] = (float) $row->value;
@@ -673,13 +674,16 @@ class DashboardController extends Controller
                     return;
                 }
                 [$unit, $indikator, $jenis] = $parts;
-                $pairs[$unit][$indikator][strtolower($jenis)] = (float) $row->value;
+                $kind = strtolower($jenis);
+                $pairs[$unit][$indikator][$kind] = (float) $row->value;
+                $dateCandidates[$unit][$indikator][$kind] = ['dataset_id' => $row->dataset_id];
             });
 
         // Batas unit TAMPIL (keputusan 2026-10-12): unit di luar scope dibuang
         // dari peta, sehingga baris, dropdown, dan cap 50 hanya menyangkut unit
         // yang boleh tampil. Diterapkan SETELAH periode dipilih.
         $pairs = $this->scopeUnitMap($pairs);
+        $dateDisplays = $this->kinerjaDetailDateDisplays($dateCandidates, $period);
 
         $rows = [];
         foreach ($pairs as $unit => $indikators) {
@@ -691,6 +695,8 @@ class DashboardController extends Controller
                     'indikator' => $indikator,
                     'target' => $target,
                     'realisasi' => $realisasi,
+                    'target_display' => $dateDisplays[$unit][$indikator]['target'] ?? null,
+                    'realisasi_display' => $dateDisplays[$unit][$indikator]['realisasi'] ?? null,
                     'pencapaian' => ($target !== null && $target > 0 && $realisasi !== null)
                         ? round($realisasi / $target * 100, 1) : null,
                     'nko' => $nko[$unit] ?? null,
@@ -723,6 +729,74 @@ class DashboardController extends Controller
         }
 
         return ['period' => $period, 'rows' => $rows, 'truncated' => $truncated, 'total_rows' => $total];
+    }
+
+    /**
+     * Presentation-only dates for R7, matched by the exact legacy dataset and
+     * the structured period/unit/indicator identity. No serial-number guessing.
+     *
+     * @param  array<string, array<string, array<string, array{dataset_id: int}>>>  $candidates
+     * @return array<string, array<string, array{target?: string, realisasi?: string}>>
+     */
+    private function kinerjaDetailDateDisplays(array $candidates, string $period): array
+    {
+        $datasetIds = collect($candidates)->flatMap(fn (array $indicators) => collect($indicators)
+            ->flatMap(fn (array $values) => array_column($values, 'dataset_id')))
+            ->unique()
+            ->values();
+
+        if ($datasetIds->isEmpty()) {
+            return [];
+        }
+
+        $dates = [];
+        DB::table('performance_observations')
+            ->join('indicators', 'indicators.id', '=', 'performance_observations.indicator_id')
+            ->join('org_units', 'org_units.id', '=', 'performance_observations.org_unit_id')
+            ->whereIn('performance_observations.dataset_id', $datasetIds)
+            ->where('performance_observations.period', $period)
+            ->where(function ($query) {
+                $query->where('performance_observations.target_type', PerformanceObservation::TYPE_DATE)
+                    ->orWhere('performance_observations.realisasi_type', PerformanceObservation::TYPE_DATE);
+            })
+            ->select(
+                'performance_observations.dataset_id',
+                'org_units.name as unit',
+                'indicators.name as indikator',
+                'performance_observations.target_type',
+                'performance_observations.target_date',
+                'performance_observations.realisasi_type',
+                'performance_observations.realisasi_date',
+            )
+            ->get()
+            ->each(function (object $observation) use (&$dates) {
+                foreach (['target', 'realisasi'] as $kind) {
+                    if ($observation->{$kind.'_type'} === PerformanceObservation::TYPE_DATE
+                        && $observation->{$kind.'_date'} !== null) {
+                        $date = \DateTimeImmutable::createFromFormat('!Y-m-d', $observation->{$kind.'_date'});
+                        if ($date !== false) {
+                            $dates[$observation->dataset_id][$observation->unit][$observation->indikator][$kind] = $date->format('d/m/Y');
+                        }
+                    }
+                }
+            });
+
+        $display = [];
+        foreach ($candidates as $unit => $indicators) {
+            foreach ($indicators as $indicator => $values) {
+                foreach (['target', 'realisasi'] as $kind) {
+                    $candidate = $values[$kind] ?? null;
+                    if ($candidate !== null) {
+                        $value = $dates[$candidate['dataset_id']][$unit][$indicator][$kind] ?? null;
+                        if ($value !== null) {
+                            $display[$unit][$indicator][$kind] = $value;
+                        }
+                    }
+                }
+            }
+        }
+
+        return $display;
     }
 
     /**
@@ -1039,6 +1113,7 @@ class DashboardController extends Controller
         $isPrivileged = $this->isPrivileged($user);
         $divisionId = $isPrivileged ? null : $user?->division_id;
         $pairs = [];
+        $dateCandidates = [];
 
         DB::table('performance_metrics')
             ->join('datasets', 'datasets.id', '=', 'performance_metrics.dataset_id')
@@ -1049,9 +1124,9 @@ class DashboardController extends Controller
                 $query->where('performance_metrics.metric_name', 'like', '%| target')
                     ->orWhere('performance_metrics.metric_name', 'like', '%| realisasi');
             })
-            ->select('performance_metrics.metric_name', 'performance_metrics.value')
+            ->select('performance_metrics.dataset_id', 'performance_metrics.metric_name', 'performance_metrics.value')
             ->get()
-            ->each(function (object $row) use (&$pairs) {
+            ->each(function (object $row) use (&$pairs, &$dateCandidates) {
                 $parts = explode(' | ', $row->metric_name);
 
                 if (count($parts) !== 3) {
@@ -1059,7 +1134,9 @@ class DashboardController extends Controller
                 }
 
                 [$unit, $indikator, $jenis] = $parts;
-                $pairs[$unit][$indikator][strtolower($jenis)] = (float) $row->value;
+                $kind = strtolower($jenis);
+                $pairs[$unit][$indikator][$kind] = (float) $row->value;
+                $dateCandidates[$unit][$indikator][$kind] = ['dataset_id' => $row->dataset_id];
             });
 
         // Batas unit TAMPIL (keputusan 2026-10-12), sama seperti jalur legacy:
@@ -1069,6 +1146,7 @@ class DashboardController extends Controller
         $pairs = $this->scopeUnitMap($pairs);
 
         $nko = $this->structuredNkoValues($divisionId, $period);
+        $dateDisplays = $this->kinerjaDetailDateDisplays($dateCandidates, $period);
 
         $rows = [];
         foreach ($pairs as $unit => $indikators) {
@@ -1080,6 +1158,8 @@ class DashboardController extends Controller
                     'indikator' => $indikator,
                     'target' => $target,
                     'realisasi' => $realisasi,
+                    'target_display' => $dateDisplays[$unit][$indikator]['target'] ?? null,
+                    'realisasi_display' => $dateDisplays[$unit][$indikator]['realisasi'] ?? null,
                     'pencapaian' => ($target !== null && $target > 0 && $realisasi !== null)
                         ? round($realisasi / $target * 100, 1) : null,
                     'nko' => $nko[$unit] ?? null,

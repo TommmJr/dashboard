@@ -110,8 +110,8 @@
                         <tr class="border-b">
                             <td class="py-2 font-medium">{{ $row['unit'] }}</td>
                             <td class="py-2">{{ $row['indikator'] }}</td>
-                            <td class="py-2 text-right">{{ $fmt($row['target'] ?? null, 2) }}</td>
-                            <td class="py-2 text-right">{{ $fmt($row['realisasi'] ?? null, 2) }}</td>
+                            <td class="py-2 text-right">{{ $row['target_display'] ?? $fmt($row['target'] ?? null, 2) }}</td>
+                            <td class="py-2 text-right">{{ $row['realisasi_display'] ?? $fmt($row['realisasi'] ?? null, 2) }}</td>
                             <td class="py-2 text-right">{{ $fmt($row['pencapaian'] ?? null, 1, '%') }}</td>
                             <td class="py-2 text-right">{{ $fmt($row['nko'] ?? null, 2) }}</td>
                         </tr>

@@ -5,7 +5,10 @@ namespace Tests\Feature;
 use App\Http\Controllers\DashboardController;
 use App\Models\Dataset;
 use App\Models\Division;
+use App\Models\Indicator;
+use App\Models\OrgUnit;
 use App\Models\PerformanceMetric;
+use App\Models\PerformanceObservation;
 use App\Models\Role;
 use App\Models\User;
 use Database\Seeders\RolePermissionSeeder;
@@ -260,6 +263,84 @@ class KinerjaDetailUnitFilterTest extends TestCase
         $response->assertSee('value="TJBT" selected', false);
         $response->assertSee('Indikator A');
         $response->assertDontSee('Indikator B');
+    }
+
+    public function test_tanggal_metadata_terstruktur_hanya_mengubah_display_di_kedua_read_model(): void
+    {
+        $division = $this->pengusahaanDivision();
+        $dataset = Dataset::factory()->create(['division_id' => $division->id]);
+        $this->metric($dataset, $division, 'TJBT | Tanggal | target', 46173);
+        $this->metric($dataset, $division, 'TJBT | Tanggal | realisasi', 46163);
+        $indicator = Indicator::create([
+            'org_unit_id' => OrgUnit::firstOrCreate(['name' => 'TJBT'])->id,
+            'name' => 'Tanggal',
+            'category' => 'kinerja',
+            'is_group' => false,
+        ]);
+        PerformanceObservation::factory()->create([
+            'dataset_id' => $dataset->id,
+            'indicator_id' => $indicator->id,
+            'org_unit_id' => $indicator->org_unit_id,
+            'division_id' => $division->id,
+            'period' => '2026-08-31',
+            'target_value' => null,
+            'target_date' => '2026-05-31',
+            'target_type' => PerformanceObservation::TYPE_DATE,
+            'realisasi_value' => null,
+            'realisasi_date' => '2026-05-21',
+            'realisasi_type' => PerformanceObservation::TYPE_DATE,
+        ]);
+
+        foreach (['legacy', 'structured'] as $readModel) {
+            config(['kpi.read_model' => $readModel]);
+            $result = $this->reader('kinerjaDetail', [$this->management()]);
+            $row = $result['rows'][0];
+
+            $this->assertSame(46173.0, $row['target']);
+            $this->assertSame(46163.0, $row['realisasi']);
+            $this->assertSame('31/05/2026', $row['target_display']);
+            $this->assertSame('21/05/2026', $row['realisasi_display']);
+        }
+
+        config(['kpi.read_model' => 'legacy']);
+        $response = $this->actingAs($this->staffOf($division))->get(route('dashboard'))->assertOk();
+        $response->assertSee('31/05/2026');
+        $response->assertSee('21/05/2026');
+        $response->assertDontSee('46.173,00');
+        $response->assertDontSee('46.163,00');
+    }
+
+    public function test_tidak_ada_pasangan_tanggal_maka_angka_tetap_diformat_sebagai_angka(): void
+    {
+        $division = $this->pengusahaanDivision();
+        $dataset = Dataset::factory()->create(['division_id' => $division->id]);
+        $this->metric($dataset, $division, 'TJBT | Angka | target', 46173);
+        $this->metric($dataset, $division, 'TJBT | Angka | realisasi', 10);
+        $unrelated = Indicator::create([
+            'org_unit_id' => OrgUnit::firstOrCreate(['name' => 'TJBT'])->id,
+            'name' => 'Indikator lain',
+            'category' => 'kinerja',
+            'is_group' => false,
+        ]);
+        PerformanceObservation::factory()->create([
+            'dataset_id' => $dataset->id,
+            'indicator_id' => $unrelated->id,
+            'org_unit_id' => $unrelated->org_unit_id,
+            'division_id' => $division->id,
+            'period' => '2026-08-31',
+            'target_value' => null,
+            'target_date' => '2026-05-31',
+            'target_type' => PerformanceObservation::TYPE_DATE,
+        ]);
+
+        $result = $this->reader('kinerjaDetail', [$this->management()]);
+        $row = $result['rows'][0];
+
+        $this->assertSame(46173.0, $row['target']);
+        $this->assertNull($row['target_display']);
+
+        $response = $this->actingAs($this->staffOf($division))->get(route('dashboard'))->assertOk();
+        $response->assertSee('46.173');
     }
 
     // ------------------------------------------------------------------
