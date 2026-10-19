@@ -7,6 +7,7 @@ use App\Http\Controllers\Concerns\ScopesKpiUnits;
 use App\Models\AuditLog;
 use App\Models\Dataset;
 use App\Models\PerformanceMetric;
+use App\Models\PerformanceObservation;
 use App\Models\Role;
 use App\Models\User;
 use App\Services\AssetStockReport;
@@ -549,7 +550,7 @@ class DashboardController extends Controller
      * terstruktur supaya aturan pencapaian/status/urutan tidak bisa menyimpang
      * antara dua sumber.
      *
-     * @param  array<string, array<string, array{target?: ?float, realisasi?: ?float}>>  $pairs
+     * @param  array<string, array<string, array{target?: ?float, realisasi?: ?float, pencapaian?: float}>>  $pairs
      * @return array{period: string, rows: list<array<string, mixed>>, has_data: bool}
      */
     private function kinerjaRealisasiRows(string $period, array $pairs): array
@@ -571,9 +572,18 @@ class DashboardController extends Controller
                 $target = $vals['target'] ?? null;
                 $realisasi = $vals['realisasi'] ?? null;
 
-                if ($target !== null && $target > 0 && $realisasi !== null) {
-                    $total++;
+                // Skor eksplisit (PENCAPAIAN Excel untuk target bertipe
+                // tanggal) menang; tanpa skor, pakai rasio numerik seperti
+                // biasa. Jalur legacy tidak pernah mengisi 'pencapaian',
+                // jadi perhitungannya tetap persis sama.
+                $p = $vals['pencapaian'] ?? null;
+
+                if ($p === null && $target !== null && $target > 0 && $realisasi !== null) {
                     $p = ($realisasi / $target) * 100;
+                }
+
+                if ($p !== null) {
+                    $total++;
                     $pencapaianSum += $p;
                     $counted++;
                     if ($p >= 100) {
@@ -1033,15 +1043,24 @@ class DashboardController extends Controller
      * R6 branch terstruktur: pencapaian target/realisasi per unit pada dataset
      * TERBARU periode terbaru di divisi user.
      *
-     * Sumbernya performance_observations (kolom target_value/realisasi_value),
-     * bukan baris '| target'/'| realisasi' performance_metrics. Karena dataset
-     * terbaru yang otoritatif, satu (unit, indikator) hanya punya satu nilai
-     * per kolom — bukan last-writer-wins seperti jalur legacy. Aturan
-     * pencapaian/status/urutan tetap dipakai bersama lewat
-     * kinerjaRealisasiRows() supaya dua jalur tidak bisa menyimpang.
+     * Sumbernya performance_observations, bukan baris '| target'/'| realisasi'
+     * performance_metrics. Karena dataset terbaru yang otoritatif, satu
+     * (unit, indikator) hanya punya satu nilai per kolom — bukan
+     * last-writer-wins seperti jalur legacy. Aturan pencapaian/status/urutan
+     * tetap dipakai bersama lewat kinerjaRealisasiRows() supaya dua jalur tidak
+     * bisa menyimpang.
      *
-     * Divergensi yang disengaja: hanya kolom numerik yang jadi sel. Target
-     * bertipe tanggal/teks/kosong (target_value NULL) tidak dihitung, sedangkan
+     * Target bertipe tanggal (keputusan Pak Gama 2026-10-19) memakai SKOR
+     * yang sudah dihitung workbook di kolom PENCAPAIAN, bukan rasionya sendiri:
+     * skor itu sudah menerapkan penalti 0,01 per 7 hari dan batas 0..1,1
+     * (contoh TJBT baris 33 = 1,0142857). Skor disimpan sebagai rasio, sedangkan
+     * kinerjaRealisasiRows() menyusun persen, jadi dikali 100 di sini dan
+     * rumusnya TIDAK diimplementasi ulang. Baris tanggal tanpa skor Excel
+     * dilewati: tidak ada dasar untuk mengarang pencapaian, dan tanggal mentah
+     * tidak boleh dipakai sebagai skor.
+     *
+     * Divergensi yang tetap disengaja: target/realisasi bertipe teks atau
+     * kosong (tanpa nilai numerik maupun tanggal) tidak dihitung, sedangkan
      * jalur legacy meng-cast baris target apa pun ke float.
      */
     private function kinerjaRealisasiStructured(?User $user, ?string $startDate = null, ?string $endDate = null): array
@@ -1065,13 +1084,21 @@ class DashboardController extends Controller
             ->whereIn('performance_observations.dataset_id', $latestIds)
             ->where(function ($query) {
                 $query->whereNotNull('performance_observations.target_value')
-                    ->orWhereNotNull('performance_observations.realisasi_value');
+                    ->orWhereNotNull('performance_observations.realisasi_value')
+                    ->orWhere(function ($date) {
+                        // Target tanggal ikut dihitung bila workbook sudah
+                        // menyimpan skor pencapaiannya.
+                        $date->where('performance_observations.target_type', PerformanceObservation::TYPE_DATE)
+                            ->whereNotNull('performance_observations.pencapaian');
+                    });
             })
             ->select(
                 'org_units.name as unit',
                 'indicators.name as indikator',
                 'performance_observations.target_value',
                 'performance_observations.realisasi_value',
+                'performance_observations.target_type',
+                'performance_observations.pencapaian',
             )
             ->get()
             ->each(function (object $row) use (&$pairs) {
@@ -1080,6 +1107,10 @@ class DashboardController extends Controller
                 }
                 if ($row->realisasi_value !== null) {
                     $pairs[$row->unit][$row->indikator]['realisasi'] = (float) $row->realisasi_value;
+                }
+                if ($row->target_type === PerformanceObservation::TYPE_DATE && $row->pencapaian !== null) {
+                    // Kolom PENCAPAIAN workbook = rasio; consumer R6 = persen.
+                    $pairs[$row->unit][$row->indikator]['pencapaian'] = (float) $row->pencapaian * 100;
                 }
             });
 

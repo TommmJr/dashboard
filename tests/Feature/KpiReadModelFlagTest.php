@@ -348,12 +348,19 @@ class KpiReadModelFlagTest extends TestCase
     }
 
     /**
-     * Target bertipe tanggal/teks/kosong tidak punya target_value, jadi tidak
-     * ada pasangan target/realisasi yang bisa dihitung: unit TIDAK masuk tabel
-     * (bukan baris dengan pencapaian NULL). Jalur legacy meng-cast baris target
-     * apa pun ke float, jadi perilakunya berbeda.
+     * Target bertipe tanggal yang TIDAK punya skor Excel tetap dilewati:
+     * target_value NULL, dan tanggal mentah tidak boleh dipakai sebagai skor
+     * (serial 46173 akan terbaca sebagai pencapaian 4.617.300%).
+     *
+     * Target/realisasi bertipe TEKS juga tetap tidak dihitung. Jalur legacy
+     * meng-cast baris target apa pun ke float, jadi perilakunya berbeda.
+     *
+     * Catatan: sampai 2026-10-19 test ini mengunci SEMUA target bertipe
+     * tanggal sebagai dibuang. Keputusan Pak Gama 2026-10-19 membalik itu bila
+     * workbook punya skor PENCAPAIAN; kasus berskor diuji di bawah. Versi
+     * tanpa skor tetap "tidak dihitung" dan yang dikunci di sini.
      */
-    public function test_r6_structured_target_non_numerik_tidak_dihitung_pencapaian(): void
+    public function test_r6_structured_target_tanggal_tanpa_skor_tidak_dihitung(): void
     {
         config(['kpi.read_model' => 'structured']);
 
@@ -364,14 +371,17 @@ class KpiReadModelFlagTest extends TestCase
         $this->observation($dataset, $unit, $division, '2026-08-31')
             ->update([
                 'target_value' => null,
-                'target_date' => '2025-08-31',
-                'target_type' => PerformanceObservation::TYPE_DATE,
+                'target_text' => 'Sesuai RKAP',
+                'target_type' => PerformanceObservation::TYPE_TEXT,
                 'realisasi_value' => 90.0,
+                'pencapaian' => 110.0,
             ]);
 
         $result = $this->reader('kinerjaRealisasi', [$this->management()]);
 
-        // Tidak ada pencapaian yang bisa dibandingkan -> unit tidak masuk tabel.
+        // Tidak ada pencapaian yang bisa dihitung -> unit tidak masuk tabel.
+        // Skor teks sengaja tidak dipakai: kontrak "skor Excel" hanya untuk
+        // target bertipe tanggal.
         $this->assertSame('2026-08-31', $result['period']);
         $this->assertSame([], $result['rows']);
         $this->assertFalse($result['has_data']);
@@ -433,6 +443,170 @@ class KpiReadModelFlagTest extends TestCase
         $result = $this->reader('kinerjaRealisasi', [$staff]);
 
         $this->assertSame(['OWN'], array_column($result['rows'], 'unit'));
+    }
+
+    /**
+     * Kasus acuan keputusan Pak Gama 2026-10-19: TJBT baris 33 workbook
+     * Agustus 2026. Target 46173 (31 Mei 2026), realisasi 46163 (21 Mei 2026),
+     * keduanya serial tanggal Excel; M33 berisi skor PENCAPAIAN
+     * 1.0142857142857142 (format 0.00% = 101,43%).
+     *
+     * R6 structured harus memakai SKOR itu, bukan rasio 46163/46173, dan
+     * mengalikannya ke skala persen yang dipakai consumer (rasio x 100).
+     */
+    public function test_r6_structured_target_tanggal_memakai_skor_excel_tjbt_baris_33(): void
+    {
+        config(['kpi.read_model' => 'structured']);
+
+        $division = $this->division('Pengusahaan');
+        $unit = OrgUnit::factory()->create(['name' => 'TJBT']);
+        $dataset = Dataset::factory()->create(['division_id' => $division->id]);
+
+        $this->observation($dataset, $unit, $division, '2026-08-31')
+            ->update([
+                'target_value' => null,
+                'target_date' => '2026-05-31',
+                'target_type' => PerformanceObservation::TYPE_DATE,
+                'realisasi_value' => null,
+                'realisasi_date' => '2026-05-21',
+                'realisasi_type' => PerformanceObservation::TYPE_DATE,
+                'pencapaian' => 1.0142857142857142,
+                'source_sheet' => 'TJBT',
+                'source_row' => 33,
+            ]);
+
+        $result = $this->reader('kinerjaRealisasi', [$this->management()]);
+
+        $this->assertTrue($result['has_data']);
+        $this->assertCount(1, $result['rows']);
+
+        $row = $result['rows'][0];
+        $this->assertSame('TJBT', $row['unit']);
+        $this->assertSame(1, $row['total']);
+        $this->assertSame(1, $row['achieved']);
+
+        // round(1.0143 x 100, 1) = 101.4: skor workbook 1.0142857142857142
+        // terbawa pada skala persen yang dipakai consumer.
+        $this->assertSame(101.4, $row['avg']);
+        $this->assertSame('Tercapai', $row['status']);
+    }
+
+    /**
+     * Batas skor berasal dari rumus Excel (0..1,1), bukan dari kode aplikasi:
+     * nilai di luar rentang itu diteruskan apa adanya karena datanya berasal
+     * dari workbook. Yang dikunci di sini adalah skala, bukan clamp ulang.
+     */
+    public function test_r6_structured_target_tanggal_meneruskan_batas_skor_excel(): void
+    {
+        config(['kpi.read_model' => 'structured']);
+
+        $division = $this->division('Pengusahaan');
+        $unit = OrgUnit::factory()->create(['name' => 'TJBT']);
+        $dataset = Dataset::factory()->create(['division_id' => $division->id]);
+
+        $observations = [
+            'Batas Atas' => ['realisasi_date' => '2026-04-01', 'pencapaian' => 1.1],
+            'Batas Bawah' => ['realisasi_date' => '2027-05-31', 'pencapaian' => 0.0],
+        ];
+
+        foreach ($observations as $name => $values) {
+            $indicator = Indicator::factory()->create(['org_unit_id' => $unit->id, 'name' => $name]);
+
+            PerformanceObservation::factory()->create([
+                'dataset_id' => $dataset->id,
+                'indicator_id' => $indicator->id,
+                'org_unit_id' => $unit->id,
+                'division_id' => $division->id,
+                'period' => '2026-08-31',
+                'target_value' => null,
+                'target_type' => PerformanceObservation::TYPE_DATE,
+                'target_date' => '2026-05-31',
+                'realisasi_value' => null,
+                'realisasi_type' => PerformanceObservation::TYPE_DATE,
+                ...$values,
+            ]);
+        }
+
+        $row = $this->reader('kinerjaRealisasi', [$this->management()])['rows'][0];
+
+        // (110 + 0) / 2 = 55 persen.
+        $this->assertSame(2, $row['total']);
+        $this->assertSame(1, $row['achieved']);
+        $this->assertSame(55.0, $row['avg']);
+        $this->assertSame('Perlu Peningkatan', $row['status']);
+    }
+
+    /**
+     * Tanggal mentah (serial 46173) tidak boleh diperlakukan sebagai skor:
+     * kalau ikut, pencapaian akan terbaca 4.617.300 persen.
+     */
+    public function test_r6_structured_tanggal_mentah_bukan_skor(): void
+    {
+        config(['kpi.read_model' => 'structured']);
+
+        $division = $this->division('Pengusahaan');
+        $unit = OrgUnit::factory()->create(['name' => 'TJBT']);
+        $dataset = Dataset::factory()->create(['division_id' => $division->id]);
+
+        // target_date 2026-05-31 = serial 46173. Skor tidak ada.
+        $this->observation($dataset, $unit, $division, '2026-08-31')
+            ->update([
+                'target_value' => null,
+                'target_date' => '2026-05-31',
+                'target_type' => PerformanceObservation::TYPE_DATE,
+                'realisasi_value' => null,
+                'realisasi_date' => '2026-05-21',
+                'realisasi_type' => PerformanceObservation::TYPE_DATE,
+                'pencapaian' => null,
+            ]);
+
+        $result = $this->reader('kinerjaRealisasi', [$this->management()]);
+
+        $this->assertSame([], $result['rows']);
+        $this->assertFalse($result['has_data']);
+    }
+
+    /**
+     * Baris tanggal berskor dicampur dengan baris numerik biasa: keduanya
+     * dihitung, dan numerik tetap memakai rasio realisasi/target seperti
+     * sebelumnya (tidak ada regresi).
+     */
+    public function test_r6_structured_numerik_tidak_regresi_saat_ada_baris_tanggal(): void
+    {
+        config(['kpi.read_model' => 'structured']);
+
+        $division = $this->division('Pengusahaan');
+        $unit = OrgUnit::factory()->create(['name' => 'TJBT']);
+        $dataset = Dataset::factory()->create(['division_id' => $division->id]);
+
+        // Numerik: 110/100 -> 110 persen, meski kolom pencapaian berisi skor
+        // Excel 1,05 (untuk numerik skor Excel tidak dipakai; rasio tetap).
+        $this->observation($dataset, $unit, $division, '2026-08-31')
+            ->update([
+                'target_value' => 100.0,
+                'realisasi_value' => 110.0,
+                'pencapaian' => 1.05,
+            ]);
+
+        // Tanggal: skor Excel 1,0142857 -> 101,42857 persen.
+        $this->observation($dataset, $unit, $division, '2026-08-31')
+            ->update([
+                'target_value' => null,
+                'target_date' => '2026-05-31',
+                'target_type' => PerformanceObservation::TYPE_DATE,
+                'realisasi_value' => null,
+                'realisasi_date' => '2026-05-21',
+                'realisasi_type' => PerformanceObservation::TYPE_DATE,
+                'pencapaian' => 1.0142857142857142,
+            ]);
+
+        $row = $this->reader('kinerjaRealisasi', [$this->management()])['rows'][0];
+
+        $this->assertSame(2, $row['total']);
+        $this->assertSame(2, $row['achieved']);
+        // (110 + 101.42857142857) / 2 = 105.7142857 -> 105.7
+        $this->assertSame(105.7, $row['avg']);
+        $this->assertSame('Tercapai', $row['status']);
     }
 
     /**
