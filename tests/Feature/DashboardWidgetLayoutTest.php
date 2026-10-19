@@ -141,7 +141,9 @@ class DashboardWidgetLayoutTest extends TestCase
             ->assertOk()
             ->assertSee('Rata-rata NKO')
             ->assertSee('Grafik Tren Kinerja')
-            ->assertSee('Target vs Realisasi')
+            // Dicabut dari layout 2026-10-19 (keputusan user): R8 masih
+            // menjumlah lintas satuan. Widget tetap ada di katalog.
+            ->assertDontSee('Target vs Realisasi')
             ->assertSee('Distribusi NKO')
             ->assertDontSee('Audit Terbaru')
             ->assertDontSee('Dataset Gagal')

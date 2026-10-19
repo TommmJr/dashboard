@@ -93,8 +93,14 @@ return [
         'staff_divisi' => ['dataset-status'],
         // Override per-divisi: divisi Perencanaan Pengusahaan mendapat seluruh
         // widget KPI/Kinerja yang tersedia.
+        //
+        // REVISI 2026-10-19 (keputusan user, BUKAN Pak Gama): widget
+        // `target-vs-realisasi` DICABUT dari layout ini. Audit sesi 45
+        // menunjukkan R8 menjumlah lintas satuan (99,6% baris realisasi TJBT
+        // berupa serial tanggal), sehingga angka widget menyesatkan. Widget
+        // tetap ada di katalog; mounting ulang menunggu keputusan C-1.
         'staff_divisi:perencanaan-pengusahaan' => [
-            'kpi-summary', 'trend-chart', 'nko-ranking', 'target-vs-realisasi', 'nko-donut',
+            'kpi-summary', 'trend-chart', 'nko-ranking', 'nko-donut',
             'dataset-status', 'kinerja-realisasi', 'pencapaian-nko', 'kinerja-detail',
         ],
     ],

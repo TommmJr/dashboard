@@ -21,6 +21,13 @@ use Tests\TestCase;
  *
  * Test ini TIDAK mengubah karakterisasi R8: nilai payload tetap apa adanya,
  * hanya presentasi tooltip yang dibulatkan.
+ *
+ * RETARGET 2026-10-19: widget `target-vs-realisasi` dicabut dari layout
+ * `staff_divisi:perencanaan-pengusahaan` (keputusan user; lihat
+ * config/dashboard_layouts.php). Widget-nya TETAP ada di katalog, jadi guard
+ * formatter di sini dipasang lewat override layout di setUp supaya blade-nya
+ * tetap ter-render. Ini bukan bukti widget tampil di dashboard produksi:
+ * absennya di layout produksi dikunci `DashboardWidgetLayoutTest`.
  */
 class ChartTooltipFormatTest extends TestCase
 {
@@ -36,6 +43,11 @@ class ChartTooltipFormatTest extends TestCase
         // supaya stand-in non-TJBT tetap valid; batas itu diuji di
         // `KpiUnitScopeTest`.
         config(['kpi.visible_units' => null]);
+
+        // Mount sementara: layout produksi tidak lagi memuat widget ini.
+        $layouts = config('dashboard_layouts.layouts');
+        $layouts['staff_divisi:perencanaan-pengusahaan'][] = 'target-vs-realisasi';
+        config(['dashboard_layouts.layouts' => $layouts]);
     }
 
     public function test_tooltip_target_vs_realisasi_memakai_formatter_dua_desimal(): void
