@@ -13,6 +13,7 @@ use App\Models\User;
 use App\Services\AssetStockReport;
 use App\Services\KpiReportConverter;
 use App\Services\StructuredNkoReader;
+use App\Services\TargetRealisasiPerIndicatorReader;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
@@ -44,7 +45,10 @@ class DashboardController extends Controller
      */
     private const ASET_ATTRIBUTE_PREFIXES = ['Tower ', 'Transmisi ', 'Trafo '];
 
-    public function __construct(private readonly StructuredNkoReader $structuredNko) {}
+    public function __construct(
+        private readonly StructuredNkoReader $structuredNko,
+        private readonly TargetRealisasiPerIndicatorReader $targetRealisasiPanel,
+    ) {}
 
     /**
      * Rakit daftar widget terurut untuk user aktif, lalu render view.
@@ -219,6 +223,7 @@ class DashboardController extends Controller
             'kinerja-realisasi' => $this->kinerjaRealisasi($user, $filters['start_date'] ?? null, $filters['end_date'] ?? null),
             'kinerja-detail' => $this->kinerjaDetail($user, $filters['start_date'] ?? null, $filters['end_date'] ?? null, $filters['units'] ?? []),
             'target-vs-realisasi' => $this->targetVsRealisasi($user, $filters['start_date'] ?? null, $filters['end_date'] ?? null),
+            'target-realisasi-per-indikator' => $this->targetRealisasiPerIndikator($user, $filters['start_date'] ?? null, $filters['end_date'] ?? null),
             'pencapaian-nko' => $this->pencapaianNko($user, $filters['start_date'] ?? null, $filters['end_date'] ?? null),
             'nko-donut' => $this->nkoDonut($user, $filters['start_date'] ?? null, $filters['end_date'] ?? null),
             default => null,
@@ -739,6 +744,60 @@ class DashboardController extends Controller
         }
 
         return $units;
+    }
+
+    /**
+     * Period helper khusus reader panel per indikator.
+     *
+     * SENGAJA tidak memakai `latestReadyPeriod()`: saat ini (read model
+     * default `legacy`) helper itu memilih periode dari
+     * `performance_metrics`. Reader panel membaca dataset terstruktur READY,
+     * jadi periodenya harus berasal dari sumber yang sama. Filter divisi
+     * mengikuti `latestStructuredReadyPeriod()`.
+     */
+    private function latestStructuredPanelPeriod(?User $user, ?string $startDate = null, ?string $endDate = null): ?string
+    {
+        $query = DB::table('performance_observations')
+            ->join('datasets', 'datasets.id', '=', 'performance_observations.dataset_id')
+            ->where('datasets.status', Dataset::STATUS_READY);
+
+        if (! $this->isPrivileged($user)) {
+            $query->where('performance_observations.division_id', $user?->division_id);
+        }
+
+        if ($startDate !== null) {
+            $query->where('performance_observations.period', '>=', $startDate);
+        }
+
+        if ($endDate !== null) {
+            $query->where('performance_observations.period', '<=', $endDate);
+        }
+
+        return $query->max('performance_observations.period');
+    }
+
+    /**
+     * Panel Target vs Realisasi PER INDIKATOR (keputusan Pak Gama 2026-10-19
+     * 11:17). Sumber dan aturan klasifikasi ada di
+     * `TargetRealisasiPerIndicatorReader`; method ini hanya menyediakan
+     * periode, scope divisi (RBAC), dan batas unit TAMPIL.
+     *
+     * Isolasi: TIDAK membaca `kpi.read_model` dan TIDAK memakai
+     * `targetVsRealisasi()`/R8. Widget lama tidak berubah.
+     */
+    private function targetRealisasiPerIndikator(?User $user, ?string $startDate = null, ?string $endDate = null): array
+    {
+        $period = $this->latestStructuredPanelPeriod($user, $startDate, $endDate);
+
+        if ($period === null) {
+            return ['period' => null, 'units' => [], 'sections' => []];
+        }
+
+        return $this->targetRealisasiPanel->panels(
+            $this->isPrivileged($user) ? null : $user?->division_id,
+            $period,
+            $this->visibleUnits(),
+        );
     }
 
     /**

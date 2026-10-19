@@ -95,6 +95,7 @@
                     'kinerja-realisasi' => 'lg:col-span-2',
                     'kinerja-detail' => 'lg:col-span-3',
                     'target-vs-realisasi' => 'lg:col-span-2',
+                    'target-realisasi-per-indikator' => 'lg:col-span-3',
                     'pencapaian-nko' => 'lg:col-span-1',
                     'nko-donut' => 'lg:col-span-1',
                     'layout-editor-placeholder' => 'lg:col-span-3',

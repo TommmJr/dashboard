@@ -141,12 +141,30 @@ class DashboardWidgetLayoutTest extends TestCase
             ->assertOk()
             ->assertSee('Rata-rata NKO')
             ->assertSee('Grafik Tren Kinerja')
-            // Dicabut dari layout 2026-10-19 (keputusan user): R8 masih
-            // menjumlah lintas satuan. Widget tetap ada di katalog.
+            // Widget LAMA dicabut dari layout 2026-10-19 (keputusan user): R8
+            // masih menjumlah lintas satuan. Judulnya dikunci dengan literal
+            // persis ('Target vs Realisasi') karena label widget PENGGANTI
+            // ("Target dan Realisasi per Indikator") tidak memuat substring
+            // itu; substring 'Realisasi' saja akan cocok ke keduanya.
             ->assertDontSee('Target vs Realisasi')
+            // Widget BARU (keputusan Pak Gama 2026-10-19 11:17) ter-mount.
+            ->assertSee('Target dan Realisasi per Indikator</h3>', false)
             ->assertSee('Distribusi NKO')
             ->assertDontSee('Audit Terbaru')
             ->assertDontSee('Dataset Gagal')
             ->assertDontSee('Editor Layout');
+    }
+
+    /**
+     * Widget lama dan baru punya NAMA KATALOG yang berbeda; kunci keduanya di
+     * level layout supaya pemasangan/penghapusan tidak tertukar.
+     */
+    public function test_layout_staff_pengusahaan_memakai_widget_per_indikator_bukan_widget_lama(): void
+    {
+        $layout = config('dashboard_layouts.layouts')['staff_divisi:perencanaan-pengusahaan'];
+
+        $this->assertContains('target-realisasi-per-indikator', $layout);
+        $this->assertNotContains('target-vs-realisasi', $layout);
+        $this->assertArrayHasKey('target-vs-realisasi', config('dashboard_layouts.widgets'), 'katalog widget lama tidak boleh dihapus');
     }
 }

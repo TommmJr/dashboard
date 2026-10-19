@@ -36,6 +36,10 @@ return [
         'kinerja-realisasi' => ['label' => 'Realisasi vs Target', 'view' => 'widgets.kinerja-realisasi', 'permission' => null],
         'kinerja-detail' => ['label' => 'Detail Metrik KPI', 'view' => 'widgets.kinerja-detail',       'permission' => null],
         'target-vs-realisasi' => ['label' => 'Target vs Realisasi', 'view' => 'widgets.target-vs-realisasi', 'permission' => null],
+        // Panel per indikator (keputusan Pak Gama 2026-10-19 11:17). Sumber
+        // SELALU terstruktur lewat TargetRealisasiPerIndicatorReader; tidak
+        // membaca KPI_READ_MODEL dan tidak memakai R8/targetVsRealisasi().
+        'target-realisasi-per-indikator' => ['label' => 'Target dan Realisasi per Indikator', 'view' => 'widgets.target-realisasi-per-indikator', 'permission' => 'dashboard.view'],
         'pencapaian-nko' => ['label' => 'Pencapaian % per Unit', 'view' => 'widgets.pencapaian-nko', 'permission' => null],
         'nko-donut' => ['label' => 'Distribusi NKO', 'view' => 'widgets.nko-donut', 'permission' => null],
         // Katalog saja, TIDAK dipasang ke layout role mana pun. Data Aset
@@ -102,6 +106,10 @@ return [
         'staff_divisi:perencanaan-pengusahaan' => [
             'kpi-summary', 'trend-chart', 'nko-ranking', 'nko-donut',
             'dataset-status', 'kinerja-realisasi', 'pencapaian-nko', 'kinerja-detail',
+            // Panel per indikator (keputusan Pak Gama 2026-10-19 11:17).
+            // Menggantikan tampilan agregat `target-vs-realisasi` yang dicabut
+            // 2026-10-19; widget lama TIDAK dihapus dari katalog.
+            'target-realisasi-per-indikator',
         ],
     ],
 
