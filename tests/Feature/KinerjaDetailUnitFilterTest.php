@@ -344,8 +344,93 @@ class KinerjaDetailUnitFilterTest extends TestCase
     }
 
     // ------------------------------------------------------------------
+    // 5. Pencapaian baris bertipe tanggal = skor workbook (R7 legacy)
+    // ------------------------------------------------------------------
+
+    public function test_baris_tanggal_memakai_skor_pencapaian_workbook(): void
+    {
+        $division = $this->pengusahaanDivision();
+        $dataset = Dataset::factory()->create(['division_id' => $division->id]);
+        $this->metric($dataset, $division, 'TJBT | Material Cadang | target', 46173);
+        $this->metric($dataset, $division, 'TJBT | Material Cadang | realisasi', 46163);
+        $this->dateObservation($dataset, $division, 'Material Cadang', 1.0142857);
+
+        foreach (['legacy', 'structured'] as $readModel) {
+            config(['kpi.read_model' => $readModel]);
+            $row = $this->reader('kinerjaDetail', [$this->management()])['rows'][0];
+
+            $this->assertSame('31/05/2026', $row['target_display']);
+            // Rasio serial tanggal (46163/46173) TIDAK dipakai; skor workbook 1,0142857.
+            $this->assertSame(101.4, $row['pencapaian']);
+        }
+
+        config(['kpi.read_model' => 'legacy']);
+    }
+
+    public function test_baris_tanggal_tanpa_skor_tetap_null_bukan_rasio_serial(): void
+    {
+        $division = $this->pengusahaanDivision();
+        $dataset = Dataset::factory()->create(['division_id' => $division->id]);
+        $this->metric($dataset, $division, 'TJBT | Tanpa Skor | target', 46173);
+        $this->metric($dataset, $division, 'TJBT | Tanpa Skor | realisasi', 46163);
+        $this->dateObservation($dataset, $division, 'Tanpa Skor', null);
+
+        foreach (['legacy', 'structured'] as $readModel) {
+            config(['kpi.read_model' => $readModel]);
+            $row = $this->reader('kinerjaDetail', [$this->management()])['rows'][0];
+
+            $this->assertSame('31/05/2026', $row['target_display']);
+            $this->assertNull($row['pencapaian']);
+        }
+
+        config(['kpi.read_model' => 'legacy']);
+    }
+
+    public function test_baris_numerik_tetap_memakai_rasio_realisasi_per_target(): void
+    {
+        $division = $this->pengusahaanDivision();
+        $dataset = Dataset::factory()->create(['division_id' => $division->id]);
+        $this->metric($dataset, $division, 'TJBT | Numerik | target', 200);
+        $this->metric($dataset, $division, 'TJBT | Numerik | realisasi', 100);
+
+        $row = $this->reader('kinerjaDetail', [$this->management()])['rows'][0];
+
+        $this->assertSame(50.0, $row['pencapaian']);
+        $this->assertNull($row['target_display']);
+    }
+
+    // ------------------------------------------------------------------
     // Helpers
     // ------------------------------------------------------------------
+
+    /**
+     * Observasi terstruktur bertipe tanggal untuk unit TJBT + indikator tsb.
+     * `$pencapaian` = rasio skor workbook (mis. 1,0142857), NULL bila sel kosong.
+     */
+    private function dateObservation(Dataset $dataset, Division $division, string $name, ?float $pencapaian): PerformanceObservation
+    {
+        $indicator = Indicator::create([
+            'org_unit_id' => OrgUnit::firstOrCreate(['name' => 'TJBT'])->id,
+            'name' => $name,
+            'category' => 'kinerja',
+            'is_group' => false,
+        ]);
+
+        return PerformanceObservation::factory()->create([
+            'dataset_id' => $dataset->id,
+            'indicator_id' => $indicator->id,
+            'org_unit_id' => $indicator->org_unit_id,
+            'division_id' => $division->id,
+            'period' => '2026-08-31',
+            'target_value' => null,
+            'target_date' => '2026-05-31',
+            'target_type' => PerformanceObservation::TYPE_DATE,
+            'realisasi_value' => null,
+            'realisasi_date' => '2026-05-21',
+            'realisasi_type' => PerformanceObservation::TYPE_DATE,
+            'pencapaian' => $pencapaian,
+        ]);
+    }
 
     private function reader(string $method, array $args = []): mixed
     {

@@ -690,15 +690,18 @@ class DashboardController extends Controller
             foreach ($indikators as $indikator => $vals) {
                 $target = $vals['target'] ?? null;
                 $realisasi = $vals['realisasi'] ?? null;
+                $dateDisplay = $dateDisplays[$unit][$indikator] ?? [];
                 $rows[] = [
                     'unit' => $unit,
                     'indikator' => $indikator,
                     'target' => $target,
                     'realisasi' => $realisasi,
-                    'target_display' => $dateDisplays[$unit][$indikator]['target'] ?? null,
-                    'realisasi_display' => $dateDisplays[$unit][$indikator]['realisasi'] ?? null,
-                    'pencapaian' => ($target !== null && $target > 0 && $realisasi !== null)
-                        ? round($realisasi / $target * 100, 1) : null,
+                    'target_display' => $dateDisplay['target'] ?? null,
+                    'realisasi_display' => $dateDisplay['realisasi'] ?? null,
+                    'pencapaian' => array_key_exists('pencapaian', $dateDisplay)
+                        ? $dateDisplay['pencapaian']
+                        : (($target !== null && $target > 0 && $realisasi !== null)
+                            ? round($realisasi / $target * 100, 1) : null),
                     'nko' => $nko[$unit] ?? null,
                 ];
             }
@@ -767,6 +770,7 @@ class DashboardController extends Controller
                 'performance_observations.target_date',
                 'performance_observations.realisasi_type',
                 'performance_observations.realisasi_date',
+                'performance_observations.pencapaian',
             )
             ->get()
             ->each(function (object $observation) use (&$dates) {
@@ -778,6 +782,15 @@ class DashboardController extends Controller
                             $dates[$observation->dataset_id][$observation->unit][$observation->indikator][$kind] = $date->format('d/m/Y');
                         }
                     }
+                }
+
+                // Skor workbook (rasio) untuk baris tanggal, skala persen seperti
+                // consumer R6. Key tetap ADA walau skornya NULL: baris tanggal
+                // tanpa skor tidak boleh jatuh ke rasio serial tanggal.
+                if ($observation->target_type === PerformanceObservation::TYPE_DATE
+                    || $observation->realisasi_type === PerformanceObservation::TYPE_DATE) {
+                    $dates[$observation->dataset_id][$observation->unit][$observation->indikator]['pencapaian'] =
+                        $observation->pencapaian !== null ? round((float) $observation->pencapaian * 100, 1) : null;
                 }
             });
 
@@ -792,6 +805,11 @@ class DashboardController extends Controller
                             $display[$unit][$indicator][$kind] = $value;
                         }
                     }
+                }
+
+                $scoreDataset = $values['target']['dataset_id'] ?? $values['realisasi']['dataset_id'] ?? null;
+                if ($scoreDataset !== null && array_key_exists('pencapaian', $dates[$scoreDataset][$unit][$indicator] ?? [])) {
+                    $display[$unit][$indicator]['pencapaian'] = $dates[$scoreDataset][$unit][$indicator]['pencapaian'];
                 }
             }
         }
@@ -1153,15 +1171,18 @@ class DashboardController extends Controller
             foreach ($indikators as $indikator => $vals) {
                 $target = $vals['target'] ?? null;
                 $realisasi = $vals['realisasi'] ?? null;
+                $dateDisplay = $dateDisplays[$unit][$indikator] ?? [];
                 $rows[] = [
                     'unit' => $unit,
                     'indikator' => $indikator,
                     'target' => $target,
                     'realisasi' => $realisasi,
-                    'target_display' => $dateDisplays[$unit][$indikator]['target'] ?? null,
-                    'realisasi_display' => $dateDisplays[$unit][$indikator]['realisasi'] ?? null,
-                    'pencapaian' => ($target !== null && $target > 0 && $realisasi !== null)
-                        ? round($realisasi / $target * 100, 1) : null,
+                    'target_display' => $dateDisplay['target'] ?? null,
+                    'realisasi_display' => $dateDisplay['realisasi'] ?? null,
+                    'pencapaian' => array_key_exists('pencapaian', $dateDisplay)
+                        ? $dateDisplay['pencapaian']
+                        : (($target !== null && $target > 0 && $realisasi !== null)
+                            ? round($realisasi / $target * 100, 1) : null),
                     'nko' => $nko[$unit] ?? null,
                 ];
             }
