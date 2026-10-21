@@ -32,7 +32,7 @@ services:
       DB_MIGRATOR_PASSWORD: ${DB_MIGRATOR_PASSWORD:-migrator_password}
     # Port hanya di-expose untuk dev lokal. Hapus blok ini di production.
     ports:
-      - "3306:3306"
+      - "127.0.0.1:3306:3306"
     volumes:
       - db_data:/var/lib/mysql
       # Dijalankan otomatis HANYA saat volume db_data masih kosong (container
