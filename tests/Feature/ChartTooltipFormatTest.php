@@ -44,10 +44,21 @@ class ChartTooltipFormatTest extends TestCase
         // `KpiUnitScopeTest`.
         config(['kpi.visible_units' => null]);
 
-        // Mount sementara: layout produksi tidak lagi memuat widget ini.
+        // Mount sementara: katalog dan layout produksi tidak lagi memuat widget
+        // lama setelah Keputusan Bisnis 5 Pak Gama (2026-10-25), tetapi blade +
+        // reader R8 masih diisolasi sampai deprecate legacy Fase 4.3.
+        $widgets = config('dashboard_layouts.widgets');
+        $widgets['target-vs-realisasi'] = [
+            'label' => 'Target vs Realisasi',
+            'view' => 'widgets.target-vs-realisasi',
+            'permission' => null,
+        ];
         $layouts = config('dashboard_layouts.layouts');
         $layouts['staff_divisi:perencanaan-pengusahaan'][] = 'target-vs-realisasi';
-        config(['dashboard_layouts.layouts' => $layouts]);
+        config([
+            'dashboard_layouts.widgets' => $widgets,
+            'dashboard_layouts.layouts' => $layouts,
+        ]);
     }
 
     public function test_tooltip_target_vs_realisasi_memakai_formatter_dua_desimal(): void

@@ -179,9 +179,11 @@ class DashboardWidgetLayoutTest extends TestCase
     public function test_layout_staff_pengusahaan_memakai_widget_per_indikator_bukan_widget_lama(): void
     {
         $layout = config('dashboard_layouts.layouts')['staff_divisi:perencanaan-pengusahaan'];
+        $widgets = config('dashboard_layouts.widgets');
 
         $this->assertContains('target-realisasi-per-indikator', $layout);
+        $this->assertArrayHasKey('target-realisasi-per-indikator', $widgets);
         $this->assertNotContains('target-vs-realisasi', $layout);
-        $this->assertArrayHasKey('target-vs-realisasi', config('dashboard_layouts.widgets'), 'katalog widget lama tidak boleh dihapus');
+        $this->assertArrayNotHasKey('target-vs-realisasi', $widgets);
     }
 }

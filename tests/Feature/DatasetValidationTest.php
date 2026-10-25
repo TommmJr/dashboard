@@ -4,6 +4,9 @@ namespace Tests\Feature;
 
 use App\Models\Dataset;
 use App\Models\Division;
+use App\Models\Indicator;
+use App\Models\OrgUnit;
+use App\Models\PerformanceObservation;
 use App\Models\Role;
 use App\Models\User;
 use Database\Seeders\RolePermissionSeeder;
@@ -222,5 +225,99 @@ class DatasetValidationTest extends TestCase
         $this->assertSame(60, $report['fatal']);
         $this->assertCount(50, $report['issues']);
         $this->assertTrue($report['issues_truncated']);
+    }
+
+    public function test_period_conflict_ditampilkan_jelas_dan_terpisah_dari_error_validasi_di_halaman_detail(): void
+    {
+        $dataset = $this->upload([
+            ['metric_name', 'value', 'period'],
+            ['Penjualan', '100', '2026-08-31'],
+            ['Biaya', '200', '2026-08-31'],
+        ]);
+
+        $unitConflict = OrgUnit::create(['name' => 'TRANS']);
+        $unitMatch = OrgUnit::create(['name' => 'TJBT']);
+        $indicatorConflict1 = Indicator::create(['org_unit_id' => $unitConflict->id, 'name' => 'Indikator 1']);
+        $indicatorConflict2 = Indicator::create(['org_unit_id' => $unitConflict->id, 'name' => 'Indikator 2']);
+        $indicatorMatch = Indicator::create(['org_unit_id' => $unitMatch->id, 'name' => 'Indikator 3']);
+
+        PerformanceObservation::create([
+            'dataset_id' => $dataset->id,
+            'division_id' => $this->division->id,
+            'org_unit_id' => $unitConflict->id,
+            'indicator_id' => $indicatorConflict1->id,
+            'period' => '2026-08-31',
+            'target_type' => PerformanceObservation::TYPE_NUMERIC,
+            'realisasi_type' => PerformanceObservation::TYPE_NUMERIC,
+            'sheet_period' => 'S.D. FEBRUARI 2025',
+            'period_conflict' => true,
+        ]);
+        PerformanceObservation::create([
+            'dataset_id' => $dataset->id,
+            'division_id' => $this->division->id,
+            'org_unit_id' => $unitConflict->id,
+            'indicator_id' => $indicatorConflict2->id,
+            'period' => '2026-08-31',
+            'target_type' => PerformanceObservation::TYPE_NUMERIC,
+            'realisasi_type' => PerformanceObservation::TYPE_NUMERIC,
+            'sheet_period' => 'S.D. FEBRUARI 2025',
+            'period_conflict' => true,
+        ]);
+        PerformanceObservation::create([
+            'dataset_id' => $dataset->id,
+            'division_id' => $this->division->id,
+            'org_unit_id' => $unitMatch->id,
+            'indicator_id' => $indicatorMatch->id,
+            'period' => '2026-08-31',
+            'target_type' => PerformanceObservation::TYPE_NUMERIC,
+            'realisasi_type' => PerformanceObservation::TYPE_NUMERIC,
+            'sheet_period' => 'S.D. AGUSTUS 2026',
+            'period_conflict' => false,
+        ]);
+
+        $this->actingAs($this->staff)
+            ->get(route('datasets.show', $dataset))
+            ->assertOk()
+            ->assertSee('Ringkasan validasi')
+            ->assertSee('OK: 2')
+            ->assertSee('WARNING: 0')
+            ->assertSee('FATAL: 0')
+            ->assertSee('KONFLIK PERIODE: 2')
+            ->assertSee('Konflik periode banner sheet (2 observasi)')
+            ->assertSee('S.D. FEBRUARI 2025')
+            ->assertDontSee('S.D. AGUSTUS 2026')
+            ->assertDontSee('[WARNING]')
+            ->assertDontSee('[FATAL]');
+    }
+
+    public function test_halaman_detail_tidak_menampilkan_peringatan_konflik_periode_palsu_saat_tidak_ada_konflik(): void
+    {
+        $dataset = $this->upload([
+            ['metric_name', 'value', 'period'],
+            ['Penjualan', '100', '2026-08-31'],
+        ]);
+
+        $unit = OrgUnit::create(['name' => 'TJBT']);
+        $indicator = Indicator::create(['org_unit_id' => $unit->id, 'name' => 'Indikator 1']);
+
+        PerformanceObservation::create([
+            'dataset_id' => $dataset->id,
+            'division_id' => $this->division->id,
+            'org_unit_id' => $unit->id,
+            'indicator_id' => $indicator->id,
+            'period' => '2026-08-31',
+            'target_type' => PerformanceObservation::TYPE_NUMERIC,
+            'realisasi_type' => PerformanceObservation::TYPE_NUMERIC,
+            'sheet_period' => 'S.D. AGUSTUS 2026',
+            'period_conflict' => false,
+        ]);
+
+        $this->actingAs($this->staff)
+            ->get(route('datasets.show', $dataset))
+            ->assertOk()
+            ->assertSee('Ringkasan validasi')
+            ->assertSee('OK: 1')
+            ->assertDontSee('KONFLIK PERIODE:')
+            ->assertDontSee('Konflik periode banner sheet');
     }
 }

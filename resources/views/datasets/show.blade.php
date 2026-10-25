@@ -33,25 +33,61 @@
                     <p class="mt-3 rounded-md bg-red-50 p-3 text-sm text-red-700">{{ $dataset->error_message }}</p>
                 @endif
 
-                @if ($dataset->validation_report)
+                @php
+                    $validationReport = $dataset->validation_report ?? [];
+                    $conflictObservationsQuery = $dataset->observations()->where('period_conflict', true);
+                    $periodConflictCount = is_int($validationReport['period_conflict'] ?? null)
+                        ? $validationReport['period_conflict']
+                        : (int) ($validationReport['period_conflict_count'] ?? 0);
+
+                    if ($periodConflictCount === 0) {
+                        $periodConflictCount = $conflictObservationsQuery->count();
+                    }
+
+                    if ($periodConflictCount === 0 && ! empty($validationReport['period_conflict'])) {
+                        $periodConflictCount = 1;
+                    }
+
+                    $conflictingSheetPeriods = $validationReport['conflicting_sheet_periods']
+                        ?? ($periodConflictCount > 0
+                            ? (clone $conflictObservationsQuery)
+                                ->whereNotNull('sheet_period')
+                                ->distinct()
+                                ->orderBy('sheet_period')
+                                ->pluck('sheet_period')
+                                ->all()
+                            : []);
+                @endphp
+                @if ($dataset->validation_report || $periodConflictCount > 0)
                     <div class="mt-3 rounded-md border border-gray-200 p-3 text-sm">
                         <p class="font-semibold text-gray-800">Ringkasan validasi</p>
-                        <div class="mt-1 flex gap-4 text-xs">
-                            <span class="rounded-full bg-green-100 px-2 py-0.5 font-semibold text-green-800">OK: {{ $dataset->validation_report['ok'] ?? 0 }}</span>
-                            <span class="rounded-full bg-yellow-100 px-2 py-0.5 font-semibold text-yellow-800">WARNING: {{ $dataset->validation_report['warning'] ?? 0 }}</span>
-                            <span class="rounded-full bg-red-100 px-2 py-0.5 font-semibold text-red-800">FATAL: {{ $dataset->validation_report['fatal'] ?? 0 }}</span>
+                        <div class="mt-1 flex flex-wrap gap-4 text-xs">
+                            <span class="rounded-full bg-green-100 px-2 py-0.5 font-semibold text-green-800">OK: {{ $validationReport['ok'] ?? 0 }}</span>
+                            <span class="rounded-full bg-yellow-100 px-2 py-0.5 font-semibold text-yellow-800">WARNING: {{ $validationReport['warning'] ?? 0 }}</span>
+                            <span class="rounded-full bg-red-100 px-2 py-0.5 font-semibold text-red-800">FATAL: {{ $validationReport['fatal'] ?? 0 }}</span>
+                            @if ($periodConflictCount > 0)
+                                <span class="rounded-full bg-amber-100 px-2 py-0.5 font-semibold text-amber-800">KONFLIK PERIODE: {{ $periodConflictCount }}</span>
+                            @endif
                         </div>
-                        @if (! empty($dataset->validation_report['issues']))
+                        @if ($periodConflictCount > 0)
+                            <div class="mt-2 rounded border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
+                                <p class="font-semibold">Konflik periode banner sheet ({{ $periodConflictCount }} observasi)</p>
+                                <p class="mt-0.5">
+                                    Periode banner sheet berbeda dari periode upload efektif. Data tetap disimpan menggunakan periode upload{{ $conflictingSheetPeriods !== [] ? ' (banner sheet: '.implode(', ', $conflictingSheetPeriods).')' : '' }}.
+                                </p>
+                            </div>
+                        @endif
+                        @if (! empty($validationReport['issues']))
                             <ul class="mt-2 max-h-40 space-y-1 overflow-y-auto text-xs text-gray-600">
-                                @foreach ($dataset->validation_report['issues'] as $issue)
+                                @foreach ($validationReport['issues'] as $issue)
                                     <li>
                                         <span class="font-semibold {{ $issue['severity'] === 'FATAL' ? 'text-red-700' : 'text-yellow-700' }}">[{{ $issue['severity'] }}]</span>
                                         Baris {{ $issue['row'] }}: {{ $issue['message'] }}
                                     </li>
                                 @endforeach
                             </ul>
-                            @if (! empty($dataset->validation_report['issues_truncated']))
-                                <p class="mt-1 text-xs text-gray-400">Hanya menampilkan 50 masalah pertama. Total: {{ ($dataset->validation_report['fatal'] ?? 0) + ($dataset->validation_report['warning'] ?? 0) }}.</p>
+                            @if (! empty($validationReport['issues_truncated']))
+                                <p class="mt-1 text-xs text-gray-400">Hanya menampilkan 50 masalah pertama. Total: {{ ($validationReport['fatal'] ?? 0) + ($validationReport['warning'] ?? 0) }}.</p>
                             @endif
                         @endif
                     </div>
