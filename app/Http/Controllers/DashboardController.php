@@ -516,20 +516,31 @@ class DashboardController extends Controller
     }
 
     /**
+     * Jumlah pasangan/injeksi R6 legacy yang dilewati karena sumber dataset
+     * atau pencocokan performance_observations ambigu (> 1 kandidat). Disimpan
+     * di properti agar payload R6 tetap terkunci 3 key.
+     */
+    private int $kinerjaRealisasiAmbiguousCount = 0;
+
+    /**
      * Per unit: berapa indikator yang realisasi >= target (pencapaian >=100%),
      * rata-rata pencapaian, dan status kategori. Sumber: baris '| target'
-     * dan '| realisasi' pada periode terbaru di divisi user.
+     * dan '| realisasi' pada periode terbaru di divisi user, diselaraskan
+     * dengan skor PENCAPAIAN Excel di performance_observations bila tersedia.
      *
-     * Sejak migrasi R6 reader ini flag-gated; default 'legacy' -> perilaku
-     * lama persis. R9 (pencapaianNko) mendelegasi ke sini, jadi ikut flag.
+     * Sejak migrasi R6 reader ini flag-gated; default 'legacy'. R9
+     * (pencapaianNko) mendelegasi ke sini, jadi ikut aturan yang sama.
      */
     private function kinerjaRealisasi(?User $user, ?string $startDate = null, ?string $endDate = null): array
     {
+        $this->kinerjaRealisasiAmbiguousCount = 0;
+
         if ($this->kpiReadModelStructured()) {
             return $this->kinerjaRealisasiStructured($user, $startDate, $endDate);
         }
 
-        $period = $this->latestLegacyReadyPeriod($user, $startDate, $endDate);
+        $period = $this->latestLegacyReadyPeriod($user, $startDate, $endDate)
+            ?? $this->latestLegacyScoredObservationPeriod($user, $startDate, $endDate);
 
         if ($period === null) {
             return ['period' => null, 'rows' => [], 'has_data' => false];
@@ -537,6 +548,9 @@ class DashboardController extends Controller
 
         $isPrivileged = $this->isPrivileged($user);
         $pairs = [];
+        $pairDatasets = [];
+        $pairKindCounts = [];
+        $unitDatasets = [];
 
         DB::table('performance_metrics')
             ->join('datasets', 'datasets.id', '=', 'performance_metrics.dataset_id')
@@ -547,18 +561,202 @@ class DashboardController extends Controller
                     ->orWhere('performance_metrics.metric_name', 'like', '%| realisasi');
             })
             ->when(! $isPrivileged, fn ($q) => $q->where('performance_metrics.division_id', $user?->division_id))
-            ->select('performance_metrics.metric_name', 'performance_metrics.value')
+            ->select('performance_metrics.dataset_id', 'performance_metrics.metric_name', 'performance_metrics.value')
             ->get()
-            ->each(function (object $row) use (&$pairs) {
+            ->each(function (object $row) use (&$pairs, &$pairDatasets, &$pairKindCounts, &$unitDatasets) {
                 $parts = explode(' | ', $row->metric_name);
                 if (count($parts) !== 3) {
                     return;
                 }
                 [$unit, $indikator, $jenis] = $parts;
-                $pairs[$unit][$indikator][strtolower($jenis)] = (float) $row->value;
+                $kind = strtolower($jenis);
+                if ($kind !== 'target' && $kind !== 'realisasi') {
+                    return;
+                }
+                $datasetId = (int) $row->dataset_id;
+                $pairs[$unit][$indikator][$kind] = (float) $row->value;
+                $pairDatasets[$unit][$indikator][$datasetId] = $datasetId;
+                $pairKindCounts[$unit][$indikator][$kind] = ($pairKindCounts[$unit][$indikator][$kind] ?? 0) + 1;
+                $unitDatasets[$unit][$datasetId] = $datasetId;
             });
 
+        $pairs = $this->applyLegacyObservationScores(
+            $pairs,
+            $pairDatasets,
+            $pairKindCounts,
+            $unitDatasets,
+            $period,
+            $isPrivileged,
+            $user,
+        );
+
         return $this->kinerjaRealisasiRows($period, $pairs);
+    }
+
+    /**
+     * Fallback periode R6 legacy ketika dataset READY hanya memiliki daun
+     * berskor di performance_observations tanpa baris performance_metrics.
+     */
+    private function latestLegacyScoredObservationPeriod(?User $user, ?string $startDate = null, ?string $endDate = null): ?string
+    {
+        $isPrivileged = $this->isPrivileged($user);
+
+        return DB::table('performance_observations')
+            ->join('datasets', 'datasets.id', '=', 'performance_observations.dataset_id')
+            ->join('indicators', 'indicators.id', '=', 'performance_observations.indicator_id')
+            ->where('datasets.status', Dataset::STATUS_READY)
+            ->where('indicators.is_group', false)
+            ->whereNotNull('performance_observations.pencapaian')
+            ->when(! $isPrivileged, fn ($query) => $query->where('performance_observations.division_id', $user?->division_id))
+            ->when($startDate !== null, fn ($query) => $query->where('performance_observations.period', '>=', $startDate))
+            ->when($endDate !== null, fn ($query) => $query->where('performance_observations.period', '<=', $endDate))
+            ->max('performance_observations.period');
+    }
+
+    /**
+     * Selaraskan pasangan R6 legacy dengan skor Excel dari
+     * performance_observations pada dataset READY yang sama:
+     * - Pair yang berasal dari > 1 dataset atau memiliki duplikasi baris
+     *   target/realisasi dikeluarkan (unset) dan dihitung sebagai ambigu.
+     * - Pair dengan observation tunggal: hapus bila is_group = 1 atau
+     *   pencapaian NULL; selain itu isi pencapaian via normalizeExcelScore().
+     * - Pair tanpa observation cocok (dari 1 dataset konsisten): dipertahankan
+     *   untuk fallback rasio dasar.
+     * - Pair yang cocok ke > 1 observation dikeluarkan (unset) tanpa fallback
+     *   rasio dan dihitung sebagai ambigu.
+     * - Daun (is_group = 0) berskor tanpa pair legacy: diinjeksi sebagai entri
+     *   skor saja bila kandidat dataset READY pada scope divisi/periode/unit
+     *   tunggal; bila > 1 kandidat dataset, injeksi dilewati dan dihitung ambigu.
+     *
+     * @param  array<string, array<string, array{target?: float, realisasi?: float, pencapaian?: float}>>  $pairs
+     * @param  array<string, array<string, array<int, int>>>  $pairDatasets
+     * @param  array<string, array<string, array{target?: int, realisasi?: int}>>  $pairKindCounts
+     * @param  array<string, array<int, int>>  $unitDatasets
+     * @return array<string, array<string, array{target?: float, realisasi?: float, pencapaian?: float}>>
+     */
+    private function applyLegacyObservationScores(
+        array $pairs,
+        array $pairDatasets,
+        array $pairKindCounts,
+        array $unitDatasets,
+        string $period,
+        bool $isPrivileged,
+        ?User $user,
+    ): array {
+        $byKey = [];
+        $obsDatasetsByUnit = [];
+
+        DB::table('performance_observations')
+            ->join('datasets', 'datasets.id', '=', 'performance_observations.dataset_id')
+            ->join('indicators', 'indicators.id', '=', 'performance_observations.indicator_id')
+            ->join('org_units', 'org_units.id', '=', 'performance_observations.org_unit_id')
+            ->where('datasets.status', Dataset::STATUS_READY)
+            ->where('performance_observations.period', $period)
+            ->when(! $isPrivileged, fn ($q) => $q->where('performance_observations.division_id', $user?->division_id))
+            ->select(
+                'performance_observations.dataset_id',
+                'org_units.name as unit',
+                'indicators.name as indikator',
+                'indicators.is_group',
+                'performance_observations.pencapaian',
+            )
+            ->get()
+            ->each(function (object $obs) use (&$byKey, &$obsDatasetsByUnit) {
+                $datasetId = (int) $obs->dataset_id;
+                $byKey[$datasetId][$obs->unit][$obs->indikator][] = $obs;
+                $obsDatasetsByUnit[$obs->unit][$datasetId] = $datasetId;
+            });
+
+        $legacyPairs = $pairs;
+
+        foreach ($legacyPairs as $unit => $indikators) {
+            foreach ($indikators as $indikator => $vals) {
+                $datasetIds = array_values($pairDatasets[$unit][$indikator] ?? []);
+                $hasDuplicateKind = ($pairKindCounts[$unit][$indikator]['target'] ?? 0) > 1
+                    || ($pairKindCounts[$unit][$indikator]['realisasi'] ?? 0) > 1;
+
+                if (count($datasetIds) !== 1 || $hasDuplicateKind) {
+                    $this->kinerjaRealisasiAmbiguousCount++;
+                    unset($pairs[$unit][$indikator]);
+
+                    continue;
+                }
+
+                $datasetId = $datasetIds[0];
+                $matches = $byKey[$datasetId][$unit][$indikator] ?? [];
+
+                if ($matches === []) {
+                    continue;
+                }
+
+                if (count($matches) > 1) {
+                    $this->kinerjaRealisasiAmbiguousCount++;
+                    unset($pairs[$unit][$indikator]);
+
+                    continue;
+                }
+
+                $obs = $matches[0];
+                if ((bool) $obs->is_group || $obs->pencapaian === null) {
+                    unset($pairs[$unit][$indikator]);
+
+                    continue;
+                }
+
+                $pairs[$unit][$indikator]['pencapaian'] = $this->normalizeExcelScore((float) $obs->pencapaian);
+            }
+        }
+
+        foreach ($obsDatasetsByUnit as $unit => $datasetMap) {
+            $hasInjectableOrAmbiguous = false;
+            foreach ($datasetMap as $datasetId) {
+                foreach ($byKey[$datasetId][$unit] ?? [] as $indikator => $matches) {
+                    if (isset($legacyPairs[$unit][$indikator])) {
+                        continue;
+                    }
+                    if (count($matches) > 1 || (! (bool) $matches[0]->is_group && $matches[0]->pencapaian !== null)) {
+                        $hasInjectableOrAmbiguous = true;
+                        break 2;
+                    }
+                }
+            }
+
+            if (! $hasInjectableOrAmbiguous) {
+                continue;
+            }
+
+            $candidateDatasets = array_values($datasetMap + ($unitDatasets[$unit] ?? []));
+
+            if (count($candidateDatasets) !== 1) {
+                if (count($candidateDatasets) > 1) {
+                    $this->kinerjaRealisasiAmbiguousCount++;
+                }
+
+                continue;
+            }
+
+            $unitDatasetId = $candidateDatasets[0];
+            foreach ($byKey[$unitDatasetId][$unit] ?? [] as $indikator => $matches) {
+                if (isset($legacyPairs[$unit][$indikator])) {
+                    continue;
+                }
+
+                if (count($matches) > 1) {
+                    $this->kinerjaRealisasiAmbiguousCount++;
+
+                    continue;
+                }
+
+                $obs = $matches[0];
+                if (! (bool) $obs->is_group && $obs->pencapaian !== null) {
+                    $pairs[$unit][$indikator] = [
+                        'pencapaian' => $this->normalizeExcelScore((float) $obs->pencapaian),
+                    ];
+                }
+            }
+        }
+
+        return $pairs;
     }
 
     /**

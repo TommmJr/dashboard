@@ -824,6 +824,430 @@ class KpiReadModelFlagTest extends TestCase
     }
 
     /**
+     * T1b (opsi 6b): jalur legacy R6 (kinerjaRealisasi) dan R9 (pencapaianNko)
+     * identik dengan jalur structured ketika kedua sumber di-seed pada dataset
+     * READY, divisi, dan periode yang sama.
+     *
+     * Mencakup: pair lengkap berskor; lower-is-better dengan rasio rendah tapi
+     * skor 1,1; satu sisi bergaya #403 (realisasi saja) dan #410 (target saja,
+     * skor persen 110,0); text/text berskor tanpa baris metric; baris induk
+     * (is_group = 1); serta daun numerik berskor NULL.
+     */
+    public function test_r6_dan_r9_legacy_identik_dengan_structured_pada_kontrak_skor_excel(): void
+    {
+        $division = $this->division('Pengusahaan');
+        $dataset = Dataset::factory()->create(['division_id' => $division->id]);
+        $period = '2026-08-31';
+
+        $tjbt = OrgUnit::factory()->create(['name' => 'TJBT']);
+        $uPair = OrgUnit::factory()->create(['name' => 'IND_PAIR_LENGKAP']);
+        $uLower = OrgUnit::factory()->create(['name' => 'IND_LOWER_110']);
+        $u403 = OrgUnit::factory()->create(['name' => 'IND_GAYA_403']);
+        $u410 = OrgUnit::factory()->create(['name' => 'IND_GAYA_410']);
+        $uTeks = OrgUnit::factory()->create(['name' => 'IND_TEKS_BERSKOR']);
+        $uInduk = OrgUnit::factory()->create(['name' => 'IND_INDUK']);
+        $uNull = OrgUnit::factory()->create(['name' => 'IND_DAUN_NULL']);
+
+        $seedScenario = function (OrgUnit $unit, string $name, ?float $pmTarget, ?float $pmRealisasi, array $indAttrs, array $obsAttrs) use ($dataset, $division, $period): void {
+            if ($pmTarget !== null) {
+                $this->legacyMetric($dataset, $division, "{$unit->name} | {$name} | target", $pmTarget, $period);
+            }
+            if ($pmRealisasi !== null) {
+                $this->legacyMetric($dataset, $division, "{$unit->name} | {$name} | realisasi", $pmRealisasi, $period);
+            }
+
+            $this->leaf($dataset, $unit, $division, ['name' => $name, ...$indAttrs], ['period' => $period, ...$obsAttrs]);
+        };
+
+        $numeric = ['target_type' => PerformanceObservation::TYPE_NUMERIC, 'realisasi_type' => PerformanceObservation::TYPE_NUMERIC];
+        $textual = ['target_value' => null, 'target_type' => PerformanceObservation::TYPE_TEXT, 'realisasi_value' => null, 'realisasi_type' => PerformanceObservation::TYPE_TEXT];
+
+        $scenarios = [
+            [$uPair, 'a. Faktor Ketersediaan Trafo (TRAF)', 100.0, 100.0, ['polarity' => 'higher_is_better'], ['target_value' => 100.0, 'realisasi_value' => 100.0, 'pencapaian' => 1.05, ...$numeric]],
+            [$uLower, 'a. Kali sirkit padam karena gangguan', 5.33, 4.0, ['polarity' => 'lower_is_better'], ['target_value' => 5.326, 'realisasi_value' => 4.0, 'pencapaian' => 1.1, ...$numeric]],
+            [$u403, 'a. Pengendalian Penggunaan Anggaran Investasi sesuai RKAP', null, 99.85, [], ['target_value' => null, 'target_type' => PerformanceObservation::TYPE_TEXT, 'target_text' => '95% - 105%', 'realisasi_value' => 99.85, 'realisasi_type' => PerformanceObservation::TYPE_NUMERIC, 'pencapaian' => 1.0485]],
+            [$u410, 'Penyelesaian Dokumen Legal Aset Tanah PLN', 261.0, null, ['polarity' => 'higher_is_better'], ['target_value' => 261.0, 'target_type' => PerformanceObservation::TYPE_NUMERIC, 'realisasi_value' => null, 'realisasi_type' => PerformanceObservation::TYPE_TEXT, 'realisasi_text' => 'Sesuai Target : 283', 'pencapaian' => 110.0]],
+            [$uTeks, 'Pencapaian Program Green Enabling Super Grid', null, null, [], [...$textual, 'target_text' => '100%', 'realisasi_text' => '100%', 'pencapaian' => 0.96]],
+            [$uInduk, 'Keandalan Line Transmisi dan Trafo Transmisi', 100.0, 80.0, ['is_group' => true], ['target_value' => 100.0, 'realisasi_value' => 80.0, 'pencapaian' => 1.0667, ...$numeric]],
+            [$uNull, 'a. Penyelesaian Kajian Kelayakan Proyek (KKP)', 100.0, 90.0, [], ['target_value' => 100.0, 'realisasi_value' => 90.0, 'pencapaian' => null, ...$numeric]],
+        ];
+
+        foreach ($scenarios as [$isolatedUnit, $name, $pmTarget, $pmRealisasi, $indAttrs, $obsAttrs]) {
+            $seedScenario($tjbt, $name, $pmTarget, $pmRealisasi, $indAttrs, $obsAttrs);
+            $seedScenario($isolatedUnit, $name, $pmTarget, $pmRealisasi, $indAttrs, $obsAttrs);
+        }
+
+        $user = $this->management();
+
+        config(['kpi.read_model' => 'structured']);
+        $structuredR6 = $this->reader('kinerjaRealisasi', [$user]);
+        $structuredR9 = $this->reader('pencapaianNko', [$user]);
+
+        config(['kpi.read_model' => 'legacy']);
+        $legacyR6 = $this->reader('kinerjaRealisasi', [$user]);
+        $legacyR9 = $this->reader('pencapaianNko', [$user]);
+
+        $this->assertSame($structuredR6, $legacyR6);
+        $this->assertSame($structuredR9, $legacyR9);
+
+        $byUnit = collect($legacyR6['rows'])->keyBy('unit');
+
+        // Indikator yang masuk hitungan harus identik; induk & skor NULL terbuang.
+        $this->assertSame(
+            ['IND_GAYA_403', 'IND_GAYA_410', 'IND_LOWER_110', 'IND_PAIR_LENGKAP', 'IND_TEKS_BERSKOR', 'TJBT'],
+            $byUnit->keys()->sort()->values()->all(),
+        );
+        $this->assertFalse($byUnit->has('IND_INDUK'));
+        $this->assertFalse($byUnit->has('IND_DAUN_NULL'));
+
+        // Agregat TJBT: (105 + 110 + 104.85 + 110 + 96) / 5 = 525.85 / 5 = 105.17 -> 105.2.
+        $this->assertSame(5, $byUnit['TJBT']['total']);
+        $this->assertSame(4, $byUnit['TJBT']['achieved']);
+        $this->assertSame(105.2, $byUnit['TJBT']['avg']);
+        $this->assertSame('Tercapai', $byUnit['TJBT']['status']);
+    }
+
+    /**
+     * Fallback rasio dasar dipertahankan untuk dataset tanpa observations, dan
+     * kunci (dataset_id, period, unit, indikator) yang cocok ke > 1 observation
+     * dikeluarkan dari hitungan tanpa jatuh ke fallback rasio (termasuk saat
+     * salah satu kandidat merupakan group atau memiliki pencapaian NULL).
+     */
+    public function test_r6_legacy_tanpa_observations_memakai_rasio_dasar_dan_pencocokan_ambigu_dilewati(): void
+    {
+        config(['kpi.read_model' => 'legacy']);
+
+        $division = $this->division('Pengusahaan');
+        $period = '2026-08-31';
+
+        // 1. Dataset tanpa observations: tetap memakai rasio dasar + clamp 0..110.
+        $legacyOnlyDataset = Dataset::factory()->create(['division_id' => $division->id]);
+        $this->legacyMetric($legacyOnlyDataset, $division, 'UNIT_LEGACY | Indikator Rasio | target', 100.0, $period);
+        $this->legacyMetric($legacyOnlyDataset, $division, 'UNIT_LEGACY | Indikator Rasio | realisasi', 85.0, $period);
+
+        // 2. Dataset dengan observations termasuk kunci ambigu (> 1 observation).
+        $dualDataset = Dataset::factory()->create(['division_id' => $division->id]);
+        $tjbt = OrgUnit::factory()->create(['name' => 'TJBT']);
+        $otherUnit = OrgUnit::factory()->create(['name' => 'OTHER_OWNER']);
+
+        // Satu indikator valid sebagai pembanding.
+        $this->legacyMetric($dualDataset, $division, 'TJBT | Indikator Valid | target', 100.0, $period);
+        $this->legacyMetric($dualDataset, $division, 'TJBT | Indikator Valid | realisasi', 100.0, $period);
+        $this->leaf($dualDataset, $tjbt, $division, ['name' => 'Indikator Valid'], [
+            'period' => $period,
+            'target_value' => 100.0,
+            'realisasi_value' => 100.0,
+            'pencapaian' => 1.04,
+        ]);
+
+        // Kunci ambigu 1 (injeksi tanpa pair legacy): dua indicator bernama sama
+        // menunjuk org_unit observation TJBT pada dataset & periode yang sama.
+        $indAmbiguInjeksiA = Indicator::factory()->create(['org_unit_id' => $tjbt->id, 'name' => 'Indikator Ambigu Injeksi']);
+        $indAmbiguInjeksiB = Indicator::factory()->create(['org_unit_id' => $otherUnit->id, 'name' => 'Indikator Ambigu Injeksi']);
+        foreach ([[$indAmbiguInjeksiA, 1.0], [$indAmbiguInjeksiB, 0.5]] as [$ind, $score]) {
+            PerformanceObservation::factory()->create([
+                'dataset_id' => $dualDataset->id,
+                'indicator_id' => $ind->id,
+                'org_unit_id' => $tjbt->id,
+                'division_id' => $division->id,
+                'period' => $period,
+                'target_value' => null,
+                'target_type' => PerformanceObservation::TYPE_TEXT,
+                'realisasi_value' => null,
+                'realisasi_type' => PerformanceObservation::TYPE_TEXT,
+                'pencapaian' => $score,
+            ]);
+        }
+
+        // Kunci ambigu 2 (pair lengkap target + realisasi, dua daun berskor):
+        // bila bocor ke fallback rasio akan menambah 80,0% ke TJBT.
+        $this->legacyMetric($dualDataset, $division, 'TJBT | Indikator Ambigu Pair Daun | target', 100.0, $period);
+        $this->legacyMetric($dualDataset, $division, 'TJBT | Indikator Ambigu Pair Daun | realisasi', 80.0, $period);
+        $indAmbiguPairA = Indicator::factory()->create(['org_unit_id' => $tjbt->id, 'name' => 'Indikator Ambigu Pair Daun']);
+        $indAmbiguPairB = Indicator::factory()->create(['org_unit_id' => $otherUnit->id, 'name' => 'Indikator Ambigu Pair Daun']);
+        foreach ([[$indAmbiguPairA, 1.1], [$indAmbiguPairB, 0.6]] as [$ind, $score]) {
+            PerformanceObservation::factory()->create([
+                'dataset_id' => $dualDataset->id,
+                'indicator_id' => $ind->id,
+                'org_unit_id' => $tjbt->id,
+                'division_id' => $division->id,
+                'period' => $period,
+                'target_value' => 100.0,
+                'realisasi_value' => 80.0,
+                'pencapaian' => $score,
+            ]);
+        }
+
+        // Kunci ambigu 3 (pair lengkap target + realisasi, salah satu kandidat is_group = true):
+        // bila bocor ke fallback rasio akan menambah 70,0% ke TJBT.
+        $this->legacyMetric($dualDataset, $division, 'TJBT | Indikator Ambigu Group | target', 100.0, $period);
+        $this->legacyMetric($dualDataset, $division, 'TJBT | Indikator Ambigu Group | realisasi', 70.0, $period);
+        $indAmbiguGroupA = Indicator::factory()->create(['org_unit_id' => $tjbt->id, 'name' => 'Indikator Ambigu Group', 'is_group' => true]);
+        $indAmbiguGroupB = Indicator::factory()->create(['org_unit_id' => $otherUnit->id, 'name' => 'Indikator Ambigu Group', 'is_group' => false]);
+        foreach ([[$indAmbiguGroupA, 1.1], [$indAmbiguGroupB, 1.0]] as [$ind, $score]) {
+            PerformanceObservation::factory()->create([
+                'dataset_id' => $dualDataset->id,
+                'indicator_id' => $ind->id,
+                'org_unit_id' => $tjbt->id,
+                'division_id' => $division->id,
+                'period' => $period,
+                'target_value' => 100.0,
+                'realisasi_value' => 70.0,
+                'pencapaian' => $score,
+            ]);
+        }
+
+        // Kunci ambigu 4 (pair lengkap target + realisasi, salah satu kandidat pencapaian NULL):
+        // bila bocor ke fallback rasio akan menambah 60,0% ke TJBT.
+        $this->legacyMetric($dualDataset, $division, 'TJBT | Indikator Ambigu Null | target', 100.0, $period);
+        $this->legacyMetric($dualDataset, $division, 'TJBT | Indikator Ambigu Null | realisasi', 60.0, $period);
+        $indAmbiguNullA = Indicator::factory()->create(['org_unit_id' => $tjbt->id, 'name' => 'Indikator Ambigu Null']);
+        $indAmbiguNullB = Indicator::factory()->create(['org_unit_id' => $otherUnit->id, 'name' => 'Indikator Ambigu Null']);
+        foreach ([[$indAmbiguNullA, null], [$indAmbiguNullB, 0.9]] as [$ind, $score]) {
+            PerformanceObservation::factory()->create([
+                'dataset_id' => $dualDataset->id,
+                'indicator_id' => $ind->id,
+                'org_unit_id' => $tjbt->id,
+                'division_id' => $division->id,
+                'period' => $period,
+                'target_value' => 100.0,
+                'realisasi_value' => 60.0,
+                'pencapaian' => $score,
+            ]);
+        }
+
+        $controller = app(DashboardController::class);
+        $reflection = new ReflectionMethod($controller, 'kinerjaRealisasi');
+        $reflection->setAccessible(true);
+        $result = $reflection->invoke($controller, $this->management());
+
+        $ambiguousProp = new \ReflectionProperty($controller, 'kinerjaRealisasiAmbiguousCount');
+        $ambiguousProp->setAccessible(true);
+        $this->assertSame(4, $ambiguousProp->getValue($controller));
+
+        $byUnit = collect($result['rows'])->keyBy('unit');
+
+        $this->assertSame(1, $byUnit['UNIT_LEGACY']['total']);
+        $this->assertSame(0, $byUnit['UNIT_LEGACY']['achieved']);
+        $this->assertSame(85.0, $byUnit['UNIT_LEGACY']['avg']);
+
+        $this->assertSame(1, $byUnit['TJBT']['total']);
+        $this->assertSame(1, $byUnit['TJBT']['achieved']);
+        $this->assertSame(104.0, $byUnit['TJBT']['avg']);
+    }
+
+    /**
+     * M2: dua dataset READY pada periode dan divisi yang sama tidak boleh
+     * menggabungkan target/realisasi lintas dataset ataupun melakukan overlay
+     * observation ketika sumber dataset pasangan tidak unik; pasangan dari
+     * satu dataset konsisten tanpa observation tetap mendapat fallback rasio.
+     */
+    public function test_r6_legacy_tidak_menggabungkan_pasangan_lintas_dataset_atau_overlay_sumber_ambigu(): void
+    {
+        config(['kpi.read_model' => 'legacy']);
+
+        $division = $this->division('Pengusahaan');
+        $period = '2026-08-31';
+
+        $datasetA = Dataset::factory()->create(['division_id' => $division->id]);
+        $datasetB = Dataset::factory()->create(['division_id' => $division->id]);
+
+        // 1. Target di dataset A, realisasi di dataset B (tanpa observation):
+        // tidak boleh digabung menjadi rasio 90%.
+        $this->legacyMetric($datasetA, $division, 'UNIT_SPLIT | Indikator Split | target', 100.0, $period);
+        $this->legacyMetric($datasetB, $division, 'UNIT_SPLIT | Indikator Split | realisasi', 90.0, $period);
+
+        // 2. Target + observation (105%) di dataset A, realisasi di dataset B:
+        // tidak boleh memakai target ?? realisasi untuk meng-overlay 105% atau jatuh ke rasio 80%.
+        $unitSplitObs = OrgUnit::factory()->create(['name' => 'UNIT_SPLIT_OBS']);
+        $this->legacyMetric($datasetA, $division, 'UNIT_SPLIT_OBS | Indikator Split Obs | target', 100.0, $period);
+        $this->legacyMetric($datasetB, $division, 'UNIT_SPLIT_OBS | Indikator Split Obs | realisasi', 80.0, $period);
+        $this->leaf($datasetA, $unitSplitObs, $division, ['name' => 'Indikator Split Obs'], [
+            'period' => $period,
+            'target_value' => 100.0,
+            'realisasi_value' => 100.0,
+            'pencapaian' => 1.05,
+        ]);
+
+        // 3. Dua dataset READY sama-sama memiliki pasangan lengkap + observation
+        // untuk (unit, indikator) yang sama: sumber tidak unik -> dikeluarkan.
+        // Pasangan lain yang hanya berasal dari satu dataset konsisten tetap dihitung.
+        $unitDuaDataset = OrgUnit::factory()->create(['name' => 'UNIT_DUA_DATASET']);
+        $this->legacyMetric($datasetA, $division, 'UNIT_DUA_DATASET | Indikator Konflik | target', 100.0, $period);
+        $this->legacyMetric($datasetA, $division, 'UNIT_DUA_DATASET | Indikator Konflik | realisasi', 80.0, $period);
+        $indKonflik = $this->leaf($datasetA, $unitDuaDataset, $division, ['name' => 'Indikator Konflik'], [
+            'period' => $period,
+            'target_value' => 100.0,
+            'realisasi_value' => 80.0,
+            'pencapaian' => 0.85,
+        ]);
+
+        $this->legacyMetric($datasetB, $division, 'UNIT_DUA_DATASET | Indikator Konflik | target', 100.0, $period);
+        $this->legacyMetric($datasetB, $division, 'UNIT_DUA_DATASET | Indikator Konflik | realisasi', 95.0, $period);
+        PerformanceObservation::factory()->create([
+            'dataset_id' => $datasetB->id,
+            'indicator_id' => $indKonflik->id,
+            'org_unit_id' => $unitDuaDataset->id,
+            'division_id' => $division->id,
+            'period' => $period,
+            'target_value' => 100.0,
+            'realisasi_value' => 95.0,
+            'pencapaian' => 0.95,
+        ]);
+
+        // Pasangan konsisten dari satu sumber dataset (dataset A) tanpa observation -> rasio 92%.
+        $this->legacyMetric($datasetA, $division, 'UNIT_DUA_DATASET | Indikator Konsisten | target', 100.0, $period);
+        $this->legacyMetric($datasetA, $division, 'UNIT_DUA_DATASET | Indikator Konsisten | realisasi', 92.0, $period);
+
+        $controller = app(DashboardController::class);
+        $reflection = new ReflectionMethod($controller, 'kinerjaRealisasi');
+        $reflection->setAccessible(true);
+        $result = $reflection->invoke($controller, $this->management());
+
+        $ambiguousProp = new \ReflectionProperty($controller, 'kinerjaRealisasiAmbiguousCount');
+        $ambiguousProp->setAccessible(true);
+        $this->assertSame(3, $ambiguousProp->getValue($controller));
+
+        $byUnit = collect($result['rows'])->keyBy('unit');
+
+        $this->assertFalse($byUnit->has('UNIT_SPLIT'));
+        $this->assertFalse($byUnit->has('UNIT_SPLIT_OBS'));
+        $this->assertTrue($byUnit->has('UNIT_DUA_DATASET'));
+        $this->assertSame(1, $byUnit['UNIT_DUA_DATASET']['total']);
+        $this->assertSame(0, $byUnit['UNIT_DUA_DATASET']['achieved']);
+        $this->assertSame(92.0, $byUnit['UNIT_DUA_DATASET']['avg']);
+    }
+
+    /**
+     * L2: daun berskor tanpa baris performance_metrics tetap diinjeksi bila
+     * berasal dari satu kandidat dataset READY dalam scope (periode, divisi,
+     * unit), tetapi dilewati tanpa menebak bila terdapat > 1 kandidat dataset.
+     */
+    public function test_r6_legacy_injeksi_daun_berskor_tanpa_metric_dan_menolak_multi_dataset_kandidat(): void
+    {
+        config(['kpi.read_model' => 'legacy']);
+
+        $division = $this->division('Pengusahaan');
+        $otherDivision = $this->division('Divisi Lain');
+        $period = '2026-08-31';
+
+        $unitTanpaMetric = OrgUnit::factory()->create(['name' => 'UNIT_TANPA_METRIC']);
+        $datasetTanpaMetric = Dataset::factory()->create(['division_id' => $division->id]);
+
+        $textual = [
+            'period' => $period,
+            'target_value' => null,
+            'target_type' => PerformanceObservation::TYPE_TEXT,
+            'realisasi_value' => null,
+            'realisasi_type' => PerformanceObservation::TYPE_TEXT,
+        ];
+
+        $this->leaf($datasetTanpaMetric, $unitTanpaMetric, $division, ['name' => 'Daun Berskor Murni'], [
+            ...$textual,
+            'pencapaian' => 0.96,
+        ]);
+
+        // 1. Tanpa baris performance_metrics sama sekali di DB: tetap terinjeksi.
+        $soloResult = $this->reader('kinerjaRealisasi', [$this->management()]);
+        $this->assertSame($period, $soloResult['period']);
+        $this->assertCount(1, $soloResult['rows']);
+        $this->assertSame('UNIT_TANPA_METRIC', $soloResult['rows'][0]['unit']);
+        $this->assertSame(96.0, $soloResult['rows'][0]['avg']);
+
+        // 2. Saat dataset READY lain di periode sama punya performance_metrics,
+        // datasetTanpaMetric tidak boleh tereliminasi oleh penyempitan metricDatasetIds.
+        // Dataset ARCHIVED atau milik divisi lain di luar scope staf juga tidak mengganggu.
+        $datasetMetricLain = Dataset::factory()->create(['division_id' => $division->id]);
+        $this->legacyMetric($datasetMetricLain, $division, 'UNIT_METRIC | Indikator A | target', 100.0, $period);
+        $this->legacyMetric($datasetMetricLain, $division, 'UNIT_METRIC | Indikator A | realisasi', 100.0, $period);
+
+        $archivedDataset = Dataset::factory()->archived()->create(['division_id' => $division->id]);
+        $this->leaf($archivedDataset, $unitTanpaMetric, $division, ['name' => 'Daun Archived'], [
+            ...$textual,
+            'pencapaian' => 0.50,
+        ]);
+
+        $otherDivDataset = Dataset::factory()->create(['division_id' => $otherDivision->id]);
+        $this->leaf($otherDivDataset, $unitTanpaMetric, $otherDivision, ['name' => 'Daun Divisi Lain'], [
+            ...$textual,
+            'pencapaian' => 0.40,
+        ]);
+
+        // 3. Unit dengan > 1 kandidat dataset READY dalam scope yang sama:
+        // tidak ada injeksi yang menebak sumber.
+        $unitMultiKandidat = OrgUnit::factory()->create(['name' => 'UNIT_MULTI_KANDIDAT']);
+        $kandidat1 = Dataset::factory()->create(['division_id' => $division->id]);
+        $kandidat2 = Dataset::factory()->create(['division_id' => $division->id]);
+        $this->leaf($kandidat1, $unitMultiKandidat, $division, ['name' => 'Daun Kandidat 1'], [
+            ...$textual,
+            'pencapaian' => 1.05,
+        ]);
+        $this->leaf($kandidat2, $unitMultiKandidat, $division, ['name' => 'Daun Kandidat 2'], [
+            ...$textual,
+            'pencapaian' => 0.80,
+        ]);
+
+        $staff = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $division->id]);
+
+        $controller = app(DashboardController::class);
+        $reflection = new ReflectionMethod($controller, 'kinerjaRealisasi');
+        $reflection->setAccessible(true);
+        $result = $reflection->invoke($controller, $staff);
+
+        $ambiguousProp = new \ReflectionProperty($controller, 'kinerjaRealisasiAmbiguousCount');
+        $ambiguousProp->setAccessible(true);
+        $this->assertSame(1, $ambiguousProp->getValue($controller));
+
+        $byUnit = collect($result['rows'])->keyBy('unit');
+
+        $this->assertSame(['UNIT_METRIC', 'UNIT_TANPA_METRIC'], $byUnit->keys()->sort()->values()->all());
+        $this->assertSame(96.0, $byUnit['UNIT_TANPA_METRIC']['avg']);
+        $this->assertSame(100.0, $byUnit['UNIT_METRIC']['avg']);
+        $this->assertFalse($byUnit->has('UNIT_MULTI_KANDIDAT'));
+    }
+
+    /**
+     * L3: pencocokan nama indikator antara metric_name legacy dan indicators.name
+     * menggunakan kesamaan string persis (tanpa normalisasi huruf besar-kecil
+     * atau trimming yang dapat mengubah identitas indikator secara diam-diam).
+     */
+    public function test_r6_legacy_pencocokan_nama_indikator_persis_tanpa_normalisasi(): void
+    {
+        config(['kpi.read_model' => 'legacy']);
+
+        $division = $this->division('Pengusahaan');
+        $period = '2026-08-31';
+        $dataset = Dataset::factory()->create(['division_id' => $division->id]);
+        $tjbt = OrgUnit::factory()->create(['name' => 'TJBT']);
+
+        $this->legacyMetric($dataset, $division, 'TJBT | Indikator Presisi | target', 100.0, $period);
+        $this->legacyMetric($dataset, $division, 'TJBT | Indikator Presisi | realisasi', 80.0, $period);
+
+        // Observation dengan perbedaan huruf besar-kecil tidak dianggap cocok ke
+        // 'Indikator Presisi' (dan karena is_group = true tidak diinjeksi).
+        $this->leaf($dataset, $tjbt, $division, ['name' => 'indikator presisi', 'is_group' => true], [
+            'period' => $period,
+            'target_value' => 100.0,
+            'realisasi_value' => 80.0,
+            'pencapaian' => 1.1,
+        ]);
+
+        $beforeExact = $this->reader('kinerjaRealisasi', [$this->management()]);
+        $this->assertSame(80.0, $beforeExact['rows'][0]['avg']);
+
+        // Observation dengan nama persis sama baru meng-overlay skor Excel.
+        $this->leaf($dataset, $tjbt, $division, ['name' => 'Indikator Presisi'], [
+            'period' => $period,
+            'target_value' => 100.0,
+            'realisasi_value' => 80.0,
+            'pencapaian' => 1.05,
+        ]);
+
+        $afterExact = $this->reader('kinerjaRealisasi', [$this->management()]);
+        $this->assertSame(105.0, $afterExact['rows'][0]['avg']);
+    }
+
+    /**
      * Konsekuensi baru yang harus disadari: menyalakan 'structured' dengan data
      * legacy SAJA membuat R3/R10 kosong, karena keduanya sekarang benar-benar
      * membaca tabel terstruktur. Ini bukan bug — itu memang arti flag.
