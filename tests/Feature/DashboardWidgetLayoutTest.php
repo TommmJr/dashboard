@@ -111,6 +111,18 @@ class DashboardWidgetLayoutTest extends TestCase
     public function test_staff_divisi_non_pengusahaan_melihat_status_dataset_saja(): void
     {
         $division = Division::factory()->create();
+        $dataset = Dataset::factory()->create([
+            'status' => Dataset::STATUS_READY,
+            'division_id' => $division->id,
+        ]);
+        PerformanceMetric::factory()->create([
+            'dataset_id' => $dataset->id,
+            'division_id' => $division->id,
+            'metric_name' => 'TJBT | Indikator A | target',
+            'value' => 100,
+            'period' => '2026-08-31',
+        ]);
+
         $staff = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $division->id]);
         $user = User::factory()->create();
 
@@ -118,6 +130,9 @@ class DashboardWidgetLayoutTest extends TestCase
             ->get(route('dashboard'))
             ->assertOk()
             ->assertSee('Status Dataset')
+            ->assertSee('Dataset READY (Divisi)')
+            ->assertSee('Baris Data Aktif (TJBT)')
+            ->assertDontSee('Baris Aktif')
             ->assertDontSee('Rata-rata NKO')
             ->assertDontSee('Grafik Tren Kinerja')
             ->assertDontSee('Peringkat NKO Unit')
@@ -140,6 +155,8 @@ class DashboardWidgetLayoutTest extends TestCase
             ->get(route('dashboard'))
             ->assertOk()
             ->assertSee('Rata-rata NKO')
+            ->assertSee('Dataset READY (Divisi)')
+            ->assertSee('Baris Data Aktif (TJBT)')
             ->assertSee('Grafik Tren Kinerja')
             // Widget LAMA dicabut dari layout 2026-10-19 (keputusan user): R8
             // masih menjumlah lintas satuan. Judulnya dikunci dengan literal

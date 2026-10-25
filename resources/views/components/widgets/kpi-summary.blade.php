@@ -12,12 +12,12 @@
         <p class="mt-2 inline-flex items-center rounded-full bg-slate-50 px-2 py-0.5 text-xs font-bold text-slate-500" x-text="'—'"></p>
     </div>
     <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Dataset READY</p>
+        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Dataset READY (Divisi)</p>
         <p class="mt-3 text-3xl font-extrabold leading-none tracking-tight text-primary" x-text="kpi ? kpi.ready_datasets : '—'"></p>
         <p class="mt-2 inline-flex items-center rounded-full bg-slate-50 px-2 py-0.5 text-xs font-bold text-slate-500" x-text="'—'"></p>
     </div>
     <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Baris Data Aktif</p>
+        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Baris Data Aktif (TJBT)</p>
         <p class="mt-3 text-3xl font-extrabold leading-none tracking-tight text-primary" x-text="kpi ? kpi.metric_count : '—'"></p>
         <p class="mt-2 inline-flex items-center rounded-full bg-slate-50 px-2 py-0.5 text-xs font-bold text-slate-500" x-text="'—'"></p>
     </div>

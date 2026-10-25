@@ -20,7 +20,7 @@
     @else
         <div class="mt-4 grid grid-cols-2 gap-4">
             <div>
-                <p class="text-sm text-slate-500">Dataset READY</p>
+                <p class="text-sm text-slate-500">Dataset READY (Divisi)</p>
                 <p class="text-2xl font-bold text-accent">{{ $ready }}</p>
             </div>
             <div>
@@ -32,7 +32,7 @@
                 <p class="text-2xl font-bold text-red-600">{{ $failed }}</p>
             </div>
             <div>
-                <p class="text-sm text-slate-500">Baris Aktif</p>
+                <p class="text-sm text-slate-500">Baris Data Aktif (TJBT)</p>
                 <p class="text-2xl font-bold text-primary">{{ $latestRows }}</p>
             </div>
         </div>
