@@ -332,7 +332,7 @@ class KpiReadModelFlagTest extends TestCase
         $this->legacyMetric($dataset, $division, 'TJBT | Indikator A | realisasi', 1.0, '2026-08-31');
 
         $this->observation($dataset, $unit, $division, '2026-08-31')
-            ->update(['target_value' => 100.0, 'realisasi_value' => 110.0]);
+            ->update(['target_value' => 100.0, 'realisasi_value' => 110.0, 'pencapaian' => 1.1]);
 
         $result = $this->reader('kinerjaRealisasi', [$this->management()]);
 
@@ -348,19 +348,12 @@ class KpiReadModelFlagTest extends TestCase
     }
 
     /**
-     * Target bertipe tanggal yang TIDAK punya skor Excel tetap dilewati:
-     * target_value NULL, dan tanggal mentah tidak boleh dipakai sebagai skor
-     * (serial 46173 akan terbaca sebagai pencapaian 4.617.300%).
-     *
-     * Target/realisasi bertipe TEKS juga tetap tidak dihitung. Jalur legacy
-     * meng-cast baris target apa pun ke float, jadi perilakunya berbeda.
-     *
-     * Catatan: sampai 2026-10-19 test ini mengunci SEMUA target bertipe
-     * tanggal sebagai dibuang. Keputusan Pak Gama 2026-10-19 membalik itu bila
-     * workbook punya skor PENCAPAIAN; kasus berskor diuji di bawah. Versi
-     * tanpa skor tetap "tidak dihitung" dan yang dikunci di sini.
+     * Target teks tanpa target numerik TAPI berskor Excel: baris daun berskor
+     * tetap dihitung (keputusan Pak Gama 2026-10-25). Sebelumnya dikunci
+     * "tidak dihitung"; kontrak itu dibalik. Skor 110.0 tersimpan dalam persen
+     * (kasus observasi #410) dan tidak boleh menjadi 11000%.
      */
-    public function test_r6_structured_target_tanggal_tanpa_skor_tidak_dihitung(): void
+    public function test_r6_structured_target_teks_berskor_ikut_dihitung(): void
     {
         config(['kpi.read_model' => 'structured']);
 
@@ -379,12 +372,10 @@ class KpiReadModelFlagTest extends TestCase
 
         $result = $this->reader('kinerjaRealisasi', [$this->management()]);
 
-        // Tidak ada pencapaian yang bisa dihitung -> unit tidak masuk tabel.
-        // Skor teks sengaja tidak dipakai: kontrak "skor Excel" hanya untuk
-        // target bertipe tanggal.
         $this->assertSame('2026-08-31', $result['period']);
-        $this->assertSame([], $result['rows']);
-        $this->assertFalse($result['has_data']);
+        $this->assertTrue($result['has_data']);
+        $this->assertSame(1, $result['rows'][0]['total']);
+        $this->assertSame(110.0, $result['rows'][0]['avg']);
     }
 
     /**
@@ -410,9 +401,9 @@ class KpiReadModelFlagTest extends TestCase
         ]);
 
         $this->observation($older, $unit, $division, '2026-08-31')
-            ->update(['target_value' => 100.0, 'realisasi_value' => 10.0]);
+            ->update(['target_value' => 100.0, 'realisasi_value' => 10.0, 'pencapaian' => 0.1]);
         $this->observation($newer, $unit, $division, '2026-08-31')
-            ->update(['target_value' => 100.0, 'realisasi_value' => 80.0]);
+            ->update(['target_value' => 100.0, 'realisasi_value' => 80.0, 'pencapaian' => 0.8]);
 
         $result = $this->reader('kinerjaRealisasi', [$this->management()]);
 
@@ -434,9 +425,9 @@ class KpiReadModelFlagTest extends TestCase
         $otherDataset = Dataset::factory()->create(['division_id' => $other->id]);
 
         $this->observation($ownDataset, OrgUnit::factory()->create(['name' => 'OWN']), $own, '2026-08-31')
-            ->update(['target_value' => 100.0, 'realisasi_value' => 100.0]);
+            ->update(['target_value' => 100.0, 'realisasi_value' => 100.0, 'pencapaian' => 1.0]);
         $this->observation($otherDataset, OrgUnit::factory()->create(['name' => 'OTHER']), $other, '2026-08-31')
-            ->update(['target_value' => 100.0, 'realisasi_value' => 100.0]);
+            ->update(['target_value' => 100.0, 'realisasi_value' => 100.0, 'pencapaian' => 1.0]);
 
         $staff = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $own->id]);
 
@@ -567,11 +558,12 @@ class KpiReadModelFlagTest extends TestCase
     }
 
     /**
-     * Baris tanggal berskor dicampur dengan baris numerik biasa: keduanya
-     * dihitung, dan numerik tetap memakai rasio realisasi/target seperti
-     * sebelumnya (tidak ada regresi).
+     * Baris tanggal berskor dicampur dengan baris numerik berskor: keduanya
+     * memakai skor Excel (keputusan 2026-10-25), bukan rasio realisasi/target.
+     * Sebelumnya numerik tetap memakai rasio (110/100 = 110); kontrak itu
+     * dibalik: skor Excel 1,05 menang -> 105.
      */
-    public function test_r6_structured_numerik_tidak_regresi_saat_ada_baris_tanggal(): void
+    public function test_r6_structured_numerik_berskor_memakai_skor_excel_bersama_baris_tanggal(): void
     {
         config(['kpi.read_model' => 'structured']);
 
@@ -579,8 +571,7 @@ class KpiReadModelFlagTest extends TestCase
         $unit = OrgUnit::factory()->create(['name' => 'TJBT']);
         $dataset = Dataset::factory()->create(['division_id' => $division->id]);
 
-        // Numerik: 110/100 -> 110 persen, meski kolom pencapaian berisi skor
-        // Excel 1,05 (untuk numerik skor Excel tidak dipakai; rasio tetap).
+        // Numerik: skor Excel 1,05 menang atas rasio 110/100.
         $this->observation($dataset, $unit, $division, '2026-08-31')
             ->update([
                 'target_value' => 100.0,
@@ -604,9 +595,207 @@ class KpiReadModelFlagTest extends TestCase
 
         $this->assertSame(2, $row['total']);
         $this->assertSame(2, $row['achieved']);
-        // (110 + 101.42857142857) / 2 = 105.7142857 -> 105.7
-        $this->assertSame(105.7, $row['avg']);
+        // (105 + 101.42857142857) / 2 = 103.2142857 -> 103.2
+        $this->assertSame(103.2, $row['avg']);
         $this->assertSame('Tercapai', $row['status']);
+    }
+
+    /**
+     * Buat observasi daun untuk unit TJBT dengan polaritas/skor/target
+     * dikendalikan test. Mengembalikan indikatornya agar bisa dijadikan induk.
+     *
+     * @param  array<string, mixed>  $indicator
+     * @param  array<string, mixed>  $observation
+     */
+    private function leaf(Dataset $dataset, OrgUnit $unit, Division $division, array $indicator, array $observation): Indicator
+    {
+        $model = Indicator::factory()->create(['org_unit_id' => $unit->id, ...$indicator]);
+
+        PerformanceObservation::factory()->create([
+            'dataset_id' => $dataset->id,
+            'indicator_id' => $model->id,
+            'org_unit_id' => $unit->id,
+            'division_id' => $division->id,
+            'period' => '2026-08-31',
+            'pencapaian' => null,
+            ...$observation,
+        ]);
+
+        return $model;
+    }
+
+    /** @return array{0: Division, 1: OrgUnit, 2: Dataset} */
+    private function tjbtFixture(): array
+    {
+        config(['kpi.read_model' => 'structured']);
+
+        $division = $this->division('Pengusahaan');
+
+        return [
+            $division,
+            OrgUnit::factory()->create(['name' => 'TJBT']),
+            Dataset::factory()->create(['division_id' => $division->id]),
+        ];
+    }
+
+    /**
+     * Skala skor: rasio 1,0143 -> 101,43; persen 110,0 tetap 110 (#410);
+     * batas rasio 1,1 -> 110; di atas 1,1 (termasuk rentang (1,1; 1,5]) ->
+     * dibaca persen apa adanya; negatif -> 0; > 110 -> 110.
+     */
+    public function test_r6_structured_normalisasi_skala_skor_rasio_dan_persen(): void
+    {
+        $cases = [
+            'ratio' => [1.0143, 101.4],
+            'percent #410' => [110.0, 110.0],
+            'batas rasio' => [1.1, 110.0],
+            'di atas batas rasio' => [1.2, 1.2],
+            'batas mutasi 1,5' => [1.5, 1.5],
+            'nol' => [0.0, 0.0],
+            'persen 87,5' => [87.5, 87.5],
+            'negatif' => [-0.3, 0.0],
+            'persen di atas cap' => [150.0, 110.0],
+        ];
+
+        [$division, , $dataset] = $this->tjbtFixture();
+
+        foreach ($cases as $label => [$stored, $expected]) {
+            // Satu unit per kasus supaya rata-rata tiap kasus terisolasi.
+            $unit = OrgUnit::factory()->create(['name' => $label]);
+            $this->leaf($dataset, $unit, $division, [], [
+                'target_value' => null, 'target_type' => PerformanceObservation::TYPE_TEXT,
+                'realisasi_value' => null, 'realisasi_type' => PerformanceObservation::TYPE_TEXT,
+                'pencapaian' => $stored,
+            ]);
+        }
+
+        $byUnit = collect($this->reader('kinerjaRealisasi', [$this->management()])['rows'])->keyBy('unit');
+
+        foreach ($cases as $label => [, $expected]) {
+            $this->assertSame($expected, $byUnit[$label]['avg'], $label);
+        }
+    }
+
+    /**
+     * Kontrak 2026-10-25 memakai skor Excel (pencapaian): baris daun dengan
+     * target dan realisasi numerik tetapi pencapaian NULL dilewati (tidak
+     * dibuatkan skor pengganti dari rasio maupun polaritas).
+     */
+    public function test_r6_structured_baris_numerik_tanpa_skor_excel_dilewati(): void
+    {
+        [$division, $unit, $dataset] = $this->tjbtFixture();
+
+        $numeric = ['target_type' => PerformanceObservation::TYPE_NUMERIC, 'realisasi_type' => PerformanceObservation::TYPE_NUMERIC];
+
+        $this->leaf($dataset, $unit, $division, ['polarity' => 'higher_is_better'], ['target_value' => 100.0, 'realisasi_value' => 90.0, ...$numeric]);
+        $this->leaf($dataset, $unit, $division, ['polarity' => 'lower_is_better'], ['target_value' => 100.0, 'realisasi_value' => 90.0, ...$numeric]);
+        $this->leaf($dataset, $unit, $division, [], ['target_value' => 0.0, 'realisasi_value' => 5.0, ...$numeric]);
+        $this->leaf($dataset, $unit, $division, [], ['target_value' => 100.0, 'realisasi_value' => null, ...$numeric]);
+
+        $empty = $this->reader('kinerjaRealisasi', [$this->management()]);
+        $this->assertSame([], $empty['rows']);
+        $this->assertFalse($empty['has_data']);
+
+        // Hanya baris yang memiliki skor Excel yang ikut dihitung.
+        $this->leaf($dataset, $unit, $division, ['polarity' => 'higher_is_better'], [
+            'target_value' => 100.0,
+            'realisasi_value' => 10.0,
+            'pencapaian' => 0.8,
+            ...$numeric,
+        ]);
+
+        $row = $this->reader('kinerjaRealisasi', [$this->management()])['rows'][0];
+
+        $this->assertSame(1, $row['total']);
+        $this->assertSame(80.0, $row['avg']);
+    }
+
+    /**
+     * Skor Excel dibatasi ke rentang 0..110% (negatif -> 0, di atas 110 -> 110).
+     */
+    public function test_r6_structured_skor_excel_dibatasi_0_sampai_110(): void
+    {
+        [$division, $unit, $dataset] = $this->tjbtFixture();
+
+        $numeric = ['target_type' => PerformanceObservation::TYPE_NUMERIC, 'realisasi_type' => PerformanceObservation::TYPE_NUMERIC];
+
+        $this->leaf($dataset, $unit, $division, [], ['target_value' => 100.0, 'realisasi_value' => 300.0, 'pencapaian' => -0.5, ...$numeric]);
+        $this->leaf($dataset, $unit, $division, [], ['target_value' => 100.0, 'realisasi_value' => 150.0, 'pencapaian' => 150.0, ...$numeric]);
+        $this->leaf($dataset, $unit, $division, [], ['target_value' => 100.0, 'realisasi_value' => 10.0, 'pencapaian' => 1.0, ...$numeric]);
+
+        $row = $this->reader('kinerjaRealisasi', [$this->management()])['rows'][0];
+
+        $this->assertSame(3, $row['total']);
+        // (0 + 110 + 100) / 3 = 70.0
+        $this->assertSame(70.0, $row['avg']);
+    }
+
+    /**
+     * Baris induk (is_group = 1) tidak dihitung walau punya skor; baris daun
+     * berskor tanpa target numerik dihitung; rata-rata sederhana tanpa bobot.
+     */
+    public function test_r6_structured_induk_dikecualikan_daun_berskor_dihitung_rata_rata_sederhana(): void
+    {
+        [$division, $unit, $dataset] = $this->tjbtFixture();
+
+        $group = $this->leaf($dataset, $unit, $division, ['is_group' => true, 'bobot_value' => 50], ['pencapaian' => 1.1]);
+
+        $textual = ['target_value' => null, 'target_type' => PerformanceObservation::TYPE_TEXT, 'realisasi_value' => null, 'realisasi_type' => PerformanceObservation::TYPE_TEXT];
+
+        // Daun berskor tanpa target numerik, bobot besar: bobot diabaikan.
+        $this->leaf($dataset, $unit, $division, ['parent_id' => $group->id, 'bobot_value' => 90], [...$textual, 'pencapaian' => 1.0]);
+        $this->leaf($dataset, $unit, $division, ['parent_id' => $group->id, 'bobot_value' => 10], [...$textual, 'pencapaian' => 0.8]);
+
+        $row = $this->reader('kinerjaRealisasi', [$this->management()])['rows'][0];
+
+        // Induk (110) tidak ikut: (100 + 80) / 2 = 90, bukan 96.7 maupun berbobot 98.
+        $this->assertSame(2, $row['total']);
+        $this->assertSame(90.0, $row['avg']);
+        $this->assertSame(1, $row['achieved']);
+        $this->assertSame('Perlu Peningkatan', $row['status']);
+    }
+
+    /**
+     * ATTB: realisasi 181.979,53 vs target 28.800 (rasio > 6x) diterima apa
+     * adanya, dan skor Excel dibatasi 110% (baik rasio 1,1 maupun persen > 110).
+     */
+    public function test_r6_structured_attb_rasio_di_atas_6x_dibatasi_110(): void
+    {
+        [$division, $unit, $dataset] = $this->tjbtFixture();
+
+        $numeric = ['target_type' => PerformanceObservation::TYPE_NUMERIC, 'realisasi_type' => PerformanceObservation::TYPE_NUMERIC];
+
+        $this->leaf($dataset, $unit, $division, ['polarity' => 'higher_is_better'], ['target_value' => 28800.0, 'realisasi_value' => 181979.53, 'pencapaian' => 631.98, ...$numeric]);
+
+        $row = $this->reader('kinerjaRealisasi', [$this->management()])['rows'][0];
+        $this->assertSame(110.0, $row['avg']);
+
+        // Dengan skor Excel cached 1,1 hasilnya sama.
+        $this->leaf($dataset, $unit, $division, ['polarity' => 'higher_is_better'], ['target_value' => 28800.0, 'realisasi_value' => 181979.53, 'pencapaian' => 1.1, ...$numeric]);
+        $row = $this->reader('kinerjaRealisasi', [$this->management()])['rows'][0];
+        $this->assertSame(110.0, $row['avg']);
+    }
+
+    /** R9 mengikuti R6: nilai TJBT dengan baris induk, daun berskor, persen < 110, dan ATTB. */
+    public function test_r9_structured_regresi_nilai_tjbt_kontrak_2026_10_25(): void
+    {
+        [$division, $unit, $dataset] = $this->tjbtFixture();
+
+        $numeric = ['target_type' => PerformanceObservation::TYPE_NUMERIC, 'realisasi_type' => PerformanceObservation::TYPE_NUMERIC];
+        $textual = ['target_value' => null, 'target_type' => PerformanceObservation::TYPE_TEXT, 'realisasi_value' => null, 'realisasi_type' => PerformanceObservation::TYPE_TEXT];
+
+        $this->leaf($dataset, $unit, $division, ['is_group' => true], ['pencapaian' => 0.5]);
+        $this->leaf($dataset, $unit, $division, ['polarity' => 'higher_is_better'], ['target_value' => 28800.0, 'realisasi_value' => 181979.53, 'pencapaian' => 631.98, ...$numeric]);
+        $this->leaf($dataset, $unit, $division, [], [...$textual, 'pencapaian' => 1.0485]);
+        $this->leaf($dataset, $unit, $division, ['polarity' => 'higher_is_better'], [...$textual, 'pencapaian' => 110.0]);
+        $this->leaf($dataset, $unit, $division, ['polarity' => 'lower_is_better'], [...$textual, 'pencapaian' => 1.0143]);
+        $this->leaf($dataset, $unit, $division, ['polarity' => 'higher_is_better'], [...$textual, 'pencapaian' => 87.5]);
+
+        $result = $this->reader('pencapaianNko', [$this->management()]);
+
+        // (110 + 104.85 + 110 + 101.43 + 87.5) / 5 = 102.756 -> 102.8
+        $this->assertSame(['TJBT'], $result['labels']);
+        $this->assertSame([102.8], $result['data']);
     }
 
     /**
@@ -625,7 +814,7 @@ class KpiReadModelFlagTest extends TestCase
         $this->legacyMetric($dataset, $division, 'TJBT | I | realisasi', 1.0, '2026-08-31');
 
         $this->observation($dataset, $unit, $division, '2026-08-31')
-            ->update(['target_value' => 100.0, 'realisasi_value' => 105.0]);
+            ->update(['target_value' => 100.0, 'realisasi_value' => 105.0, 'pencapaian' => 1.05]);
 
         $result = $this->reader('pencapaianNko', [$this->management()]);
 

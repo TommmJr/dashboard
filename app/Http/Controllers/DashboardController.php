@@ -45,6 +45,17 @@ class DashboardController extends Controller
      */
     private const ASET_ATTRIBUTE_PREFIXES = ['Tower ', 'Transmisi ', 'Trafo '];
 
+    /** Batas skor indikator R6/R9 dalam persen (keputusan Pak Gama 2026-10-25, mengikuti Excel). */
+    private const KPI_SCORE_MIN = 0.0;
+
+    private const KPI_SCORE_MAX = 110.0;
+
+    /**
+     * Batas atas skor PENCAPAIAN Excel dalam skala rasio. Nilai di atasnya tidak
+     * mungkin rasio, jadi dibaca sebagai persen (mis. observasi #410 = 110.0).
+     */
+    private const KPI_SCORE_RATIO_MAX = 1.1;
+
     public function __construct(
         private readonly StructuredNkoReader $structuredNko,
         private readonly TargetRealisasiPerIndicatorReader $targetRealisasiPanel,
@@ -555,7 +566,7 @@ class DashboardController extends Controller
      * terstruktur supaya aturan pencapaian/status/urutan tidak bisa menyimpang
      * antara dua sumber.
      *
-     * @param  array<string, array<string, array{target?: ?float, realisasi?: ?float, pencapaian?: float}>>  $pairs
+     * @param  array<string, array<string|int, array{target?: ?float, realisasi?: ?float, pencapaian?: float}>>  $pairs  pencapaian = persen
      * @return array{period: string, rows: list<array<string, mixed>>, has_data: bool}
      */
     private function kinerjaRealisasiRows(string $period, array $pairs): array
@@ -577,10 +588,9 @@ class DashboardController extends Controller
                 $target = $vals['target'] ?? null;
                 $realisasi = $vals['realisasi'] ?? null;
 
-                // Skor eksplisit (PENCAPAIAN Excel untuk target bertipe
-                // tanggal) menang; tanpa skor, pakai rasio numerik seperti
-                // biasa. Jalur legacy tidak pernah mengisi 'pencapaian',
-                // jadi perhitungannya tetap persis sama.
+                // Skor eksplisit (PENCAPAIAN Excel, sudah dalam persen) dipakai
+                // jalur structured; jalur legacy tidak punya kolom skor, jadi
+                // tetap menghitung rasio dari pasangan target/realisasi.
                 $p = $vals['pencapaian'] ?? null;
 
                 if ($p === null && $target !== null && $target > 0 && $realisasi !== null) {
@@ -588,6 +598,9 @@ class DashboardController extends Controller
                 }
 
                 if ($p !== null) {
+                    // Batas skor Excel 0%..110% berlaku untuk semua baris,
+                    // termasuk ATTB yang realisasinya diterima apa adanya.
+                    $p = max(self::KPI_SCORE_MIN, min(self::KPI_SCORE_MAX, $p));
                     $total++;
                     $pencapaianSum += $p;
                     $counted++;
@@ -1210,18 +1223,20 @@ class DashboardController extends Controller
      * tetap dipakai bersama lewat kinerjaRealisasiRows() supaya dua jalur tidak
      * bisa menyimpang.
      *
-     * Target bertipe tanggal (keputusan Pak Gama 2026-10-19) memakai SKOR
-     * yang sudah dihitung workbook di kolom PENCAPAIAN, bukan rasionya sendiri:
-     * skor itu sudah menerapkan penalti 0,01 per 7 hari dan batas 0..1,1
-     * (contoh TJBT baris 33 = 1,0142857). Skor disimpan sebagai rasio, sedangkan
-     * kinerjaRealisasiRows() menyusun persen, jadi dikali 100 di sini dan
-     * rumusnya TIDAK diimplementasi ulang. Baris tanggal tanpa skor Excel
-     * dilewati: tidak ada dasar untuk mengarang pencapaian, dan tanggal mentah
-     * tidak boleh dipakai sebagai skor.
+     * Skor Excel (keputusan Pak Gama 2026-10-25, melanjutkan keputusan
+     * 2026-10-19 untuk target tanggal): SEMUA baris daun (`is_group = 0`) yang
+     * punya skor di kolom PENCAPAIAN memakai skor itu, apa pun tipe
+     * target/realisasinya (termasuk target teks dan tanggal). Skor sudah
+     * menerapkan polaritas, penalti tanggal, dan batas 0..1,1 di workbook, jadi
+     * rumusnya TIDAK diimplementasi ulang; skalanya dinormalisasi ke persen oleh
+     * normalizeExcelScore(). Baris induk tidak dihitung. Baris tanpa skor Excel
+     * (pencapaian NULL) dilewati walau memiliki target/realisasi numerik: tidak
+     * ada dasar untuk membuat skor pengganti di luar sumber. Tanggal mentah
+     * tidak pernah dipakai sebagai skor.
      *
-     * Divergensi yang tetap disengaja: target/realisasi bertipe teks atau
-     * kosong (tanpa nilai numerik maupun tanggal) tidak dihitung, sedangkan
-     * jalur legacy meng-cast baris target apa pun ke float.
+     * Divergensi yang tetap disengaja: baris tanpa skor Excel tidak dihitung,
+     * sedangkan jalur legacy menghitung rasio dari pasangan target/realisasi
+     * dan tidak mengenal skor, polaritas, maupun baris induk.
      */
     private function kinerjaRealisasiStructured(?User $user, ?string $startDate = null, ?string $endDate = null): array
     {
@@ -1240,41 +1255,37 @@ class DashboardController extends Controller
             ->join('indicators', 'indicators.id', '=', 'performance_observations.indicator_id')
             ->join('org_units', 'org_units.id', '=', 'performance_observations.org_unit_id')
             ->where('performance_observations.period', $period)
+            // Baris induk/kelompok tidak ikut dihitung (keputusan 2026-10-25);
+            // hanya daun yang memiliki skor Excel (pencapaian NOT NULL).
+            ->where('indicators.is_group', false)
             ->when($divisionId !== null, fn ($q) => $q->where('performance_observations.division_id', $divisionId))
             ->whereIn('performance_observations.dataset_id', $latestIds)
-            ->where(function ($query) {
-                $query->whereNotNull('performance_observations.target_value')
-                    ->orWhereNotNull('performance_observations.realisasi_value')
-                    ->orWhere(function ($date) {
-                        // Target tanggal ikut dihitung bila workbook sudah
-                        // menyimpan skor pencapaiannya.
-                        $date->where('performance_observations.target_type', PerformanceObservation::TYPE_DATE)
-                            ->whereNotNull('performance_observations.pencapaian');
-                    });
-            })
+            ->whereNotNull('performance_observations.pencapaian')
             ->select(
                 'org_units.name as unit',
-                'indicators.name as indikator',
-                'performance_observations.target_value',
-                'performance_observations.realisasi_value',
-                'performance_observations.target_type',
+                'indicators.id as indicator_id',
                 'performance_observations.pencapaian',
             )
             ->get()
             ->each(function (object $row) use (&$pairs) {
-                if ($row->target_value !== null) {
-                    $pairs[$row->unit][$row->indikator]['target'] = (float) $row->target_value;
-                }
-                if ($row->realisasi_value !== null) {
-                    $pairs[$row->unit][$row->indikator]['realisasi'] = (float) $row->realisasi_value;
-                }
-                if ($row->target_type === PerformanceObservation::TYPE_DATE && $row->pencapaian !== null) {
-                    // Kolom PENCAPAIAN workbook = rasio; consumer R6 = persen.
-                    $pairs[$row->unit][$row->indikator]['pencapaian'] = (float) $row->pencapaian * 100;
-                }
+                $pairs[$row->unit][$row->indicator_id]['pencapaian'] = $this->normalizeExcelScore((float) $row->pencapaian);
             });
 
         return $this->kinerjaRealisasiRows($period, $pairs);
+    }
+
+    /**
+     * Skor PENCAPAIAN tersimpan campuran: hampir semua rasio (1,0143), tetapi
+     * observasi #410 tersimpan sebagai persen (110,0). Batas atas rasio di
+     * workbook 1,1, jadi nilai di atasnya tidak mungkin rasio dan dibaca
+     * sebagai persen; selain itu dikali 100. Hasil belum dibatasi 0..110.
+     *
+     * Keterbatasan yang diketahui: persen asli <= 1,1 (mis. 1,0%) tak bisa
+     * dibedakan dari rasio dan dibaca sebagai rasio; tidak ada kasus nyata.
+     */
+    private function normalizeExcelScore(float $raw): float
+    {
+        return $raw > self::KPI_SCORE_RATIO_MAX ? $raw : $raw * 100;
     }
 
     /**

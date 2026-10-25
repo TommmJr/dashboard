@@ -113,6 +113,28 @@ class DashboardLegacyReaderCharacterizationTest extends TestCase
         $this->assertSame('Hampir Tercapai', $byUnit['RST']['status']);
     }
 
+    /**
+     * Keputusan Pak Gama 2026-10-25: skor dibatasi 0..110% juga di jalur legacy
+     * (ATTB rasio > 6x tidak boleh menyeret rata-rata). Legacy tidak punya skor
+     * Excel/polaritas/baris induk, jadi hanya batas yang berlaku di sini.
+     */
+    public function test_r6_legacy_skor_dibatasi_110_persen(): void
+    {
+        $division = $this->division('Pengusahaan');
+        $dataset = Dataset::factory()->create(['division_id' => $division->id]);
+
+        $this->metric($dataset, $division, 'TJBT | ATTB | target', 28800.0);
+        $this->metric($dataset, $division, 'TJBT | ATTB | realisasi', 181979.53);
+        $this->metric($dataset, $division, 'TJBT | Indikator B | target', 100.0);
+        $this->metric($dataset, $division, 'TJBT | Indikator B | realisasi', 90.0);
+
+        $row = $this->reader('kinerjaRealisasi', [$this->management()])['rows'][0];
+
+        // (110 + 90) / 2 = 100, bukan (632 + 90) / 2 = 361.
+        $this->assertSame(100.0, $row['avg']);
+        $this->assertSame(1, $row['achieved']);
+    }
+
     public function test_r6_urut_menurun_berdasarkan_rata_rata(): void
     {
         $division = $this->division('Pengusahaan');

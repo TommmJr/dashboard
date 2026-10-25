@@ -157,6 +157,7 @@ class KpiUnitScopeTest extends TestCase
             'period' => $period,
             'target_value' => $target,
             'realisasi_value' => $realisasi,
+            'pencapaian' => $target > 0 ? $realisasi / $target : null,
             'target_type' => PerformanceObservation::TYPE_NUMERIC,
             'realisasi_type' => PerformanceObservation::TYPE_NUMERIC,
             'source_sheet' => $unit,
