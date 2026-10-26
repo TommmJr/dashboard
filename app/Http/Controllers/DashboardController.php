@@ -554,17 +554,9 @@ class DashboardController extends Controller
                 ->count();
         }
 
-        $ready = (! $isPrivileged && $user?->division_id === null)
-            ? 0
-            : $scope(Dataset::query())->where('status', Dataset::STATUS_READY)->count();
-
-        $archived = (! $isPrivileged && $user?->division_id === null)
-            ? 0
-            : $scope(Dataset::query())->where('status', Dataset::STATUS_ARCHIVED)->count();
-
-        $failed = (! $isPrivileged && $user?->division_id === null)
-            ? 0
-            : $scope(Dataset::query())->where('status', DatasetStatus::FAILED)->count();
+        $ready = $scope(Dataset::query())->where('status', Dataset::STATUS_READY)->count();
+        $archived = $scope(Dataset::query())->where('status', Dataset::STATUS_ARCHIVED)->count();
+        $failed = $scope(Dataset::query())->where('status', DatasetStatus::FAILED)->count();
 
         return [
             'latest_period' => $latestPeriod,
