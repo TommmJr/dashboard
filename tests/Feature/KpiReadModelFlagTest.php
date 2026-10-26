@@ -1323,6 +1323,122 @@ class KpiReadModelFlagTest extends TestCase
         $this->assertSame(1, $this->reader('datasetStatus', [$user])['latest_rows']);
     }
 
+    public function test_r5_structured_divisi_non_kpi_mendapat_periode_dari_metrics(): void
+    {
+        config(['kpi.read_model' => 'structured']);
+
+        $division = $this->division('Manajemen Aset');
+        $dataset = Dataset::factory()->create(['division_id' => $division->id]);
+        $this->legacyMetric($dataset, $division, 'Total Aset', 1000.0, '2026-08-15');
+
+        $user = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $division->id]);
+
+        $status = $this->reader('datasetStatus', [$user]);
+
+        $this->assertSame('2026-08-31', $status['latest_period']);
+        $this->assertSame(0, $status['latest_rows']);
+        $this->assertSame(1, $status['ready']);
+        $this->assertSame(0, $status['archived']);
+        $this->assertSame(0, $status['failed']);
+        $this->assertFalse($status['fresh']);
+    }
+
+    public function test_r5_structured_divisi_dengan_observasi_tidak_terpengaruh_metric_only_yang_lebih_baru(): void
+    {
+        config(['kpi.read_model' => 'structured']);
+
+        $kpiDivision = $this->division('Pengusahaan');
+        $kpiDataset = Dataset::factory()->create(['division_id' => $kpiDivision->id]);
+        $this->observation($kpiDataset, OrgUnit::factory()->create(['name' => 'TJBT']), $kpiDivision, '2026-08-01');
+
+        // Metric baru pada divisi yang sama
+        $this->legacyMetric($kpiDataset, $kpiDivision, 'Metric Legacy Baru', 100.0, '2026-09-15');
+
+        // Metric baru pada divisi lain
+        $otherDivision = $this->division('Manajemen Aset');
+        $otherDataset = Dataset::factory()->create(['division_id' => $otherDivision->id]);
+        $this->legacyMetric($otherDataset, $otherDivision, 'Metric Aset', 500.0, '2026-09-20');
+
+        $kpiStaff = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $kpiDivision->id]);
+        $statusStaff = $this->reader('datasetStatus', [$kpiStaff]);
+        $this->assertSame('2026-08-31', $statusStaff['latest_period']);
+        $this->assertSame(1, $statusStaff['latest_rows']);
+
+        $mgmt = $this->management();
+        $statusMgmt = $this->reader('datasetStatus', [$mgmt]);
+        $this->assertSame('2026-08-31', $statusMgmt['latest_period']);
+        $this->assertSame(1, $statusMgmt['latest_rows']);
+    }
+
+    public function test_r5_structured_divisi_tanpa_data_tetap_null(): void
+    {
+        config(['kpi.read_model' => 'structured']);
+
+        $emptyDivision = $this->division('Divisi Kosong');
+        $user = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $emptyDivision->id]);
+
+        $status = $this->reader('datasetStatus', [$user]);
+
+        $this->assertNull($status['latest_period']);
+        $this->assertSame(0, $status['latest_rows']);
+        $this->assertSame(0, $status['ready']);
+        $this->assertFalse($status['fresh']);
+    }
+
+    public function test_r5_structured_divisi_non_kpi_rollback_visible_units_null_tetap_nol(): void
+    {
+        config(['kpi.read_model' => 'structured']);
+
+        $division = $this->division('Manajemen Aset');
+        $dataset = Dataset::factory()->create(['division_id' => $division->id]);
+        $this->legacyMetric($dataset, $division, 'Total Aset', 1000.0, '2026-08-15');
+
+        $user = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $division->id]);
+
+        config(['kpi.visible_units' => ['TJBT']]);
+        $statusWithUnits = $this->reader('datasetStatus', [$user]);
+        $this->assertSame('2026-08-31', $statusWithUnits['latest_period']);
+        $this->assertSame(0, $statusWithUnits['latest_rows']);
+
+        config(['kpi.visible_units' => null]);
+        $statusNullUnits = $this->reader('datasetStatus', [$user]);
+        $this->assertSame('2026-08-31', $statusNullUnits['latest_period']);
+        $this->assertSame(0, $statusNullUnits['latest_rows']);
+    }
+
+    public function test_r5_karakterisasi_privileged_structured_mengunci_periode_observasi_saat_ada_metrics_baru_divisi_lain(): void
+    {
+        $kpiDivision = $this->division('Pengusahaan');
+        $kpiDataset = Dataset::factory()->create(['division_id' => $kpiDivision->id]);
+        $this->legacyMetric($kpiDataset, $kpiDivision, 'TJBT | NKO', 100.0, '2026-08-31');
+        $this->observation($kpiDataset, OrgUnit::factory()->create(['name' => 'TJBT']), $kpiDivision, '2026-08-31');
+
+        $otherDivision = $this->division('Manajemen Aset');
+        $otherDataset = Dataset::factory()->create(['division_id' => $otherDivision->id]);
+        $this->legacyMetric($otherDataset, $otherDivision, 'Total Aset', 1000.0, '2026-09-30');
+
+        $admin = User::factory()->withRole(Role::ADMIN)->create();
+
+        // Mode legacy: role privileged membaca periode terbaru lintas divisi dari performance_metrics (2026-09-30).
+        config(['kpi.read_model' => 'legacy']);
+        $legacy = $this->reader('datasetStatus', [$admin]);
+        $this->assertSame('2026-09-30', $legacy['latest_period']);
+        $this->assertSame(2, $legacy['ready']);
+        $this->assertSame(0, $legacy['archived']);
+        $this->assertSame(0, $legacy['failed']);
+
+        // Mode structured: role privileged mengunci periode observasi (2026-08-31);
+        // fallback metrics tidak pernah berjalan karena latestStructuredReadyPeriod() terisi.
+        config(['kpi.read_model' => 'structured']);
+        $structured = $this->reader('datasetStatus', [$admin]);
+        $this->assertSame('2026-08-31', $structured['latest_period']);
+        $this->assertSame(1, $structured['latest_rows']);
+        $this->assertSame(2, $structured['ready']);
+        $this->assertSame(0, $structured['archived']);
+        $this->assertSame(0, $structured['failed']);
+        $this->assertFalse($structured['fresh']);
+    }
+
     // ---------------------------------------------------------------- R7 ----
 
     public function test_r7_structured_kosong_tanpa_data_terstruktur_dan_mengabaikan_performance_metrics(): void

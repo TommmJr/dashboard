@@ -521,13 +521,16 @@ class DashboardController extends Controller
 
     /**
      * R5 sumber terstruktur. Periode observasi dinormalisasi ke akhir bulan
-     * (kontrak legacy); periode terbaru TANPA filter unit, latest_rows hanya
-     * observasi unit TAMPIL pada bulan itu.
+     * (kontrak legacy); bila divisi tidak memiliki data terstruktur (misal
+     * upload generik non-KPI), fallback ke periode terbaru performance_metrics
+     * dari dataset READY pada scope divisi yang sama; periode terbaru TANPA
+     * filter unit, latest_rows hanya observasi unit TAMPIL pada bulan itu.
      */
     private function datasetStatusStructured(?User $user, \Closure $scope): array
     {
         $isPrivileged = $this->isPrivileged($user);
-        $max = $this->latestStructuredReadyPeriod($user);
+        $max = $this->latestStructuredReadyPeriod($user)
+            ?? $this->latestLegacyReadyPeriod($user);
         $latestPeriod = $max === null ? null : Carbon::parse($max)->endOfMonth()->toDateString();
         $visible = $this->visibleUnits();
         $latestRows = 0;
