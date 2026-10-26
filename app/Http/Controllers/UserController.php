@@ -41,12 +41,16 @@ class UserController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
+        $divisionRule = $this->isPrivilegedRoleId($request->input('role_id'))
+            ? 'nullable|exists:divisions,id'
+            : 'required|exists:divisions,id';
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email',
             'password' => 'required|string|min:8|confirmed',
             'role_id' => 'required|exists:roles,id',
-            'division_id' => 'nullable|exists:divisions,id',
+            'division_id' => $divisionRule,
         ]);
 
         $user = User::create([
@@ -80,12 +84,16 @@ class UserController extends Controller
      */
     public function update(Request $request, User $user): RedirectResponse
     {
+        $divisionRule = $this->isPrivilegedRoleId($request->input('role_id'))
+            ? 'nullable|exists:divisions,id'
+            : 'required|exists:divisions,id';
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email,'.$user->id,
             'password' => 'nullable|string|min:8|confirmed',
             'role_id' => 'required|exists:roles,id',
-            'division_id' => 'nullable|exists:divisions,id',
+            'division_id' => $divisionRule,
         ]);
 
         $user->name = $validated['name'];
@@ -116,5 +124,24 @@ class UserController extends Controller
         $user->delete();
 
         return redirect()->route('users.index')->with('success', "User \"{$name}\" berhasil dihapus.");
+    }
+
+    /**
+     * Role privileged (Admin, Management, Editor Dashboard) tidak terikat pada
+     * satu divisi. Role non-privileged (Staf Divisi) wajib memiliki divisi.
+     */
+    private function isPrivilegedRoleId(mixed $roleId): bool
+    {
+        if (! $roleId) {
+            return false;
+        }
+
+        $role = Role::find($roleId);
+
+        return $role && in_array($role->slug, [
+            Role::ADMIN,
+            Role::MANAGEMENT,
+            Role::EDITOR_DASHBOARD,
+        ], true);
     }
 }

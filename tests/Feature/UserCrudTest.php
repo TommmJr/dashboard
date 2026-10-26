@@ -212,6 +212,7 @@ class UserCrudTest extends TestCase
                 'name' => $this->staff->name,
                 'email' => 'other@example.com',
                 'role_id' => $this->staff->role_id,
+                'division_id' => $this->staff->division_id,
             ])
             ->assertSessionHasErrors('email');
 
@@ -221,6 +222,7 @@ class UserCrudTest extends TestCase
                 'name' => $this->staff->name,
                 'email' => $this->staff->email,
                 'role_id' => $this->staff->role_id,
+                'division_id' => $this->staff->division_id,
             ])
             ->assertRedirect(route('users.index'));
     }
@@ -361,5 +363,166 @@ class UserCrudTest extends TestCase
             ->assertRedirect(route('users.index'));
 
         $this->assertSame($this->division->id, User::where('email', 'withdivision@example.com')->value('division_id'));
+    }
+
+    public function test_store_staf_tanpa_divisi_ditolak_422_pada_division_id(): void
+    {
+        $staffRoleId = Role::where('slug', Role::STAFF_DIVISI)->value('id');
+
+        // Form post: redirect dengan session error
+        $this->actingAs($this->admin)
+            ->post(route('users.store'), [
+                'name' => 'Staf Tanpa Divisi',
+                'email' => 'staff_nodiv@example.com',
+                'password' => 'password123',
+                'password_confirmation' => 'password123',
+                'role_id' => $staffRoleId,
+                'division_id' => null,
+            ])
+            ->assertSessionHasErrors('division_id');
+
+        // JSON post: 422 Unprocessable Entity
+        $this->actingAs($this->admin)
+            ->postJson(route('users.store'), [
+                'name' => 'Staf Tanpa Divisi JSON',
+                'email' => 'staff_nodiv_json@example.com',
+                'password' => 'password123',
+                'password_confirmation' => 'password123',
+                'role_id' => $staffRoleId,
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('division_id');
+
+        $this->assertDatabaseMissing('users', ['email' => 'staff_nodiv@example.com']);
+        $this->assertDatabaseMissing('users', ['email' => 'staff_nodiv_json@example.com']);
+    }
+
+    public function test_update_staf_menjadi_tanpa_divisi_ditolak_422(): void
+    {
+        $staffRoleId = Role::where('slug', Role::STAFF_DIVISI)->value('id');
+
+        // Form patch
+        $this->actingAs($this->admin)
+            ->patch(route('users.update', $this->staff), [
+                'name' => 'Staf Diubah Tanpa Divisi',
+                'email' => $this->staff->email,
+                'role_id' => $staffRoleId,
+                'division_id' => null,
+            ])
+            ->assertSessionHasErrors('division_id');
+
+        // JSON patch
+        $this->actingAs($this->admin)
+            ->patchJson(route('users.update', $this->staff), [
+                'name' => 'Staf Diubah Tanpa Divisi JSON',
+                'email' => $this->staff->email,
+                'role_id' => $staffRoleId,
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('division_id');
+
+        $this->assertSame($this->division->id, $this->staff->fresh()->division_id);
+    }
+
+    public function test_update_ganti_role_dari_privileged_ke_staf_tanpa_divisi_ditolak_422(): void
+    {
+        $staffRoleId = Role::where('slug', Role::STAFF_DIVISI)->value('id');
+        $managementUser = User::factory()->withRole(Role::MANAGEMENT)->create(['division_id' => null]);
+
+        $this->actingAs($this->admin)
+            ->patch(route('users.update', $managementUser), [
+                'name' => $managementUser->name,
+                'email' => $managementUser->email,
+                'role_id' => $staffRoleId,
+                'division_id' => null,
+            ])
+            ->assertSessionHasErrors('division_id');
+
+        $this->actingAs($this->admin)
+            ->patchJson(route('users.update', $managementUser), [
+                'name' => $managementUser->name,
+                'email' => $managementUser->email,
+                'role_id' => $staffRoleId,
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('division_id');
+
+        $managementUser->refresh();
+        $this->assertSame(Role::MANAGEMENT, $managementUser->role->slug);
+        $this->assertNull($managementUser->division_id);
+    }
+
+    public function test_role_privileged_tanpa_divisi_tetap_sah_pada_store_dan_update(): void
+    {
+        $privilegedRoles = [
+            Role::ADMIN,
+            Role::MANAGEMENT,
+            Role::EDITOR_DASHBOARD,
+        ];
+
+        foreach ($privilegedRoles as $slug) {
+            $roleId = Role::where('slug', $slug)->value('id');
+            $email = "privileged_{$slug}@example.com";
+
+            // Store tanpa divisi sah
+            $this->actingAs($this->admin)
+                ->post(route('users.store'), [
+                    'name' => "User {$slug}",
+                    'email' => $email,
+                    'password' => 'password123',
+                    'password_confirmation' => 'password123',
+                    'role_id' => $roleId,
+                    'division_id' => null,
+                ])
+                ->assertRedirect(route('users.index'));
+
+            $created = User::where('email', $email)->firstOrFail();
+            $this->assertNull($created->division_id);
+
+            // Update tanpa divisi tetap sah
+            $this->actingAs($this->admin)
+                ->patch(route('users.update', $created), [
+                    'name' => "User {$slug} Updated",
+                    'email' => $email,
+                    'role_id' => $roleId,
+                    'division_id' => null,
+                ])
+                ->assertRedirect(route('users.index'));
+
+            $this->assertNull($created->fresh()->division_id);
+        }
+    }
+
+    public function test_staf_berdivisi_tetap_sah_pada_store_dan_update(): void
+    {
+        $staffRoleId = Role::where('slug', Role::STAFF_DIVISI)->value('id');
+        $divisionB = Division::factory()->create();
+
+        // Store staf berdivisi sah
+        $this->actingAs($this->admin)
+            ->post(route('users.store'), [
+                'name' => 'Staf Baru Berdivisi',
+                'email' => 'staf_sah@example.com',
+                'password' => 'password123',
+                'password_confirmation' => 'password123',
+                'role_id' => $staffRoleId,
+                'division_id' => $this->division->id,
+            ])
+            ->assertRedirect(route('users.index'));
+
+        $user = User::where('email', 'staf_sah@example.com')->firstOrFail();
+        $this->assertSame($this->division->id, $user->division_id);
+
+        // Update staf ganti divisi sah
+        $this->actingAs($this->admin)
+            ->patch(route('users.update', $user), [
+                'name' => 'Staf Baru Pindah Divisi',
+                'email' => $user->email,
+                'role_id' => $staffRoleId,
+                'division_id' => $divisionB->id,
+            ])
+            ->assertRedirect(route('users.index'));
+
+        $this->assertSame($divisionB->id, $user->fresh()->division_id);
     }
 }
