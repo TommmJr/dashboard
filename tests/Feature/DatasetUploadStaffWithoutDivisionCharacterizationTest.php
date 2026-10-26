@@ -18,10 +18,10 @@ use Tests\TestCase;
 /**
  * Test Karakterisasi: Perilaku Staf Tanpa Divisi pada Jalur Dataset.
  *
- * MENGUNCI perilaku aktual DatasetController & PerformanceMetricController
+ * Menguji dan mengunci perilaku aman DatasetController & PerformanceMetricController
  * terhadap akun staf non-privileged yang tidak memiliki division_id (division_id = null).
  *
- * JANGAN MENGUBAH DatasetController di sesi ini.
+ * Staf tanpa divisi ditolak 403 pada seluruh aksi dataset (store, show, archive, destroy, export, update metric).
  */
 class DatasetUploadStaffWithoutDivisionCharacterizationTest extends TestCase
 {
@@ -69,39 +69,43 @@ class DatasetUploadStaffWithoutDivisionCharacterizationTest extends TestCase
         );
     }
 
-    public function test_karakterisasi_staf_tanpa_divisi_dapat_mengunggah_dataset_ke_divisi_mana_pun(): void
+    public function test_staf_tanpa_divisi_ditolak_403_saat_mengunggah_dataset_ke_divisi_mana_pun(): void
     {
         $file = $this->makeXlsx([
             ['metric_name', 'value', 'period'],
             ['Realisasi Beban', '125.5', '2026-08-31'],
         ]);
 
-        // POST datasets: $user->division_id === null membuat divisionRule menjadi 'required|exists:divisions,id'
-        // dan $divisionId mengambil input request('division_id').
-        // Akibatnya, staf tanpa divisi dapat mengunggah file ke Divisi A mana pun!
+        // POST datasets: staf tanpa divisi ditolak fail-closed 403 Forbidden
+        // dan tidak boleh membuat dataset ke divisi mana pun
         $response = $this->actingAs($this->staffNoDiv)
             ->post(route('datasets.store'), [
                 'file' => $file,
                 'division_id' => $this->divisionA->id,
             ]);
 
-        $response->assertRedirect();
+        $response->assertForbidden();
 
-        // Dataset terbukti berhasil dibuat di database untuk Divisi A atas nama staf tanpa divisi
-        $dataset = Dataset::where('division_id', $this->divisionA->id)->first();
-        $this->assertNotNull($dataset);
-        $this->assertSame($this->staffNoDiv->id, $dataset->user_id);
-        $this->assertSame(DatasetStatus::READY, $dataset->status);
-        $this->assertDatabaseHas('performance_metrics', [
-            'dataset_id' => $dataset->id,
-            'division_id' => $this->divisionA->id,
-            'metric_name' => 'Realisasi Beban',
+        $this->assertSame(0, Dataset::count());
+        $this->assertSame(0, PerformanceMetric::count());
+    }
+
+    public function test_staf_tanpa_divisi_ditolak_403_saat_mengunggah_dataset_tanpa_division_id(): void
+    {
+        $file = $this->makeXlsx([
+            ['metric_name', 'value', 'period'],
+            ['Realisasi Beban', '125.5', '2026-08-31'],
         ]);
 
-        // Namun ketika redirect diikuti ke datasets.show, staf tanpa divisi ditolak 403
-        $this->actingAs($this->staffNoDiv)
-            ->get(route('datasets.show', $dataset))
-            ->assertForbidden();
+        $response = $this->actingAs($this->staffNoDiv)
+            ->post(route('datasets.store'), [
+                'file' => $file,
+            ]);
+
+        $response->assertForbidden();
+
+        $this->assertSame(0, Dataset::count());
+        $this->assertSame(0, PerformanceMetric::count());
     }
 
     public function test_karakterisasi_staf_tanpa_divisi_ditolak_403_melihat_detail_dataset(): void
@@ -181,6 +185,40 @@ class DatasetUploadStaffWithoutDivisionCharacterizationTest extends TestCase
             ->assertForbidden();
 
         $this->assertSame(100.0, (float) $metric->fresh()->value);
+    }
+
+    public function test_staf_tanpa_divisi_ditolak_403_saat_mengimpor_laporan_kpi(): void
+    {
+        Division::firstOrCreate(
+            ['slug' => 'perencanaan-pengusahaan'],
+            ['name' => 'Perencanaan Pengusahaan'],
+        );
+
+        $file = $this->makeXlsx([
+            ['metric_name', 'value', 'period'],
+            ['Realisasi Beban', '125.5', '2026-08-31'],
+        ]);
+
+        $response = $this->actingAs($this->staffNoDiv)
+            ->post(route('datasets.kpi-import'), [
+                'file' => $file,
+                'period' => '2026-08-31',
+            ]);
+
+        $response->assertForbidden();
+
+        $this->assertSame(0, Dataset::count());
+        $this->assertSame(0, PerformanceMetric::count());
+    }
+
+    public function test_staf_tanpa_divisi_tidak_melihat_dropdown_divisi_pada_form_upload(): void
+    {
+        $response = $this->actingAs($this->staffNoDiv)
+            ->get(route('datasets.create'));
+
+        $response->assertOk();
+        $response->assertViewHas('divisions', fn ($divisions) => $divisions->isEmpty());
+        $response->assertDontSee('Divisi Pemilik Data');
     }
 
     public function test_karakterisasi_staf_tanpa_divisi_melihat_daftar_dataset_kosong(): void

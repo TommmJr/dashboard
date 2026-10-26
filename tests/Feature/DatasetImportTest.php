@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Dataset;
 use App\Models\Division;
+use App\Models\PerformanceMetric;
 use App\Models\Role;
 use App\Models\User;
 use Database\Seeders\RolePermissionSeeder;
@@ -177,6 +178,20 @@ class DatasetImportTest extends TestCase
             ->assertForbidden();
 
         $this->assertSame(0, Dataset::count());
+        $this->assertSame(0, PerformanceMetric::count());
+    }
+
+    public function test_upload_ditolak_403_untuk_management(): void
+    {
+        // Management: penonton utama dashboard, tidak punya dataset.import.
+        $management = User::factory()->withRole(Role::MANAGEMENT)->create();
+        $file = $this->makeXlsx($this->validRows());
+
+        $this->actingAs($management)->post(route('datasets.store'), ['file' => $file])
+            ->assertForbidden();
+
+        $this->assertSame(0, Dataset::count());
+        $this->assertSame(0, PerformanceMetric::count());
     }
 
     public function test_form_upload_dapat_diakses_pemegang_dataset_import(): void
@@ -190,6 +205,33 @@ class DatasetImportTest extends TestCase
 
         $editor = User::factory()->withRole(Role::EDITOR_DASHBOARD)->create();
         $this->actingAs($editor)->get(route('datasets.create'))->assertForbidden();
+
+        $management = User::factory()->withRole(Role::MANAGEMENT)->create();
+        $this->actingAs($management)->get(route('datasets.create'))->assertForbidden();
+    }
+
+    public function test_form_upload_hanya_menampilkan_dropdown_divisi_untuk_admin(): void
+    {
+        // Admin: wajib memilih divisi, form menampilkan dropdown semua divisi
+        $admin = User::factory()->withRole(Role::ADMIN)->create(['division_id' => null]);
+        $responseAdmin = $this->actingAs($admin)->get(route('datasets.create'));
+        $responseAdmin->assertOk()
+            ->assertSee('Divisi Pemilik Data')
+            ->assertViewHas('divisions', fn ($divisions) => $divisions->isNotEmpty());
+
+        // Staf berdivisi: terikat ke divisinya sendiri, form tidak menampilkan dropdown
+        $responseStaff = $this->actingAs($this->staff)->get(route('datasets.create'));
+        $responseStaff->assertOk()
+            ->assertDontSee('Divisi Pemilik Data')
+            ->assertSee('Dataset akan tertaut ke divisi Anda')
+            ->assertViewHas('divisions', fn ($divisions) => $divisions->isEmpty());
+
+        // Staf tanpa divisi: non-privileged, form tidak boleh menampilkan dropdown divisi
+        $staffNoDiv = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => null]);
+        $responseStaffNoDiv = $this->actingAs($staffNoDiv)->get(route('datasets.create'));
+        $responseStaffNoDiv->assertOk()
+            ->assertDontSee('Divisi Pemilik Data')
+            ->assertViewHas('divisions', fn ($divisions) => $divisions->isEmpty());
     }
 
     public function test_admin_wajib_memilih_divisi_tujuan(): void
@@ -202,6 +244,7 @@ class DatasetImportTest extends TestCase
             ->assertSessionHasErrors('division_id');
 
         $this->assertSame(0, Dataset::count());
+        $this->assertSame(0, PerformanceMetric::count());
     }
 
     public function test_admin_dapat_memilih_divisi_tujuan(): void
@@ -240,5 +283,30 @@ class DatasetImportTest extends TestCase
         ])->assertSessionHasErrors('division_id');
 
         $this->assertSame(0, Dataset::count());
+        $this->assertSame(0, PerformanceMetric::count());
+    }
+
+    public function test_staf_tanpa_divisi_ditolak_403_dan_tidak_meninggalkan_data(): void
+    {
+        $staffNoDiv = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => null]);
+        $targetDivision = Division::factory()->create();
+        $file = $this->makeXlsx($this->validRows());
+
+        // Mencoba upload dengan division_id
+        $this->actingAs($staffNoDiv)->post(route('datasets.store'), [
+            'file' => $file,
+            'division_id' => $targetDivision->id,
+        ])->assertForbidden();
+
+        $this->assertSame(0, Dataset::count());
+        $this->assertSame(0, PerformanceMetric::count());
+
+        // Mencoba upload tanpa division_id
+        $this->actingAs($staffNoDiv)->post(route('datasets.store'), [
+            'file' => $file,
+        ])->assertForbidden();
+
+        $this->assertSame(0, Dataset::count());
+        $this->assertSame(0, PerformanceMetric::count());
     }
 }

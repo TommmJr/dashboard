@@ -30,7 +30,10 @@ class DatasetController extends Controller
     {
         $user = Auth::user()->loadMissing('division');
 
-        $divisions = $user->division_id === null
+        // Hanya admin yang dapat memilih divisi tujuan pada form upload.
+        // Staf berdivisi terikat ke divisinya sendiri, dan staf tanpa divisi
+        // tidak diberikan hak memilih divisi mana pun.
+        $divisions = $user->hasRole(Role::ADMIN)
             ? Division::query()->orderBy('name')->get(['id', 'name', 'description'])
             : collect();
 
@@ -57,7 +60,10 @@ class DatasetController extends Controller
     {
         $owner = Division::where('slug', 'perencanaan-pengusahaan')->first();
 
-        if ($owner === null || ($user->division_id !== null && $user->division_id !== $owner->id)) {
+        $canImport = $user->hasRole(Role::ADMIN)
+            || ($user->hasRole(Role::STAFF_DIVISI) && $user->division_id !== null && $user->division_id === $owner?->id);
+
+        if ($owner === null || ! $canImport) {
             return collect();
         }
 
@@ -81,7 +87,13 @@ class DatasetController extends Controller
         $extensions = implode(',', config('dataset_import.extensions'));
         $user = Auth::user();
 
-        $divisionRule = $user->division_id === null
+        $canSelectDivision = $user->hasRole(Role::ADMIN);
+
+        if (! $canSelectDivision) {
+            abort_if($user->division_id === null, 403, 'Staf tanpa divisi tidak dapat mengunggah dataset.');
+        }
+
+        $divisionRule = $canSelectDivision
             ? 'required|exists:divisions,id'
             : 'prohibited';
 
@@ -90,7 +102,9 @@ class DatasetController extends Controller
             'division_id' => $divisionRule,
         ]);
 
-        $divisionId = $user->division_id ?? $request->integer('division_id');
+        $divisionId = $canSelectDivision
+            ? $request->integer('division_id')
+            : $user->division_id;
 
         ['dataset' => $dataset, 'result' => $result] = $this->storeAndImport(
             $request->file('file'), $divisionId, $user, $importService,
@@ -137,12 +151,14 @@ class DatasetController extends Controller
 
         $owner = Division::where('slug', 'perencanaan-pengusahaan')->firstOrFail();
 
-        // Admin (tanpa divisi) dan staf divisi PEMILIK data KPI boleh impor.
-        // Staf divisi lain ditolak: mereka tidak boleh memasukkan data ke
-        // divisi yang bukan miliknya (scoping divisi, sama seperti alasan
-        // widget Aset tidak dipasang di layout staf divisi lain).
+        // Admin dan staf divisi PEMILIK data KPI boleh impor.
+        // Pengguna non-privileged tanpa divisi atau staf divisi lain ditolak:
+        // mereka tidak boleh memasukkan data ke divisi yang bukan miliknya (scoping divisi).
+        $canImport = $user->hasRole(Role::ADMIN)
+            || ($user->hasRole(Role::STAFF_DIVISI) && $user->division_id !== null && $user->division_id === $owner->id);
+
         abort_unless(
-            $user->division_id === null || $user->division_id === $owner->id,
+            $canImport,
             403,
             'Import laporan KPI hanya untuk admin atau staf divisi Perencanaan Pengusahaan.',
         );

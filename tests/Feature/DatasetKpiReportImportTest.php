@@ -5,6 +5,8 @@ namespace Tests\Feature;
 use App\Models\Dataset;
 use App\Models\Division;
 use App\Models\Indicator;
+use App\Models\OrgUnit;
+use App\Models\PerformanceMetric;
 use App\Models\PerformanceObservation;
 use App\Models\Role;
 use App\Models\User;
@@ -158,6 +160,23 @@ class DatasetKpiReportImportTest extends TestCase
         $this->assertSame(0, Dataset::count());
     }
 
+    public function test_staf_tanpa_divisi_ditolak_403_dan_tidak_meninggalkan_data(): void
+    {
+        // Staf non-privileged tanpa divisi tidak boleh memicu impor KPI.
+        $staffNoDiv = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => null]);
+
+        $this->actingAs($staffNoDiv)->post(route('datasets.kpi-import'), [
+            'file' => $this->makeKpiReport(),
+            'period' => '2026-08-31',
+        ])->assertForbidden();
+
+        $this->assertSame(0, Dataset::count());
+        $this->assertSame(0, PerformanceMetric::count());
+        $this->assertSame(0, OrgUnit::count());
+        $this->assertSame(0, Indicator::count());
+        $this->assertSame(0, PerformanceObservation::count());
+    }
+
     public function test_editor_dashboard_ditolak_403_tanpa_permission_dataset_import(): void
     {
         $editor = User::factory()->withRole(Role::EDITOR_DASHBOARD)->create(['division_id' => null]);
@@ -166,6 +185,29 @@ class DatasetKpiReportImportTest extends TestCase
             'file' => $this->makeKpiReport(),
             'period' => '2026-08-31',
         ])->assertForbidden();
+
+        $this->assertSame(0, Dataset::count());
+        $this->assertSame(0, PerformanceMetric::count());
+        $this->assertSame(0, OrgUnit::count());
+        $this->assertSame(0, Indicator::count());
+        $this->assertSame(0, PerformanceObservation::count());
+    }
+
+    public function test_management_ditolak_403_tanpa_permission_dataset_import(): void
+    {
+        // Management: penonton utama dashboard, tidak punya dataset.import.
+        $management = User::factory()->withRole(Role::MANAGEMENT)->create(['division_id' => null]);
+
+        $this->actingAs($management)->post(route('datasets.kpi-import'), [
+            'file' => $this->makeKpiReport(),
+            'period' => '2026-08-31',
+        ])->assertForbidden();
+
+        $this->assertSame(0, Dataset::count());
+        $this->assertSame(0, PerformanceMetric::count());
+        $this->assertSame(0, OrgUnit::count());
+        $this->assertSame(0, Indicator::count());
+        $this->assertSame(0, PerformanceObservation::count());
     }
 
     public function test_import_periode_sama_mengarsipkan_dataset_lama(): void
@@ -257,6 +299,34 @@ class DatasetKpiReportImportTest extends TestCase
         ]);
 
         $this->actingAs($staff)->get(route('datasets.create'))
+            ->assertOk()
+            ->assertDontSee('Periode yang sudah pernah diimpor');
+    }
+
+    public function test_periode_kpi_tidak_muncul_di_form_untuk_staf_tanpa_divisi(): void
+    {
+        $owner = Division::where('slug', 'perencanaan-pengusahaan')->sole();
+        $admin = User::factory()->withRole(Role::ADMIN)->create(['division_id' => null]);
+
+        // Import dataset pertama agar ada riwayat periode
+        $this->actingAs($admin)->post(route('datasets.kpi-import'), [
+            'file' => $this->makeKpiReport(),
+            'period' => '2026-08-31',
+        ])->assertRedirect(route('datasets.create'));
+
+        // Admin dan staf pemilik melihat riwayat periode
+        $this->actingAs($admin)->get(route('datasets.create'))
+            ->assertOk()
+            ->assertSee('Periode yang sudah pernah diimpor:');
+
+        $staffOwner = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $owner->id]);
+        $this->actingAs($staffOwner)->get(route('datasets.create'))
+            ->assertOk()
+            ->assertSee('Periode yang sudah pernah diimpor:');
+
+        // Staf tanpa divisi tidak boleh melihat riwayat periode KPI
+        $staffNoDiv = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => null]);
+        $this->actingAs($staffNoDiv)->get(route('datasets.create'))
             ->assertOk()
             ->assertDontSee('Periode yang sudah pernah diimpor');
     }
