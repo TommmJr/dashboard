@@ -1322,4 +1322,85 @@ class KpiReadModelFlagTest extends TestCase
         config(['kpi.visible_units' => null]);
         $this->assertSame(1, $this->reader('datasetStatus', [$user])['latest_rows']);
     }
+
+    // ---------------------------------------------------------------- R7 ----
+
+    public function test_r7_structured_kosong_tanpa_data_terstruktur_dan_mengabaikan_performance_metrics(): void
+    {
+        config(['kpi.read_model' => 'structured']);
+
+        $division = $this->division('Pengusahaan');
+        $dataset = Dataset::factory()->create(['division_id' => $division->id]);
+        $this->legacyMetric($dataset, $division, 'TJBT | Indikator A | target', 200.0, '2026-08-31');
+        $this->legacyMetric($dataset, $division, 'TJBT | Indikator A | realisasi', 100.0, '2026-08-31');
+
+        $controller = app(DashboardController::class);
+        $reflection = new ReflectionMethod($controller, 'kinerjaDetail');
+        $reflection->setAccessible(true);
+        $result = $reflection->invoke($controller, $this->management());
+
+        $unitsProp = new \ReflectionProperty($controller, 'kinerjaDetailUnits');
+        $unitsProp->setAccessible(true);
+
+        $this->assertSame(['period' => null, 'rows' => [], 'truncated' => false, 'total_rows' => 0], $result);
+        $this->assertSame([], $unitsProp->getValue($controller));
+    }
+
+    public function test_r7_structured_membaca_dataset_ready_terbaru_dan_periode_terstruktur(): void
+    {
+        config(['kpi.read_model' => 'structured']);
+
+        $division = $this->division('Pengusahaan');
+        $unit = OrgUnit::factory()->create(['name' => 'TJBT']);
+
+        $older = Dataset::factory()->create([
+            'division_id' => $division->id,
+            'created_at' => now()->subDays(2),
+        ]);
+        $newer = Dataset::factory()->create([
+            'division_id' => $division->id,
+            'created_at' => now()->subDay(),
+        ]);
+        $archived = Dataset::factory()->archived()->create([
+            'division_id' => $division->id,
+            'created_at' => now(),
+        ]);
+
+        $this->legacyMetric($newer, $division, 'TJBT | Indikator Legacy | target', 999.0, '2026-08-01');
+        $this->legacyMetric($newer, $division, 'TJBT | Indikator Legacy | realisasi', 999.0, '2026-08-01');
+
+        $indA = Indicator::factory()->create(['org_unit_id' => $unit->id, 'name' => 'Indikator A', 'is_group' => false]);
+        PerformanceObservation::factory()->create([
+            'dataset_id' => $older->id,
+            'indicator_id' => $indA->id,
+            'org_unit_id' => $unit->id,
+            'division_id' => $division->id,
+            'period' => '2026-08-01',
+            'target_value' => 200.0,
+            'realisasi_value' => 50.0,
+        ]);
+        PerformanceObservation::factory()->create([
+            'dataset_id' => $newer->id,
+            'indicator_id' => $indA->id,
+            'org_unit_id' => $unit->id,
+            'division_id' => $division->id,
+            'period' => '2026-08-01',
+            'target_value' => 200.0,
+            'realisasi_value' => 150.0,
+        ]);
+        $this->leaf($archived, $unit, $division, ['name' => 'Indikator Archived'], [
+            'period' => '2026-09-01',
+            'target_value' => 100.0,
+            'realisasi_value' => 100.0,
+        ]);
+
+        $result = $this->reader('kinerjaDetail', [$this->management()]);
+
+        $this->assertSame('2026-08-01', $result['period']);
+        $this->assertSame(1, $result['total_rows']);
+        $this->assertSame('Indikator A', $result['rows'][0]['indikator']);
+        $this->assertSame(200.0, $result['rows'][0]['target']);
+        $this->assertSame(150.0, $result['rows'][0]['realisasi']);
+        $this->assertSame(75.0, $result['rows'][0]['pencapaian']);
+    }
 }

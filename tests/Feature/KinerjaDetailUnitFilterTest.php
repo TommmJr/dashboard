@@ -296,8 +296,13 @@ class KinerjaDetailUnitFilterTest extends TestCase
             $result = $this->reader('kinerjaDetail', [$this->management()]);
             $row = $result['rows'][0];
 
-            $this->assertSame(46173.0, $row['target']);
-            $this->assertSame(46163.0, $row['realisasi']);
+            if ($readModel === 'legacy') {
+                $this->assertSame(46173.0, $row['target']);
+                $this->assertSame(46163.0, $row['realisasi']);
+            } else {
+                $this->assertNull($row['target']);
+                $this->assertNull($row['realisasi']);
+            }
             $this->assertSame('31/05/2026', $row['target_display']);
             $this->assertSame('21/05/2026', $row['realisasi_display']);
         }
@@ -392,11 +397,134 @@ class KinerjaDetailUnitFilterTest extends TestCase
         $dataset = Dataset::factory()->create(['division_id' => $division->id]);
         $this->metric($dataset, $division, 'TJBT | Numerik | target', 200);
         $this->metric($dataset, $division, 'TJBT | Numerik | realisasi', 100);
+        $this->numericObservation($dataset, $division, 'TJBT', 'Numerik', 200.0, 100.0, 1.1);
 
-        $row = $this->reader('kinerjaDetail', [$this->management()])['rows'][0];
+        foreach (['legacy', 'structured'] as $readModel) {
+            config(['kpi.read_model' => $readModel]);
+            $row = $this->reader('kinerjaDetail', [$this->management()])['rows'][0];
 
-        $this->assertSame(50.0, $row['pencapaian']);
-        $this->assertNull($row['target_display']);
+            $this->assertSame(50.0, $row['pencapaian']);
+            $this->assertNull($row['target_display']);
+        }
+
+        config(['kpi.read_model' => 'legacy']);
+    }
+
+    public function test_r7_structured_filter_unit_dropdown_dan_cap_50_tanpa_performance_metrics(): void
+    {
+        config(['kpi.read_model' => 'structured']);
+
+        $division = $this->pengusahaanDivision();
+        $dataset = Dataset::factory()->create(['division_id' => $division->id]);
+
+        for ($i = 1; $i <= 60; $i++) {
+            $this->numericObservation($dataset, $division, 'TJBT', sprintf('Indikator %02d', $i), 200.0, 100.0);
+        }
+        for ($i = 1; $i <= 5; $i++) {
+            $this->numericObservation($dataset, $division, 'MES', sprintf('Indikator %02d', $i), 10.0, 5.0);
+        }
+        $this->numericObservation($dataset, $division, 'ZZZ', 'Indikator 01', 10.0, 10.0);
+
+        $this->assertSame(0, PerformanceMetric::count());
+
+        $default = $this->reader('kinerjaDetail', [$this->management()]);
+        $this->assertSame('2026-08-31', $default['period']);
+        $this->assertTrue($default['truncated']);
+        $this->assertSame(66, $default['total_rows']);
+        $this->assertCount(50, $default['rows']);
+        $this->assertNotContains('ZZZ', array_column($default['rows'], 'unit'));
+
+        $units = $this->units('kinerjaDetail', [$this->management()]);
+        $this->assertSame(['TJBT', 'MES', 'ZZZ'], $units);
+
+        $tjbtOnly = $this->reader('kinerjaDetail', [$this->management(), null, null, ['TJBT']]);
+        $this->assertTrue($tjbtOnly['truncated']);
+        $this->assertSame(60, $tjbtOnly['total_rows']);
+        $this->assertCount(50, $tjbtOnly['rows']);
+        $this->assertSame(['TJBT'], array_values(array_unique(array_column($tjbtOnly['rows'], 'unit'))));
+
+        $unknown = $this->reader('kinerjaDetail', [$this->management(), null, null, ['TIDAK-ADA']]);
+        $this->assertSame($default, $unknown);
+
+        config(['kpi.read_model' => 'legacy']);
+    }
+
+    public function test_r7_structured_baris_daun_tanpa_pasangan_numerik_memakai_skor_excel_dan_mengabaikan_grup(): void
+    {
+        config(['kpi.read_model' => 'structured']);
+
+        $division = $this->pengusahaanDivision();
+        $dataset = Dataset::factory()->create(['division_id' => $division->id]);
+        $unit = OrgUnit::firstOrCreate(['name' => 'TJBT']);
+
+        $group = Indicator::create([
+            'org_unit_id' => $unit->id,
+            'name' => 'Grup Induk',
+            'category' => 'kinerja',
+            'is_group' => true,
+        ]);
+        PerformanceObservation::factory()->create([
+            'dataset_id' => $dataset->id,
+            'indicator_id' => $group->id,
+            'org_unit_id' => $unit->id,
+            'division_id' => $division->id,
+            'period' => '2026-08-31',
+            'target_value' => null,
+            'target_type' => PerformanceObservation::TYPE_EMPTY,
+            'realisasi_value' => null,
+            'realisasi_type' => PerformanceObservation::TYPE_EMPTY,
+            'pencapaian' => 0.95,
+        ]);
+
+        $textTarget = Indicator::create([
+            'org_unit_id' => $unit->id,
+            'name' => 'Target Teks Rasio',
+            'category' => 'kinerja',
+            'is_group' => false,
+        ]);
+        PerformanceObservation::factory()->create([
+            'dataset_id' => $dataset->id,
+            'indicator_id' => $textTarget->id,
+            'org_unit_id' => $unit->id,
+            'division_id' => $division->id,
+            'period' => '2026-08-31',
+            'target_value' => null,
+            'target_text' => 'Sesuai RKAP',
+            'target_type' => PerformanceObservation::TYPE_TEXT,
+            'realisasi_value' => 99.85,
+            'realisasi_type' => PerformanceObservation::TYPE_NUMERIC,
+            'pencapaian' => 1.0485,
+        ]);
+
+        $textRealisasi = Indicator::create([
+            'org_unit_id' => $unit->id,
+            'name' => 'Realisasi Teks Persen',
+            'category' => 'kinerja',
+            'is_group' => false,
+        ]);
+        PerformanceObservation::factory()->create([
+            'dataset_id' => $dataset->id,
+            'indicator_id' => $textRealisasi->id,
+            'org_unit_id' => $unit->id,
+            'division_id' => $division->id,
+            'period' => '2026-08-31',
+            'target_value' => 261.0,
+            'target_type' => PerformanceObservation::TYPE_NUMERIC,
+            'realisasi_value' => null,
+            'realisasi_text' => 'Dokumen Lengkap',
+            'realisasi_type' => PerformanceObservation::TYPE_TEXT,
+            'pencapaian' => 110.0,
+        ]);
+
+        $result = $this->reader('kinerjaDetail', [$this->management()]);
+        $byName = collect($result['rows'])->keyBy('indikator');
+
+        $this->assertSame(2, $result['total_rows']);
+        $this->assertFalse($byName->has('Grup Induk'));
+        $this->assertSame(104.9, $byName['Target Teks Rasio']['pencapaian']);
+        $this->assertSame(110.0, $byName['Realisasi Teks Persen']['pencapaian']);
+
+        config(['kpi.read_model' => 'legacy']);
     }
 
     // ------------------------------------------------------------------
@@ -428,6 +556,36 @@ class KinerjaDetailUnitFilterTest extends TestCase
             'realisasi_value' => null,
             'realisasi_date' => '2026-05-21',
             'realisasi_type' => PerformanceObservation::TYPE_DATE,
+            'pencapaian' => $pencapaian,
+        ]);
+    }
+
+    private function numericObservation(
+        Dataset $dataset,
+        Division $division,
+        string $unit,
+        string $name,
+        float $target,
+        float $realisasi,
+        ?float $pencapaian = null,
+        string $period = '2026-08-31',
+    ): PerformanceObservation {
+        $orgUnit = OrgUnit::firstOrCreate(['name' => $unit]);
+        $indicator = Indicator::firstOrCreate(
+            ['org_unit_id' => $orgUnit->id, 'name' => $name],
+            ['category' => 'kinerja', 'is_group' => false],
+        );
+
+        return PerformanceObservation::factory()->create([
+            'dataset_id' => $dataset->id,
+            'indicator_id' => $indicator->id,
+            'org_unit_id' => $orgUnit->id,
+            'division_id' => $division->id,
+            'period' => $period,
+            'target_value' => $target,
+            'target_type' => PerformanceObservation::TYPE_NUMERIC,
+            'realisasi_value' => $realisasi,
+            'realisasi_type' => PerformanceObservation::TYPE_NUMERIC,
             'pencapaian' => $pencapaian,
         ]);
     }

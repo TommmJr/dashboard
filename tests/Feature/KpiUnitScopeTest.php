@@ -296,20 +296,18 @@ class KpiUnitScopeTest extends TestCase
         $division = $this->division();
         $dataset = $this->readyDataset($division);
 
-        // Baris target/realisasi R7 tetap dari performance_metrics (legacy);
-        // hanya NKO dari observasi terstruktur.
-        $this->metric($dataset, $division, 'TJBT | A | target', 200.0);
-        $this->metric($dataset, $division, 'TJBT | A | realisasi', 100.0);
-        $this->metric($dataset, $division, 'MES | B | target', 10.0);
-        $this->metric($dataset, $division, 'MES | B | realisasi', 5.0);
+        $this->observeNumeric($dataset, $division, 'TJBT', 200.0, 100.0);
+        $this->observeNumeric($dataset, $division, 'MES', 10.0, 5.0);
 
         $this->observe($dataset, $division, 'TJBT', 105.5);
         $this->observe($dataset, $division, 'MES', 100.0);
 
-        $result = $this->reader('kinerjaDetail', [$this->management()]);
+        $controller = app(DashboardController::class);
+        $result = $this->reader('kinerjaDetail', [$this->management()], $controller);
 
         $this->assertSame(['TJBT'], array_column($result['rows'], 'unit'));
         $this->assertSame(105.5, $result['rows'][0]['nko']);
+        $this->assertSame(['TJBT'], $this->property($controller, 'kinerjaDetailUnits'));
     }
 
     // ------------------------------------------------------------------ R8 ----

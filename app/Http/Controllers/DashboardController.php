@@ -883,10 +883,10 @@ class DashboardController extends Controller
     private function kinerjaDetail(?User $user, ?string $startDate = null, ?string $endDate = null, array $units = []): array
     {
         if ($this->kpiReadModelStructured()) {
-            return $this->kinerjaDetailStructured($user, $startDate, $endDate);
+            return $this->kinerjaDetailStructured($user, $startDate, $endDate, $units);
         }
 
-        // Reader ini belum dimigrasi: periode maupun agregasinya tetap legacy.
+        // Jalur legacy: periode maupun agregasinya tetap dari performance_metrics.
         $period = $this->latestLegacyReadyPeriod($user, $startDate, $endDate);
 
         if ($period === null) {
@@ -1357,87 +1357,153 @@ class DashboardController extends Controller
     }
 
     /**
-     * R7 branch terstruktur.
+     * R7 branch terstruktur: detail metrik KPI per unit/indikator dari
+     * `performance_observations` pada dataset siap terbaru yang otoritatif.
      *
-     * Baris detail (target/realisasi/pencapaian) tetap dihitung dari
-     * `performance_metrics` pada periode legacy: struktur observasi belum
-     * terbukti setara untuk kolom-kolom itu, dan mengalihkannya sekarang akan
-     * mengubah angka. Yang dialihkan HANYA kolom `nko`, yang sudah punya
-     * sumber terstruktur.
+     * Baris grup/induk (`indicators.is_group = true`) dan baris ringkasan NKO
+     * (`indicators.category = 'nko'`) tidak menjadi baris detail indikator;
+     * NKO tetap ditempel per unit lewat kolom `nko` dari dataset terbaru.
      *
-     * NKO diambil dari DATASET TERBARU (bukan unit mana pun yang punya baris
-     * NKO): dataset terbaru adalah versi otoritatif, jadi unit yang hanya ada
-     * di dataset lama tidak lagi menempelkan NKO basi.
+     * Skor `pencapaian`:
+     * - Baris bertipe tanggal memakai skor workbook terstruktur (keputusan
+     *   2026-10-21) dan tidak jatuh ke rasio serial tanggal saat skor NULL.
+     * - Pasangan target/realisasi numerik tetap memakai `realisasi / target * 100`
+     *   sampai ada keputusan eksplisit untuk mengubah rumus numerik R7
+     *   (keputusan 2026-10-25 di `.ai/decisions.md` baru mencakup R6/R9).
+     * - Baris daun (`is_group = 0`) tanpa pasangan target/realisasi numerik
+     *   yang memiliki skor workbook valid memakai `normalizeExcelScore()`.
+     *
+     * @param  list<string>  $units
      */
-    private function kinerjaDetailStructured(?User $user, ?string $startDate = null, ?string $endDate = null): array
+    private function kinerjaDetailStructured(?User $user, ?string $startDate = null, ?string $endDate = null, array $units = []): array
     {
-        $period = $this->latestLegacyReadyPeriod($user, $startDate, $endDate);
+        $period = $this->latestStructuredReadyPeriod($user, $startDate, $endDate);
 
         if ($period === null) {
+            $this->kinerjaDetailUnits = [];
+
             return ['period' => null, 'rows' => [], 'truncated' => false, 'total_rows' => 0];
         }
 
         $isPrivileged = $this->isPrivileged($user);
         $divisionId = $isPrivileged ? null : $user?->division_id;
-        $pairs = [];
-        $dateCandidates = [];
+        $latestIds = $this->structuredNko->latestDatasetIds($divisionId, $period);
 
-        DB::table('performance_metrics')
-            ->join('datasets', 'datasets.id', '=', 'performance_metrics.dataset_id')
-            ->where('datasets.status', Dataset::STATUS_READY)
-            ->where('performance_metrics.period', $period)
-            ->when(! $isPrivileged, fn ($q) => $q->where('performance_metrics.division_id', $user?->division_id))
+        if ($latestIds === []) {
+            $this->kinerjaDetailUnits = [];
+
+            return ['period' => $period, 'rows' => [], 'truncated' => false, 'total_rows' => 0];
+        }
+
+        $nko = $this->structuredNkoValues($divisionId, $period);
+        $rowsByKey = [];
+
+        DB::table('performance_observations')
+            ->join('indicators', 'indicators.id', '=', 'performance_observations.indicator_id')
+            ->join('org_units', 'org_units.id', '=', 'performance_observations.org_unit_id')
+            ->where('performance_observations.period', $period)
+            ->where('indicators.is_group', false)
             ->where(function ($query) {
-                $query->where('performance_metrics.metric_name', 'like', '%| target')
-                    ->orWhere('performance_metrics.metric_name', 'like', '%| realisasi');
+                $query->whereNull('indicators.category')
+                    ->orWhere('indicators.category', '<>', KpiReportConverter::INDICATOR_CATEGORY_NKO);
             })
-            ->select('performance_metrics.dataset_id', 'performance_metrics.metric_name', 'performance_metrics.value')
+            ->when($divisionId !== null, fn ($q) => $q->where('performance_observations.division_id', $divisionId))
+            ->whereIn('performance_observations.dataset_id', $latestIds)
+            ->where(function ($query) {
+                $query->whereNotNull('performance_observations.target_value')
+                    ->orWhereNotNull('performance_observations.realisasi_value')
+                    ->orWhere('performance_observations.target_type', PerformanceObservation::TYPE_DATE)
+                    ->orWhere('performance_observations.realisasi_type', PerformanceObservation::TYPE_DATE)
+                    ->orWhereNotNull('performance_observations.pencapaian');
+            })
+            ->orderBy('performance_observations.dataset_id')
+            ->orderBy('indicators.id')
+            ->select(
+                'org_units.name as unit',
+                'indicators.name as indikator',
+                'performance_observations.target_value',
+                'performance_observations.target_date',
+                'performance_observations.target_type',
+                'performance_observations.realisasi_value',
+                'performance_observations.realisasi_date',
+                'performance_observations.realisasi_type',
+                'performance_observations.pencapaian',
+            )
             ->get()
-            ->each(function (object $row) use (&$pairs, &$dateCandidates) {
-                $parts = explode(' | ', $row->metric_name);
+            ->each(function (object $obs) use (&$rowsByKey, $nko) {
+                $unit = (string) $obs->unit;
 
-                if (count($parts) !== 3) {
+                if (! $this->unitVisible($unit)) {
                     return;
                 }
 
-                [$unit, $indikator, $jenis] = $parts;
-                $kind = strtolower($jenis);
-                $pairs[$unit][$indikator][$kind] = (float) $row->value;
-                $dateCandidates[$unit][$indikator][$kind] = ['dataset_id' => $row->dataset_id];
-            });
+                $indikator = (string) $obs->indikator;
+                $target = $obs->target_value !== null ? (float) $obs->target_value : null;
+                $realisasi = $obs->realisasi_value !== null ? (float) $obs->realisasi_value : null;
 
-        // Batas unit TAMPIL (keputusan 2026-10-12), sama seperti jalur legacy:
-        // baris (target/realisasi) tetap dihitung dari performance_metrics,
-        // hanya unit di luar scope yang dibuang. NKO sudah dibaca dari dataset
-        // terbaru sebelum penyaringan ini, jadi "latest wins" tidak berubah.
-        $pairs = $this->scopeUnitMap($pairs);
+                $targetDisplay = null;
+                if ($obs->target_type === PerformanceObservation::TYPE_DATE && $obs->target_date !== null) {
+                    $date = \DateTimeImmutable::createFromFormat('!Y-m-d', $obs->target_date);
+                    if ($date !== false) {
+                        $targetDisplay = $date->format('d/m/Y');
+                    }
+                }
 
-        $nko = $this->structuredNkoValues($divisionId, $period);
-        $dateDisplays = $this->kinerjaDetailDateDisplays($dateCandidates, $period);
+                $realisasiDisplay = null;
+                if ($obs->realisasi_type === PerformanceObservation::TYPE_DATE && $obs->realisasi_date !== null) {
+                    $date = \DateTimeImmutable::createFromFormat('!Y-m-d', $obs->realisasi_date);
+                    if ($date !== false) {
+                        $realisasiDisplay = $date->format('d/m/Y');
+                    }
+                }
 
-        $rows = [];
-        foreach ($pairs as $unit => $indikators) {
-            foreach ($indikators as $indikator => $vals) {
-                $target = $vals['target'] ?? null;
-                $realisasi = $vals['realisasi'] ?? null;
-                $dateDisplay = $dateDisplays[$unit][$indikator] ?? [];
-                $rows[] = [
+                $isDateRow = $obs->target_type === PerformanceObservation::TYPE_DATE
+                    || $obs->realisasi_type === PerformanceObservation::TYPE_DATE;
+
+                if ($isDateRow) {
+                    $pencapaian = $obs->pencapaian !== null
+                        ? round($this->normalizeExcelScore((float) $obs->pencapaian), 1)
+                        : null;
+                } elseif ($target !== null && $target > 0 && $realisasi !== null) {
+                    $pencapaian = round($realisasi / $target * 100, 1);
+                } elseif ($obs->pencapaian !== null) {
+                    $pencapaian = round($this->normalizeExcelScore((float) $obs->pencapaian), 1);
+                } else {
+                    $pencapaian = null;
+                }
+
+                $rowsByKey[$unit][$indikator] = [
                     'unit' => $unit,
                     'indikator' => $indikator,
                     'target' => $target,
                     'realisasi' => $realisasi,
-                    'target_display' => $dateDisplay['target'] ?? null,
-                    'realisasi_display' => $dateDisplay['realisasi'] ?? null,
-                    'pencapaian' => array_key_exists('pencapaian', $dateDisplay)
-                        ? $dateDisplay['pencapaian']
-                        : (($target !== null && $target > 0 && $realisasi !== null)
-                            ? round($realisasi / $target * 100, 1) : null),
+                    'target_display' => $targetDisplay,
+                    'realisasi_display' => $realisasiDisplay,
+                    'pencapaian' => $pencapaian,
                     'nko' => $nko[$unit] ?? null,
                 ];
+            });
+
+        $rows = [];
+        foreach ($rowsByKey as $indikators) {
+            foreach ($indikators as $row) {
+                $rows[] = $row;
             }
         }
 
         usort($rows, fn ($a, $b) => [$a['unit'], $a['indikator']] <=> [$b['unit'], $b['indikator']]);
+
+        $this->kinerjaDetailUnits = $this->kinerjaDetailUnitOrder(array_column($rows, 'unit'));
+
+        if ($units !== []) {
+            $selected = array_values(array_intersect($units, $this->kinerjaDetailUnits));
+            if ($selected !== []) {
+                $rows = array_values(array_filter(
+                    $rows,
+                    fn (array $row): bool => in_array($row['unit'], $selected, true),
+                ));
+            }
+        }
 
         $total = count($rows);
         $truncated = $total > 50;

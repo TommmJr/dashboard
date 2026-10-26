@@ -132,6 +132,7 @@ class KpiNkoParityReadinessTest extends TestCase
 
         $this->legacyMetric($dataset, $division, 'TJBT | Indikator A | target', 200.0);
         $this->legacyMetric($dataset, $division, 'TJBT | Indikator A | realisasi', 100.0);
+        $this->structuredObservation($dataset, $division, 'TJBT', 'Indikator A', 200.0, 100.0);
         $this->legacyNko($dataset, $division, 'TJBT', 105.5);
         $this->structuredNko($dataset, $division, 'TJBT', 105.5);
 
@@ -199,10 +200,8 @@ class KpiNkoParityReadinessTest extends TestCase
         $division = $this->division('Pengusahaan');
         $dataset = Dataset::factory()->create(['division_id' => $division->id]);
 
-        $this->legacyMetric($dataset, $division, 'TJBT | Indikator A | target', 200.0);
-        $this->legacyMetric($dataset, $division, 'TJBT | Indikator A | realisasi', 100.0);
-        $this->legacyMetric($dataset, $division, 'tjbt | Indikator A | target', 200.0);
-        $this->legacyMetric($dataset, $division, 'tjbt | Indikator A | realisasi', 100.0);
+        $this->structuredObservation($dataset, $division, 'TJBT', 'Indikator A', 200.0, 100.0);
+        $this->structuredObservation($dataset, $division, 'tjbt', 'Indikator A', 200.0, 100.0);
         $this->structuredNko($dataset, $division, 'TJBT', 105.5);
         $this->structuredNko($dataset, $division, 'tjbt', 80.0);
 
@@ -649,6 +648,35 @@ class KpiNkoParityReadinessTest extends TestCase
             'division_id' => $division->id,
             'period' => $period,
             'nilai' => $value,
+            'source_sheet' => $unit,
+        ]);
+    }
+
+    private function structuredObservation(
+        Dataset $dataset,
+        Division $division,
+        string $unit,
+        string $name,
+        float $target,
+        float $realisasi,
+        string $period = self::PERIOD,
+    ): PerformanceObservation {
+        $orgUnit = OrgUnit::firstOrCreate(['name' => $unit]);
+        $indicator = Indicator::firstOrCreate(
+            ['org_unit_id' => $orgUnit->id, 'name' => $name],
+            ['category' => 'kinerja', 'is_group' => false],
+        );
+
+        return PerformanceObservation::factory()->create([
+            'dataset_id' => $dataset->id,
+            'indicator_id' => $indicator->id,
+            'org_unit_id' => $orgUnit->id,
+            'division_id' => $division->id,
+            'period' => $period,
+            'target_value' => $target,
+            'target_type' => PerformanceObservation::TYPE_NUMERIC,
+            'realisasi_value' => $realisasi,
+            'realisasi_type' => PerformanceObservation::TYPE_NUMERIC,
             'source_sheet' => $unit,
         ]);
     }

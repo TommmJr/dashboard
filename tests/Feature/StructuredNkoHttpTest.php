@@ -453,8 +453,7 @@ class StructuredNkoHttpTest extends TestCase
 
         $division = $this->pengusahaanDivision();
         $dataset = $this->readyDataset($division);
-        $this->legacyMetric($dataset, $division, 'TJBT | Indikator A | target', 200.0);
-        $this->legacyMetric($dataset, $division, 'TJBT | Indikator A | realisasi', 100.0);
+        $this->observeIndicator($dataset, $division, 'TJBT', 'Indikator A', 200.0, 100.0);
         $this->observe($dataset, $division, 'TJBT', 105.5);
 
         $this->actingAs($this->staffOf($division))
@@ -469,20 +468,22 @@ class StructuredNkoHttpTest extends TestCase
         config(['kpi.read_model' => 'structured']);
 
         $division = $this->pengusahaanDivision();
-        $legacy = $this->readyDataset($division, now()->subDays(3));
-        $this->legacyMetric($legacy, $division, 'TJBT | Indikator A | target', 200.0);
-        $this->legacyMetric($legacy, $division, 'TJBT | Indikator A | realisasi', 100.0);
 
         // created_at lebih baru tapi id lebih kecil.
         $newer = $this->readyDataset($division, now());
         $older = $this->readyDataset($division, now()->subDays(2));
 
+        $this->observeIndicator($older, $division, 'TJBT', 'Indikator Lama', 200.0, 50.0);
         $this->observe($older, $division, 'TJBT', 105.5);
+
+        $this->observeIndicator($newer, $division, 'TJBT', 'Indikator Baru', 200.0, 100.0);
         $this->observe($newer, $division, 'TJBT', 101.0);
 
         $this->actingAs($this->staffOf($division))
             ->get(route('dashboard'))
             ->assertOk()
+            ->assertSee('Indikator Baru')
+            ->assertDontSee('Indikator Lama')
             ->assertSee('101')
             ->assertDontSee('105.50');
     }
@@ -493,14 +494,12 @@ class StructuredNkoHttpTest extends TestCase
 
         $own = $this->pengusahaanDivision();
         $ownDataset = $this->readyDataset($own);
-        $this->legacyMetric($ownDataset, $own, 'TJBT | Indikator A | target', 200.0);
-        $this->legacyMetric($ownDataset, $own, 'TJBT | Indikator A | realisasi', 100.0);
+        $this->observeIndicator($ownDataset, $own, 'TJBT', 'Indikator A', 200.0, 100.0);
         $this->observe($ownDataset, $own, 'TJBT', 80.0);
 
         $other = $this->division('Divisi Lain');
         $otherDataset = $this->readyDataset($other);
-        $this->legacyMetric($otherDataset, $other, 'GHOST | Indikator B | target', 200.0);
-        $this->legacyMetric($otherDataset, $other, 'GHOST | Indikator B | realisasi', 100.0);
+        $this->observeIndicator($otherDataset, $other, 'GHOST', 'Indikator B', 200.0, 100.0);
         $this->observe($otherDataset, $other, 'GHOST', 105.5);
 
         $this->actingAs($this->staffOf($own))
@@ -650,6 +649,35 @@ class StructuredNkoHttpTest extends TestCase
             'division_id' => $division?->id,
             'period' => $period,
             'nilai' => $value,
+            'source_sheet' => $unit,
+        ]);
+    }
+
+    private function observeIndicator(
+        Dataset $dataset,
+        ?Division $division,
+        string $unit,
+        string $name,
+        float $target,
+        float $realisasi,
+        string $period = self::PERIOD,
+    ): PerformanceObservation {
+        $orgUnit = OrgUnit::firstOrCreate(['name' => $unit]);
+        $indicator = Indicator::firstOrCreate(
+            ['org_unit_id' => $orgUnit->id, 'name' => $name],
+            ['category' => 'kinerja', 'is_group' => false],
+        );
+
+        return PerformanceObservation::factory()->create([
+            'dataset_id' => $dataset->id,
+            'indicator_id' => $indicator->id,
+            'org_unit_id' => $orgUnit->id,
+            'division_id' => $division?->id,
+            'period' => $period,
+            'target_value' => $target,
+            'target_type' => PerformanceObservation::TYPE_NUMERIC,
+            'realisasi_value' => $realisasi,
+            'realisasi_type' => PerformanceObservation::TYPE_NUMERIC,
             'source_sheet' => $unit,
         ]);
     }
