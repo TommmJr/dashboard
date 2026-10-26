@@ -410,6 +410,27 @@ class KinerjaDetailUnitFilterTest extends TestCase
         config(['kpi.read_model' => 'legacy']);
     }
 
+    public function test_r7_skor_numerik_rasio_dapat_melebihi_110_persen_tanpa_cap_pada_kedua_read_model(): void
+    {
+        $division = $this->pengusahaanDivision();
+        $dataset = Dataset::factory()->create(['division_id' => $division->id]);
+        $this->metric($dataset, $division, 'TJBT | Numerik Over 110 | target', 100);
+        $this->metric($dataset, $division, 'TJBT | Numerik Over 110 | realisasi', 250);
+        // Observasi Excel memiliki pencapaian 1.1 (110.0%), tetapi pasangan numerik R7 wajib menghitung rasio murni
+        $this->numericObservation($dataset, $division, 'TJBT', 'Numerik Over 110', 100.0, 250.0, 1.1);
+
+        foreach (['legacy', 'structured'] as $readModel) {
+            config(['kpi.read_model' => $readModel]);
+            $row = $this->reader('kinerjaDetail', [$this->management()])['rows'][0];
+
+            $this->assertSame(250.0, $row['pencapaian']);
+            $this->assertGreaterThan(110.0, $row['pencapaian']);
+            $this->assertNull($row['target_display']);
+        }
+
+        config(['kpi.read_model' => 'legacy']);
+    }
+
     public function test_r7_structured_filter_unit_dropdown_dan_cap_50_tanpa_performance_metrics(): void
     {
         config(['kpi.read_model' => 'structured']);

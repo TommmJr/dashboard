@@ -241,6 +241,22 @@ class DashboardLegacyReaderCharacterizationTest extends TestCase
         $this->assertSame(105.5, $row['nko']);
     }
 
+    public function test_r7_pencapaian_numerik_melebihi_110_persen_tanpa_cap(): void
+    {
+        $division = $this->division('Pengusahaan');
+        $dataset = Dataset::factory()->create(['division_id' => $division->id]);
+
+        $this->metric($dataset, $division, 'TJBT | Indikator Tinggi | target', 100.0);
+        $this->metric($dataset, $division, 'TJBT | Indikator Tinggi | realisasi', 250.0);
+
+        $result = $this->reader('kinerjaDetail', [$this->management()]);
+        $row = $result['rows'][0];
+
+        // R7 mempertahankan rasio murni round(realisasi / target * 100, 1) tanpa cap 110%
+        $this->assertSame(250.0, $row['pencapaian']);
+        $this->assertGreaterThan(110.0, $row['pencapaian']);
+    }
+
     public function test_r7_baris_nko_tidak_menjadi_baris_detail(): void
     {
         $division = $this->division('Pengusahaan');
