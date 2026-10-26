@@ -69,11 +69,11 @@ class KpiReadModelFlagTest extends TestCase
         return User::factory()->withRole(Role::MANAGEMENT)->create();
     }
 
-    private function legacyMetric(Dataset $dataset, Division $division, string $name, float $value, string $period): void
+    private function legacyMetric(Dataset $dataset, ?Division $division, string $name, float $value, string $period): void
     {
         PerformanceMetric::factory()->create([
             'dataset_id' => $dataset->id,
-            'division_id' => $division->id,
+            'division_id' => $division?->id,
             'metric_name' => $name,
             'value' => $value,
             'period' => $period,
@@ -607,7 +607,7 @@ class KpiReadModelFlagTest extends TestCase
      * @param  array<string, mixed>  $indicator
      * @param  array<string, mixed>  $observation
      */
-    private function leaf(Dataset $dataset, OrgUnit $unit, Division $division, array $indicator, array $observation): Indicator
+    private function leaf(Dataset $dataset, OrgUnit $unit, ?Division $division, array $indicator, array $observation): Indicator
     {
         $model = Indicator::factory()->create(['org_unit_id' => $unit->id, ...$indicator]);
 
@@ -615,7 +615,7 @@ class KpiReadModelFlagTest extends TestCase
             'dataset_id' => $dataset->id,
             'indicator_id' => $model->id,
             'org_unit_id' => $unit->id,
-            'division_id' => $division->id,
+            'division_id' => $division?->id,
             'period' => '2026-08-31',
             'pencapaian' => null,
             ...$observation,
@@ -1518,5 +1518,275 @@ class KpiReadModelFlagTest extends TestCase
         $this->assertSame(200.0, $result['rows'][0]['target']);
         $this->assertSame(150.0, $result['rows'][0]['realisasi']);
         $this->assertSame(75.0, $result['rows'][0]['pencapaian']);
+    }
+
+    private function observeNko(Dataset $dataset, ?Division $division, string $unitName, float $value, string $period = '2026-08-31'): PerformanceObservation
+    {
+        $orgUnit = OrgUnit::firstOrCreate(['name' => $unitName]);
+        $indicator = Indicator::firstOrCreate(
+            ['org_unit_id' => $orgUnit->id, 'name' => 'NKO'],
+            ['category' => 'nko', 'bobot' => null],
+        );
+
+        return PerformanceObservation::factory()->create([
+            'dataset_id' => $dataset->id,
+            'indicator_id' => $indicator->id,
+            'org_unit_id' => $orgUnit->id,
+            'division_id' => $division?->id,
+            'period' => $period,
+            'nilai' => $value,
+        ]);
+    }
+
+    public function test_r3_structured_fail_closed_untuk_guest_dan_user_non_privileged_tanpa_divisi(): void
+    {
+        $divA = $this->division('Divisi A');
+        $divB = $this->division('Divisi B');
+        $dsA = Dataset::factory()->create(['division_id' => $divA->id]);
+        $dsB = Dataset::factory()->create(['division_id' => $divB->id]);
+
+        $this->observeNko($dsA, $divA, 'TJBT', 105.5);
+        $this->observeNko($dsB, $divB, 'RST', 88.0);
+
+        $this->legacyMetric($dsA, $divA, 'TJBT | NKO', 105.5, '2026-08-31');
+        $this->legacyMetric($dsB, $divB, 'RST | NKO', 88.0, '2026-08-31');
+
+        $staffNoDiv = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => null]);
+        $management = $this->management();
+        $staffDivA = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $divA->id]);
+
+        // Verifikasi cabang legacy: guest dan user non-privileged tanpa divisi gagal tertutup (kosong)
+        config(['kpi.read_model' => 'legacy']);
+        $this->assertSame([], $this->reader('nkoRanking', [null])->all());
+        $this->assertSame([], $this->reader('nkoRanking', [$staffNoDiv])->all());
+        $this->assertCount(2, $this->reader('nkoRanking', [$management]));
+        $this->assertSame(['TJBT'], $this->reader('nkoRanking', [$staffDivA])->pluck('unit')->all());
+
+        // Verifikasi cabang structured: wajib identik gagal tertutup (kosong)
+        config(['kpi.read_model' => 'structured']);
+        $this->assertSame([], $this->reader('nkoRanking', [null])->all());
+        $this->assertSame([], $this->reader('nkoRanking', [$staffNoDiv])->all());
+        $this->assertCount(2, $this->reader('nkoRanking', [$management]));
+        $this->assertSame(['TJBT'], $this->reader('nkoRanking', [$staffDivA])->pluck('unit')->all());
+    }
+
+    public function test_r10_structured_fail_closed_untuk_guest_dan_user_non_privileged_tanpa_divisi(): void
+    {
+        $divA = $this->division('Divisi A');
+        $divB = $this->division('Divisi B');
+        $dsA = Dataset::factory()->create(['division_id' => $divA->id]);
+        $dsB = Dataset::factory()->create(['division_id' => $divB->id]);
+
+        $this->observeNko($dsA, $divA, 'TJBT', 105.5);
+        $this->observeNko($dsB, $divB, 'RST', 88.0);
+
+        $this->legacyMetric($dsA, $divA, 'TJBT | NKO', 105.5, '2026-08-31');
+        $this->legacyMetric($dsB, $divB, 'RST | NKO', 88.0, '2026-08-31');
+
+        $staffNoDiv = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => null]);
+        $management = $this->management();
+        $staffDivA = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $divA->id]);
+
+        // Verifikasi cabang legacy
+        config(['kpi.read_model' => 'legacy']);
+        $this->assertSame(['period' => null, 'data' => []], $this->reader('nkoDonut', [null]));
+        $this->assertSame(['period' => null, 'data' => []], $this->reader('nkoDonut', [$staffNoDiv]));
+        $legacyMgmt = $this->reader('nkoDonut', [$management]);
+        $this->assertSame('2026-08-31', $legacyMgmt['period']);
+        $this->assertSame(2, array_sum(array_column($legacyMgmt['data'], 'value')));
+
+        // Verifikasi cabang structured
+        config(['kpi.read_model' => 'structured']);
+        $this->assertSame(['period' => null, 'data' => []], $this->reader('nkoDonut', [null]));
+        $this->assertSame(['period' => null, 'data' => []], $this->reader('nkoDonut', [$staffNoDiv]));
+        $structMgmt = $this->reader('nkoDonut', [$management]);
+        $this->assertSame('2026-08-31', $structMgmt['period']);
+        $this->assertSame(2, array_sum(array_column($structMgmt['data'], 'value')));
+        $structStaffA = $this->reader('nkoDonut', [$staffDivA]);
+        $this->assertSame('2026-08-31', $structStaffA['period']);
+        $this->assertSame([['name' => 'Tercapai', 'value' => 1]], $structStaffA['data']);
+    }
+
+    public function test_structured_readers_lainnya_fail_closed_untuk_user_non_privileged_tanpa_divisi(): void
+    {
+        $division = $this->division('Pengusahaan');
+        $dataset = Dataset::factory()->create(['division_id' => $division->id]);
+        $unit = OrgUnit::factory()->create(['name' => 'TJBT']);
+
+        // Data berdivisi (Pengusahaan)
+        $this->leaf($dataset, $unit, $division, ['name' => 'Indikator A', 'is_group' => false], [
+            'period' => '2026-08-31',
+            'target_value' => 100.0,
+            'realisasi_value' => 100.0,
+            'pencapaian' => 1.0,
+        ]);
+        $this->legacyMetric($dataset, $division, 'TJBT | Indikator A | target', 100.0, '2026-08-31');
+        $this->legacyMetric($dataset, $division, 'TJBT | Indikator A | realisasi', 100.0, '2026-08-31');
+
+        // Data yatim (division_id = null)
+        $this->leaf($dataset, $unit, null, ['name' => 'Indikator Yatim', 'is_group' => false], [
+            'period' => '2026-08-31',
+            'target_value' => 75.0,
+            'realisasi_value' => 75.0,
+            'pencapaian' => 1.0,
+        ]);
+        $this->observeNko($dataset, null, 'TJBT', 88.0, '2026-08-31');
+        $this->legacyMetric($dataset, null, 'TJBT | Indikator Yatim | target', 75.0, '2026-08-31');
+        $this->legacyMetric($dataset, null, 'TJBT | Indikator Yatim | realisasi', 75.0, '2026-08-31');
+        $this->legacyMetric($dataset, null, 'TJBT | NKO', 88.0, '2026-08-31');
+
+        $staffNoDiv = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => null]);
+
+        config(['kpi.read_model' => 'structured']);
+
+        // R4 (latestReadyPeriod & latestStructuredReadyPeriod)
+        $this->assertNull($this->reader('latestReadyPeriod', [null]));
+        $this->assertNull($this->reader('latestReadyPeriod', [$staffNoDiv]));
+        $this->assertNull($this->reader('latestStructuredReadyPeriod', [$staffNoDiv]));
+
+        // R2 (availableUnits)
+        $this->assertSame([], $this->reader('availableUnits', [null]));
+        $this->assertSame([], $this->reader('availableUnits', [$staffNoDiv]));
+
+        // Panel period & reader
+        $this->assertNull($this->reader('latestStructuredPanelPeriod', [null]));
+        $this->assertNull($this->reader('latestStructuredPanelPeriod', [$staffNoDiv]));
+        $this->assertSame(['period' => null, 'units' => [], 'sections' => []], $this->reader('targetRealisasiPerIndikator', [$staffNoDiv]));
+
+        // R6 (kinerjaRealisasi)
+        $this->assertSame(['period' => null, 'rows' => [], 'has_data' => false], $this->reader('kinerjaRealisasi', [null]));
+        $this->assertSame(['period' => null, 'rows' => [], 'has_data' => false], $this->reader('kinerjaRealisasi', [$staffNoDiv]));
+
+        // R7 (kinerjaDetail)
+        $this->assertSame(['period' => null, 'rows' => [], 'truncated' => false, 'total_rows' => 0], $this->reader('kinerjaDetail', [null]));
+        $this->assertSame(['period' => null, 'rows' => [], 'truncated' => false, 'total_rows' => 0], $this->reader('kinerjaDetail', [$staffNoDiv]));
+
+        // R9 (pencapaianNko)
+        $this->assertSame(['period' => null, 'labels' => [], 'data' => []], $this->reader('pencapaianNko', [null]));
+        $this->assertSame(['period' => null, 'labels' => [], 'data' => []], $this->reader('pencapaianNko', [$staffNoDiv]));
+
+        // R5 (datasetStatus)
+        $statusNull = $this->reader('datasetStatus', [null]);
+        $this->assertNull($statusNull['latest_period']);
+        $this->assertSame(0, $statusNull['latest_rows']);
+        $this->assertSame(0, $statusNull['ready']);
+
+        $statusStaffNoDiv = $this->reader('datasetStatus', [$staffNoDiv]);
+        $this->assertNull($statusStaffNoDiv['latest_period']);
+        $this->assertSame(0, $statusStaffNoDiv['latest_rows']);
+        $this->assertSame(0, $statusStaffNoDiv['ready']);
+    }
+
+    public function test_karakterisasi_legacy_membocorkan_baris_yatim_ke_user_tanpa_divisi(): void
+    {
+        $division = $this->division('Pengusahaan');
+        $dataset = Dataset::factory()->create(['division_id' => $division->id]);
+        $unit = OrgUnit::factory()->create(['name' => 'TJBT']);
+
+        // Data berdivisi (Pengusahaan)
+        $this->leaf($dataset, $unit, $division, ['name' => 'Indikator Normal', 'is_group' => false], [
+            'period' => '2026-08-31',
+            'target_value' => 100.0,
+            'realisasi_value' => 100.0,
+            'pencapaian' => 1.0,
+        ]);
+        $this->observeNko($dataset, $division, 'TJBT', 105.5, '2026-08-31');
+        $this->legacyMetric($dataset, $division, 'TJBT | Indikator Normal | target', 100.0, '2026-08-31');
+        $this->legacyMetric($dataset, $division, 'TJBT | Indikator Normal | realisasi', 100.0, '2026-08-31');
+        $this->legacyMetric($dataset, $division, 'TJBT | NKO', 105.5, '2026-08-31');
+
+        // Data yatim: dataset terdaftar pada divisi lain, tetapi observasi & metrik division_id = null
+        $divOrphan = $this->division('Divisi Yatim');
+        $orphanDataset = Dataset::factory()->create(['division_id' => $divOrphan->id, 'status' => Dataset::STATUS_READY]);
+        $this->leaf($orphanDataset, $unit, null, ['name' => 'Indikator Yatim', 'is_group' => false], [
+            'period' => '2026-08-31',
+            'target_value' => 75.0,
+            'realisasi_value' => 75.0,
+            'pencapaian' => 1.0,
+        ]);
+        $this->observeNko($orphanDataset, null, 'TJBT', 88.0, '2026-08-31');
+        $this->legacyMetric($orphanDataset, null, 'TJBT | Indikator Yatim | target', 75.0, '2026-08-31');
+        $this->legacyMetric($orphanDataset, null, 'TJBT | Indikator Yatim | realisasi', 75.0, '2026-08-31');
+        $this->legacyMetric($orphanDataset, null, 'TJBT | NKO', 88.0, '2026-08-31');
+
+        $staffNoDiv = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => null]);
+
+        // Karakterisasi: legacy memakai WHERE division_id IS NULL sehingga membocorkan data yatim ke user tanpa divisi
+        config(['kpi.read_model' => 'legacy']);
+
+        $this->assertSame(['TJBT'], $this->reader('availableUnits', [$staffNoDiv]));
+        $this->assertSame('2026-08-31', $this->reader('latestReadyPeriod', [$staffNoDiv]));
+
+        $nkoRank = $this->reader('nkoRanking', [$staffNoDiv]);
+        $this->assertCount(1, $nkoRank);
+        $this->assertSame(88.0, (float) $nkoRank[0]->nko);
+
+        $donut = $this->reader('nkoDonut', [$staffNoDiv]);
+        $this->assertSame('2026-08-31', $donut['period']);
+        $this->assertSame([['name' => 'Perlu Peningkatan', 'value' => 1]], $donut['data']);
+
+        $realisasi = $this->reader('kinerjaRealisasi', [$staffNoDiv]);
+        $this->assertSame('2026-08-31', $realisasi['period']);
+        $this->assertTrue($realisasi['has_data']);
+
+        $detail = $this->reader('kinerjaDetail', [$staffNoDiv]);
+        $this->assertSame('2026-08-31', $detail['period']);
+        $this->assertSame(1, $detail['total_rows']);
+        $this->assertSame('Indikator Yatim', $detail['rows'][0]['indikator']);
+
+        $status = $this->reader('datasetStatus', [$staffNoDiv]);
+        $this->assertSame('2026-08-31', $status['latest_period']);
+        $this->assertSame(3, $status['latest_rows']);
+    }
+
+    public function test_target_realisasi_per_indikator_fail_closed_untuk_user_tanpa_divisi(): void
+    {
+        $division = $this->division('Pengusahaan');
+        $dsA = Dataset::factory()->create(['division_id' => $division->id, 'status' => Dataset::STATUS_READY]);
+        $unit = OrgUnit::factory()->create(['name' => 'TJBT']);
+
+        // Data berdivisi
+        $this->leaf($dsA, $unit, $division, ['name' => 'Indikator Divisi', 'is_group' => false], [
+            'period' => '2026-08-31',
+            'target_value' => 100.0,
+            'realisasi_value' => 100.0,
+            'pencapaian' => 1.0,
+        ]);
+
+        // Data yatim pada dataset terpisah
+        $divOrphan = $this->division('Divisi Yatim');
+        $dsOrphan = Dataset::factory()->create(['division_id' => $divOrphan->id, 'status' => Dataset::STATUS_READY]);
+        $this->leaf($dsOrphan, $unit, null, ['name' => 'Indikator Yatim', 'is_group' => false], [
+            'period' => '2026-08-31',
+            'target_value' => 50.0,
+            'realisasi_value' => 50.0,
+            'pencapaian' => 1.0,
+        ]);
+
+        $staffNoDiv = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => null]);
+        $staffDivA = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $division->id]);
+        $management = $this->management();
+
+        // 1. User non-privileged tanpa divisi mendapat panel kosong
+        $panelNoDiv = $this->reader('targetRealisasiPerIndikator', [$staffNoDiv]);
+        $this->assertSame(['period' => null, 'units' => [], 'sections' => []], $panelNoDiv);
+
+        // 2. Staf Divisi A mendapat panel divisinya dan tidak bocor data yatim
+        $panelDivA = $this->reader('targetRealisasiPerIndikator', [$staffDivA]);
+        $this->assertSame('2026-08-31', $panelDivA['period']);
+        $this->assertSame(['TJBT'], $panelDivA['units']);
+        $indicatorNames = [];
+        foreach ($panelDivA['sections'] as $sec) {
+            foreach ($sec['panels'] as $p) {
+                $indicatorNames[] = $p['name'];
+            }
+        }
+        $this->assertContains('Indikator Divisi', $indicatorNames);
+        $this->assertNotContains('Indikator Yatim', $indicatorNames);
+
+        // 3. Privileged membaca data lintas divisi
+        $panelMgmt = $this->reader('targetRealisasiPerIndikator', [$management]);
+        $this->assertSame('2026-08-31', $panelMgmt['period']);
+        $this->assertNotEmpty($panelMgmt['sections']);
     }
 }

@@ -171,6 +171,10 @@ class DashboardController extends Controller
         $isPrivileged = $this->isPrivileged($user);
 
         if ($this->kpiReadModelStructured()) {
+            if (! $isPrivileged && $user?->division_id === null) {
+                return [];
+            }
+
             // Nama unit = identity asli importer terstruktur, jadi dibaca
             // langsung dari org_units.name; metric_name legacy TIDAK di-parse.
             //
@@ -471,6 +475,10 @@ class DashboardController extends Controller
      */
     private function latestStructuredReadyPeriod(?User $user, ?string $startDate = null, ?string $endDate = null): ?string
     {
+        if (! $this->isPrivileged($user) && $user?->division_id === null) {
+            return null;
+        }
+
         $isPrivileged = $this->isPrivileged($user);
 
         $base = fn () => DB::table('performance_observations')
@@ -530,7 +538,7 @@ class DashboardController extends Controller
     {
         $isPrivileged = $this->isPrivileged($user);
         $max = $this->latestStructuredReadyPeriod($user)
-            ?? $this->latestLegacyReadyPeriod($user);
+            ?? (($isPrivileged || $user?->division_id !== null) ? $this->latestLegacyReadyPeriod($user) : null);
         $latestPeriod = $max === null ? null : Carbon::parse($max)->endOfMonth()->toDateString();
         $visible = $this->visibleUnits();
         $latestRows = 0;
@@ -546,11 +554,23 @@ class DashboardController extends Controller
                 ->count();
         }
 
+        $ready = (! $isPrivileged && $user?->division_id === null)
+            ? 0
+            : $scope(Dataset::query())->where('status', Dataset::STATUS_READY)->count();
+
+        $archived = (! $isPrivileged && $user?->division_id === null)
+            ? 0
+            : $scope(Dataset::query())->where('status', Dataset::STATUS_ARCHIVED)->count();
+
+        $failed = (! $isPrivileged && $user?->division_id === null)
+            ? 0
+            : $scope(Dataset::query())->where('status', DatasetStatus::FAILED)->count();
+
         return [
             'latest_period' => $latestPeriod,
-            'ready' => $scope(Dataset::query())->where('status', Dataset::STATUS_READY)->count(),
-            'archived' => $scope(Dataset::query())->where('status', Dataset::STATUS_ARCHIVED)->count(),
-            'failed' => $scope(Dataset::query())->where('status', DatasetStatus::FAILED)->count(),
+            'ready' => $ready,
+            'archived' => $archived,
+            'failed' => $failed,
             'latest_rows' => $latestRows,
             'fresh' => $latestPeriod !== null && $latestPeriod >= now()->subDays(45)->toDateString(),
         ];
@@ -1101,6 +1121,10 @@ class DashboardController extends Controller
      */
     private function latestStructuredPanelPeriod(?User $user, ?string $startDate = null, ?string $endDate = null): ?string
     {
+        if (! $this->isPrivileged($user) && $user?->division_id === null) {
+            return null;
+        }
+
         $query = DB::table('performance_observations')
             ->join('datasets', 'datasets.id', '=', 'performance_observations.dataset_id')
             ->where('datasets.status', Dataset::STATUS_READY);
@@ -1293,6 +1317,10 @@ class DashboardController extends Controller
      */
     private function nkoRankingStructured(?User $user, ?string $startDate = null, ?string $endDate = null): Collection
     {
+        if (! $this->isPrivileged($user) && $user?->division_id === null) {
+            return collect();
+        }
+
         $divisionId = $this->isPrivileged($user) ? null : $user?->division_id;
         $period = $this->structuredNkoPeriod($divisionId, $startDate, $endDate);
 
@@ -1322,6 +1350,10 @@ class DashboardController extends Controller
      */
     private function nkoDonutStructured(?User $user, ?string $startDate = null, ?string $endDate = null): array
     {
+        if (! $this->isPrivileged($user) && $user?->division_id === null) {
+            return ['period' => null, 'data' => []];
+        }
+
         $divisionId = $this->isPrivileged($user) ? null : $user?->division_id;
         $period = $this->structuredNkoPeriod($divisionId, $startDate, $endDate);
 

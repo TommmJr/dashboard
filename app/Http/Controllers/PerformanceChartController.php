@@ -193,6 +193,19 @@ class PerformanceChartController extends Controller
      */
     private function structuredResponse(array $filters, User $user, bool $isPrivileged)
     {
+        if (! $isPrivileged && $user->division_id === null) {
+            return response()->json([
+                'labels' => [],
+                'series' => [],
+                'y_axis_min' => 0.0,
+                'kpi' => [
+                    'average_nko' => 0.0,
+                    'ready_datasets' => 0,
+                    'metric_count' => 0,
+                ],
+            ]);
+        }
+
         $divisionId = $isPrivileged ? null : $user->division_id;
 
         $rows = $this->structuredNko->latestPerPeriod(

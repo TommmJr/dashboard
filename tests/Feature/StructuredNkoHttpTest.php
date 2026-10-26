@@ -308,6 +308,47 @@ class StructuredNkoHttpTest extends TestCase
         $this->assertSame(['LEGACY'], $names);
     }
 
+    public function test_r1_structured_chart_fail_closed_untuk_staf_tanpa_divisi(): void
+    {
+        config(['kpi.read_model' => 'structured']);
+
+        $division = $this->division('Divisi A');
+        $dataset = $this->readyDataset($division);
+        $this->observe($dataset, $division, 'TJBT', 105.5);
+
+        // Data yatim (division_id = null)
+        $divOrphan = $this->division('Divisi Yatim');
+        $dsOrphan = $this->readyDataset($divOrphan);
+        $this->observe($dsOrphan, null, 'RST', 88.0);
+        $this->legacyMetric($dsOrphan, null, 'RST | NKO', 88.0);
+
+        $staffNoDiv = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => null]);
+
+        $response = $this->actingAs($staffNoDiv)
+            ->getJson(route('performance.data'))
+            ->assertOk()
+            ->json();
+
+        $this->assertSame([], $response['labels']);
+        $this->assertSame([], $response['series']);
+        $this->assertSame(0.0, (float) $response['y_axis_min']);
+        $this->assertSame(0.0, (float) $response['kpi']['average_nko']);
+        $this->assertSame(0, $response['kpi']['ready_datasets']);
+        $this->assertSame(0, $response['kpi']['metric_count']);
+
+        // Privileged tetap membaca data lintas divisi
+        $mgmtResponse = $this->actingAs($this->management())
+            ->getJson(route('performance.data'))
+            ->assertOk()
+            ->json();
+
+        $this->assertSame([self::PERIOD], $mgmtResponse['labels']);
+        $names = array_column($mgmtResponse['series'], 'name');
+        $this->assertContains('TJBT', $names);
+        $this->assertContains('RST', $names);
+        $this->assertSame(96.75, (float) $mgmtResponse['kpi']['average_nko']);
+    }
+
     // ------------------------------------------------------------------
     // C. R3 terstruktur (GET /dashboard, widget nko-ranking)
     // ------------------------------------------------------------------
@@ -570,6 +611,36 @@ class StructuredNkoHttpTest extends TestCase
             ->assertOk()
             ->assertSee('"name":"Perlu Peningkatan","value":1', false)
             ->assertDontSee('"name":"Tercapai"', false);
+    }
+
+    public function test_r3_dan_r10_structured_http_fail_closed_untuk_staf_tanpa_divisi(): void
+    {
+        config(['kpi.read_model' => 'structured']);
+        config(['dashboard_layouts.layouts.staff_divisi' => ['nko-ranking', 'nko-donut']]);
+
+        $division = $this->division('Divisi A');
+        $dataset = $this->readyDataset($division);
+        $this->observe($dataset, $division, 'TJBT', 105.5);
+
+        // Data yatim (division_id = null)
+        $divOrphan = $this->division('Divisi Yatim');
+        $dsOrphan = $this->readyDataset($divOrphan);
+        $this->observe($dsOrphan, null, 'RST', 88.0);
+        $this->legacyMetric($dsOrphan, null, 'RST | NKO', 88.0);
+
+        $staffNoDiv = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => null]);
+
+        $this->actingAs($staffNoDiv)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('Belum ada data NKO')
+            ->assertSee('Belum ada data NKO pada periode ini')
+            ->assertDontSee('105,50')
+            ->assertDontSee('105.50')
+            ->assertDontSee('88,00')
+            ->assertDontSee('88.00')
+            ->assertDontSee('"name":"Tercapai"', false)
+            ->assertDontSee('"name":"Perlu Peningkatan"', false);
     }
 
     // ------------------------------------------------------------------
