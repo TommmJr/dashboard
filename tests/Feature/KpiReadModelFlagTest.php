@@ -1270,11 +1270,11 @@ class KpiReadModelFlagTest extends TestCase
     }
 
     /**
-     * R5 datasetStatus: latest_rows tetap menghitung baris performance_metrics.
-     * latest_period juga tetap legacy supaya widget tidak jadi campuran
-     * (periode structured + hitungan legacy).
+     * R5 datasetStatus structured: periode observasi dinormalisasi ke akhir
+     * bulan (kontrak legacy), latest_rows menghitung observasi, bukan
+     * performance_metrics.
      */
-    public function test_r5_dataset_status_tetap_legacy_saat_flag_structured(): void
+    public function test_r5_dataset_status_structured_normalisasi_akhir_bulan_dan_parity(): void
     {
         config(['kpi.read_model' => 'structured']);
 
@@ -1288,5 +1288,38 @@ class KpiReadModelFlagTest extends TestCase
 
         $this->assertSame('2026-08-31', $status['latest_period']);
         $this->assertSame(1, $status['latest_rows']);
+    }
+
+    public function test_r5_structured_parity_dengan_legacy_pada_fixture_sama(): void
+    {
+        $division = $this->division('Pengusahaan');
+        $dataset = Dataset::factory()->create(['division_id' => $division->id]);
+        $this->legacyMetric($dataset, $division, 'TJBT | NKO', 105.5, '2026-08-31');
+        $this->observation($dataset, OrgUnit::factory()->create(['name' => 'TJBT']), $division, '2026-08-15');
+        $user = $this->management();
+
+        $legacy = $this->reader('datasetStatus', [$user]);
+        config(['kpi.read_model' => 'structured']);
+        $structured = $this->reader('datasetStatus', [$user]);
+
+        $this->assertSame(['latest_period', 'ready', 'archived', 'failed', 'latest_rows', 'fresh'], array_keys($structured));
+        $this->assertSame($legacy, $structured);
+    }
+
+    public function test_r5_structured_latest_rows_nol_tanpa_unit_tampil_dan_rollback_null(): void
+    {
+        config(['kpi.read_model' => 'structured']);
+        $division = $this->division('Pengusahaan');
+        $dataset = Dataset::factory()->create(['division_id' => $division->id]);
+        $this->observation($dataset, OrgUnit::factory()->create(['name' => 'MES']), $division, '2026-08-01');
+        config(['kpi.visible_units' => ['TJBT']]);
+        $user = $this->management();
+
+        $status = $this->reader('datasetStatus', [$user]);
+        $this->assertSame('2026-08-31', $status['latest_period']);
+        $this->assertSame(0, $status['latest_rows']);
+
+        config(['kpi.visible_units' => null]);
+        $this->assertSame(1, $this->reader('datasetStatus', [$user])['latest_rows']);
     }
 }

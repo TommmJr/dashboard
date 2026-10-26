@@ -14,6 +14,7 @@ use App\Services\AssetStockReport;
 use App\Services\KpiReportConverter;
 use App\Services\StructuredNkoReader;
 use App\Services\TargetRealisasiPerIndicatorReader;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
@@ -428,9 +429,8 @@ class DashboardController extends Controller
     /**
      * Apakah reader yang SUDAH dimigrasi harus membaca tabel terstruktur.
      *
-     * Bukan switch global: R5 (datasetStatus) dan R8 (targetVsRealisasi) tetap
-     * legacy berapa pun nilainya, karena keduanya menunggu keputusan produk.
-     * Reader lain (R1, R2, R3, R4, R6, R7, R9, R10) ikut flag; R9 mengikuti R6
+     * Bukan switch global: R8 (targetVsRealisasi) tetap legacy berapa pun
+     * nilainya (menunggu deprecation). Reader lain (R1-R7, R9, R10) ikut flag; R9 mengikuti R6
      * karena mendelegasi ke sana.
      */
     private function kpiReadModelStructured(): bool
@@ -495,6 +495,10 @@ class DashboardController extends Controller
         // Periode terbaru ditentukan TANPA filter unit (milik divisi); hanya
         // hitungan baris yang dibatasi ke unit TAMPIL. Akibatnya latest_rows
         // bisa 0 bila periode terbaru tidak memuat unit tampil.
+        if ($this->kpiReadModelStructured()) {
+            return $this->datasetStatusStructured($user, $scope);
+        }
+
         $latestPeriod = $this->latestLegacyReadyPeriod($user);
         $latestRows = 0;
         if ($latestPeriod !== null) {
@@ -503,6 +507,40 @@ class DashboardController extends Controller
                 ->where('datasets.status', Dataset::STATUS_READY)
                 ->where('performance_metrics.period', $latestPeriod)
                 ->when(! $isPrivileged, fn ($q) => $q->where('performance_metrics.division_id', $user?->division_id)));
+        }
+
+        return [
+            'latest_period' => $latestPeriod,
+            'ready' => $scope(Dataset::query())->where('status', Dataset::STATUS_READY)->count(),
+            'archived' => $scope(Dataset::query())->where('status', Dataset::STATUS_ARCHIVED)->count(),
+            'failed' => $scope(Dataset::query())->where('status', DatasetStatus::FAILED)->count(),
+            'latest_rows' => $latestRows,
+            'fresh' => $latestPeriod !== null && $latestPeriod >= now()->subDays(45)->toDateString(),
+        ];
+    }
+
+    /**
+     * R5 sumber terstruktur. Periode observasi dinormalisasi ke akhir bulan
+     * (kontrak legacy); periode terbaru TANPA filter unit, latest_rows hanya
+     * observasi unit TAMPIL pada bulan itu.
+     */
+    private function datasetStatusStructured(?User $user, \Closure $scope): array
+    {
+        $isPrivileged = $this->isPrivileged($user);
+        $max = $this->latestStructuredReadyPeriod($user);
+        $latestPeriod = $max === null ? null : Carbon::parse($max)->endOfMonth()->toDateString();
+        $visible = $this->visibleUnits();
+        $latestRows = 0;
+
+        if ($latestPeriod !== null) {
+            $latestRows = DB::table('performance_observations')
+                ->join('datasets', 'datasets.id', '=', 'performance_observations.dataset_id')
+                ->join('org_units', 'org_units.id', '=', 'performance_observations.org_unit_id')
+                ->where('datasets.status', Dataset::STATUS_READY)
+                ->whereBetween('performance_observations.period', [Carbon::parse($latestPeriod)->startOfMonth()->toDateString(), $latestPeriod])
+                ->when($visible !== null, fn ($q) => $q->whereIn('org_units.name', $visible))
+                ->when(! $isPrivileged, fn ($q) => $q->where('performance_observations.division_id', $user?->division_id))
+                ->count();
         }
 
         return [
