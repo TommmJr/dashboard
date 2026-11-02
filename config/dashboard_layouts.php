@@ -1,17 +1,19 @@
 <?php
 
 /*
- * Konfigurasi Dashboard Builder Fase 1: katalog widget + layout per role.
+ * Konfigurasi Dashboard Layout: katalog widget + fallback layout per role.
  *
- * CATATAN DEVIASI FR-001: Fase 1 menyimpan layout secara HARDCODE di config
- * ini dan bersifat role-scoped — belum memenuhi FR-001 §3 (builder drag-drop
- * per user di tabel DB). Pemindahan ke tabel dashboard_layouts + UI builder
- * dijadwalkan di Fase 2.
+ * Resolusi layout kini DB-first via tabel `dashboard_layouts`, dikelola melalui
+ * UI builder untuk role yang memiliki permission `dashboard.update`. Konfigurasi
+ * di file ini berfungsi sebagai:
+ * 1. Katalog definitif widget aktif (`widgets`).
+ * 2. Fallback layout bawaan per role (`layouts`) dan fallback umum (`default`)
+ *    apabila belum ada layout tersimpan di database atau saat override di-reset.
  *
  * Struktur:
  * - widgets : katalog widget_key => label, view (Blade component anonim di
  *   resources/views/components/widgets/), permission (nullable).
- * - layouts : slug role => daftar widget_key terurut (urutan render).
+ * - layouts : slug role (atau staff_divisi:<slug>) => daftar widget_key terurut.
  * - default : fallback untuk role null / slug tidak dikenal.
  *
  * PENTING: file ini BUKAN mekanisme keamanan. DashboardController tetap

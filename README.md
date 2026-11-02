@@ -17,12 +17,12 @@ Provide a maintainable internal dashboard that reduces manual reporting work and
 - One-click hierarchical KPI report import. Valid unit sheets are stored under the canonical `Perencanaan Pengusahaan` data owner (`perencanaan-pengusahaan`).
 - KPI/NKO dashboard charts and rankings powered by Apache ECharts.
 - Dashboard filters for date ranges and multiple units through `start_date`, `end_date`, and `unit[]`.
+- Database-backed dashboard layouts (`dashboard_layouts` table) with fallback to `config/dashboard_layouts.php`, and an in-place UI Builder for roles with `dashboard.update` permission.
 - User and division administration, security headers, and login rate limiting.
 
 ## Current Limitations
 
-- The dashboard uses a Phase 1 role-based layout from `config/dashboard_layouts.php`.
-- The metadata-driven dashboard builder and per-dashboard persistent layouts are planned for Phase 2, pending additional source-data samples.
+- Asset domain widgets (such as `aset-upt-chart`) and asset data mounting remain disabled awaiting mentor/PIC confirmation.
 - The Reports module is currently disabled; its `/reports/*` routes are intentionally commented out.
 
 ## Tech Stack
