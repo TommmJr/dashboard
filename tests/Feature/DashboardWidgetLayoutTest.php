@@ -49,6 +49,8 @@ class DashboardWidgetLayoutTest extends TestCase
             ->assertSee('Audit Terbaru')
             ->assertSee('Dataset Gagal')
             ->assertSee('Aksi Cepat')
+            ->assertSee('Editor Layout')
+            ->assertSee('id="dashboard-layout-builder"', false)
             ->assertDontSee('Ringkasan KPI')
             ->assertDontSee('Grafik Tren Kinerja')
             ->assertDontSee('Peringkat NKO Unit');
@@ -986,5 +988,73 @@ class DashboardWidgetLayoutTest extends TestCase
             ->assertOk()
             ->assertSee('x-data="performanceDashboard(', false)
             ->assertSee('Grafik Tren Kinerja');
+    }
+
+    public function test_penyimpanan_layout_admin_wajib_menyertakan_layout_editor_placeholder_dan_fallback_jalur_baca_aktif(): void
+    {
+        $admin = User::factory()->withRole(Role::ADMIN)->create();
+
+        // 1. JSON request tanpa 'layout-editor-placeholder' untuk role Admin ditolak HTTP 422.
+        $this->actingAs($admin)
+            ->putJson(route('dashboard.layout.update'), [
+                'role_slug' => Role::ADMIN,
+                'layout_key' => Role::ADMIN,
+                'widgets' => ['admin-summary', 'recent-audit'],
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['widgets'])
+            ->assertJsonPath(
+                'errors.widgets.0',
+                'Widget Editor Layout (layout-editor-placeholder) wajib dipertahankan pada layout Admin agar akses pengelolaan tidak terkunci.',
+            );
+
+        $this->assertDatabaseMissing('dashboard_layouts', [
+            'layout_key' => Role::ADMIN,
+        ]);
+
+        // 2. Form request tanpa 'layout-editor-placeholder' untuk role Admin ditolak 302 dengan error 'widgets'.
+        $this->actingAs($admin)
+            ->from(route('dashboard'))
+            ->put(route('dashboard.layout.update'), [
+                'role_slug' => Role::ADMIN,
+                'layout_key' => Role::ADMIN,
+                'widgets' => ['admin-summary'],
+            ])
+            ->assertRedirect(route('dashboard'))
+            ->assertSessionHasErrors([
+                'widgets' => 'Widget Editor Layout (layout-editor-placeholder) wajib dipertahankan pada layout Admin agar akses pengelolaan tidak terkunci.',
+            ]);
+
+        // 3. Penyimpanan yang menyertakan 'layout-editor-placeholder' berhasil.
+        $this->actingAs($admin)
+            ->putJson(route('dashboard.layout.update'), [
+                'role_slug' => Role::ADMIN,
+                'layout_key' => Role::ADMIN,
+                'widgets' => ['admin-summary', 'layout-editor-placeholder'],
+            ])
+            ->assertOk()
+            ->assertJsonPath('widgets', ['admin-summary', 'layout-editor-placeholder']);
+
+        // 4. Fallback jalur baca: jika baris DB lama tidak memuat 'layout-editor-placeholder',
+        // halaman dashboard tetap merender widget Editor Layout agar tidak self-lockout.
+        DashboardLayout::where('role_slug', Role::ADMIN)->update([
+            'widgets' => ['admin-summary'],
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('id="dashboard-layout-builder"', false);
+    }
+
+    public function test_render_chart_memiliki_null_guard_saat_elemen_canvas_tidak_ada(): void
+    {
+        $management = User::factory()->withRole(Role::MANAGEMENT)->create();
+
+        $this->actingAs($management)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee("const el = document.getElementById('performanceChart');", false)
+            ->assertSee('if (!el) return;', false);
     }
 }

@@ -66,13 +66,19 @@ class PerformanceMetricController extends Controller
     {
         $user = Auth::user();
 
-        if ($this->seesAllDivisions($user)) {
-            return;
+        if (! $this->seesAllDivisions($user)) {
+            abort_unless(
+                $user->division_id !== null && $user->division_id === $metric->division_id,
+                403,
+            );
         }
 
-        abort_unless(
-            $user->division_id !== null && $user->division_id === $metric->division_id,
+        $metric->loadMissing('dataset');
+
+        abort_if(
+            $metric->dataset !== null && $metric->dataset->observations()->exists(),
             403,
+            'Koreksi data KPI dilakukan dengan upload ulang laporan.',
         );
     }
 

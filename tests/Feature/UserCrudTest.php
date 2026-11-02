@@ -525,4 +525,43 @@ class UserCrudTest extends TestCase
 
         $this->assertSame($divisionB->id, $user->fresh()->division_id);
     }
+
+    public function test_pesan_validasi_bahasa_indonesia_dan_label_kondisional_divisi_untuk_staf_divisi(): void
+    {
+        $staffRoleId = Role::where('slug', Role::STAFF_DIVISI)->value('id');
+
+        $this->actingAs($this->admin)
+            ->get(route('users.create'))
+            ->assertOk()
+            ->assertSee('(wajib untuk Staf Divisi)')
+            ->assertSee('(opsional)');
+
+        $this->actingAs($this->admin)
+            ->get(route('users.edit', $this->staff))
+            ->assertOk()
+            ->assertSee('(wajib untuk Staf Divisi)')
+            ->assertSee('-- Pilih divisi (wajib) --');
+
+        $this->actingAs($this->admin)
+            ->postJson(route('users.store'), [
+                'name' => 'Staf Tanpa Divisi',
+                'email' => 'staf_pesan_id@example.com',
+                'password' => 'password123',
+                'password_confirmation' => 'password123',
+                'role_id' => $staffRoleId,
+                'division_id' => null,
+            ])
+            ->assertStatus(422)
+            ->assertJsonPath('errors.division_id.0', 'Divisi wajib dipilih untuk role Staf Divisi.');
+
+        $this->actingAs($this->admin)
+            ->patchJson(route('users.update', $this->staff), [
+                'name' => $this->staff->name,
+                'email' => $this->staff->email,
+                'role_id' => $staffRoleId,
+                'division_id' => null,
+            ])
+            ->assertStatus(422)
+            ->assertJsonPath('errors.division_id.0', 'Divisi wajib dipilih untuk role Staf Divisi.');
+    }
 }

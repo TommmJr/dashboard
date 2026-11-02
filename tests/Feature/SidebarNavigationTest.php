@@ -29,20 +29,25 @@ class SidebarNavigationTest extends TestCase
             ->get(route('dashboard'))
             ->assertOk()
             ->assertSee('Dashboard Builder')
-            ->assertSee('Segera')
+            ->assertSee(route('dashboard').'#dashboard-layout-builder', false)
+            ->assertDontSee('Segera')
             ->assertSee('id="main-sidebar"', false)
             ->assertSee('aria-controls="main-sidebar"', false)
             ->assertSee('Buka menu', false);
 
         $this->actingAs($editor)
             ->get(route('dashboard'))
+            ->assertOk()
             ->assertSee('Dashboard Builder')
-            ->assertSee('Segera');
+            ->assertSee(route('dashboard').'#dashboard-layout-builder', false)
+            ->assertDontSee('Segera');
 
         foreach ([$management, $staff] as $user) {
             $this->actingAs($user)
                 ->get(route('dashboard'))
+                ->assertOk()
                 ->assertDontSee('Dashboard Builder')
+                ->assertDontSee(route('dashboard').'#dashboard-layout-builder', false)
                 ->assertDontSee('Segera');
         }
     }

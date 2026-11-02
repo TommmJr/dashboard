@@ -1737,7 +1737,11 @@ class DashboardController extends Controller
             );
 
             $dbWidgets = $dbRecords->has($layoutKey)
-                ? DashboardLayout::sanitizeWidgets($dbRecords->get($layoutKey)->widgets, $config)
+                ? $this->ensureBuilderWidgetForSelfManagedLayout(
+                    $layoutKey,
+                    DashboardLayout::sanitizeWidgets($dbRecords->get($layoutKey)->widgets, $config),
+                    $config,
+                )
                 : [];
 
             $isCustomized = $dbWidgets !== [];
@@ -1897,7 +1901,34 @@ class DashboardController extends Controller
             return [];
         }
 
-        return DashboardLayout::sanitizeWidgets($record->widgets, $config);
+        return $this->ensureBuilderWidgetForSelfManagedLayout(
+            $layoutKey,
+            DashboardLayout::sanitizeWidgets($record->widgets, $config),
+            $config,
+        );
+    }
+
+    /**
+     * Fallback jalur baca anti-self-lockout: bila layout DB milik Admin atau
+     * Editor Dashboard tidak memiliki layout-editor-placeholder (mis. baris DB
+     * lama sebelum guard diterapkan), tambahkan secara otomatis agar UI builder
+     * tetap dapat diakses.
+     *
+     * @param  list<string>  $widgets
+     * @param  array<string, mixed>  $config
+     * @return list<string>
+     */
+    private function ensureBuilderWidgetForSelfManagedLayout(string $layoutKey, array $widgets, array $config): array
+    {
+        if ($widgets !== []
+            && in_array($layoutKey, [Role::ADMIN, Role::EDITOR_DASHBOARD], true)
+            && ! in_array('layout-editor-placeholder', $widgets, true)
+            && in_array('layout-editor-placeholder', DashboardLayout::allowedWidgetKeys($config), true)
+        ) {
+            $widgets[] = 'layout-editor-placeholder';
+        }
+
+        return $widgets;
     }
 
     /**
@@ -1986,10 +2017,12 @@ class DashboardController extends Controller
         /** @var list<string> $widgets */
         $widgets = $requireWidgets ? array_values($validated['widgets']) : [];
 
-        if ($requireWidgets && $roleSlug === Role::EDITOR_DASHBOARD) {
+        if ($requireWidgets && in_array($roleSlug, [Role::ADMIN, Role::EDITOR_DASHBOARD], true)) {
             if (! in_array('layout-editor-placeholder', $widgets, true)) {
+                $roleLabel = $roleSlug === Role::ADMIN ? 'Admin' : 'Editor Dashboard';
+
                 throw ValidationException::withMessages([
-                    'widgets' => 'Widget Editor Layout (layout-editor-placeholder) wajib dipertahankan pada layout Editor Dashboard agar akses pengelolaan tidak terkunci.',
+                    'widgets' => "Widget Editor Layout (layout-editor-placeholder) wajib dipertahankan pada layout {$roleLabel} agar akses pengelolaan tidak terkunci.",
                 ]);
             }
         }

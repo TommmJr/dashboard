@@ -56,6 +56,7 @@
         </form>
     </div>
 
+    @if ($canImportKpi ?? false)
     <div class="mt-4 rounded-lg bg-white p-6 shadow">
             <h2 class="text-lg font-bold text-gray-900">Import Laporan KPI dari Mentor (Otomatis)</h2>
             <p class="mt-2 text-sm text-gray-600">
@@ -101,5 +102,6 @@
                 </button>
             </form>
     </div>
+    @endif
 </div>
 @endsection

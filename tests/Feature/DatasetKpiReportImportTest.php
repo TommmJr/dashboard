@@ -293,13 +293,15 @@ class DatasetKpiReportImportTest extends TestCase
     public function test_periode_kosong_tidak_muncul_di_form_untuk_divisi_bukan_pemilik(): void
     {
         // Staf divisi lain tidak boleh impor KPI, jadi tidak perlu melihat
-        // daftar periode milik divisi pemilik data.
+        // kartu Import Laporan KPI maupun daftar periode milik divisi pemilik data.
         $staff = User::factory()->withRole(Role::STAFF_DIVISI)->create([
             'division_id' => Division::factory()->create()->id,
         ]);
 
         $this->actingAs($staff)->get(route('datasets.create'))
             ->assertOk()
+            ->assertDontSee('Import Laporan KPI dari Mentor (Otomatis)')
+            ->assertDontSee(route('datasets.kpi-import'), false)
             ->assertDontSee('Periode yang sudah pernah diimpor');
     }
 
@@ -314,20 +316,26 @@ class DatasetKpiReportImportTest extends TestCase
             'period' => '2026-08-31',
         ])->assertRedirect(route('datasets.create'));
 
-        // Admin dan staf pemilik melihat riwayat periode
+        // Admin dan staf pemilik melihat kartu Import Laporan KPI dan riwayat periode
         $this->actingAs($admin)->get(route('datasets.create'))
             ->assertOk()
+            ->assertSee('Import Laporan KPI dari Mentor (Otomatis)')
+            ->assertSee(route('datasets.kpi-import'), false)
             ->assertSee('Periode yang sudah pernah diimpor:');
 
         $staffOwner = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $owner->id]);
         $this->actingAs($staffOwner)->get(route('datasets.create'))
             ->assertOk()
+            ->assertSee('Import Laporan KPI dari Mentor (Otomatis)')
+            ->assertSee(route('datasets.kpi-import'), false)
             ->assertSee('Periode yang sudah pernah diimpor:');
 
-        // Staf tanpa divisi tidak boleh melihat riwayat periode KPI
+        // Staf tanpa divisi tidak boleh melihat kartu Import Laporan KPI maupun riwayat periode KPI
         $staffNoDiv = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => null]);
         $this->actingAs($staffNoDiv)->get(route('datasets.create'))
             ->assertOk()
+            ->assertDontSee('Import Laporan KPI dari Mentor (Otomatis)')
+            ->assertDontSee(route('datasets.kpi-import'), false)
             ->assertDontSee('Periode yang sudah pernah diimpor');
     }
 

@@ -42,26 +42,37 @@
                        class="mt-1 block w-full rounded-md border-gray-300 text-sm">
             </div>
 
-            <div>
-                <label for="role_id" class="block text-sm font-medium text-gray-700">Role</label>
-                <select id="role_id" name="role_id" required
-                        class="mt-1 block w-full rounded-md border-gray-300 text-sm">
-                    <option value="">-- Pilih role --</option>
-                    @foreach ($roles as $role)
-                        <option value="{{ $role->id }}" @selected(old('role_id') == $role->id)>{{ $role->name }}</option>
-                    @endforeach
-                </select>
-            </div>
+            @php
+                $staffRoleId = $roles->firstWhere('slug', \App\Models\Role::STAFF_DIVISI)?->id;
+                $selectedRoleId = old('role_id', '');
+                $isStaffSelected = $staffRoleId !== null && (string) $selectedRoleId === (string) $staffRoleId;
+            @endphp
+            <div x-data="{ selectedRole: '{{ $selectedRoleId }}', staffRoleId: '{{ $staffRoleId }}' }" class="flex flex-col gap-4">
+                <div>
+                    <label for="role_id" class="block text-sm font-medium text-gray-700">Role</label>
+                    <select id="role_id" name="role_id" x-model="selectedRole" required
+                            class="mt-1 block w-full rounded-md border-gray-300 text-sm">
+                        <option value="">-- Pilih role --</option>
+                        @foreach ($roles as $role)
+                            <option value="{{ $role->id }}" @selected(old('role_id') == $role->id)>{{ $role->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
 
-            <div>
-                <label for="division_id" class="block text-sm font-medium text-gray-700">Divisi <span class="text-gray-400">(opsional)</span></label>
-                <select id="division_id" name="division_id"
-                        class="mt-1 block w-full rounded-md border-gray-300 text-sm">
-                    <option value="">-- Tanpa divisi --</option>
-                    @foreach ($divisions as $division)
-                        <option value="{{ $division->id }}" @selected(old('division_id') == $division->id)>{{ $division->name }}</option>
-                    @endforeach
-                </select>
+                <div>
+                    <label for="division_id" class="block text-sm font-medium text-gray-700">
+                        Divisi
+                        <span x-show="String(selectedRole) === String(staffRoleId)" @if (! $isStaffSelected) x-cloak @endif class="text-red-600">(wajib untuk Staf Divisi)</span>
+                        <span x-show="String(selectedRole) !== String(staffRoleId)" @if ($isStaffSelected) x-cloak @endif class="text-gray-400">(opsional)</span>
+                    </label>
+                    <select id="division_id" name="division_id" :required="String(selectedRole) === String(staffRoleId)"
+                            class="mt-1 block w-full rounded-md border-gray-300 text-sm">
+                        <option value="" x-text="String(selectedRole) === String(staffRoleId) ? '-- Pilih divisi (wajib) --' : '-- Tanpa divisi --'">{{ $isStaffSelected ? '-- Pilih divisi (wajib) --' : '-- Tanpa divisi --' }}</option>
+                        @foreach ($divisions as $division)
+                            <option value="{{ $division->id }}" @selected(old('division_id') == $division->id)>{{ $division->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
             </div>
 
             <button type="submit"

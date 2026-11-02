@@ -229,6 +229,7 @@
 
             renderChart(payload) {
                 const el = document.getElementById('performanceChart');
+                if (!el) return;
                 if (this.chart) { this.chart.dispose(); }
                 this.chart = window.echarts.init(el);
 

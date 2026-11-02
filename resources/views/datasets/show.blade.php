@@ -128,6 +128,7 @@
         </div>
     </div>
 
+    @php $canEditMetrics = auth()->user()->can('dataset.update') && ! ($hasObservations ?? false); @endphp
     <div class="mt-6 rounded-lg bg-white shadow">
         <h2 class="border-b px-6 py-4 text-lg font-semibold text-gray-900">Preview Data ({{ $metrics->total() }} baris)</h2>
         <table class="min-w-full divide-y divide-gray-200 text-sm">
@@ -136,9 +137,9 @@
                     <th class="px-4 py-3">Metric</th>
                     <th class="px-4 py-3">Value</th>
                     <th class="px-4 py-3">Period</th>
-                    @can('dataset.update')
+                    @if ($canEditMetrics)
                         <th class="px-4 py-3">Aksi</th>
-                    @endcan
+                    @endif
                 </tr>
             </thead>
             <tbody class="divide-y divide-gray-100">
@@ -147,12 +148,12 @@
                         <td class="px-4 py-2">{{ $metric->metric_name }}</td>
                         <td class="px-4 py-2">{{ number_format((float) $metric->value, 2) }}</td>
                         <td class="px-4 py-2">{{ $metric->period }}</td>
-                        @can('dataset.update')
+                        @if ($canEditMetrics)
                             <td class="px-4 py-2">
                                 <a href="{{ route('performance_metrics.edit', $metric) }}"
                                    class="text-sm text-indigo-600 hover:underline">Edit</a>
                             </td>
-                        @endcan
+                        @endif
                     </tr>
                 @empty
                     <tr><td colspan="4" class="px-4 py-6 text-center text-gray-500">Belum ada baris data terimpor.</td></tr>

@@ -5,7 +5,10 @@ namespace Tests\Feature;
 use App\Models\AuditLog;
 use App\Models\Dataset;
 use App\Models\Division;
+use App\Models\Indicator;
+use App\Models\OrgUnit;
 use App\Models\PerformanceMetric;
+use App\Models\PerformanceObservation;
 use App\Models\Role;
 use App\Models\User;
 use Database\Seeders\RolePermissionSeeder;
@@ -284,5 +287,57 @@ class PerformanceMetricEditTest extends TestCase
                 'period' => '2026-05-01',
             ])
             ->assertSessionHasErrors('metric_name');
+    }
+
+    public function test_dataset_dengan_performance_observations_menyembunyikan_tombol_edit_dan_menolak_edit_serta_update(): void
+    {
+        $unit = OrgUnit::create([
+            'code' => 'TJBT',
+            'name' => 'TJBT',
+            'level' => 'unit',
+        ]);
+        $indicator = Indicator::create([
+            'org_unit_id' => $unit->id,
+            'code' => 'IND-01',
+            'name' => 'Indikator Uji',
+            'unit' => '%',
+            'is_group' => false,
+        ]);
+
+        PerformanceObservation::create([
+            'dataset_id' => $this->datasetA->id,
+            'division_id' => $this->divisionA->id,
+            'org_unit_id' => $unit->id,
+            'indicator_id' => $indicator->id,
+            'period' => '2026-01-31',
+            'target_value' => 100,
+            'target_type' => PerformanceObservation::TYPE_NUMERIC,
+            'realisasi_value' => 95,
+            'realisasi_type' => PerformanceObservation::TYPE_NUMERIC,
+            'pencapaian' => 0.95,
+        ]);
+
+        // 1. Halaman detail dataset menyembunyikan tombol Edit metric
+        $this->actingAs($this->staffA)
+            ->get(route('datasets.show', $this->datasetA))
+            ->assertOk()
+            ->assertDontSee(route('performance_metrics.edit', $this->metricA), false);
+
+        // 2. GET edit dan PATCH update ditolak 403 dengan pesan koreksi via upload ulang
+        $this->actingAs($this->staffA)
+            ->get(route('performance_metrics.edit', $this->metricA))
+            ->assertForbidden()
+            ->assertSee('Koreksi data KPI dilakukan dengan upload ulang laporan.');
+
+        $this->actingAs($this->admin)
+            ->patch(route('performance_metrics.update', $this->metricA), [
+                'metric_name' => 'Coba Ubah',
+                'value' => '999',
+                'period' => '2026-01-31',
+            ])
+            ->assertForbidden()
+            ->assertSee('Koreksi data KPI dilakukan dengan upload ulang laporan.');
+
+        $this->assertSame('Metric Awal', $this->metricA->fresh()->metric_name);
     }
 }

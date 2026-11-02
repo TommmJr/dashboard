@@ -88,15 +88,13 @@
         @endcan
 
         @can('dashboard.update')
-            <span class="pointer-events-none flex items-center gap-3 rounded-lg border-l-2 border-transparent px-3 py-2.5 text-sm font-medium text-white/40 select-none" aria-disabled="true">
+            <a href="{{ route('dashboard') }}#dashboard-layout-builder"
+               class="flex items-center gap-3 rounded-lg border-l-2 border-transparent px-3 py-2.5 text-sm font-medium text-white/70 transition hover:bg-white/10 hover:text-white">
                 <svg class="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
                     <path d="M11 5H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-5m-1.4-9.4a2 2 0 1 1 2.8 2.8L11.8 15H9v-2.8l8.6-8.6Z" stroke-linecap="round" stroke-linejoin="round" />
                 </svg>
-                <span x-show="$store.ui.sidebarExpanded" x-transition.opacity class="sidebar-label flex w-full items-center whitespace-nowrap">
-                    Dashboard Builder
-                    <span class="ml-auto rounded-full bg-highlight/20 px-1.5 py-0.5 text-xs font-semibold text-highlight">Segera</span>
-                </span>
-            </span>
+                <span x-show="$store.ui.sidebarExpanded" x-transition.opacity class="sidebar-label whitespace-nowrap">Dashboard Builder</span>
+            </a>
         @endcan
     </nav>
 

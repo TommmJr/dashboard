@@ -91,7 +91,7 @@ return [
      * `staff_divisi:<division.slug>`.
      */
     'layouts' => [
-        'admin' => ['admin-summary', 'recent-audit', 'failed-datasets', 'admin-quick-actions'],
+        'admin' => ['admin-summary', 'recent-audit', 'failed-datasets', 'admin-quick-actions', 'layout-editor-placeholder'],
         'management' => ['kpi-summary', 'trend-chart', 'nko-ranking'],
         'editor_dashboard' => ['kpi-summary', 'trend-chart', 'nko-ranking', 'layout-editor-placeholder'],
         // Default staf divisi yang belum punya override: hanya dataset-status.

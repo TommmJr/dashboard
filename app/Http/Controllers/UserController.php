@@ -30,7 +30,7 @@ class UserController extends Controller
      */
     public function create(): View
     {
-        $roles = Role::orderBy('name')->get(['id', 'name']);
+        $roles = Role::orderBy('name')->get(['id', 'name', 'slug']);
         $divisions = Division::orderBy('name')->get(['id', 'name']);
 
         return view('users.create', compact('roles', 'divisions'));
@@ -51,6 +51,9 @@ class UserController extends Controller
             'password' => 'required|string|min:8|confirmed',
             'role_id' => 'required|exists:roles,id',
             'division_id' => $divisionRule,
+        ], [
+            'division_id.required' => 'Divisi wajib dipilih untuk role Staf Divisi.',
+            'division_id.exists' => 'Divisi yang dipilih tidak valid.',
         ]);
 
         $user = User::create([
@@ -73,7 +76,7 @@ class UserController extends Controller
      */
     public function edit(User $user): View
     {
-        $roles = Role::orderBy('name')->get(['id', 'name']);
+        $roles = Role::orderBy('name')->get(['id', 'name', 'slug']);
         $divisions = Division::orderBy('name')->get(['id', 'name']);
 
         return view('users.edit', compact('user', 'roles', 'divisions'));
@@ -94,6 +97,9 @@ class UserController extends Controller
             'password' => 'nullable|string|min:8|confirmed',
             'role_id' => 'required|exists:roles,id',
             'division_id' => $divisionRule,
+        ], [
+            'division_id.required' => 'Divisi wajib dipilih untuk role Staf Divisi.',
+            'division_id.exists' => 'Divisi yang dipilih tidak valid.',
         ]);
 
         $user->name = $validated['name'];

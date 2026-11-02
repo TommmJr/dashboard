@@ -321,7 +321,8 @@
                 },
 
                 isLockedWidget(widgetKey) {
-                    return this.selectedTargetKey === 'editor_dashboard' && widgetKey === 'layout-editor-placeholder';
+                    return (this.selectedTargetKey === 'editor_dashboard' || this.selectedTargetKey === 'admin')
+                        && widgetKey === 'layout-editor-placeholder';
                 },
 
                 removeWidget(key) {

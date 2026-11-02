@@ -40,8 +40,17 @@ class DatasetController extends Controller
         return view('datasets.create', [
             'divisions' => $divisions,
             'user' => $user,
+            'canImportKpi' => $this->canImportKpi($user),
             'kpiPeriods' => $this->importedKpiPeriods($user),
         ]);
+    }
+
+    private function canImportKpi(User $user, ?Division $owner = null): bool
+    {
+        $owner ??= Division::where('slug', 'perencanaan-pengusahaan')->first();
+
+        return $user->hasRole(Role::ADMIN)
+            || ($owner !== null && $user->hasRole(Role::STAFF_DIVISI) && $user->division_id !== null && $user->division_id === $owner->id);
     }
 
     /**
@@ -60,10 +69,7 @@ class DatasetController extends Controller
     {
         $owner = Division::where('slug', 'perencanaan-pengusahaan')->first();
 
-        $canImport = $user->hasRole(Role::ADMIN)
-            || ($user->hasRole(Role::STAFF_DIVISI) && $user->division_id !== null && $user->division_id === $owner?->id);
-
-        if ($owner === null || ! $canImport) {
+        if ($owner === null || ! $this->canImportKpi($user, $owner)) {
             return collect();
         }
 
@@ -433,8 +439,9 @@ class DatasetController extends Controller
 
         $dataset->load(['division:id,name', 'user:id,name']);
         $metrics = $dataset->metrics()->orderBy('period')->paginate(20);
+        $hasObservations = $dataset->observations()->exists();
 
-        return view('datasets.show', compact('dataset', 'metrics'));
+        return view('datasets.show', compact('dataset', 'metrics', 'hasObservations'));
     }
 
     /**
