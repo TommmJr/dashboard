@@ -90,4 +90,16 @@ class DashboardLayoutEditorWidthTest extends TestCase
             ->assertSee('canvas-chart-container', false)
             ->assertSee('initCanvasChart', false);
     }
+
+    public function test_dashboard_builder_canvas_provides_in_card_controls_and_width_toggles(): void
+    {
+        $admin = User::factory()->withRole(Role::ADMIN)->create();
+
+        $response = $this->actingAs($admin)->get(route('dashboard.builder'));
+
+        $response->assertOk()
+            ->assertSee('Atur Lebar')
+            ->assertSee('canvas-drag-handle', false)
+            ->assertSee('canvas-card-toolbar', false);
+    }
 }

@@ -117,7 +117,7 @@
             <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-b border-slate-200 pb-3">
                 <div>
                     <div class="flex items-center gap-2">
-                        <h4 class="text-sm font-bold uppercase tracking-wide text-primary">Palet Komponen</h4>
+                        <h4 class="text-sm font-bold uppercase tracking-wide text-primary">Palet Komponen (Katalog Widget Tersedia)</h4>
                         <span class="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">
                             {{ count($catalog) }} Komponen Tersedia
                         </span>
@@ -180,7 +180,7 @@
             <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-b border-slate-200 pb-3">
                 <div>
                     <div class="flex items-center gap-2">
-                        <h4 class="text-sm font-bold uppercase tracking-wide text-primary">Kanvas Presentasi Dashboard</h4>
+                        <h4 class="text-sm font-bold uppercase tracking-wide text-primary">Kanvas Presentasi Dashboard (Widget Aktif)</h4>
                         <span class="inline-flex items-center rounded-full bg-accent/15 px-2.5 py-0.5 text-xs font-semibold text-primary">
                             Pratinjau Tata Letak Grid 3 Kolom
                         </span>
@@ -219,26 +219,63 @@
                             ]"
                             class="flex flex-col rounded-lg border bg-white p-4 shadow-sm transition hover:shadow-md"
                         >
-                            <div class="flex items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                            <div class="canvas-card-toolbar flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
                                 <div class="flex min-w-0 items-center gap-2.5">
                                     <span
-                                        class="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded bg-slate-100 text-xs font-bold text-slate-600 cursor-move"
-                                        x-text="index + 1"
+                                        class="canvas-drag-handle inline-flex h-7 w-7 shrink-0 items-center justify-center rounded bg-slate-100 text-xs font-bold text-slate-600 cursor-grab active:cursor-grabbing hover:bg-slate-200 transition"
                                         title="Tarik untuk memindahkan urutan kartu di kanvas"
-                                    ></span>
+                                    >
+                                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16" />
+                                        </svg>
+                                    </span>
                                     <div class="min-w-0">
                                         <p class="truncate text-sm font-bold text-primary" x-text="widgetLabel(w.key)"></p>
-                                        <p class="truncate text-xs text-slate-400 font-mono" x-text="w.key"></p>
+                                        <div class="flex items-center gap-1.5 text-xs text-slate-400">
+                                            <span class="font-mono text-[11px]" x-text="w.key"></span>
+                                            <span>&bull;</span>
+                                            <span class="font-semibold text-accent" x-text="`${w.cols || 3} Kolom`"></span>
+                                        </div>
                                     </div>
                                 </div>
 
-                                <div class="flex shrink-0 items-center gap-1.5">
+                                <div class="flex flex-wrap items-center gap-1.5">
+                                    {{-- Atur Lebar Selector --}}
+                                    <div class="flex items-center rounded-lg border border-slate-200 bg-slate-50 p-0.5 text-xs font-medium" title="Atur Lebar Kolom">
+                                        <span class="text-[11px] font-semibold text-slate-500 px-1.5">Atur Lebar:</span>
+                                        <button
+                                            type="button"
+                                            @click="setWidgetCols(w, 1)"
+                                            :class="(w.cols === 1) ? 'bg-primary text-white shadow-xs' : 'text-slate-600 hover:text-primary'"
+                                            class="rounded px-2 py-0.5 text-[11px] font-semibold transition"
+                                        >
+                                            1
+                                        </button>
+                                        <button
+                                            type="button"
+                                            @click="setWidgetCols(w, 2)"
+                                            :class="(w.cols === 2) ? 'bg-primary text-white shadow-xs' : 'text-slate-600 hover:text-primary'"
+                                            class="rounded px-2 py-0.5 text-[11px] font-semibold transition"
+                                        >
+                                            2
+                                        </button>
+                                        <button
+                                            type="button"
+                                            @click="setWidgetCols(w, 3)"
+                                            :class="(w.cols === 3) ? 'bg-primary text-white shadow-xs' : 'text-slate-600 hover:text-primary'"
+                                            class="rounded px-2 py-0.5 text-[11px] font-semibold transition"
+                                        >
+                                            3
+                                        </button>
+                                    </div>
+
                                     <button
                                         type="button"
                                         @click="moveUp(index)"
                                         :disabled="saving || index === 0"
-                                        class="inline-flex h-7 items-center rounded border border-slate-200 bg-white px-2 text-xs font-medium text-slate-600 hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
+                                        class="inline-flex h-7 w-7 items-center justify-center rounded border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
                                         :aria-label="`Naikkan ${widgetLabel(w.key)}`"
+                                        title="Geser ke atas / kiri"
                                     >
                                         &uarr;
                                     </button>
@@ -246,8 +283,9 @@
                                         type="button"
                                         @click="moveDown(index)"
                                         :disabled="saving || index === activeWidgets.length - 1"
-                                        class="inline-flex h-7 items-center rounded border border-slate-200 bg-white px-2 text-xs font-medium text-slate-600 hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
+                                        class="inline-flex h-7 w-7 items-center justify-center rounded border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
                                         :aria-label="`Turunkan ${widgetLabel(w.key)}`"
+                                        title="Geser ke bawah / kanan"
                                     >
                                         &darr;
                                     </button>
@@ -257,6 +295,7 @@
                                         :disabled="saving || activeWidgets.length <= 1 || isLockedWidget(w.key)"
                                         class="inline-flex h-7 items-center rounded border border-red-200 bg-red-50 px-2 text-xs font-semibold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-40"
                                         :aria-label="`Hapus ${widgetLabel(w.key)}`"
+                                        :title="isLockedWidget(w.key) ? 'Widget wajib ada untuk peran ini' : 'Hapus widget dari kanvas'"
                                     >
                                         Hapus
                                     </button>
@@ -752,6 +791,13 @@
                         };
                         chartInstance.setOption(option);
                         setTimeout(() => chartInstance.resize(), 50);
+                    },
+
+                    setWidgetCols(widget, cols) {
+                        widget.cols = cols;
+                        this.$nextTick(() => {
+                            window.dispatchEvent(new Event('resize'));
+                        });
                     },
 
                     colSpanClass(cols) {
