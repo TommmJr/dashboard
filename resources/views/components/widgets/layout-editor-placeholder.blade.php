@@ -263,6 +263,66 @@
                                 </div>
                             </div>
 
+                            {{-- Live In-Canvas WYSIWYG Previews --}}
+                            <template x-if="w.key === 'custom-chart'">
+                                <div
+                                    class="canvas-chart-container relative mt-3 h-44 w-full rounded border border-slate-100 bg-slate-50/60 p-2"
+                                    x-init="$nextTick(() => initCanvasChart($el, w))"
+                                >
+                                    <div class="h-full w-full echarts-instance"></div>
+                                </div>
+                            </template>
+
+                            <template x-if="w.key === 'trend-chart'">
+                                <div
+                                    class="canvas-chart-container relative mt-3 h-40 w-full rounded border border-slate-100 bg-slate-50/60 p-2"
+                                    x-init="$nextTick(() => initTrendPreviewChart($el, w))"
+                                >
+                                    <div class="h-full w-full echarts-instance"></div>
+                                </div>
+                            </template>
+
+                            <template x-if="w.key === 'kpi-summary'">
+                                <div class="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                    <div class="rounded bg-sky-50/80 p-2.5 border border-sky-100">
+                                        <p class="text-[10px] font-bold text-sky-700 uppercase tracking-wide">Rata-rata NKO</p>
+                                        <p class="mt-1 text-base font-bold text-sky-950">105.4%</p>
+                                    </div>
+                                    <div class="rounded bg-emerald-50/80 p-2.5 border border-emerald-100">
+                                        <p class="text-[10px] font-bold text-emerald-700 uppercase tracking-wide">Indikator</p>
+                                        <p class="mt-1 text-base font-bold text-emerald-950">16 Tercapai</p>
+                                    </div>
+                                    <div class="col-span-2 sm:col-span-1 rounded bg-amber-50/80 p-2.5 border border-amber-100">
+                                        <p class="text-[10px] font-bold text-amber-700 uppercase tracking-wide">Periode Aktif</p>
+                                        <p class="mt-1 text-xs font-bold text-amber-950">Agustus 2026</p>
+                                    </div>
+                                </div>
+                            </template>
+
+                            <template x-if="w.key === 'nko-ranking'">
+                                <div class="mt-3 rounded border border-slate-100 bg-slate-50/60 p-2.5 space-y-1.5 text-xs">
+                                    <div class="flex items-center justify-between font-medium">
+                                        <span class="text-slate-700">1. TJBT (Jawa Bagian Tengah)</span>
+                                        <span class="font-bold text-emerald-600">105.5</span>
+                                    </div>
+                                    <div class="flex items-center justify-between font-medium">
+                                        <span class="text-slate-700">2. TRANS (Transmisi)</span>
+                                        <span class="font-bold text-emerald-600">100.7</span>
+                                    </div>
+                                    <div class="flex items-center justify-between text-slate-400 text-[11px]">
+                                        <span>+13 Unit Lainnya</span>
+                                        <span class="font-semibold text-slate-500">100.0</span>
+                                    </div>
+                                </div>
+                            </template>
+
+                            <template x-if="!['custom-chart', 'trend-chart', 'kpi-summary', 'nko-ranking'].includes(w.key)">
+                                <div class="mt-3 rounded border border-dashed border-slate-200 bg-slate-50/40 p-3 text-center">
+                                    <p class="text-xs font-semibold text-slate-600" x-text="`Pratinjau Visual: ${widgetLabel(w.key)}`"></p>
+                                    <p class="mt-0.5 text-[10px] text-slate-400">Komponen akan dirender penuh pada tata letak dashboard utama.</p>
+                                </div>
+                            </template>
+
                             {{-- Pengaturan Lebar Kolom & Konfigurasi --}}
                             <div class="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
                                 <div class="flex items-center gap-2">
@@ -618,6 +678,80 @@
 
                     onDragEnd() {
                         this.onCardDragEnd();
+                    },
+
+                    initCanvasChart(containerEl, widget) {
+                        if (typeof window.echarts === 'undefined' || !containerEl) {
+                            return;
+                        }
+                        const chartDom = containerEl.querySelector('.echarts-instance') || containerEl;
+                        let chartInstance = window.echarts.getInstanceByDom(chartDom);
+                        if (!chartInstance) {
+                            chartInstance = window.echarts.init(chartDom);
+                        }
+                        const chartType = widget?.config?.chart_type || 'bar';
+                        const isNko = (widget?.config?.metric || 'nko_score') === 'nko_score';
+                        const units = ['TJBT', 'Smg', 'Skr', 'Pwt', 'Ygy'];
+                        const values = isNko ? [105.5, 102.3, 101.8, 100.4, 99.8] : [100, 95.2, 98.4, 92.1, 91.5];
+
+                        let option = {};
+                        if (chartType === 'donut') {
+                            option = {
+                                color: ['#005b96', '#00a896', '#f39c12', '#2ecc71'],
+                                tooltip: { trigger: 'item' },
+                                series: [{
+                                    name: widget?.config?.title || 'Metrik',
+                                    type: 'pie',
+                                    radius: ['45%', '70%'],
+                                    avoidLabelOverlap: false,
+                                    label: { show: false },
+                                    data: [
+                                        { value: 105.5, name: 'TJBT' },
+                                        { value: 102.3, name: 'Smg' },
+                                        { value: 101.8, name: 'Skr' },
+                                        { value: 100.4, name: 'Lainnya' }
+                                    ]
+                                }]
+                            };
+                        } else if (chartType === 'line') {
+                            option = {
+                                color: ['#005b96'],
+                                grid: { top: 15, right: 15, bottom: 25, left: 35 },
+                                xAxis: { type: 'category', data: units, axisLabel: { fontSize: 10 } },
+                                yAxis: { type: 'value', axisLabel: { fontSize: 10 } },
+                                series: [{ data: values, type: 'line', smooth: true, areaStyle: { opacity: 0.15 } }]
+                            };
+                        } else {
+                            option = {
+                                color: ['#005b96'],
+                                grid: { top: 15, right: 15, bottom: 25, left: 35 },
+                                xAxis: { type: 'category', data: units, axisLabel: { fontSize: 10 } },
+                                yAxis: { type: 'value', axisLabel: { fontSize: 10 } },
+                                series: [{ data: values, type: 'bar', barWidth: '45%', itemStyle: { borderRadius: [3, 3, 0, 0] } }]
+                            };
+                        }
+                        chartInstance.setOption(option);
+                        setTimeout(() => chartInstance.resize(), 50);
+                    },
+
+                    initTrendPreviewChart(containerEl, widget) {
+                        if (typeof window.echarts === 'undefined' || !containerEl) {
+                            return;
+                        }
+                        const chartDom = containerEl.querySelector('.echarts-instance') || containerEl;
+                        let chartInstance = window.echarts.getInstanceByDom(chartDom);
+                        if (!chartInstance) {
+                            chartInstance = window.echarts.init(chartDom);
+                        }
+                        const option = {
+                            color: ['#00a896'],
+                            grid: { top: 15, right: 15, bottom: 25, left: 35 },
+                            xAxis: { type: 'category', data: ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu'], axisLabel: { fontSize: 10 } },
+                            yAxis: { type: 'value', min: 95, axisLabel: { fontSize: 10 } },
+                            series: [{ data: [98.2, 99.1, 100.4, 101.2, 102.5, 103.8, 104.9, 105.5], type: 'line', smooth: true }]
+                        };
+                        chartInstance.setOption(option);
+                        setTimeout(() => chartInstance.resize(), 50);
                     },
 
                     colSpanClass(cols) {

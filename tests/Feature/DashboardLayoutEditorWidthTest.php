@@ -79,4 +79,15 @@ class DashboardLayoutEditorWidthTest extends TestCase
             ->assertSee('draggable="true"', false)
             ->assertSee('onCanvasDrop', false);
     }
+
+    public function test_dashboard_builder_canvas_includes_live_preview_containers(): void
+    {
+        $admin = User::factory()->withRole(Role::ADMIN)->create();
+
+        $response = $this->actingAs($admin)->get(route('dashboard.builder'));
+
+        $response->assertOk()
+            ->assertSee('canvas-chart-container', false)
+            ->assertSee('initCanvasChart', false);
+    }
 }
