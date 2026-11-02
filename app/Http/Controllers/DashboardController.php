@@ -1652,7 +1652,7 @@ class DashboardController extends Controller
         [$roleSlug, $divisionId, $layoutKey] = $this->validateLayoutTarget($request, requireWidgets: false);
 
         DB::transaction(function () use ($layoutKey, $roleSlug, $divisionId): void {
-            DashboardLayout::query()
+            $layout = DashboardLayout::query()
                 ->where('layout_key', $layoutKey)
                 ->where('role_slug', $roleSlug)
                 ->when(
@@ -1660,7 +1660,9 @@ class DashboardController extends Controller
                     fn ($query) => $query->whereNull('division_id'),
                     fn ($query) => $query->where('division_id', $divisionId),
                 )
-                ->delete();
+                ->first();
+
+            $layout?->delete();
         });
 
         if ($request->expectsJson()) {

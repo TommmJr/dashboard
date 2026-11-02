@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\Auditable;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -17,6 +18,8 @@ use InvalidArgumentException;
 #[Fillable(['layout_key', 'role_slug', 'division_id', 'widgets', 'updated_by'])]
 class DashboardLayout extends Model
 {
+    use Auditable;
+
     /**
      * Daftar slug role yang sah memiliki konfigurasi layout dashboard.
      *
