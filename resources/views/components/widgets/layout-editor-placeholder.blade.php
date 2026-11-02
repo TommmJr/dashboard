@@ -18,6 +18,30 @@
         x-data="dashboardLayoutBuilder('{{ $encodedBuilderData }}')"
         class="rounded-lg border border-slate-200 bg-white p-6 shadow"
     >
+        {{-- In-page toast feedback for layout builder mutations --}}
+        <div
+            x-show="toast.show"
+            x-cloak
+            x-transition:enter="transition ease-out duration-300"
+            x-transition:enter-start="opacity-0 -translate-y-2"
+            x-transition:enter-end="opacity-100 translate-y-0"
+            x-transition:leave="transition ease-in duration-200"
+            x-transition:leave-start="opacity-100 translate-y-0"
+            x-transition:leave-end="opacity-0 -translate-y-2"
+            :class="toast.type === 'error' ? 'border-red-200 bg-red-50 text-red-800' : 'border-emerald-200 bg-emerald-50 text-emerald-800'"
+            class="fixed top-6 right-6 z-50 flex items-center gap-3 rounded-lg border px-4 py-3 shadow-lg"
+            role="status"
+        >
+            <svg class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+            </svg>
+            <p class="text-sm font-medium" x-text="toast.message"></p>
+            <button type="button" @click="toast.show = false" class="ml-2 text-slate-400 hover:text-slate-600">
+                <span class="sr-only">Tutup</span>
+                &times;
+            </button>
+        </div>
+
         <div class="flex flex-col gap-4 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
                 <div class="flex items-center gap-2.5">
@@ -378,6 +402,19 @@
                     validationErrors: [],
                     dragIndex: null,
                     currentUserLayoutKey: initial.current_user_layout_key || '',
+                    toast: { show: false, message: '', type: 'success', timer: null },
+
+                    showToast(msg, type = 'success') {
+                        if (this.toast.timer) {
+                            clearTimeout(this.toast.timer);
+                        }
+                        this.toast.message = msg;
+                        this.toast.type = type;
+                        this.toast.show = true;
+                        this.toast.timer = setTimeout(() => {
+                            this.toast.show = false;
+                        }, 4000);
+                    },
 
                     init() {
                         const target = this.currentTarget();
@@ -598,11 +635,13 @@
                             if (response.status === 422) {
                                 this.errorMessage = payload.message || 'Data susunan widget tidak valid.';
                                 this.validationErrors = this.extractValidationErrors(payload);
+                                this.showToast(this.errorMessage, 'error');
                                 return;
                             }
 
                             if (!response.ok) {
                                 this.errorMessage = payload.message || `Gagal menyimpan layout (HTTP ${response.status}).`;
+                                this.showToast(this.errorMessage, 'error');
                                 return;
                             }
 
@@ -611,12 +650,14 @@
                             target.is_customized = true;
                             this.activeWidgets = savedWidgets.map((w) => this.normalizeItem(w));
                             this.statusMessage = payload.message || 'Layout dashboard berhasil disimpan.';
+                            this.showToast(this.statusMessage, 'success');
 
                             if (target.layout_key === this.currentUserLayoutKey) {
                                 window.location.reload();
                             }
                         } catch (e) {
                             this.errorMessage = 'Terjadi gangguan jaringan saat menyimpan layout.';
+                            this.showToast(this.errorMessage, 'error');
                         } finally {
                             this.saving = false;
                             this.savingAction = '';
@@ -665,11 +706,13 @@
                             if (response.status === 422) {
                                 this.errorMessage = payload.message || 'Permintaan reset layout tidak valid.';
                                 this.validationErrors = this.extractValidationErrors(payload);
+                                this.showToast(this.errorMessage, 'error');
                                 return;
                             }
 
                             if (!response.ok) {
                                 this.errorMessage = payload.message || `Gagal mereset layout (HTTP ${response.status}).`;
+                                this.showToast(this.errorMessage, 'error');
                                 return;
                             }
 
@@ -680,12 +723,14 @@
                             target.is_customized = false;
                             this.activeWidgets = restoredWidgets.map((w) => this.normalizeItem(w));
                             this.statusMessage = payload.message || 'Layout dashboard dikembalikan ke bawaan.';
+                            this.showToast(this.statusMessage, 'success');
 
                             if (target.layout_key === this.currentUserLayoutKey) {
                                 window.location.reload();
                             }
                         } catch (e) {
                             this.errorMessage = 'Terjadi gangguan jaringan saat mereset layout.';
+                            this.showToast(this.errorMessage, 'error');
                         } finally {
                             this.saving = false;
                             this.savingAction = '';

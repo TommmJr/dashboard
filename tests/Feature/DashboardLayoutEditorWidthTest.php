@@ -55,4 +55,15 @@ class DashboardLayoutEditorWidthTest extends TestCase
             ->assertSee('Dashboard Builder')
             ->assertSee('id="dashboard-layout-builder"', false);
     }
+
+    public function test_dashboard_builder_contains_toast_notification_container(): void
+    {
+        $admin = User::factory()->withRole(Role::ADMIN)->create();
+
+        $this->actingAs($admin)
+            ->get(route('dashboard.builder'))
+            ->assertOk()
+            ->assertSee('x-show="toast.show"', false)
+            ->assertSee('x-text="toast.message"', false);
+    }
 }
