@@ -6,20 +6,14 @@
  * 'legacy'     -> performance_metrics (default; perilaku lama persis).
  * 'structured' -> performance_observations + org_units.
  *
- * Default WAJIB 'legacy'. Flag ini murni jaring rollback bedah: hanya reader
- * yang benar-benar sudah dimigrasi yang membacanya. Per unit 5B hanya dua
- * reader itu:
+ * Default WAJIB 'legacy'. Flag ini merupakan jaring rollback: reader aktif
+ * (R1-R7, R9, R10) telah memiliki cabang implementasi structured di belakang
+ * flag ini, sedangkan R8 targetVsRealisasi telah dipensiunkan (unmounted pada
+ * Sesi 95) dan digantikan oleh target-realisasi-per-indikator.
  *
- *   R2 DashboardController::availableUnits
- *   R4 DashboardController::latestReadyPeriod
- *
- * Reader lain (NKO, kinerja, dataset-status, chart API) TIDAK membaca flag ini
- * dan tetap membaca performance_metrics berapa pun nilainya.
- *
- * PERINGATAN: 'structured' BELUM aman untuk production. NKO tidak punya sumber
- * terstruktur (StructuredKpiImporter sengaja mengecualikan baris NKO), dan
- * reader NKO belum dimigrasi. Jangan set 'structured' sebelum semua reader
- * punya sumber terstruktur.
+ * PERINGATAN: 'structured' BELUM aman untuk production. Reader legacy tetap
+ * aktif sebagai default sampai pengujian paritas data riil menyeluruh selesai
+ * dan proses deprecation legacy resmi dijalankan (Fase 4.3).
  */
 return [
     'read_model' => env('KPI_READ_MODEL', 'legacy'),

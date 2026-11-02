@@ -1439,6 +1439,469 @@ class KpiReadModelFlagTest extends TestCase
         $this->assertFalse($structured['fresh']);
     }
 
+    /**
+     * Karakterisasi paritas R5: metadata status (latest_period, ready, archived,
+     * failed, fresh) identik antara legacy dan structured pada fixture deterministik,
+     * sedangkan latest_rows membuktikan divergensi model data yang disahkan
+     * (41 baris metrics vs 30 observasi indikator).
+     */
+    public function test_r5_karakterisasi_paritas_dan_divergensi_model_data_baris_aktif(): void
+    {
+        $division = $this->division('Perencanaan Pengusahaan');
+        $dataset = Dataset::factory()->create([
+            'division_id' => $division->id,
+            'status' => Dataset::STATUS_READY,
+        ]);
+        $unit = OrgUnit::factory()->create(['name' => 'TJBT']);
+        $otherUnit = OrgUnit::factory()->create(['name' => 'MES']);
+
+        // 1. Buat 41 baris performance_metrics untuk TJBT (model legacy):
+        // - 16 pasangan target & realisasi (32 baris)
+        // - 7 baris grup induk
+        // - 1 baris NKO
+        // - 1 baris standalone
+        for ($i = 1; $i <= 16; $i++) {
+            $this->legacyMetric($dataset, $division, "TJBT | Indikator {$i} | target", 100.0, '2026-08-31');
+            $this->legacyMetric($dataset, $division, "TJBT | Indikator {$i} | realisasi", 100.0, '2026-08-31');
+        }
+        for ($g = 1; $g <= 7; $g++) {
+            $this->legacyMetric($dataset, $division, "TJBT | Group {$g}", 100.0, '2026-08-31');
+        }
+        $this->legacyMetric($dataset, $division, 'TJBT | Standalone Indikator', 100.0, '2026-08-31');
+        $this->legacyMetric($dataset, $division, 'TJBT | NKO', 105.5, '2026-08-31');
+
+        // Tambah 5 baris untuk unit lain (MES) untuk memvalidasi scoping unit tampil
+        for ($m = 1; $m <= 5; $m++) {
+            $this->legacyMetric($dataset, $division, "MES | Indikator {$m} | target", 100.0, '2026-08-31');
+        }
+
+        // 2. Buat 30 baris performance_observations untuk TJBT (model terstruktur):
+        // - 16 observasi rincian (target + realisasi dalam 1 baris)
+        // - 7 observasi grup induk
+        // - 7 observasi lain dalam sheet
+        for ($i = 1; $i <= 16; $i++) {
+            $ind = Indicator::factory()->create(['org_unit_id' => $unit->id, 'name' => "Indikator {$i}", 'is_group' => false]);
+            PerformanceObservation::factory()->create([
+                'dataset_id' => $dataset->id,
+                'indicator_id' => $ind->id,
+                'org_unit_id' => $unit->id,
+                'division_id' => $division->id,
+                'period' => '2026-08-01',
+                'target_value' => 100.0,
+                'realisasi_value' => 100.0,
+                'pencapaian' => 1.0,
+            ]);
+        }
+        for ($g = 1; $g <= 7; $g++) {
+            $grp = Indicator::factory()->create(['org_unit_id' => $unit->id, 'name' => "Group {$g}", 'is_group' => true]);
+            PerformanceObservation::factory()->create([
+                'dataset_id' => $dataset->id,
+                'indicator_id' => $grp->id,
+                'org_unit_id' => $unit->id,
+                'division_id' => $division->id,
+                'period' => '2026-08-01',
+                'target_value' => null,
+                'realisasi_value' => null,
+                'pencapaian' => 1.0,
+            ]);
+        }
+        for ($o = 1; $o <= 7; $o++) {
+            $oth = Indicator::factory()->create(['org_unit_id' => $unit->id, 'name' => "Other {$o}", 'is_group' => false]);
+            PerformanceObservation::factory()->create([
+                'dataset_id' => $dataset->id,
+                'indicator_id' => $oth->id,
+                'org_unit_id' => $unit->id,
+                'division_id' => $division->id,
+                'period' => '2026-08-01',
+                'target_value' => null,
+                'realisasi_value' => null,
+                'pencapaian' => null,
+            ]);
+        }
+
+        // Tambah 5 observasi untuk unit lain (MES)
+        for ($m = 1; $m <= 5; $m++) {
+            $mesInd = Indicator::factory()->create(['org_unit_id' => $otherUnit->id, 'name' => "MES Indikator {$m}", 'is_group' => false]);
+            PerformanceObservation::factory()->create([
+                'dataset_id' => $dataset->id,
+                'indicator_id' => $mesInd->id,
+                'org_unit_id' => $otherUnit->id,
+                'division_id' => $division->id,
+                'period' => '2026-08-01',
+                'target_value' => 100.0,
+                'realisasi_value' => 100.0,
+                'pencapaian' => 1.0,
+            ]);
+        }
+
+        config(['kpi.visible_units' => ['TJBT']]);
+        $user = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $division->id]);
+
+        // 1. Eksekusi Mode Legacy:
+        config(['kpi.read_model' => 'legacy']);
+        $legacy = $this->reader('datasetStatus', [$user]);
+
+        $this->assertSame('2026-08-31', $legacy['latest_period']);
+        $this->assertSame(1, $legacy['ready']);
+        $this->assertSame(0, $legacy['archived']);
+        $this->assertSame(0, $legacy['failed']);
+        $this->assertSame(41, $legacy['latest_rows']);
+        $this->assertSame(now()->subDays(45)->toDateString() <= '2026-08-31', $legacy['fresh']);
+
+        // 2. Eksekusi Mode Structured:
+        config(['kpi.read_model' => 'structured']);
+        $structured = $this->reader('datasetStatus', [$user]);
+
+        $this->assertSame('2026-08-31', $structured['latest_period']);
+        $this->assertSame(1, $structured['ready']);
+        $this->assertSame(0, $structured['archived']);
+        $this->assertSame(0, $structured['failed']);
+        $this->assertSame(30, $structured['latest_rows']);
+        $this->assertSame(now()->subDays(45)->toDateString() <= '2026-08-31', $structured['fresh']);
+
+        // 3. Buktikan kesetaraan paritas field non-rows:
+        $this->assertSame($legacy['latest_period'], $structured['latest_period']);
+        $this->assertSame($legacy['ready'], $structured['ready']);
+        $this->assertSame($legacy['archived'], $structured['archived']);
+        $this->assertSame($legacy['failed'], $structured['failed']);
+        $this->assertSame($legacy['fresh'], $structured['fresh']);
+
+        // 4. Buktikan divergensi sah model data pada latest_rows:
+        $this->assertNotSame($legacy['latest_rows'], $structured['latest_rows']);
+        $this->assertSame(41, $legacy['latest_rows']);
+        $this->assertSame(30, $structured['latest_rows']);
+
+        // 5. Buktikan rollback null units memperhitungkan unit lain (MES) di kedua mode:
+        config(['kpi.visible_units' => null]);
+        config(['kpi.read_model' => 'legacy']);
+        $this->assertSame(46, $this->reader('datasetStatus', [$user])['latest_rows']);
+
+        config(['kpi.read_model' => 'structured']);
+        $this->assertSame(35, $this->reader('datasetStatus', [$user])['latest_rows']);
+    }
+
+    /**
+     * Siapkan fixture deterministik KPI untuk pengujian HTTP R5 pada divisi
+     * Perencanaan Pengusahaan:
+     * - 1 dataset READY, 1 ARCHIVED, 1 FAILED
+     * - 41 baris performance_metrics untuk TJBT + 5 baris untuk MES
+     * - 30 baris performance_observations untuk TJBT + 5 observasi untuk MES
+     *
+     * @return array{0: Division, 1: User}
+     */
+    private function seedR5HttpKpiFixture(): array
+    {
+        $division = Division::factory()->create([
+            'name' => 'Perencanaan Pengusahaan',
+            'slug' => 'perencanaan-pengusahaan',
+        ]);
+
+        $dataset = Dataset::factory()->create([
+            'division_id' => $division->id,
+            'status' => Dataset::STATUS_READY,
+        ]);
+        Dataset::factory()->archived()->create([
+            'division_id' => $division->id,
+        ]);
+        Dataset::factory()->create([
+            'division_id' => $division->id,
+            'status' => Dataset::STATUS_FAILED,
+        ]);
+
+        $unit = OrgUnit::factory()->create(['name' => 'TJBT']);
+        $otherUnit = OrgUnit::factory()->create(['name' => 'MES']);
+
+        for ($i = 1; $i <= 16; $i++) {
+            $this->legacyMetric($dataset, $division, "TJBT | Indikator {$i} | target", 100.0, '2026-08-31');
+            $this->legacyMetric($dataset, $division, "TJBT | Indikator {$i} | realisasi", 100.0, '2026-08-31');
+        }
+        for ($g = 1; $g <= 7; $g++) {
+            $this->legacyMetric($dataset, $division, "TJBT | Group {$g}", 100.0, '2026-08-31');
+        }
+        $this->legacyMetric($dataset, $division, 'TJBT | Standalone Indikator', 100.0, '2026-08-31');
+        $this->legacyMetric($dataset, $division, 'TJBT | NKO', 105.5, '2026-08-31');
+
+        for ($m = 1; $m <= 5; $m++) {
+            $this->legacyMetric($dataset, $division, "MES | Indikator {$m} | target", 100.0, '2026-08-31');
+        }
+
+        for ($i = 1; $i <= 16; $i++) {
+            $ind = Indicator::factory()->create(['org_unit_id' => $unit->id, 'name' => "Indikator {$i}", 'is_group' => false]);
+            PerformanceObservation::factory()->create([
+                'dataset_id' => $dataset->id,
+                'indicator_id' => $ind->id,
+                'org_unit_id' => $unit->id,
+                'division_id' => $division->id,
+                'period' => '2026-08-01',
+                'target_value' => 100.0,
+                'realisasi_value' => 100.0,
+                'pencapaian' => 1.0,
+            ]);
+        }
+        for ($g = 1; $g <= 7; $g++) {
+            $grp = Indicator::factory()->create(['org_unit_id' => $unit->id, 'name' => "Group {$g}", 'is_group' => true]);
+            PerformanceObservation::factory()->create([
+                'dataset_id' => $dataset->id,
+                'indicator_id' => $grp->id,
+                'org_unit_id' => $unit->id,
+                'division_id' => $division->id,
+                'period' => '2026-08-01',
+                'target_value' => null,
+                'realisasi_value' => null,
+                'pencapaian' => 1.0,
+            ]);
+        }
+        for ($o = 1; $o <= 7; $o++) {
+            $oth = Indicator::factory()->create(['org_unit_id' => $unit->id, 'name' => "Other {$o}", 'is_group' => false]);
+            PerformanceObservation::factory()->create([
+                'dataset_id' => $dataset->id,
+                'indicator_id' => $oth->id,
+                'org_unit_id' => $unit->id,
+                'division_id' => $division->id,
+                'period' => '2026-08-01',
+                'target_value' => null,
+                'realisasi_value' => null,
+                'pencapaian' => null,
+            ]);
+        }
+
+        for ($m = 1; $m <= 5; $m++) {
+            $mesInd = Indicator::factory()->create(['org_unit_id' => $otherUnit->id, 'name' => "MES Indikator {$m}", 'is_group' => false]);
+            PerformanceObservation::factory()->create([
+                'dataset_id' => $dataset->id,
+                'indicator_id' => $mesInd->id,
+                'org_unit_id' => $otherUnit->id,
+                'division_id' => $division->id,
+                'period' => '2026-08-01',
+                'target_value' => 100.0,
+                'realisasi_value' => 100.0,
+                'pencapaian' => 1.0,
+            ]);
+        }
+
+        $staff = User::factory()->withRole(Role::STAFF_DIVISI)->create([
+            'division_id' => $division->id,
+        ]);
+
+        return [$division, $staff];
+    }
+
+    public function test_r5_http_kasus_a_staff_divisi_kpi_legacy_merender_status_dataset_dan_baris_legacy(): void
+    {
+        [, $staff] = $this->seedR5HttpKpiFixture();
+
+        config([
+            'kpi.read_model' => 'legacy',
+            'kpi.visible_units' => ['TJBT'],
+        ]);
+
+        $response = $this->actingAs($staff)->get(route('dashboard'));
+
+        $response->assertOk()
+            ->assertSee('Status Dataset')
+            ->assertSee('Dataset READY (Divisi)')
+            ->assertSee('Dataset ARCHIVED')
+            ->assertSee('Dataset GAGAL')
+            ->assertSee('Baris Data Aktif (TJBT)')
+            ->assertSee('Periode data terbaru: 2026-08-31')
+            ->assertSee('Sudah Lama')
+            ->assertDontSee('Belum ada data KPI aktif.')
+            ->assertSeeInOrder([
+                'Status Dataset',
+                'Dataset READY (Divisi)',
+                '1',
+                'Dataset ARCHIVED',
+                '1',
+                'Dataset GAGAL',
+                '1',
+                'Baris Data Aktif (TJBT)',
+                '41',
+                'Periode data terbaru: 2026-08-31',
+            ]);
+
+        $widgets = collect($response->viewData('widgets'))->keyBy('key');
+        $this->assertTrue($widgets->has('dataset-status'));
+
+        $data = $widgets->get('dataset-status')['data'];
+        $this->assertSame('2026-08-31', $data['latest_period']);
+        $this->assertSame(1, $data['ready']);
+        $this->assertSame(1, $data['archived']);
+        $this->assertSame(1, $data['failed']);
+        $this->assertSame(41, $data['latest_rows']);
+        $this->assertFalse($data['fresh']);
+    }
+
+    public function test_r5_http_kasus_b_staff_divisi_kpi_structured_paritas_metadata_dan_baris_observasi(): void
+    {
+        [, $staff] = $this->seedR5HttpKpiFixture();
+
+        config([
+            'kpi.read_model' => 'legacy',
+            'kpi.visible_units' => ['TJBT'],
+        ]);
+        $legacyResponse = $this->actingAs($staff)->get(route('dashboard'))->assertOk();
+        $legacyData = collect($legacyResponse->viewData('widgets'))->keyBy('key')->get('dataset-status')['data'];
+
+        config([
+            'kpi.read_model' => 'structured',
+            'kpi.visible_units' => ['TJBT'],
+        ]);
+        $structuredResponse = $this->actingAs($staff)->get(route('dashboard'));
+
+        $structuredResponse->assertOk()
+            ->assertSee('Status Dataset')
+            ->assertSee('Dataset READY (Divisi)')
+            ->assertSee('Dataset ARCHIVED')
+            ->assertSee('Dataset GAGAL')
+            ->assertSee('Baris Data Aktif (TJBT)')
+            ->assertSee('Periode data terbaru: 2026-08-31')
+            ->assertSee('Sudah Lama')
+            ->assertDontSee('Belum ada data KPI aktif.')
+            ->assertSeeInOrder([
+                'Status Dataset',
+                'Dataset READY (Divisi)',
+                '1',
+                'Dataset ARCHIVED',
+                '1',
+                'Dataset GAGAL',
+                '1',
+                'Baris Data Aktif (TJBT)',
+                '30',
+                'Periode data terbaru: 2026-08-31',
+            ]);
+
+        $structuredData = collect($structuredResponse->viewData('widgets'))->keyBy('key')->get('dataset-status')['data'];
+
+        $this->assertSame($legacyData['latest_period'], $structuredData['latest_period']);
+        $this->assertSame($legacyData['ready'], $structuredData['ready']);
+        $this->assertSame($legacyData['archived'], $structuredData['archived']);
+        $this->assertSame($legacyData['failed'], $structuredData['failed']);
+        $this->assertSame($legacyData['fresh'], $structuredData['fresh']);
+
+        $this->assertSame(41, $legacyData['latest_rows']);
+        $this->assertSame(30, $structuredData['latest_rows']);
+    }
+
+    public function test_r5_http_kasus_c_staff_divisi_non_kpi_structured_fallback_periode_legacy(): void
+    {
+        $division = Division::factory()->create([
+            'name' => 'Manajemen Aset',
+            'slug' => 'manajemen-aset',
+        ]);
+        $dataset = Dataset::factory()->create([
+            'division_id' => $division->id,
+            'status' => Dataset::STATUS_READY,
+        ]);
+        Dataset::factory()->archived()->create([
+            'division_id' => $division->id,
+        ]);
+
+        $this->legacyMetric($dataset, $division, 'Total Aset Trafo', 437.0, '2026-08-15');
+
+        $staff = User::factory()->withRole(Role::STAFF_DIVISI)->create([
+            'division_id' => $division->id,
+        ]);
+
+        config([
+            'kpi.read_model' => 'structured',
+            'kpi.visible_units' => ['TJBT'],
+        ]);
+
+        $response = $this->actingAs($staff)->get(route('dashboard'));
+
+        $response->assertOk()
+            ->assertSee('Status Dataset')
+            ->assertSee('Dataset READY (Divisi)')
+            ->assertSee('Dataset ARCHIVED')
+            ->assertSee('Dataset GAGAL')
+            ->assertSee('Baris Data Aktif (TJBT)')
+            ->assertSee('Periode data terbaru: 2026-08-31')
+            ->assertSee('Sudah Lama')
+            ->assertDontSee('Belum ada data KPI aktif.')
+            ->assertSeeInOrder([
+                'Status Dataset',
+                'Dataset READY (Divisi)',
+                '1',
+                'Dataset ARCHIVED',
+                '1',
+                'Dataset GAGAL',
+                '0',
+                'Baris Data Aktif (TJBT)',
+                '0',
+                'Periode data terbaru: 2026-08-31',
+            ]);
+
+        $widgets = collect($response->viewData('widgets'));
+        $this->assertSame(['dataset-status'], $widgets->pluck('key')->all());
+
+        $data = $widgets->first()['data'];
+        $this->assertSame('2026-08-31', $data['latest_period']);
+        $this->assertSame(1, $data['ready']);
+        $this->assertSame(1, $data['archived']);
+        $this->assertSame(0, $data['failed']);
+        $this->assertSame(0, $data['latest_rows']);
+        $this->assertFalse($data['fresh']);
+    }
+
+    public function test_r5_http_kasus_d_staff_tanpa_divisi_structured_fail_closed(): void
+    {
+        $division = Division::factory()->create([
+            'name' => 'Perencanaan Pengusahaan',
+            'slug' => 'perencanaan-pengusahaan',
+        ]);
+        $dataset = Dataset::factory()->create([
+            'division_id' => $division->id,
+            'status' => Dataset::STATUS_READY,
+        ]);
+        $unit = OrgUnit::factory()->create(['name' => 'TJBT']);
+
+        $this->leaf($dataset, $unit, $division, ['name' => 'Indikator Divisi', 'is_group' => false], [
+            'period' => '2026-08-31',
+            'target_value' => 100.0,
+            'realisasi_value' => 100.0,
+            'pencapaian' => 1.0,
+        ]);
+        $this->legacyMetric($dataset, $division, 'TJBT | Indikator Divisi | target', 100.0, '2026-08-31');
+
+        // Data yatim (division_id = null) pada observasi dan metrik tidak boleh bocor
+        $this->leaf($dataset, $unit, null, ['name' => 'Indikator Yatim', 'is_group' => false], [
+            'period' => '2026-08-31',
+            'target_value' => 75.0,
+            'realisasi_value' => 75.0,
+            'pencapaian' => 1.0,
+        ]);
+        $this->legacyMetric($dataset, null, 'TJBT | Indikator Yatim | target', 75.0, '2026-08-31');
+
+        $staffNoDiv = User::factory()->withRole(Role::STAFF_DIVISI)->create([
+            'division_id' => null,
+        ]);
+
+        config([
+            'kpi.read_model' => 'structured',
+            'kpi.visible_units' => ['TJBT'],
+        ]);
+
+        $response = $this->actingAs($staffNoDiv)->get(route('dashboard'));
+
+        $response->assertOk()
+            ->assertSee('Status Dataset')
+            ->assertSee('Belum ada data KPI aktif.')
+            ->assertDontSee('Dataset READY (Divisi)')
+            ->assertDontSee('Periode data terbaru:')
+            ->assertDontSee('2026-08-31');
+
+        $widgets = collect($response->viewData('widgets'));
+        $this->assertSame(['dataset-status'], $widgets->pluck('key')->all());
+
+        $data = $widgets->first()['data'];
+        $this->assertNull($data['latest_period']);
+        $this->assertSame(0, $data['ready']);
+        $this->assertSame(0, $data['archived']);
+        $this->assertSame(0, $data['failed']);
+        $this->assertSame(0, $data['latest_rows']);
+        $this->assertFalse($data['fresh']);
+    }
+
     // ---------------------------------------------------------------- R7 ----
 
     public function test_r7_structured_kosong_tanpa_data_terstruktur_dan_mengabaikan_performance_metrics(): void

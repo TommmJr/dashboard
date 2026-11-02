@@ -417,11 +417,10 @@ class DashboardController extends Controller
      * Sejak Unit 5B reader ini flag-gated (config('kpi.read_model')); default
      * 'legacy' -> query lama persis. Lihat kpiReadModelStructured().
      *
-     * Caller yang sengaja dipin ke versi legacy memanggil
-     * latestLegacyReadyPeriod() secara eksplisit: R5 datasetStatus, R8
-     * targetVsRealisasi, dan R7 kinerjaDetail (yang masih butuh baris
-     * performance_metrics untuk target/realisasi) — lihat catatan pada helper
-     * itu.
+     * Caller pada jalur legacy memanggil latestLegacyReadyPeriod() secara
+     * eksplisit saat membaca baris performance_metrics (mis. R5/R7 pada cabang
+     * legacy, dan R8 targetVsRealisasi yang sudah dipensiunkan) — lihat catatan
+     * pada masing-masing reader.
      */
     private function latestReadyPeriod(?User $user, ?string $startDate = null, ?string $endDate = null): ?string
     {
