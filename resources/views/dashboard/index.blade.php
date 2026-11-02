@@ -18,10 +18,11 @@
 
 @php
     $isAdminDashboard = auth()->user()?->role?->slug === \App\Models\Role::ADMIN;
+    $needsPerformanceState = ! $isAdminDashboard || collect($widgets)->contains(fn (array $w): bool => in_array($w['key'] ?? '', ['kpi-summary', 'trend-chart'], true));
 @endphp
 
 @section('content')
-<div class="mx-auto max-w-7xl" @if (! $isAdminDashboard) x-data="performanceDashboard(@js($filters ?? []))" x-init="load()" @endif>
+<div class="mx-auto max-w-7xl" @if ($needsPerformanceState) x-data="performanceDashboard(@js($filters ?? []))" x-init="load()" @endif>
     @if ($isAdminDashboard)
         <div class="mb-6">
             <p class="text-xs font-medium text-slate-500">Beranda / Dashboard Admin</p>

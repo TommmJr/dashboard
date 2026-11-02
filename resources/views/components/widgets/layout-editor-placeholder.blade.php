@@ -154,7 +154,7 @@
                             <button
                                 type="button"
                                 @click="removeWidget(widgetKey)"
-                                :disabled="saving || activeWidgets.length <= 1"
+                                :disabled="saving || activeWidgets.length <= 1 || isLockedWidget(widgetKey)"
                                 class="inline-flex h-8 items-center rounded border border-red-200 bg-red-50 px-2.5 text-xs font-semibold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-40"
                                 :aria-label="`Hapus ${widgetLabel(widgetKey)}`"
                             >
@@ -320,8 +320,12 @@
                     this.activeWidgets.push(key);
                 },
 
+                isLockedWidget(widgetKey) {
+                    return this.selectedTargetKey === 'editor_dashboard' && widgetKey === 'layout-editor-placeholder';
+                },
+
                 removeWidget(key) {
-                    if (this.saving || this.activeWidgets.length <= 1) {
+                    if (this.saving || this.activeWidgets.length <= 1 || this.isLockedWidget(key)) {
                         return;
                     }
                     this.clearMessages();

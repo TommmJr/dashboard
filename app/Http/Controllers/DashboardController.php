@@ -32,10 +32,11 @@ use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 /**
- * Halaman dashboard berbasis widget per role (Dashboard Builder Fase 1).
+ * Halaman dashboard berbasis widget per role (Dashboard Builder).
  *
- * Layout dibaca dari config/dashboard_layouts.php berdasarkan slug role
- * (fallback 'default' untuk role null / slug tak dikenal). Katalog widget
+ * Layout dibaca DB-first dari tabel dashboard_layouts berdasarkan kombinasi
+ * role dan divisi, dengan fallback konfigurasi config/dashboard_layouts.php
+ * bila belum dikustomisasi atau tabel belum siap. Katalog widget
  */
 class DashboardController extends Controller
 {
@@ -1984,6 +1985,14 @@ class DashboardController extends Controller
 
         /** @var list<string> $widgets */
         $widgets = $requireWidgets ? array_values($validated['widgets']) : [];
+
+        if ($requireWidgets && $roleSlug === Role::EDITOR_DASHBOARD) {
+            if (! in_array('layout-editor-placeholder', $widgets, true)) {
+                throw ValidationException::withMessages([
+                    'widgets' => 'Widget Editor Layout (layout-editor-placeholder) wajib dipertahankan pada layout Editor Dashboard agar akses pengelolaan tidak terkunci.',
+                ]);
+            }
+        }
 
         return [$roleSlug, $divisionId, $expectedKey, $widgets];
     }

@@ -889,4 +889,102 @@ class DashboardWidgetLayoutTest extends TestCase
             ->assertOk()
             ->assertSee('Rata-rata NKO');
     }
+
+    public function test_penyimpanan_layout_editor_dashboard_wajib_menyertakan_layout_editor_placeholder(): void
+    {
+        $editor = User::factory()->withRole(Role::EDITOR_DASHBOARD)->create();
+
+        // 1. JSON request tanpa 'layout-editor-placeholder' ditolak HTTP 422 dan tidak mengubah DB.
+        $this->actingAs($editor)
+            ->putJson(route('dashboard.layout.update'), [
+                'role_slug' => Role::EDITOR_DASHBOARD,
+                'layout_key' => Role::EDITOR_DASHBOARD,
+                'widgets' => ['kpi-summary', 'trend-chart'],
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors([
+                'widgets' => 'Widget Editor Layout (layout-editor-placeholder) wajib dipertahankan pada layout Editor Dashboard agar akses pengelolaan tidak terkunci.',
+            ]);
+
+        $this->assertDatabaseMissing('dashboard_layouts', [
+            'role_slug' => Role::EDITOR_DASHBOARD,
+        ]);
+
+        // 2. Form submission biasa tanpa 'layout-editor-placeholder' ditolak HTTP 302 dengan session errors.
+        $this->actingAs($editor)
+            ->from(route('dashboard'))
+            ->put(route('dashboard.layout.update'), [
+                'role_slug' => Role::EDITOR_DASHBOARD,
+                'layout_key' => Role::EDITOR_DASHBOARD,
+                'widgets' => ['admin-summary'],
+            ])
+            ->assertRedirect(route('dashboard'))
+            ->assertSessionHasErrors(['widgets']);
+
+        $this->assertDatabaseMissing('dashboard_layouts', [
+            'role_slug' => Role::EDITOR_DASHBOARD,
+        ]);
+
+        // 3. Penyimpanan yang tetap menyertakan 'layout-editor-placeholder' berhasil via JSON (HTTP 200).
+        $this->actingAs($editor)
+            ->putJson(route('dashboard.layout.update'), [
+                'role_slug' => Role::EDITOR_DASHBOARD,
+                'layout_key' => Role::EDITOR_DASHBOARD,
+                'widgets' => ['layout-editor-placeholder', 'kpi-summary'],
+            ])
+            ->assertOk()
+            ->assertJsonPath('layout_key', Role::EDITOR_DASHBOARD)
+            ->assertJsonPath('widgets', ['layout-editor-placeholder', 'kpi-summary']);
+
+        $this->assertDatabaseHas('dashboard_layouts', [
+            'layout_key' => Role::EDITOR_DASHBOARD,
+            'role_slug' => Role::EDITOR_DASHBOARD,
+        ]);
+
+        // 4. Form submission biasa yang menyertakan 'layout-editor-placeholder' berhasil redirect 302.
+        $this->actingAs($editor)
+            ->from(route('dashboard'))
+            ->put(route('dashboard.layout.update'), [
+                'role_slug' => Role::EDITOR_DASHBOARD,
+                'layout_key' => Role::EDITOR_DASHBOARD,
+                'widgets' => ['layout-editor-placeholder'],
+            ])
+            ->assertRedirect(route('dashboard'))
+            ->assertSessionHasNoErrors();
+    }
+
+    public function test_halaman_admin_merender_state_performance_dashboard_saat_layout_admin_dikustomisasi_widget_kinerja(): void
+    {
+        $admin = User::factory()->withRole(Role::ADMIN)->create();
+
+        // 1. Secara default (fallback config), Admin Dashboard tidak memuat widget kinerja dan tidak merender performanceDashboard.
+        $this->actingAs($admin)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertDontSee('x-data="performanceDashboard(', false);
+
+        // 2. Saat layout admin dikustomisasi di DB dengan menyertakan 'kpi-summary', wrapper merender performanceDashboard.
+        DashboardLayout::create([
+            'role_slug' => Role::ADMIN,
+            'widgets' => ['admin-summary', 'kpi-summary'],
+            'updated_by' => $admin->id,
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('x-data="performanceDashboard(', false)
+            ->assertSee('Rata-rata NKO');
+
+        // 3. Saat layout admin diubah ke 'trend-chart', wrapper juga tetap merender performanceDashboard.
+        DashboardLayout::where('role_slug', Role::ADMIN)->update([
+            'widgets' => ['admin-summary', 'trend-chart'],
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('x-data="performanceDashboard(', false)
+            ->assertSee('Grafik Tren Kinerja');
+    }
 }
