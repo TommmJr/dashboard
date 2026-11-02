@@ -13,11 +13,25 @@
  * `config:cache` ulang) dan restart container untuk kembali ke jalur legacy.
  * Reader aktif (R1-R7, R9, R10) memiliki cabang structured dan legacy di
  * belakang flag ini; R8 targetVsRealisasi telah dipensiunkan (unmounted pada
- * Sesi 95) dan digantikan oleh target-realisasi-per-indikator.
+ * Sesi 95 dan dihapus dari DashboardController pada Fase 4.3 Tahap C) serta
+ * digantikan oleh target-realisasi-per-indikator.
  *
- * Reader legacy, tabel performance_metrics, dan dual-write import TETAP ada
- * sampai Tahap C (deprecation) disetujui. Validasi staging belum dilakukan;
- * rollout production adalah pekerjaan deployment terpisah.
+ * Status Fase 4.3 Tahap C (Deprecation Bertahap):
+ * - R8 (`targetVsRealisasi`) telah dihapus dari `DashboardController`; blade
+ *   `widgets/target-vs-realisasi.blade.php` dipertahankan khusus untuk guard
+ *   formatter `ChartTooltipFormatTest`.
+ * - R1 (`/api/performance-data`) sengaja berstatus HYBRID: `series` dan
+ *   `kpi.average_nko` membaca `performance_observations` (structured), tetapi
+ *   `kpi.metric_count` dan `kpi.ready_datasets` tetap membaca
+ *   `performance_metrics` / `datasets` untuk menjaga kontrak bisnis
+ *   Keputusan Bisnis 1 Pak Gama (2026-10-25, Opsi C: 41 baris flat metrik vs
+ *   30 observasi indikator pada TJBT).
+ * - Reader legacy R1-R7/R9/R10, tabel `performance_metrics`, dan dual-write
+ *   import TETAP dipertahankan untuk rollback selama validasi staging dan
+ *   masa penerimaan rollout production belum terpenuhi, serta karena masih
+ *   dipakai oleh fitur aktif lain (upload generik non-KPI, R5 fallback
+ *   non-KPI, `datasets.show`, `datasets.export`, edit metrik, audit log, dan
+ *   laporan ringkasan dataset).
  */
 return [
     'read_model' => env('KPI_READ_MODEL', 'structured'),

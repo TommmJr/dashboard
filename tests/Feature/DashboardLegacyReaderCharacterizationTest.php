@@ -21,8 +21,9 @@ use Tests\TestCase;
  * memperbaiki bug legacy:
  *
  * - polaritas (kinerjaDetail) dibiarkan apa adanya, tidak "dikoreksi";
- * - agregasi total targetVsRealisasi dibiarkan apa adanya (C-1 belum diputuskan);
- * - perilaku NKO (pencapaianNko / nkoDonut) hanya dipotret, tidak dimigrasi.
+ * - perilaku NKO (pencapaianNko / nkoDonut) hanya dipotret untuk mode
+ *   rollback legacy; reader R8 (targetVsRealisasi) telah dipensiunkan dan
+ *   dihapus pada Fase 4.3 Tahap C.
  *
  * Semua reader dashboard bersifat private, jadi kontraknya (array hasil)
  * dipanggil lewat reflection supaya bentuk dan nilainya terkunci persis —
@@ -314,66 +315,6 @@ class DashboardLegacyReaderCharacterizationTest extends TestCase
 
         $this->assertNull($result['period']);
         $this->assertSame(0, $result['total_rows']);
-    }
-
-    // ---------------------------------------------------------------- R8 ----
-
-    public function test_r8_target_vs_realisasi_menjumlahkan_seluruh_target_dan_realisasi(): void
-    {
-        $division = $this->division('Pengusahaan');
-        $dataset = Dataset::factory()->create(['division_id' => $division->id]);
-
-        $this->metric($dataset, $division, 'TJBT | A | target', 100.0);
-        $this->metric($dataset, $division, 'TJBT | A | realisasi', 110.0);
-        $this->metric($dataset, $division, 'TJBT | B | target', 200.0);
-        $this->metric($dataset, $division, 'TJBT | B | realisasi', 190.0);
-
-        $result = $this->reader('targetVsRealisasi', [$this->management()]);
-
-        $this->assertSame('2026-08-31', $result['period']);
-
-        // KARAKTERISASI agregasi legacy apa adanya (C-1 belum diputuskan):
-        // target = 300 dan realisasi = 300, dijumlah mentah lintas indikator.
-        $this->assertSame(['TJBT'], $result['labels']);
-        $this->assertSame([300.0], $result['target']);
-        $this->assertSame([300.0], $result['realisasi']);
-    }
-
-    public function test_r8_unit_hanya_target_tetap_muncul_dengan_realisasi_nol(): void
-    {
-        $division = $this->division('Pengusahaan');
-        $dataset = Dataset::factory()->create(['division_id' => $division->id]);
-
-        $this->metric($dataset, $division, 'TJBT | A | target', 150.0);
-
-        $result = $this->reader('targetVsRealisasi', [$this->management()]);
-
-        $this->assertSame(['TJBT'], $result['labels']);
-        $this->assertSame([150.0], $result['target']);
-        $this->assertSame([0.0], $result['realisasi']);
-    }
-
-    public function test_r8_tanpa_data_struktur_kosong(): void
-    {
-        $result = $this->reader('targetVsRealisasi', [$this->management()]);
-
-        $this->assertSame(
-            ['period' => null, 'labels' => [], 'target' => [], 'realisasi' => []],
-            $result,
-        );
-    }
-
-    public function test_r8_dataset_archived_tidak_dihitung(): void
-    {
-        $division = $this->division('Pengusahaan');
-        $dataset = Dataset::factory()->archived()->create(['division_id' => $division->id]);
-
-        $this->metric($dataset, $division, 'TJBT | A | target', 100.0);
-
-        $result = $this->reader('targetVsRealisasi', [$this->management()]);
-
-        $this->assertNull($result['period']);
-        $this->assertSame([], $result['labels']);
     }
 
     // ---------------------------------------------------------------- R9 ----

@@ -137,26 +137,12 @@ class PerformanceChartController extends Controller
         // dataset READY (scoping sama), dan jumlah baris metric aktif.
         // Domain Aset (metric berprefix AssetStockConverter::PREFIX) tidak
         // masuk hitungan: satuannya fisik (Bank, MVA, kms) dan bukan kinerja.
-        $readyDatasets = DB::table('datasets')
-            ->where('status', Dataset::STATUS_READY)
-            ->when(! $isPrivileged, fn ($q) => $q->where('division_id', $user->division_id))
-            ->whereNotExists(function ($query) {
-                $query->select(DB::raw(1))
-                    ->from('performance_metrics')
-                    ->whereColumn('performance_metrics.dataset_id', 'datasets.id')
-                    ->where('performance_metrics.metric_name', 'like', AssetStockConverter::PREFIX.'%');
-            })
-            ->count();
-
         $latestPeriod = $labels->last();
         $averageNko = $latestPeriod === null ? 0.0 : (float) $rows
             ->filter(fn ($row) => Carbon::parse($row->period)->format('Y-m-d') === $latestPeriod)
             ->avg('nko');
 
-        // metric_count = baris unit TAMPIL, semua periode. ready_datasets di
-        // atas sengaja TIDAK difilter unit: satu dataset memuat banyak unit.
-        $metricCount = $this->countVisibleUnitRows($scoped($baseQuery())
-            ->where('performance_metrics.metric_name', 'not like', AssetStockConverter::PREFIX.'%'));
+        ['ready_datasets' => $readyDatasets, 'metric_count' => $metricCount] = $this->kpiCardDatasetAndMetricCounts($user, $isPrivileged);
 
         return response()->json([
             'labels' => $labels,
@@ -185,9 +171,13 @@ class PerformanceChartController extends Controller
      *   2. Duplikat dalam satu periode tidak lagi diringkas MAX: yang tampil
      *      adalah nilai pada dataset terbaru saja.
      *
-     * `kpi.ready_datasets` dan `kpi.metric_count` tetap dihitung dari
-     * performance_metrics (keduanya memang membaca baris metric, bukan NKO)
-     * dengan aturan yang sama persis seperti jalur legacy.
+     * KONTRAK HYBRID R1 (Fase 4.3 Tahap C):
+     * `kpi.ready_datasets` dan `kpi.metric_count` tetap dihitung melalui
+     * `kpiCardDatasetAndMetricCounts()` dari `datasets` dan `performance_metrics`
+     * (bukan `performance_observations`) agar tetap patuh pada Keputusan Bisnis 1
+     * Pak Gama (2026-10-25, Opsi C: "Baris Data Aktif (TJBT)" = 41 baris flat
+     * metric vs 30 observasi indikator). Jangan diganti ke hitungan observasi
+     * tanpa keputusan bisnis baru.
      *
      * @param  array<string, mixed>  $filters
      */
@@ -242,35 +232,7 @@ class PerformanceChartController extends Controller
         $rawMin = $rows->isEmpty() ? 0.0 : (float) $rows->min('nko');
         $yAxisMin = $rawMin > 0 ? max(0, floor(($rawMin - 5) / 5) * 5) : 0.0;
 
-        $readyDatasets = DB::table('datasets')
-            ->where('status', Dataset::STATUS_READY)
-            ->when(! $isPrivileged, fn ($q) => $q->where('division_id', $user->division_id))
-            ->whereNotExists(function ($query) {
-                $query->select(DB::raw(1))
-                    ->from('performance_metrics')
-                    ->whereColumn('performance_metrics.dataset_id', 'datasets.id')
-                    ->where('performance_metrics.metric_name', 'like', AssetStockConverter::PREFIX.'%');
-            })
-            ->count();
-
-        $baseQuery = fn () => DB::table('performance_metrics')
-            ->leftJoin('datasets', 'datasets.id', '=', 'performance_metrics.dataset_id')
-            ->where(function ($q) {
-                $q->whereNull('performance_metrics.dataset_id')
-                    ->orWhere('datasets.status', Dataset::STATUS_READY);
-            });
-
-        $metricCount = (function () use ($baseQuery, $isPrivileged, $user) {
-            $query = $baseQuery()
-                ->where('performance_metrics.metric_name', 'not like', AssetStockConverter::PREFIX.'%');
-
-            if (! $isPrivileged) {
-                $query->where('performance_metrics.division_id', $user->division_id);
-            }
-
-            // Sama persis dengan jalur legacy (unit TAMPIL, semua periode).
-            return $this->countVisibleUnitRows($query);
-        })();
+        ['ready_datasets' => $readyDatasets, 'metric_count' => $metricCount] = $this->kpiCardDatasetAndMetricCounts($user, $isPrivileged);
 
         $latestPeriod = $labels->last();
         $averageNko = $latestPeriod === null ? 0.0 : (float) $rows
@@ -287,5 +249,43 @@ class PerformanceChartController extends Controller
                 'metric_count' => $metricCount,
             ],
         ]);
+    }
+
+    /**
+     * Hitung `ready_datasets` (per divisi, non-Aset) dan `metric_count`
+     * (baris `performance_metrics` unit tampil lintas periode, non-Aset) untuk
+     * kartu ringkasan R1 (`kpi-summary`), dipakai bersama oleh jalur legacy dan
+     * structured sesuai Keputusan Bisnis 1 Pak Gama (2026-10-25, Opsi C).
+     *
+     * @return array{ready_datasets: int, metric_count: int}
+     */
+    private function kpiCardDatasetAndMetricCounts(User $user, bool $isPrivileged): array
+    {
+        $readyDatasets = DB::table('datasets')
+            ->where('status', Dataset::STATUS_READY)
+            ->when(! $isPrivileged, fn ($q) => $q->where('division_id', $user->division_id))
+            ->whereNotExists(function ($query) {
+                $query->select(DB::raw(1))
+                    ->from('performance_metrics')
+                    ->whereColumn('performance_metrics.dataset_id', 'datasets.id')
+                    ->where('performance_metrics.metric_name', 'like', AssetStockConverter::PREFIX.'%');
+            })
+            ->count();
+
+        // metric_count = baris unit TAMPIL, semua periode. ready_datasets di
+        // atas sengaja TIDAK difilter unit: satu dataset memuat banyak unit.
+        $metricQuery = DB::table('performance_metrics')
+            ->leftJoin('datasets', 'datasets.id', '=', 'performance_metrics.dataset_id')
+            ->where(function ($q) {
+                $q->whereNull('performance_metrics.dataset_id')
+                    ->orWhere('datasets.status', Dataset::STATUS_READY);
+            })
+            ->where('performance_metrics.metric_name', 'not like', AssetStockConverter::PREFIX.'%')
+            ->when(! $isPrivileged, fn ($q) => $q->where('performance_metrics.division_id', $user->division_id));
+
+        return [
+            'ready_datasets' => $readyDatasets,
+            'metric_count' => $this->countVisibleUnitRows($metricQuery),
+        ];
     }
 }

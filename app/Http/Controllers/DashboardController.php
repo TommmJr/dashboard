@@ -238,7 +238,6 @@ class DashboardController extends Controller
             'dataset-status' => $this->datasetStatus($user),
             'kinerja-realisasi' => $this->kinerjaRealisasi($user, $filters['start_date'] ?? null, $filters['end_date'] ?? null),
             'kinerja-detail' => $this->kinerjaDetail($user, $filters['start_date'] ?? null, $filters['end_date'] ?? null, $filters['units'] ?? []),
-            'target-vs-realisasi' => $this->targetVsRealisasi($user, $filters['start_date'] ?? null, $filters['end_date'] ?? null),
             'target-realisasi-per-indikator' => $this->targetRealisasiPerIndikator($user, $filters['start_date'] ?? null, $filters['end_date'] ?? null),
             'pencapaian-nko' => $this->pencapaianNko($user, $filters['start_date'] ?? null, $filters['end_date'] ?? null),
             'nko-donut' => $this->nkoDonut($user, $filters['start_date'] ?? null, $filters['end_date'] ?? null),
@@ -419,9 +418,9 @@ class DashboardController extends Controller
      * -> query lama persis. Lihat kpiReadModelStructured().
      *
      * Caller pada jalur legacy memanggil latestLegacyReadyPeriod() secara
-     * eksplisit saat membaca baris performance_metrics (mis. R5/R7 pada cabang
-     * legacy, dan R8 targetVsRealisasi yang sudah dipensiunkan) — lihat catatan
-     * pada masing-masing reader.
+     * eksplisit saat membaca baris performance_metrics (mis. R5/R6/R7 pada
+     * cabang legacy, atau fallback R5 non-KPI) — lihat catatan pada
+     * masing-masing reader.
      */
     private function latestReadyPeriod(?User $user, ?string $startDate = null, ?string $endDate = null): ?string
     {
@@ -431,11 +430,12 @@ class DashboardController extends Controller
     }
 
     /**
-     * Apakah reader yang SUDAH dimigrasi harus membaca tabel terstruktur.
+     * Apakah reader KPI yang flag-gated harus membaca tabel terstruktur.
      *
-     * Bukan switch global: R8 (targetVsRealisasi) tetap legacy berapa pun
-     * nilainya (menunggu deprecation). Reader lain (R1-R7, R9, R10) ikut flag; R9 mengikuti R6
-     * karena mendelegasi ke sana.
+     * Reader aktif (R2-R7, R9, R10) mengikuti flag ini; R9 mengikuti R6 karena
+     * mendelegasi ke sana, sedangkan `target-realisasi-per-indikator` selalu
+     * membaca tabel terstruktur. R8 (`targetVsRealisasi`) telah dipensiunkan
+     * dan dihapus pada Fase 4.3 Tahap C.
      */
     private function kpiReadModelStructured(): bool
     {
@@ -445,11 +445,10 @@ class DashboardController extends Controller
     /**
      * Periode terbaru dari tabel legacy performance_metrics.
      *
-     * Dipakai eksplisit oleh reader yang BELUM dimigrasi. Caller tersebut
-     * menggabungkan periode ini dengan agregasi performance_metrics, jadi
-     * membiarkannya mengikuti flag 'structured' akan membuat mereka membaca
-     * periode terstruktur sementara datanya tetap legacy -> widget kosong.
-     * Karena itu mereka dipin ke sini, bukan ke latestReadyPeriod().
+     * Dipakai eksplisit oleh cabang legacy reader R4/R5/R6/R7 (serta fallback
+     * non-KPI pada R5 structured). Caller legacy menggabungkan periode ini
+     * dengan agregasi performance_metrics, sehingga tidak boleh mengikuti
+     * periode terstruktur saat mode rollback `KPI_READ_MODEL=legacy` aktif.
      */
     private function latestLegacyReadyPeriod(?User $user, ?string $startDate = null, ?string $endDate = null): ?string
     {
@@ -1103,47 +1102,28 @@ class DashboardController extends Controller
     }
 
     /**
-     * Period helper khusus reader panel per indikator.
+     * Period helper untuk reader terstruktur (termasuk panel per indikator).
      *
      * SENGAJA tidak memakai `latestReadyPeriod()`: pada read model
-     * `legacy` helper itu memilih periode dari
-     * `performance_metrics`. Reader panel membaca dataset terstruktur READY,
-     * jadi periodenya harus berasal dari sumber yang sama. Filter divisi
-     * mengikuti `latestStructuredReadyPeriod()`.
+     * `legacy` helper itu memilih periode dari `performance_metrics`, sedangkan
+     * reader panel `targetRealisasiPerIndikator` selalu membaca dataset
+     * terstruktur READY berapa pun nilai flag. Mendelegasikan ke
+     * `latestStructuredReadyPeriod()` supaya hanya ada satu implementasi query.
      */
     private function latestStructuredPanelPeriod(?User $user, ?string $startDate = null, ?string $endDate = null): ?string
     {
-        if (! $this->isPrivileged($user) && $user?->division_id === null) {
-            return null;
-        }
-
-        $query = DB::table('performance_observations')
-            ->join('datasets', 'datasets.id', '=', 'performance_observations.dataset_id')
-            ->where('datasets.status', Dataset::STATUS_READY);
-
-        if (! $this->isPrivileged($user)) {
-            $query->where('performance_observations.division_id', $user?->division_id);
-        }
-
-        if ($startDate !== null) {
-            $query->where('performance_observations.period', '>=', $startDate);
-        }
-
-        if ($endDate !== null) {
-            $query->where('performance_observations.period', '<=', $endDate);
-        }
-
-        return $query->max('performance_observations.period');
+        return $this->latestStructuredReadyPeriod($user, $startDate, $endDate);
     }
 
     /**
      * Panel Target vs Realisasi PER INDIKATOR (keputusan Pak Gama 2026-10-19
-     * 11:17). Sumber dan aturan klasifikasi ada di
-     * `TargetRealisasiPerIndicatorReader`; method ini hanya menyediakan
+     * 11:17 & Keputusan Bisnis 5 2026-10-25). Sumber dan aturan klasifikasi ada
+     * di `TargetRealisasiPerIndicatorReader`; method ini hanya menyediakan
      * periode, scope divisi (RBAC), dan batas unit TAMPIL.
      *
-     * Isolasi: TIDAK membaca `kpi.read_model` dan TIDAK memakai
-     * `targetVsRealisasi()`/R8. Widget lama tidak berubah.
+     * Isolasi: TIDAK membaca `kpi.read_model`. Reader agregat lama
+     * `targetVsRealisasi()`/R8 telah dipensiunkan dan dihapus pada Fase 4.3
+     * Tahap C.
      */
     private function targetRealisasiPerIndikator(?User $user, ?string $startDate = null, ?string $endDate = null): array
     {
@@ -1158,61 +1138,6 @@ class DashboardController extends Controller
             $period,
             $this->visibleUnits(),
         );
-    }
-
-    /**
-     * Bar grouped Target vs Realisasi per unit untuk periode terbaru.
-     * Agregasi dari baris '| target' dan '| realisasi' yang punya dataset
-     * READY di divisi user. Satu bar per unit,dua seri: Target, Realisasi.
-     */
-    private function targetVsRealisasi(?User $user, ?string $startDate = null, ?string $endDate = null): array
-    {
-        // Reader ini belum dimigrasi (C-1 belum diputuskan): tetap legacy.
-        $period = $this->latestLegacyReadyPeriod($user, $startDate, $endDate);
-
-        if ($period === null) {
-            return ['period' => null, 'labels' => [], 'target' => [], 'realisasi' => []];
-        }
-
-        $isPrivileged = $this->isPrivileged($user);
-        $unitTotals = [];
-
-        DB::table('performance_metrics')
-            ->join('datasets', 'datasets.id', '=', 'performance_metrics.dataset_id')
-            ->where('datasets.status', Dataset::STATUS_READY)
-            ->where('performance_metrics.period', $period)
-            ->where(function ($query) {
-                $query->where('performance_metrics.metric_name', 'like', '%| target')
-                    ->orWhere('performance_metrics.metric_name', 'like', '%| realisasi');
-            })
-            ->when(! $isPrivileged, fn ($q) => $q->where('performance_metrics.division_id', $user?->division_id))
-            ->select('performance_metrics.metric_name', 'performance_metrics.value')
-            ->get()
-            ->each(function (object $row) use (&$unitTotals) {
-                $parts = explode(' | ', $row->metric_name);
-                if (count($parts) !== 3) {
-                    return;
-                }
-                [$unit, $indikator, $jenis] = $parts;
-                $jenis = strtolower($jenis);
-                if ($jenis === 'target') {
-                    $unitTotals[$unit]['target'] = ($unitTotals[$unit]['target'] ?? 0.0) + (float) $row->value;
-                } elseif ($jenis === 'realisasi') {
-                    $unitTotals[$unit]['realisasi'] = ($unitTotals[$unit]['realisasi'] ?? 0.0) + (float) $row->value;
-                }
-            });
-
-        // Batas unit TAMPIL (keputusan 2026-10-12). HANYA cakupan unit yang
-        // disaring: agregasi C-1 di dalam unit (penjumlahan lintas indikator)
-        // TIDAK diubah — unit di luar scope dibuang sebagai satu kesatuan,
-        // bukan nilai per indikatornya. Periode sudah dipilih di atas.
-        $unitTotals = $this->scopeUnitMap($unitTotals);
-
-        $labels = array_values(array_keys($unitTotals));
-        $target = array_map(fn ($unit) => $unitTotals[$unit]['target'] ?? 0.0, $labels);
-        $realisasi = array_map(fn ($unit) => $unitTotals[$unit]['realisasi'] ?? 0.0, $labels);
-
-        return ['period' => $period, 'labels' => $labels, 'target' => $target, 'realisasi' => $realisasi];
     }
 
     /**

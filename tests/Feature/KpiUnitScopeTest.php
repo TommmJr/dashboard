@@ -314,31 +314,6 @@ class KpiUnitScopeTest extends TestCase
         $this->assertSame(['TJBT'], $this->property($controller, 'kinerjaDetailUnits'));
     }
 
-    // ------------------------------------------------------------------ R8 ----
-
-    public function test_r8_labels_hanya_tjbt_dan_agregasi_dalam_unit_utuh(): void
-    {
-        $division = $this->division();
-        $dataset = $this->readyDataset($division);
-
-        // TJBT: 2 indikator -> target 150, realisasi 130 (agregasi lintas
-        // indikator C-1 tetap dijumlahkan APA ADANYA di dalam unit).
-        $this->metric($dataset, $division, 'TJBT | A | target', 100.0);
-        $this->metric($dataset, $division, 'TJBT | A | realisasi', 80.0);
-        $this->metric($dataset, $division, 'TJBT | B | target', 50.0);
-        $this->metric($dataset, $division, 'TJBT | B | realisasi', 50.0);
-
-        // MES harus hilang, dan TIDAK boleh mengubah total TJBT.
-        $this->metric($dataset, $division, 'MES | C | target', 999.0);
-        $this->metric($dataset, $division, 'MES | C | realisasi', 999.0);
-
-        $result = $this->reader('targetVsRealisasi', [$this->management()]);
-
-        $this->assertSame(['TJBT'], $result['labels']);
-        $this->assertSame([150.0], $result['target']);
-        $this->assertSame([130.0], $result['realisasi']);
-    }
-
     // ----------------------------------------------------------------- R10 ----
 
     public function test_r10_legacy_hanya_tjbt(): void

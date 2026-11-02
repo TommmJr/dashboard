@@ -21,17 +21,19 @@ use Tests\TestCase;
  *
  * Kontrak yang dikunci di sini:
  *
- * 1. Default 'structured' (sejak Fase 4.3 Tahap B); override eksplisit\n *    KPI_READ_MODEL=legacy -> R2 dan R4 membaca performance_metrics persis.
+ * 1. Default 'structured' (sejak Fase 4.3 Tahap B); override eksplisit
+ *    KPI_READ_MODEL=legacy -> R2 dan R4 membaca performance_metrics persis.
  * 2. 'structured' -> R2 dan R4 membaca performance_observations / org_units.
- * 3. Reader yang BELUM dimigrasi (R5 datasetStatus, R8 targetVsRealisasi) TIDAK
- *    ikut flag: dengan data legacy saja mereka harus tetap mengembalikan hasil
- *    legacy, bukan kosong. Ini alasan keduanya memanggil latestLegacyReadyPeriod().
+ * 3. R5 datasetStatus telah dimigrasi ke sumber terstruktur (dengan fallback
+ *    periode ke performance_metrics untuk divisi non-KPI); R8
+ *    targetVsRealisasi telah dipensiunkan (Sesi 95) dan dihapus dari
+ *    DashboardController pada Fase 4.3 Tahap C.
  * 4. R6 kinerjaRealisasi (dan R9 pencapaianNko yang mendelegasi ke sana) sudah
  *    pindah ke sumber terstruktur; kontraknya diuji di bawah.
- *
- * Catatan: 'structured' sengaja TIDAK aman untuk production (R5/R8 belum
- * dimigrasi). Test di sini menguji mekanisme flag, bukan kesiapan produksi
- * mode structured.
+ * 5. R1 (/api/performance-data) berstatus hybrid: series dan average_nko
+ *    membaca performance_observations, sedangkan ready_datasets dan
+ *    metric_count tetap membaca performance_metrics / datasets sesuai
+ *    Keputusan Bisnis 1 Pak Gama (2026-10-25, Opsi C).
  */
 class KpiReadModelFlagTest extends TestCase
 {
@@ -354,33 +356,78 @@ class KpiReadModelFlagTest extends TestCase
         $this->assertSame([], $this->reader('availableUnits', [$this->management()]));
     }
 
-    // --------------------------------- reader belum dimigrasi tetap legacy ----
+    // ----------------------------------------- R8 retired & R1 hybrid ----
 
     /**
-     * Reader yang BELUM dimigrasi TIDAK boleh ikut flag: dengan data legacy
-     * saja mereka harus tetap mengembalikan hasil legacy, bukan kosong.
-     *
-     * R3/R7/R10 SUDAH pindah ke sumber terstruktur (NKO punya representasi),
-     * begitu juga R6 (+ R9 yang mendelegasi ke R6), jadi mereka TIDAK lagi
-     * diuji di sini. Yang masih dipin ke legacy: R5 datasetStatus dan
-     * R8 targetVsRealisasi.
+     * Fase 4.3 Tahap C: reader R8 (`targetVsRealisasi`) telah dipensiunkan
+     * (Sesi 95) dan dihapus dari `DashboardController`, serta `dataFor('target-vs-realisasi')`
+     * jatuh ke default `null`.
      */
-    public function test_reader_belum_dimigrasi_tetap_legacy_saat_flag_structured(): void
+    public function test_r8_target_vs_realisasi_telah_dihapus_dari_dashboard_controller(): void
+    {
+        $this->assertFalse(
+            method_exists(DashboardController::class, 'targetVsRealisasi'),
+            'Reader legacy R8 targetVsRealisasi harus sudah dihapus pada Fase 4.3 Tahap C.',
+        );
+
+        $this->assertNull($this->reader('dataFor', ['target-vs-realisasi', $this->management()]));
+    }
+
+    /**
+     * Fase 4.3 Tahap C: R1 (`/api/performance-data`) sengaja mempertahankan
+     * kontrak hybrid pada mode structured:
+     * - `series` dan `kpi.average_nko` membaca `performance_observations`;
+     * - `kpi.metric_count` dan `kpi.ready_datasets` tetap membaca
+     *   `performance_metrics` / `datasets` agar jumlah "Baris Data Aktif (TJBT)"
+     *   tetap sesuai Keputusan Bisnis 1 Pak Gama (2026-10-25, Opsi C: 41 baris
+     *   flat metrik vs 30 observasi indikator).
+     */
+    public function test_r1_structured_mempertahankan_kontrak_hybrid_metric_count_dan_ready_datasets(): void
     {
         config(['kpi.read_model' => 'structured']);
+        config(['kpi.visible_units' => ['TJBT']]);
 
         $division = $this->division('Pengusahaan');
-        $dataset = Dataset::factory()->create(['division_id' => $division->id]);
+        $dataset = Dataset::factory()->create([
+            'division_id' => $division->id,
+            'status' => Dataset::STATUS_READY,
+        ]);
 
+        // 3 baris flat performance_metrics untuk TJBT + 1 baris unit lain (harus terfilter).
         $this->legacyMetric($dataset, $division, 'TJBT | Indikator A | target', 100.0, '2026-08-31');
-        $this->legacyMetric($dataset, $division, 'TJBT | Indikator A | realisasi', 110.0, '2026-08-31');
+        $this->legacyMetric($dataset, $division, 'TJBT | Indikator A | realisasi', 105.0, '2026-08-31');
+        $this->legacyMetric($dataset, $division, 'TJBT | NKO', 99.0, '2026-08-31');
+        $this->legacyMetric($dataset, $division, 'MES | NKO', 88.0, '2026-08-31');
 
-        $user = $this->management();
+        // Hanya 1 baris observasi NKO terstruktur untuk TJBT dengan nilai berbeda (107.5).
+        $unit = OrgUnit::factory()->create(['name' => 'TJBT']);
+        $nkoIndicator = Indicator::factory()->create([
+            'org_unit_id' => $unit->id,
+            'name' => 'NKO',
+            'category' => 'nko',
+            'is_group' => false,
+        ]);
+        PerformanceObservation::factory()->create([
+            'dataset_id' => $dataset->id,
+            'indicator_id' => $nkoIndicator->id,
+            'org_unit_id' => $unit->id,
+            'division_id' => $division->id,
+            'period' => '2026-08-31',
+            'nilai' => 107.5,
+        ]);
 
-        // R8 targetVsRealisasi: tetap legacy, tidak kosong.
-        $tvr = $this->reader('targetVsRealisasi', [$user]);
-        $this->assertSame('2026-08-31', $tvr['period']);
-        $this->assertSame(['TJBT'], $tvr['labels']);
+        $payload = $this->actingAs($this->management())
+            ->getJson(route('performance.data'))
+            ->assertOk()
+            ->json();
+
+        // Series & average_nko berasal dari performance_observations (107.5, bukan 99.0 legacy).
+        $this->assertSame(107.5, $payload['kpi']['average_nko']);
+        $this->assertSame([['name' => 'TJBT', 'data' => [107.5]]], $payload['series']);
+
+        // Namun metric_count tetap menghitung 3 baris performance_metrics TJBT (bukan 1 observasi).
+        $this->assertSame(1, $payload['kpi']['ready_datasets']);
+        $this->assertSame(3, $payload['kpi']['metric_count']);
     }
 
     // ---------------------------------------------------------------- R6 ----
