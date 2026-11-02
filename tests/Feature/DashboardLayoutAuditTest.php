@@ -6,6 +6,7 @@ use App\Models\AuditLog;
 use App\Models\DashboardLayout;
 use App\Models\Role;
 use App\Models\User;
+use App\Services\AuditLogFormatter;
 use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\UnitDivisionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -60,5 +61,26 @@ class DashboardLayoutAuditTest extends TestCase
             'action' => AuditLog::ACTION_DELETE,
             'auditable_type' => (new DashboardLayout)->getMorphClass(),
         ]);
+    }
+
+    public function test_audit_log_formatter_formats_dashboard_layout_entries(): void
+    {
+        $editor = User::factory()->withRole(Role::EDITOR_DASHBOARD)->create();
+
+        $this->actingAs($editor)->putJson(route('dashboard.layout.update'), [
+            'role_slug' => Role::MANAGEMENT,
+            'layout_key' => Role::MANAGEMENT,
+            'widgets' => ['kpi-summary', 'trend-chart'],
+        ])->assertOk();
+
+        $log = AuditLog::where('auditable_type', (new DashboardLayout)->getMorphClass())->latest()->firstOrFail();
+
+        $this->assertStringContainsString('Tata letak dashboard', AuditLogFormatter::objectLabel($log));
+        $rows = AuditLogFormatter::rows($log);
+        $this->assertNotEmpty($rows);
+
+        $widgetRow = collect($rows)->firstWhere('label', 'Daftar widget');
+        $this->assertNotNull($widgetRow);
+        $this->assertEquals('2 widget terkonfigurasi', $widgetRow['new']);
     }
 }

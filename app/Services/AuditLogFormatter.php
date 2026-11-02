@@ -55,6 +55,9 @@ class AuditLogFormatter
         'rows_skipped' => 'Baris ditolak',
         'created_at' => 'Waktu dibuat',
         'ip' => 'IP',
+        'layout_key' => 'Kunci layout',
+        'widgets' => 'Daftar widget',
+        'role_slug' => 'Peran target',
     ];
 
     /**
@@ -83,6 +86,7 @@ class AuditLogFormatter
         'Division' => 'Divisi',
         'Role' => 'Peran',
         'Permission' => 'Permission',
+        'DashboardLayout' => 'Tata letak dashboard',
     ];
 
     /**
@@ -176,6 +180,13 @@ class AuditLogFormatter
             return static::humanizeArray($key, $value);
         }
 
+        if (is_string($value) && in_array($key, ['widgets', 'validation_report'], true)) {
+            $decoded = json_decode($value, true);
+            if (is_array($decoded)) {
+                return static::humanizeArray($key, $decoded);
+            }
+        }
+
         if ($key === 'size' && is_numeric($value)) {
             return static::humanizeBytes((float) $value);
         }
@@ -194,6 +205,10 @@ class AuditLogFormatter
      */
     private static function humanizeArray(string $key, array $value): string
     {
+        if ($key === 'widgets') {
+            return count($value).' widget terkonfigurasi';
+        }
+
         if ($key === 'validation_report') {
             $ok = $value['ok'] ?? 0;
             $warning = $value['warning'] ?? 0;
