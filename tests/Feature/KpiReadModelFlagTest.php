@@ -2252,4 +2252,420 @@ class KpiReadModelFlagTest extends TestCase
         $this->assertSame('2026-08-31', $panelMgmt['period']);
         $this->assertNotEmpty($panelMgmt['sections']);
     }
+
+    // ----------------------------------- Fase 4.3 HTTP & Parity Harness ----
+
+    /**
+     * Pengujian HTTP structured untuk R2 (availableUnits):
+     * - Staf divisi KPI dan role privileged (Management) me-render dropdown
+     *   filter unit dengan daftar unit dari org_units sesuai visible_units.
+     * - Tanpa data structured (atau saat fail-closed), dropdown menampilkan
+     *   pesan "Belum ada data unit.".
+     */
+    public function test_r2_http_structured_merender_dropdown_available_units_dan_empty_state(): void
+    {
+        [, $staff] = $this->seedR5HttpKpiFixture();
+        $management = $this->management();
+
+        config([
+            'kpi.read_model' => 'legacy',
+            'kpi.visible_units' => ['TJBT'],
+        ]);
+        $legacyStaffResponse = $this->actingAs($staff)->get(route('dashboard'))->assertOk();
+        $legacyMgmtResponse = $this->actingAs($management)->get(route('dashboard'))->assertOk();
+
+        config([
+            'kpi.read_model' => 'structured',
+            'kpi.visible_units' => ['TJBT'],
+        ]);
+        $structuredStaffResponse = $this->actingAs($staff)->get(route('dashboard'));
+        $structuredMgmtResponse = $this->actingAs($management)->get(route('dashboard'));
+
+        $structuredStaffResponse->assertOk()
+            ->assertViewHas('availableUnits', ['TJBT'])
+            ->assertSee('name="unit[]" value="TJBT"', false)
+            ->assertDontSee('name="unit[]" value="MES"', false)
+            ->assertDontSee('Belum ada unit.');
+
+        $structuredMgmtResponse->assertOk()
+            ->assertViewHas('availableUnits', ['TJBT'])
+            ->assertSee('name="unit[]" value="TJBT"', false)
+            ->assertDontSee('name="unit[]" value="MES"', false)
+            ->assertDontSee('Belum ada unit.');
+
+        $this->assertSame(
+            $legacyStaffResponse->viewData('availableUnits'),
+            $structuredStaffResponse->viewData('availableUnits'),
+        );
+        $this->assertSame(
+            $legacyMgmtResponse->viewData('availableUnits'),
+            $structuredMgmtResponse->viewData('availableUnits'),
+        );
+
+        // Rollback visible_units = null pada HTTP structured mengembalikan semua unit terstruktur
+        config(['kpi.visible_units' => null]);
+        $unscopedResponse = $this->actingAs($management)->get(route('dashboard'))->assertOk();
+        $this->assertSame(['MES', 'TJBT'], $unscopedResponse->viewData('availableUnits'));
+
+        // Empty state R2 structured saat tabel performance_observations kosong
+        PerformanceObservation::query()->delete();
+        config(['kpi.visible_units' => ['TJBT']]);
+        $emptyResponse = $this->actingAs($staff)->get(route('dashboard'));
+        $emptyResponse->assertOk()
+            ->assertViewHas('availableUnits', [])
+            ->assertSee('Belum ada unit.');
+    }
+
+    /**
+     * Pengujian HTTP structured untuk R6 (kinerjaRealisasi) dan R9 (pencapaianNko)
+     * pada layout staf divisi Perencanaan Pengusahaan, mencakup:
+     * - Paritas penuh payload dan HTML antara mode legacy dan structured.
+     * - Penanganan empty state ketika data structured tidak tersedia.
+     */
+    public function test_r6_dan_r9_http_structured_paritas_render_dan_empty_state(): void
+    {
+        [, $staff] = $this->seedR5HttpKpiFixture();
+
+        config([
+            'kpi.read_model' => 'legacy',
+            'kpi.visible_units' => ['TJBT'],
+        ]);
+        $legacyResponse = $this->actingAs($staff)->get(route('dashboard'))->assertOk();
+        $legacyWidgets = collect($legacyResponse->viewData('widgets'))->keyBy('key');
+        $legacyR6 = $legacyWidgets->get('kinerja-realisasi')['data'];
+        $legacyR9 = $legacyWidgets->get('pencapaian-nko')['data'];
+
+        config([
+            'kpi.read_model' => 'structured',
+            'kpi.visible_units' => ['TJBT'],
+        ]);
+        $structuredResponse = $this->actingAs($staff)->get(route('dashboard'));
+
+        $structuredResponse->assertOk()
+            ->assertSee('Realisasi vs Target')
+            ->assertSee('16 dari 16')
+            ->assertSee('100,0%')
+            ->assertSee('Tercapai')
+            ->assertDontSee('Belum ada data realisasi vs target pada periode ini.')
+            ->assertSee('Pencapaian % per Unit')
+            ->assertSee('pencapaianNko-pencapaian-nko-', false)
+            ->assertDontSee('Belum ada data pencapaian pada periode ini.');
+
+        $structuredWidgets = collect($structuredResponse->viewData('widgets'))->keyBy('key');
+        $this->assertTrue($structuredWidgets->has('kinerja-realisasi'));
+        $this->assertTrue($structuredWidgets->has('pencapaian-nko'));
+
+        $structuredR6 = $structuredWidgets->get('kinerja-realisasi')['data'];
+        $structuredR9 = $structuredWidgets->get('pencapaian-nko')['data'];
+
+        // Periode di fixture R5: legacy metrics = 2026-08-31, structured observations = 2026-08-01.
+        // Baris dan nilai rata-rata R6 & R9 wajib identik 100%.
+        $this->assertSame($legacyR6['rows'], $structuredR6['rows']);
+        $this->assertSame($legacyR6['has_data'], $structuredR6['has_data']);
+        $this->assertSame($legacyR9['labels'], $structuredR9['labels']);
+        $this->assertSame($legacyR9['data'], $structuredR9['data']);
+
+        // Empty state HTTP structured saat performance_observations kosong (tanpa menghapus legacy metrics)
+        PerformanceObservation::query()->delete();
+
+        $emptyResponse = $this->actingAs($staff)->get(route('dashboard'));
+        $emptyResponse->assertOk()
+            ->assertSee('Belum ada data realisasi vs target pada periode ini.')
+            ->assertSee('Belum ada data pencapaian pada periode ini.');
+
+        $emptyWidgets = collect($emptyResponse->viewData('widgets'))->keyBy('key');
+        $this->assertFalse($emptyWidgets->get('kinerja-realisasi')['data']['has_data']);
+        $this->assertSame([], $emptyWidgets->get('kinerja-realisasi')['data']['rows']);
+        $this->assertSame([], $emptyWidgets->get('pencapaian-nko')['data']['labels']);
+        $this->assertSame([], $emptyWidgets->get('pencapaian-nko')['data']['data']);
+    }
+
+    /**
+     * Pengujian HTTP structured untuk R5 pada role selain staf divisi KPI utama:
+     * 1. Staf divisi generik (slug divisi tidak dipetakan khusus di config)
+     *    jatuh ke layout `staff_divisi` yang hanya me-mount `dataset-status`.
+     * 2. Role privileged (Admin, Management, Editor Dashboard) terbukti TIDAK
+     *    me-mount `dataset-status` pada layout bawaan produksi, tetapi apabila
+     *    widget `dataset-status` di-mount pada layout mereka, jalur HTTP
+     *    structured mengeksekusi scoping lintas divisi dengan paritas penuh.
+     */
+    public function test_r5_http_structured_jalur_role_staf_generik_dan_privileged(): void
+    {
+        [$divKpi] = $this->seedR5HttpKpiFixture();
+
+        $divOther = Division::factory()->create([
+            'name' => 'Operasi Sistem',
+            'slug' => 'operasi-sistem',
+        ]);
+        $dsOther = Dataset::factory()->create([
+            'division_id' => $divOther->id,
+            'status' => Dataset::STATUS_READY,
+        ]);
+        $this->legacyMetric($dsOther, $divOther, 'Operasi Metric', 50.0, '2026-07-15');
+
+        $staffGeneric = User::factory()->withRole(Role::STAFF_DIVISI)->create([
+            'division_id' => $divOther->id,
+        ]);
+        $admin = User::factory()->withRole(Role::ADMIN)->create();
+        $management = $this->management();
+        $editor = User::factory()->withRole(Role::EDITOR_DASHBOARD)->create();
+
+        config([
+            'kpi.read_model' => 'structured',
+            'kpi.visible_units' => ['TJBT'],
+        ]);
+
+        // 1. Staf divisi generik me-mount tepat ['dataset-status'] dan terisolasi ke divisinya
+        $genericResponse = $this->actingAs($staffGeneric)->get(route('dashboard'))->assertOk();
+        $genericWidgets = collect($genericResponse->viewData('widgets'))->keyBy('key');
+        $this->assertSame(['dataset-status'], $genericWidgets->keys()->all());
+        $this->assertSame('2026-07-31', $genericWidgets->get('dataset-status')['data']['latest_period']);
+        $this->assertSame(1, $genericWidgets->get('dataset-status')['data']['ready']);
+        $this->assertSame(0, $genericWidgets->get('dataset-status')['data']['archived']);
+        $this->assertSame(0, $genericWidgets->get('dataset-status')['data']['failed']);
+        $this->assertSame(0, $genericWidgets->get('dataset-status')['data']['latest_rows']);
+
+        // 2. Layout bawaan role privileged tidak me-mount dataset-status
+        foreach ([$admin, $management, $editor] as $privilegedUser) {
+            $defaultResp = $this->actingAs($privilegedUser)->get(route('dashboard'))->assertOk();
+            $mountedKeys = collect($defaultResp->viewData('widgets'))->pluck('key')->all();
+            $this->assertNotContains('dataset-status', $mountedKeys);
+        }
+
+        // 3. Saat dataset-status di-mount pada layout management untuk verifikasi HTTP terkendali,
+        //    role privileged mengagregasi status lintas divisi (divKpi + divOther).
+        config([
+            'dashboard_layouts.layouts.management' => ['kpi-summary', 'trend-chart', 'nko-ranking', 'dataset-status'],
+        ]);
+
+        config(['kpi.read_model' => 'legacy']);
+        $mgmtLegacyResp = $this->actingAs($management)->get(route('dashboard'))->assertOk();
+        $mgmtLegacyR5 = collect($mgmtLegacyResp->viewData('widgets'))->keyBy('key')->get('dataset-status')['data'];
+
+        config(['kpi.read_model' => 'structured']);
+        $mgmtStructResp = $this->actingAs($management)->get(route('dashboard'))->assertOk();
+        $mgmtStructR5 = collect($mgmtStructResp->viewData('widgets'))->keyBy('key')->get('dataset-status')['data'];
+
+        $this->assertSame('2026-08-31', $mgmtStructR5['latest_period']);
+        $this->assertSame(2, $mgmtStructR5['ready']);
+        $this->assertSame(1, $mgmtStructR5['archived']);
+        $this->assertSame(1, $mgmtStructR5['failed']);
+        $this->assertSame(30, $mgmtStructR5['latest_rows']);
+        $this->assertSame(41, $mgmtLegacyR5['latest_rows']);
+        $this->assertSame($mgmtLegacyR5['latest_period'], $mgmtStructR5['latest_period']);
+        $this->assertSame($mgmtLegacyR5['ready'], $mgmtStructR5['ready']);
+        $this->assertSame($mgmtLegacyR5['archived'], $mgmtStructR5['archived']);
+        $this->assertSame($mgmtLegacyR5['failed'], $mgmtStructR5['failed']);
+        $this->assertSame($mgmtLegacyR5['fresh'], $mgmtStructR5['fresh']);
+    }
+
+    /**
+     * Harness pembanding terpadu legacy-versus-structured untuk seluruh reader
+     * aktif (R1, R2, R3, R5, R6, R7, R9, R10) pada satu dataset READY yang
+     * konsisten (mengikuti kontrak dual-write produksi).
+     *
+     * Memverifikasi dalam satu pengujian terarah:
+     * - Paritas identik pada R1, R2, R3, R6, R7, R9, R10.
+     * - Paritas metadata R5 + divergensi model data sah pada latest_rows.
+     * - Konsistensi di jalur HTTP (/dashboard & /api/performance-data) untuk
+     *   staf divisi KPI dan role privileged.
+     */
+    public function test_harness_paritas_terpadu_seluruh_reader_aktif_r1_r2_r3_r5_r6_r7_r9_r10(): void
+    {
+        $division = Division::factory()->create([
+            'name' => 'Perencanaan Pengusahaan',
+            'slug' => 'perencanaan-pengusahaan',
+        ]);
+        $dataset = Dataset::factory()->create([
+            'division_id' => $division->id,
+            'status' => Dataset::STATUS_READY,
+        ]);
+        Dataset::factory()->archived()->create([
+            'division_id' => $division->id,
+        ]);
+
+        $period = '2026-08-31';
+        $tjbt = OrgUnit::factory()->create(['name' => 'TJBT']);
+        $mes = OrgUnit::factory()->create(['name' => 'MES']);
+
+        // Seed 2 indikator daun numerik + 1 grup induk + 1 baris NKO untuk TJBT
+        $this->legacyMetric($dataset, $division, 'TJBT | Indikator 1 | target', 100.0, $period);
+        $this->legacyMetric($dataset, $division, 'TJBT | Indikator 1 | realisasi', 105.0, $period);
+        $this->legacyMetric($dataset, $division, 'TJBT | Indikator 2 | target', 200.0, $period);
+        $this->legacyMetric($dataset, $division, 'TJBT | Indikator 2 | realisasi', 190.0, $period);
+        $this->legacyMetric($dataset, $division, 'TJBT | Grup Induk', 100.0, $period);
+        $this->legacyMetric($dataset, $division, 'TJBT | NKO', 102.5, $period);
+
+        // Seed unit non-visible (MES) untuk menguji filter visible_units = ['TJBT']
+        $this->legacyMetric($dataset, $division, 'MES | Indikator MES | target', 100.0, $period);
+        $this->legacyMetric($dataset, $division, 'MES | Indikator MES | realisasi', 90.0, $period);
+        $this->legacyMetric($dataset, $division, 'MES | NKO', 94.0, $period);
+
+        $ind1 = Indicator::factory()->create([
+            'org_unit_id' => $tjbt->id,
+            'name' => 'Indikator 1',
+            'satuan' => '%',
+            'polarity' => 'higher_is_better',
+            'bobot' => '10',
+            'is_group' => false,
+            'category' => null,
+        ]);
+        PerformanceObservation::factory()->create([
+            'dataset_id' => $dataset->id,
+            'indicator_id' => $ind1->id,
+            'org_unit_id' => $tjbt->id,
+            'division_id' => $division->id,
+            'period' => $period,
+            'target_value' => 100.0,
+            'realisasi_value' => 105.0,
+            'pencapaian' => 1.05,
+        ]);
+
+        $ind2 = Indicator::factory()->create([
+            'org_unit_id' => $tjbt->id,
+            'name' => 'Indikator 2',
+            'satuan' => '%',
+            'polarity' => 'higher_is_better',
+            'bobot' => '15',
+            'is_group' => false,
+            'category' => null,
+        ]);
+        PerformanceObservation::factory()->create([
+            'dataset_id' => $dataset->id,
+            'indicator_id' => $ind2->id,
+            'org_unit_id' => $tjbt->id,
+            'division_id' => $division->id,
+            'period' => $period,
+            'target_value' => 200.0,
+            'realisasi_value' => 190.0,
+            'pencapaian' => 0.95,
+        ]);
+
+        $grp = Indicator::factory()->create([
+            'org_unit_id' => $tjbt->id,
+            'name' => 'Grup Induk',
+            'is_group' => true,
+            'category' => null,
+        ]);
+        PerformanceObservation::factory()->create([
+            'dataset_id' => $dataset->id,
+            'indicator_id' => $grp->id,
+            'org_unit_id' => $tjbt->id,
+            'division_id' => $division->id,
+            'period' => $period,
+            'target_value' => null,
+            'realisasi_value' => null,
+            'pencapaian' => 1.0,
+        ]);
+
+        $nkoTjbt = Indicator::factory()->create([
+            'org_unit_id' => $tjbt->id,
+            'name' => 'NKO',
+            'is_group' => false,
+            'category' => 'nko',
+        ]);
+        PerformanceObservation::factory()->create([
+            'dataset_id' => $dataset->id,
+            'indicator_id' => $nkoTjbt->id,
+            'org_unit_id' => $tjbt->id,
+            'division_id' => $division->id,
+            'period' => $period,
+            'nilai' => 102.5,
+        ]);
+
+        $indMes = Indicator::factory()->create([
+            'org_unit_id' => $mes->id,
+            'name' => 'Indikator MES',
+            'satuan' => '%',
+            'is_group' => false,
+            'category' => null,
+        ]);
+        PerformanceObservation::factory()->create([
+            'dataset_id' => $dataset->id,
+            'indicator_id' => $indMes->id,
+            'org_unit_id' => $mes->id,
+            'division_id' => $division->id,
+            'period' => $period,
+            'target_value' => 100.0,
+            'realisasi_value' => 90.0,
+            'pencapaian' => 0.90,
+        ]);
+
+        $nkoMes = Indicator::factory()->create([
+            'org_unit_id' => $mes->id,
+            'name' => 'NKO',
+            'is_group' => false,
+            'category' => 'nko',
+        ]);
+        PerformanceObservation::factory()->create([
+            'dataset_id' => $dataset->id,
+            'indicator_id' => $nkoMes->id,
+            'org_unit_id' => $mes->id,
+            'division_id' => $division->id,
+            'period' => $period,
+            'nilai' => 94.0,
+        ]);
+
+        $staff = User::factory()->withRole(Role::STAFF_DIVISI)->create([
+            'division_id' => $division->id,
+        ]);
+        $management = $this->management();
+
+        config(['kpi.visible_units' => ['TJBT']]);
+
+        foreach ([$staff, $management] as $actor) {
+            // --- Jalankan seluruh reader pada mode LEGACY ---
+            config(['kpi.read_model' => 'legacy']);
+            $r1Legacy = $this->actingAs($actor)->getJson('/api/performance-data')->assertOk()->json();
+            $dashLegacy = $this->actingAs($actor)->get(route('dashboard'))->assertOk();
+            $r2Legacy = $dashLegacy->viewData('availableUnits');
+            $r3Legacy = $this->reader('nkoRanking', [$actor])->map(fn ($o) => (array) $o)->all();
+            $r5Legacy = $this->reader('datasetStatus', [$actor]);
+            $r6Legacy = $this->reader('kinerjaRealisasi', [$actor]);
+            $r7Legacy = $this->reader('kinerjaDetail', [$actor]);
+            $r9Legacy = $this->reader('pencapaianNko', [$actor]);
+            $r10Legacy = $this->reader('nkoDonut', [$actor]);
+
+            // --- Jalankan seluruh reader pada mode STRUCTURED ---
+            config(['kpi.read_model' => 'structured']);
+            $r1Structured = $this->actingAs($actor)->getJson('/api/performance-data')->assertOk()->json();
+            $dashStructured = $this->actingAs($actor)->get(route('dashboard'))->assertOk();
+            $r2Structured = $dashStructured->viewData('availableUnits');
+            $r3Structured = $this->reader('nkoRanking', [$actor])->map(fn ($o) => (array) $o)->all();
+            $r5Structured = $this->reader('datasetStatus', [$actor]);
+            $r6Structured = $this->reader('kinerjaRealisasi', [$actor]);
+            $r7Structured = $this->reader('kinerjaDetail', [$actor]);
+            $r9Structured = $this->reader('pencapaianNko', [$actor]);
+            $r10Structured = $this->reader('nkoDonut', [$actor]);
+
+            // 1. Paritas R1 (/api/performance-data)
+            $this->assertSame($r1Legacy, $r1Structured);
+
+            // 2. Paritas R2 (availableUnits)
+            $this->assertSame(['TJBT'], $r2Structured);
+            $this->assertSame($r2Legacy, $r2Structured);
+
+            // 3. Paritas R3 (nkoRanking)
+            $this->assertSame($r3Legacy, $r3Structured);
+
+            // 4. Paritas metadata R5 + expected divergence latest_rows (6 baris metrics vs 4 baris observations TJBT)
+            $this->assertSame($r5Legacy['latest_period'], $r5Structured['latest_period']);
+            $this->assertSame($r5Legacy['ready'], $r5Structured['ready']);
+            $this->assertSame($r5Legacy['archived'], $r5Structured['archived']);
+            $this->assertSame($r5Legacy['failed'], $r5Structured['failed']);
+            $this->assertSame($r5Legacy['fresh'], $r5Structured['fresh']);
+            $this->assertSame(6, $r5Legacy['latest_rows']);
+            $this->assertSame(4, $r5Structured['latest_rows']);
+
+            // 5. Paritas R6 (kinerjaRealisasi) & R9 (pencapaianNko)
+            $this->assertSame($r6Legacy, $r6Structured);
+            $this->assertSame($r9Legacy, $r9Structured);
+
+            // 6. Paritas R7 (kinerjaDetail)
+            $this->assertSame($r7Legacy, $r7Structured);
+
+            // 7. Paritas R10 (nkoDonut)
+            $this->assertSame($r10Legacy, $r10Structured);
+        }
+    }
 }
