@@ -120,12 +120,75 @@ class DashboardLayout extends Model
         }
 
         $allowed = array_flip(self::allowedWidgetKeys($config));
+        $catalog = $config['widgets'] ?? config('dashboard_layouts.widgets', []);
         $result = [];
 
-        foreach ($widgets as $key) {
-            if (is_string($key) && isset($allowed[$key]) && ! in_array($key, $result, true)) {
-                $result[] = $key;
+        foreach (self::normalizeWidgets($widgets, is_array($catalog) ? $catalog : []) as $item) {
+            if (isset($allowed[$item['key']]) && ! isset($result[$item['key']])) {
+                $result[$item['key']] = $item;
             }
+        }
+
+        return self::compactWidgets(array_values($result), is_array($catalog) ? $catalog : []);
+    }
+
+    /**
+     * Bentuk simpan ringkas: item ber-cols default tanpa config tetap string
+     * key (kompatibel dengan data lama); selain itu tetap {key, cols, config}.
+     *
+     * @param  list<array{key: string, cols: int, config: array<string, mixed>}>  $items
+     * @param  array<string, array<string, mixed>>  $catalog
+     * @return list<string|array{key: string, cols: int, config: array<string, mixed>}>
+     */
+    public static function compactWidgets(array $items, array $catalog): array
+    {
+        return array_map(
+            fn (array $i) => $i['config'] === [] && $i['cols'] === (int) ($catalog[$i['key']]['default_cols'] ?? 3)
+                ? $i['key']
+                : $i,
+            $items,
+        );
+    }
+
+    /**
+     * Ambil daftar widget_key dari item layout (string atau {key, ...}).
+     *
+     * @param  array<int, mixed>  $widgets
+     * @return list<string>
+     */
+    public static function widgetKeys(array $widgets): array
+    {
+        return array_values(array_filter(array_map(
+            fn ($w) => is_array($w) ? ($w['key'] ?? null) : $w,
+            $widgets,
+        ), 'is_string'));
+    }
+
+    /**
+     * Normalisasi item layout (string key lama ATAU {key, cols, config}) ke
+     * bentuk terstruktur. `cols` di luar [1,2,3] jatuh ke default katalog.
+     *
+     * @param  array<string, array<string, mixed>>  $catalog
+     * @return list<array{key: string, cols: int, config: array<string, mixed>}>
+     */
+    public static function normalizeWidgets(array $rawWidgets, array $catalog): array
+    {
+        $result = [];
+
+        foreach ($rawWidgets as $item) {
+            $key = is_array($item) ? ($item['key'] ?? null) : $item;
+            if (! is_string($key) || $key === '') {
+                continue;
+            }
+
+            $cols = is_array($item) ? ($item['cols'] ?? null) : null;
+            if (! is_int($cols) || $cols < 1 || $cols > 3) {
+                $cols = (int) ($catalog[$key]['default_cols'] ?? 3);
+            }
+
+            $config = is_array($item) && is_array($item['config'] ?? null) ? $item['config'] : [];
+
+            $result[] = ['key' => $key, 'cols' => $cols, 'config' => $config];
         }
 
         return $result;
@@ -170,7 +233,9 @@ class DashboardLayout extends Model
             $catalog = config('dashboard_layouts.widgets', []);
             $normalized = [];
 
-            foreach ($layout->widgets as $widgetKey) {
+            foreach ($layout->widgets as $item) {
+                $widgetKey = is_array($item) ? ($item['key'] ?? null) : $item;
+
                 if (! is_string($widgetKey) || $widgetKey === '') {
                     throw new InvalidArgumentException('Setiap item widgets harus berupa string widget_key.');
                 }
@@ -183,12 +248,12 @@ class DashboardLayout extends Model
                     throw new InvalidArgumentException("Widget '{$widgetKey}' tidak terdaftar di katalog dashboard_layouts.");
                 }
 
-                if (! in_array($widgetKey, $normalized, true)) {
-                    $normalized[] = $widgetKey;
+                if (! in_array($widgetKey, self::widgetKeys($normalized), true)) {
+                    $normalized[] = $item;
                 }
             }
 
-            $layout->widgets = $normalized;
+            $layout->widgets = self::compactWidgets(self::normalizeWidgets($normalized, $catalog), $catalog);
         });
     }
 }

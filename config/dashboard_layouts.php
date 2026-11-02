@@ -31,18 +31,21 @@ return [
      *                tambahan (tetap tunduk pada layout role-nya).
      */
     'widgets' => [
-        'kpi-summary' => ['label' => 'Ringkasan KPI',      'view' => 'widgets.kpi-summary',          'permission' => null],
-        'trend-chart' => ['label' => 'Grafik Tren Kinerja', 'view' => 'widgets.trend-chart',         'permission' => null],
-        'nko-ranking' => ['label' => 'Peringkat NKO Unit',   'view' => 'widgets.nko-ranking',          'permission' => 'dashboard.view'],
-        'dataset-status' => ['label' => 'Status Dataset',   'view' => 'widgets.dataset-status',       'permission' => null],
-        'kinerja-realisasi' => ['label' => 'Realisasi vs Target', 'view' => 'widgets.kinerja-realisasi', 'permission' => null],
-        'kinerja-detail' => ['label' => 'Detail Metrik KPI', 'view' => 'widgets.kinerja-detail',       'permission' => null],
+        'kpi-summary' => ['default_cols' => 3, 'label' => 'Ringkasan KPI',      'view' => 'widgets.kpi-summary',          'permission' => null],
+        'trend-chart' => ['default_cols' => 2, 'label' => 'Grafik Tren Kinerja', 'view' => 'widgets.trend-chart',         'permission' => null],
+        'nko-ranking' => ['default_cols' => 1, 'label' => 'Peringkat NKO Unit',   'view' => 'widgets.nko-ranking',          'permission' => 'dashboard.view'],
+        'dataset-status' => ['default_cols' => 3, 'label' => 'Status Dataset',   'view' => 'widgets.dataset-status',       'permission' => null],
+        'kinerja-realisasi' => ['default_cols' => 2, 'label' => 'Realisasi vs Target', 'view' => 'widgets.kinerja-realisasi', 'permission' => null],
+        'kinerja-detail' => ['default_cols' => 3, 'label' => 'Detail Metrik KPI', 'view' => 'widgets.kinerja-detail',       'permission' => null],
         // Panel per indikator (keputusan Pak Gama 2026-10-19 11:17 & 2026-10-25).
         // Sumber SELALU terstruktur lewat TargetRealisasiPerIndicatorReader;
         // tidak membaca KPI_READ_MODEL dan tidak memakai R8/targetVsRealisasi().
-        'target-realisasi-per-indikator' => ['label' => 'Target dan Realisasi per Indikator', 'view' => 'widgets.target-realisasi-per-indikator', 'permission' => 'dashboard.view'],
-        'pencapaian-nko' => ['label' => 'Pencapaian % per Unit', 'view' => 'widgets.pencapaian-nko', 'permission' => null],
-        'nko-donut' => ['label' => 'Distribusi NKO', 'view' => 'widgets.nko-donut', 'permission' => null],
+        'target-realisasi-per-indikator' => ['default_cols' => 3, 'label' => 'Target dan Realisasi per Indikator', 'view' => 'widgets.target-realisasi-per-indikator', 'permission' => 'dashboard.view'],
+        'pencapaian-nko' => ['default_cols' => 1, 'label' => 'Pencapaian % per Unit', 'view' => 'widgets.pencapaian-nko', 'permission' => null],
+        'nko-donut' => ['default_cols' => 1, 'label' => 'Distribusi NKO', 'view' => 'widgets.nko-donut', 'permission' => null],
+        // Grafik generik ECharts (Opsi C, Sesi 119): judul/jenis/metrik dari
+        // `config` per-instance di layout, divalidasi whitelist di backend.
+        'custom-chart' => ['default_cols' => 2, 'label' => 'Grafik Kustom', 'view' => 'widgets.custom-chart', 'permission' => 'dashboard.view'],
         // Katalog saja, TIDAK dipasang ke layout role mana pun. Data Aset
         // dimiliki divisi Managemen Aset (MANSET), sedangkan layout
         // `staff_divisi` di-scope ke divisi staf yang login — memasang widget
@@ -51,12 +54,12 @@ return [
         // dashboard divisi bersih; mounting ulang menunggu pekerjaan MANSET.)
         // Daftar series provisional mengikuti data; subset final menunggu
         // keputusan MANSET.
-        'aset-upt-chart' => ['label' => 'Stok Aset per UPT', 'view' => 'widgets.aset-upt-chart', 'permission' => 'dashboard.view'],
-        'recent-audit' => ['label' => 'Audit Terbaru',      'view' => 'widgets.recent-audit',         'permission' => 'audit.view'],
-        'failed-datasets' => ['label' => 'Dataset Gagal',      'view' => 'widgets.failed-datasets',      'permission' => 'dataset.view'],
-        'admin-summary' => ['label' => 'Ringkasan Operasional', 'view' => 'widgets.admin-summary',      'permission' => 'dashboard.view'],
-        'admin-quick-actions' => ['label' => 'Aksi Cepat',      'view' => 'widgets.admin-quick-actions',  'permission' => 'dashboard.view'],
-        'layout-editor-placeholder' => ['label' => 'Editor Layout',      'view' => 'widgets.layout-editor-placeholder', 'permission' => 'dashboard.update'],
+        'aset-upt-chart' => ['default_cols' => 1, 'label' => 'Stok Aset per UPT', 'view' => 'widgets.aset-upt-chart', 'permission' => 'dashboard.view'],
+        'recent-audit' => ['default_cols' => 2, 'label' => 'Audit Terbaru',      'view' => 'widgets.recent-audit',         'permission' => 'audit.view'],
+        'failed-datasets' => ['default_cols' => 1, 'label' => 'Dataset Gagal',      'view' => 'widgets.failed-datasets',      'permission' => 'dataset.view'],
+        'admin-summary' => ['default_cols' => 3, 'label' => 'Ringkasan Operasional', 'view' => 'widgets.admin-summary',      'permission' => 'dashboard.view'],
+        'admin-quick-actions' => ['default_cols' => 3, 'label' => 'Aksi Cepat',      'view' => 'widgets.admin-quick-actions',  'permission' => 'dashboard.view'],
+        'layout-editor-placeholder' => ['default_cols' => 3, 'label' => 'Editor Layout',      'view' => 'widgets.layout-editor-placeholder', 'permission' => 'dashboard.update'],
     ],
 
     /*

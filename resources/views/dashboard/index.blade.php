@@ -85,21 +85,10 @@
     <div class="grid gap-6 lg:grid-cols-3">
         @foreach ($widgets as $widget)
             @php
-                $widgetClass = match ($widget['key']) {
-                    'admin-summary' => 'lg:col-span-3',
-                    'recent-audit' => 'lg:col-span-2',
-                    'admin-quick-actions' => 'lg:col-span-3',
-                    'kpi-summary' => 'lg:col-span-3',
-                    'trend-chart' => 'lg:col-span-2',
-                    'nko-ranking' => 'lg:col-span-1',
-                    'dataset-status' => 'lg:col-span-3',
-                    'kinerja-realisasi' => 'lg:col-span-2',
-                    'kinerja-detail' => 'lg:col-span-3',
-                    'target-realisasi-per-indikator' => 'lg:col-span-3',
-                    'pencapaian-nko' => 'lg:col-span-1',
-                    'nko-donut' => 'lg:col-span-1',
-                    'layout-editor-placeholder' => 'lg:col-span-3',
-                    default => '',
+                $widgetClass = match ((int) ($widget['cols'] ?? 3)) {
+                    1 => 'lg:col-span-1',
+                    2 => 'lg:col-span-2',
+                    default => 'lg:col-span-3',
                 };
             @endphp
             <div class="{{ $widgetClass }}">

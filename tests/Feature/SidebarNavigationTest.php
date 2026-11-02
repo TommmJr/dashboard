@@ -29,7 +29,7 @@ class SidebarNavigationTest extends TestCase
             ->get(route('dashboard'))
             ->assertOk()
             ->assertSee('Dashboard Builder')
-            ->assertSee(route('dashboard').'#dashboard-layout-builder', false)
+            ->assertSee(route('dashboard.builder'), false)
             ->assertDontSee('Segera')
             ->assertSee('id="main-sidebar"', false)
             ->assertSee('aria-controls="main-sidebar"', false)
@@ -39,7 +39,7 @@ class SidebarNavigationTest extends TestCase
             ->get(route('dashboard'))
             ->assertOk()
             ->assertSee('Dashboard Builder')
-            ->assertSee(route('dashboard').'#dashboard-layout-builder', false)
+            ->assertSee(route('dashboard.builder'), false)
             ->assertDontSee('Segera');
 
         foreach ([$management, $staff] as $user) {
@@ -47,7 +47,7 @@ class SidebarNavigationTest extends TestCase
                 ->get(route('dashboard'))
                 ->assertOk()
                 ->assertDontSee('Dashboard Builder')
-                ->assertDontSee(route('dashboard').'#dashboard-layout-builder', false)
+                ->assertDontSee(route('dashboard.builder'), false)
                 ->assertDontSee('Segera');
         }
     }

@@ -61,6 +61,21 @@
                     <span class="mt-0.5 block text-xs text-slate-500">Kelola struktur divisi</span>
                 </span>
             </a>
+
+            @can('dashboard.update')
+                <a href="{{ route('dashboard.builder') }}"
+                   class="group flex items-center gap-3 rounded-lg border border-slate-200 bg-white p-3 transition hover:border-accent hover:bg-cyan-50/40">
+                    <span class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-primary transition group-hover:bg-white">
+                        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                            <path d="M11 5H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-5m-1.4-9.4a2 2 0 1 1 2.8 2.8L11.8 15H9v-2.8l8.6-8.6Z" stroke-linecap="round" stroke-linejoin="round" />
+                        </svg>
+                    </span>
+                    <span class="min-w-0">
+                        <span class="block text-sm font-semibold text-primary">Dashboard Builder</span>
+                        <span class="mt-0.5 block text-xs text-slate-500">Tata letak widget</span>
+                    </span>
+                </a>
+            @endcan
         @endcan
     </div>
 </div>

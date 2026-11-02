@@ -100,13 +100,23 @@ class DashboardController extends Controller
             $filters['end_date'] = null;
         }
 
-        $widgets = collect($layout)
-            ->map(fn (string $key) => isset($config['widgets'][$key])
-                ? ['key' => $key] + $config['widgets'][$key]
-                : null)
+        $normalizedLayout = DashboardLayout::normalizeWidgets($layout, $config['widgets'] ?? []);
+
+        $widgets = collect($normalizedLayout)
+            ->map(function (array $item) use ($config): ?array {
+                $key = $item['key'];
+                if (! isset($config['widgets'][$key])) {
+                    return null;
+                }
+
+                return array_merge($config['widgets'][$key], $item);
+            })
             ->filter()
             ->filter(fn (array $widget) => $widget['permission'] === null
                 || Gate::allows($widget['permission']))
+            // Dashboard layout editor disediakan di halaman tersendiri (/dashboard/builder).
+            // Tidak digabungkan pada grid widget dashboard utama.
+            ->reject(fn (array $widget) => $widget['key'] === 'layout-editor-placeholder')
             ->map(function (array $widget, int $key) use ($user, $filters) {
                 // Instance = indeks layout: unik per render dalam satu
                 // response meski widget key yang sama tampil berulang.
@@ -1558,6 +1568,25 @@ class DashboardController extends Controller
     }
 
     /**
+     * Halaman tersendiri untuk Dashboard Layout Builder.
+     */
+    public function builder(): View
+    {
+        $user = Auth::user();
+        abort_unless(
+            $user !== null && $user->can('dashboard.update') && $this->isPrivileged($user),
+            403,
+        );
+
+        $user->loadMissing('role', 'division');
+        $builderData = $this->layoutEditorData($user);
+
+        return view('dashboard.builder', [
+            'builderData' => $builderData,
+        ]);
+    }
+
+    /**
      * Simpan atau perbarui konfigurasi susunan widget dashboard di database.
      */
     public function updateLayout(Request $request): RedirectResponse|JsonResponse
@@ -1697,6 +1726,7 @@ class DashboardController extends Controller
                 'permission' => isset($meta['permission']) && is_string($meta['permission'])
                     ? $meta['permission']
                     : null,
+                'default_cols' => (int) ($meta['default_cols'] ?? 3),
             ];
         }
 
@@ -1956,6 +1986,24 @@ class DashboardController extends Controller
      */
     private function validateLayoutTarget(Request $request, bool $requireWidgets): array
     {
+        if ($request->filled('target') && ! $request->has('role_slug')) {
+            $targetInput = (string) $request->input('target');
+            if (str_contains($targetInput, ':')) {
+                [$targetRole, $targetDivSlug] = explode(':', $targetInput, 2);
+                $div = Division::query()->where('slug', $targetDivSlug)->first();
+                $request->merge([
+                    'role_slug' => $targetRole,
+                    'division_id' => $div?->id,
+                    'layout_key' => $targetInput,
+                ]);
+            } else {
+                $request->merge([
+                    'role_slug' => $targetInput,
+                    'layout_key' => $targetInput,
+                ]);
+            }
+        }
+
         $roleSlugInput = $request->input('role_slug');
         $divisionRule = $roleSlugInput === Role::STAFF_DIVISI
             ? ['nullable', 'integer', 'exists:divisions,id']
@@ -1973,12 +2021,6 @@ class DashboardController extends Controller
 
         if ($requireWidgets) {
             $rules['widgets'] = ['required', 'array', 'list', 'min:1'];
-            $rules['widgets.*'] = [
-                'required',
-                'string',
-                'distinct',
-                Rule::in(DashboardLayout::allowedWidgetKeys()),
-            ];
         }
 
         $validated = $request->validate($rules);
@@ -2014,17 +2056,76 @@ class DashboardController extends Controller
             ]);
         }
 
-        /** @var list<string> $widgets */
-        $widgets = $requireWidgets ? array_values($validated['widgets']) : [];
+        $widgets = [];
+        if ($requireWidgets) {
+            $rawWidgets = $validated['widgets'];
+            $allowedKeys = DashboardLayout::allowedWidgetKeys();
+            $widgetErrors = [];
 
-        if ($requireWidgets && in_array($roleSlug, [Role::ADMIN, Role::EDITOR_DASHBOARD], true)) {
-            if (! in_array('layout-editor-placeholder', $widgets, true)) {
-                $roleLabel = $roleSlug === Role::ADMIN ? 'Admin' : 'Editor Dashboard';
+            foreach ($rawWidgets as $i => $item) {
+                if (is_string($item)) {
+                    if (! in_array($item, $allowedKeys, true)) {
+                        $widgetErrors["widgets.{$i}"] = ["The selected widgets.{$i} is invalid."];
+                    }
+                } elseif (is_array($item)) {
+                    $itemKey = $item['key'] ?? null;
+                    if (! is_string($itemKey) || ! in_array($itemKey, $allowedKeys, true)) {
+                        $widgetErrors["widgets.{$i}.key"] = ["The selected widgets.{$i}.key is invalid."];
+                    }
 
-                throw ValidationException::withMessages([
-                    'widgets' => "Widget Editor Layout (layout-editor-placeholder) wajib dipertahankan pada layout {$roleLabel} agar akses pengelolaan tidak terkunci.",
-                ]);
+                    if (array_key_exists('cols', $item)) {
+                        if (! is_int($item['cols']) || ! in_array($item['cols'], [1, 2, 3], true)) {
+                            $widgetErrors["widgets.{$i}.cols"] = ["The widgets.{$i}.cols field must be between 1 and 3."];
+                        }
+                    }
+
+                    if ($itemKey === 'custom-chart') {
+                        $config = $item['config'] ?? null;
+                        if (! is_array($config)) {
+                            $widgetErrors["widgets.{$i}.config"] = ["The widgets.{$i}.config field must be an array."];
+                        } else {
+                            if (array_key_exists('title', $config)) {
+                                if (! is_string($config['title']) || mb_strlen($config['title']) > 60) {
+                                    $widgetErrors["widgets.{$i}.config.title"] = ["The widgets.{$i}.config.title field must not be greater than 60 characters."];
+                                }
+                            }
+
+                            $chartType = $config['chart_type'] ?? null;
+                            if (! is_string($chartType) || ! in_array($chartType, ['bar', 'line', 'donut'], true)) {
+                                $widgetErrors["widgets.{$i}.config.chart_type"] = ["The selected widgets.{$i}.config.chart_type is invalid."];
+                            }
+
+                            $metric = $config['metric'] ?? null;
+                            if (! is_string($metric) || ! in_array($metric, ['nko_score', 'pencapaian_ratio'], true)) {
+                                $widgetErrors["widgets.{$i}.config.metric"] = ["The selected widgets.{$i}.config.metric is invalid."];
+                            }
+                        }
+                    }
+                } else {
+                    $widgetErrors["widgets.{$i}"] = ["The widgets.{$i} field must be a string or array."];
+                }
             }
+
+            if (! empty($widgetErrors)) {
+                throw ValidationException::withMessages($widgetErrors);
+            }
+
+            // Anti-lockout guard: editor_dashboard & admin wajib mempertahankan
+            // widget layout-editor-placeholder agar dapat mengelola layout.
+            if (in_array($roleSlug, [Role::ADMIN, Role::EDITOR_DASHBOARD], true)) {
+                $widgetKeys = DashboardLayout::widgetKeys($rawWidgets);
+                if (! in_array('layout-editor-placeholder', $widgetKeys, true)) {
+                    $roleLabel = $roleSlug === Role::ADMIN ? 'Admin' : 'Editor Dashboard';
+
+                    throw ValidationException::withMessages([
+                        'widgets' => "Widget Editor Layout (layout-editor-placeholder) wajib dipertahankan pada layout {$roleLabel} agar akses pengelolaan tidak terkunci.",
+                    ]);
+                }
+            }
+
+            $catalog = config('dashboard_layouts.widgets', []);
+            $normalized = DashboardLayout::normalizeWidgets($rawWidgets, $catalog);
+            $widgets = DashboardLayout::compactWidgets($normalized, $catalog);
         }
 
         return [$roleSlug, $divisionId, $expectedKey, $widgets];

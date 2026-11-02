@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\CustomChartController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DatasetController;
 use App\Http\Controllers\DivisionController;
@@ -35,6 +36,8 @@ Route::middleware('auth')->group(function () {
     // dengan prioritas tabel dashboard_layouts dan fallback config/dashboard_layouts.php.
     Route::get('/dashboard', DashboardController::class)->name('dashboard');
     Route::middleware('can:dashboard.update')->group(function () {
+        Route::get('/dashboard/builder', [DashboardController::class, 'builder'])
+            ->name('dashboard.builder');
         Route::put('/dashboard/layout', [DashboardController::class, 'updateLayout'])
             ->name('dashboard.layout.update');
         Route::delete('/dashboard/layout', [DashboardController::class, 'resetLayout'])
@@ -49,6 +52,10 @@ Route::middleware('auth')->group(function () {
     Route::middleware('can:dashboard.view')
         ->get('/api/performance-data', [PerformanceChartController::class, 'index'])
         ->name('performance.data');
+
+    Route::middleware('can:dashboard.view')
+        ->get('/api/dashboard/custom-chart-data', [CustomChartController::class, 'data'])
+        ->name('api.dashboard.custom-chart-data');
 
     // Dataset CRUD. Index/show untuk semua pemegang dataset.view
     Route::middleware('can:dataset.view')->group(function () {

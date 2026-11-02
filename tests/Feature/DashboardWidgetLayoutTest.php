@@ -49,11 +49,15 @@ class DashboardWidgetLayoutTest extends TestCase
             ->assertSee('Audit Terbaru')
             ->assertSee('Dataset Gagal')
             ->assertSee('Aksi Cepat')
-            ->assertSee('Editor Layout')
-            ->assertSee('id="dashboard-layout-builder"', false)
+            ->assertDontSee('id="dashboard-layout-builder"', false)
             ->assertDontSee('Ringkasan KPI')
             ->assertDontSee('Grafik Tren Kinerja')
             ->assertDontSee('Peringkat NKO Unit');
+
+        $this->actingAs($admin)
+            ->get(route('dashboard.builder'))
+            ->assertOk()
+            ->assertSee('id="dashboard-layout-builder"', false);
     }
 
     public function test_dashboard_merender_kontrol_filter_performance(): void
@@ -116,9 +120,8 @@ class DashboardWidgetLayoutTest extends TestCase
         $editor = User::factory()->withRole(Role::EDITOR_DASHBOARD)->create();
 
         $response = $this->actingAs($editor)
-            ->get(route('dashboard'))
+            ->get(route('dashboard.builder'))
             ->assertOk()
-            ->assertSee('Editor Layout')
             ->assertSee('id="dashboard-layout-builder"', false)
             ->assertSee('id="layout-editor-target"', false)
             ->assertSee('Widget Aktif')
@@ -129,6 +132,12 @@ class DashboardWidgetLayoutTest extends TestCase
             ->assertDontSee('aset-upt-chart')
             ->assertDontSee('Stok Aset per UPT')
             ->assertDontSee('Audit Terbaru');
+
+        // Pastikan editor tata letak tidak digabungkan pada halaman dashboard utama
+        $this->actingAs($editor)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertDontSee('id="dashboard-layout-builder"', false);
 
         preg_match("/dashboardLayoutBuilder\('([^']+)'\)/", $response->getContent(), $matches);
         $this->assertNotEmpty($matches[1] ?? '');
@@ -600,6 +609,10 @@ class DashboardWidgetLayoutTest extends TestCase
                 ->assertDontSee('id="dashboard-layout-builder"', false)
                 ->assertDontSee('Simpan Layout')
                 ->assertDontSee('Reset ke Bawaan');
+
+            $this->actingAs($viewer)
+                ->get(route('dashboard.builder'))
+                ->assertForbidden();
         }
     }
 
@@ -656,7 +669,7 @@ class DashboardWidgetLayoutTest extends TestCase
         // 4. Data payload builder pada halaman Editor mencerminkan status kustom (is_customized = true)
         // dan susunan widget terbaru ['nko-donut', 'dataset-status', 'kpi-summary'].
         $editorResponse = $this->actingAs($editor)
-            ->get(route('dashboard'))
+            ->get(route('dashboard.builder'))
             ->assertOk()
             ->assertSee('staff_divisi:perencanaan-pengusahaan', false);
 
@@ -1042,9 +1055,14 @@ class DashboardWidgetLayoutTest extends TestCase
         ]);
 
         $this->actingAs($admin)
-            ->get(route('dashboard'))
+            ->get(route('dashboard.builder'))
             ->assertOk()
             ->assertSee('id="dashboard-layout-builder"', false);
+
+        $this->actingAs($admin)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertDontSee('id="dashboard-layout-builder"', false);
     }
 
     public function test_render_chart_memiliki_null_guard_saat_elemen_canvas_tidak_ada(): void
