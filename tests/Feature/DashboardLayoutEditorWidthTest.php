@@ -102,4 +102,15 @@ class DashboardLayoutEditorWidthTest extends TestCase
             ->assertSee('canvas-drag-handle', false)
             ->assertSee('canvas-card-toolbar', false);
     }
+
+    public function test_dashboard_builder_provides_direct_link_to_main_dashboard_presentation(): void
+    {
+        $admin = User::factory()->withRole(Role::ADMIN)->create();
+
+        $response = $this->actingAs($admin)->get(route('dashboard.builder'));
+
+        $response->assertOk()
+            ->assertSee(route('dashboard'))
+            ->assertSee('Buka Dashboard');
+    }
 }

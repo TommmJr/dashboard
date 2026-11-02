@@ -454,6 +454,13 @@
             </p>
 
             <div class="flex flex-wrap items-center gap-3">
+                <a
+                    href="{{ route('dashboard') }}"
+                    class="inline-flex h-10 items-center justify-center rounded border border-slate-300 bg-white px-4 text-sm font-semibold text-primary transition hover:border-accent hover:text-accent"
+                >
+                    Lihat Dashboard
+                </a>
+
                 <button
                     type="button"
                     @click="resetLayout()"
