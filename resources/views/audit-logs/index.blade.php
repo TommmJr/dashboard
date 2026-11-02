@@ -59,9 +59,10 @@
                     <th class="px-4 py-3">Objek</th>
                     <th class="px-4 py-3">Perubahan</th>
                     <th class="px-4 py-3">IP</th>
+                    <th class="px-4 py-3">Detail</th>
                 </tr>
             </thead>
-            <tbody class="divide-y divide-gray-100">
+            <tbody class="divide-y divide-gray-100" x-data="{ open: null }">
                 @forelse ($logs as $log)
                     <tr>
                         <td class="px-4 py-2 whitespace-nowrap">{{ $log->created_at->format('d M Y H:i:s') }}</td>
@@ -78,9 +79,42 @@
                             <x-audit-values :log="$log" />
                         </td>
                         <td class="px-4 py-2 text-xs text-gray-500">{{ $log->ip ?? '-' }}</td>
+                        <td class="px-4 py-2 text-xs">
+                            <button type="button"
+                                    class="rounded border border-gray-300 px-2 py-0.5 text-gray-700 hover:bg-surface"
+                                    @click="open = open === {{ $log->id }} ? null : {{ $log->id }}">
+                                <span x-text="open === {{ $log->id }} ? 'Tutup' : 'Detail'">Detail</span>
+                            </button>
+                        </td>
+                    </tr>
+                    <tr x-show="open === {{ $log->id }}" x-cloak class="bg-surface/50">
+                        <td colspan="7" class="px-4 py-3">
+                            <dl class="grid gap-x-6 gap-y-1 text-xs sm:grid-cols-2">
+                                <div>
+                                    <dt class="font-semibold text-gray-700">ID entri</dt>
+                                    <dd class="text-gray-600">#{{ $log->id }}</dd>
+                                </div>
+                                <div>
+                                    <dt class="font-semibold text-gray-700">Tipe objek (internal)</dt>
+                                    <dd class="break-all text-gray-600">{{ $log->auditable_type ?? '-' }}#{{ $log->auditable_id ?? '-' }}</dd>
+                                </div>
+                                <div>
+                                    <dt class="font-semibold text-gray-700">IP</dt>
+                                    <dd class="text-gray-600">{{ $log->ip ?? '-' }}</dd>
+                                </div>
+                                <div>
+                                    <dt class="font-semibold text-gray-700">Waktu (lengkap)</dt>
+                                    <dd class="text-gray-600">{{ $log->created_at->format('d/m/Y H:i:s') }}</dd>
+                                </div>
+                                <div class="sm:col-span-2">
+                                    <dt class="font-semibold text-gray-700">User agent</dt>
+                                    <dd class="break-all text-gray-600">{{ $log->user_agent ?? '-' }}</dd>
+                                </div>
+                            </dl>
+                        </td>
                     </tr>
                 @empty
-                    <tr><td colspan="6" class="px-4 py-6 text-center text-gray-500">Belum ada entri audit.</td></tr>
+                    <tr><td colspan="7" class="px-4 py-6 text-center text-gray-500">Belum ada entri audit.</td></tr>
                 @endforelse
             </tbody>
         </table>

@@ -295,6 +295,23 @@ class AuditLogTest extends TestCase
         $this->assertNotNull(AuditLog::query()->first());
     }
 
+    public function test_halaman_audit_menampilkan_detail_entri(): void
+    {
+        $admin = User::factory()->withRole(Role::ADMIN)->create();
+
+        AuditLog::create([
+            'action' => AuditLog::ACTION_LOGIN,
+            'user_id' => $admin->id,
+            'ip' => '10.1.2.3',
+            'user_agent' => 'ua-detail-probe',
+        ]);
+
+        $this->actingAs($admin)->get(route('audit-logs.index'))
+            ->assertOk()
+            ->assertSee('ua-detail-probe')
+            ->assertSee('10.1.2.3');
+    }
+
     public function test_halaman_audit_200_untuk_berhak_dan_403_untuk_staf(): void
     {
         foreach ([Role::ADMIN, Role::MANAGEMENT, Role::EDITOR_DASHBOARD] as $slug) {
