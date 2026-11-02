@@ -41,6 +41,7 @@ REVOKE IF EXISTS ALL PRIVILEGES ON `dashboard`.* FROM 'dashboard_app'@'%';
 -- 3. DML penuh untuk tabel operasional.
 GRANT SELECT, INSERT, UPDATE, DELETE ON `dashboard`.`cache` TO 'dashboard_app'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON `dashboard`.`cache_locks` TO 'dashboard_app'@'%';
+GRANT SELECT, INSERT, UPDATE, DELETE ON `dashboard`.`dashboard_layouts` TO 'dashboard_app'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON `dashboard`.`datasets` TO 'dashboard_app'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON `dashboard`.`divisions` TO 'dashboard_app'@'%';
 GRANT SELECT, INSERT, UPDATE, DELETE ON `dashboard`.`failed_jobs` TO 'dashboard_app'@'%';

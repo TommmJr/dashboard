@@ -5,7 +5,9 @@ namespace App\Http\Controllers;
 use App\Enums\DatasetStatus;
 use App\Http\Controllers\Concerns\ScopesKpiUnits;
 use App\Models\AuditLog;
+use App\Models\DashboardLayout;
 use App\Models\Dataset;
+use App\Models\Division;
 use App\Models\PerformanceMetric;
 use App\Models\PerformanceObservation;
 use App\Models\Role;
@@ -15,12 +17,18 @@ use App\Services\KpiReportConverter;
 use App\Services\StructuredNkoReader;
 use App\Services\TargetRealisasiPerIndicatorReader;
 use Carbon\Carbon;
+use Illuminate\Database\QueryException;
+use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 /**
@@ -70,26 +78,7 @@ class DashboardController extends Controller
         $config = config('dashboard_layouts');
         $user = Auth::user();
         $user->loadMissing('role', 'division');
-        $roleSlug = $user?->role?->slug;
-
-        // Staff resolution is per-division: a staff member only gets the
-        // full Kinerja widgets when their division is explicitly mapped.
-        // Other roles keep their role-keyed layout.
-        $layoutKey = $roleSlug;
-        if ($roleSlug === Role::STAFF_DIVISI) {
-            $divisionSlug = $user?->division?->slug;
-            $layoutKey = $divisionSlug !== null && $divisionSlug !== ''
-                ? "staff_divisi:{$divisionSlug}"
-                : 'staff_divisi';
-        }
-
-        if (isset($config['layouts'][$layoutKey])) {
-            $layout = $config['layouts'][$layoutKey];
-        } elseif ($roleSlug === Role::STAFF_DIVISI) {
-            $layout = $config['layouts']['staff_divisi'];
-        } else {
-            $layout = $config['default'];
-        }
+        $layout = $this->resolveLayout($user, $config);
 
         // Filter dashboard datang dari query string (form GET, bukan fetch):
         // halaman dimuat ulang sehingga widget SERVER-SIDE (nko-ranking) dan
@@ -241,6 +230,7 @@ class DashboardController extends Controller
             'target-realisasi-per-indikator' => $this->targetRealisasiPerIndikator($user, $filters['start_date'] ?? null, $filters['end_date'] ?? null),
             'pencapaian-nko' => $this->pencapaianNko($user, $filters['start_date'] ?? null, $filters['end_date'] ?? null),
             'nko-donut' => $this->nkoDonut($user, $filters['start_date'] ?? null, $filters['end_date'] ?? null),
+            'layout-editor-placeholder' => $this->layoutEditorData($user),
             default => null,
         };
     }
@@ -1564,5 +1554,437 @@ class DashboardController extends Controller
     private function structuredNkoPeriod(?string $divisionId, ?string $startDate, ?string $endDate): ?string
     {
         return $this->structuredNko->latestNkoPeriod($divisionId, $startDate, $endDate);
+    }
+
+    /**
+     * Simpan atau perbarui konfigurasi susunan widget dashboard di database.
+     */
+    public function updateLayout(Request $request): RedirectResponse|JsonResponse
+    {
+        $user = $request->user();
+        abort_unless(
+            $user !== null && $user->can('dashboard.update') && $this->isPrivileged($user),
+            403,
+        );
+
+        [$roleSlug, $divisionId, $layoutKey, $widgets] = $this->validateLayoutTarget($request, requireWidgets: true);
+
+        $saved = DB::transaction(function () use ($layoutKey, $roleSlug, $divisionId, $widgets, $user): DashboardLayout {
+            $attributes = [
+                'role_slug' => $roleSlug,
+                'division_id' => $divisionId,
+                'widgets' => $widgets,
+                'updated_by' => $user->id,
+            ];
+
+            try {
+                return DashboardLayout::query()->updateOrCreate(
+                    ['layout_key' => $layoutKey],
+                    $attributes,
+                );
+            } catch (UniqueConstraintViolationException) {
+                $existing = DashboardLayout::query()
+                    ->where('layout_key', $layoutKey)
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
+                $existing->fill($attributes);
+                $existing->save();
+
+                return $existing;
+            }
+        });
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => 'Layout dashboard berhasil disimpan.',
+                'layout_key' => $saved->layout_key,
+                'widgets' => $saved->widgets,
+            ]);
+        }
+
+        return redirect()
+            ->route('dashboard')
+            ->with('status', 'Layout dashboard berhasil disimpan.');
+    }
+
+    /**
+     * Hapus override layout database agar kembali ke konfigurasi bawaan.
+     */
+    public function resetLayout(Request $request): RedirectResponse|JsonResponse
+    {
+        $user = $request->user();
+        abort_unless(
+            $user !== null && $user->can('dashboard.update') && $this->isPrivileged($user),
+            403,
+        );
+
+        [$roleSlug, $divisionId, $layoutKey] = $this->validateLayoutTarget($request, requireWidgets: false);
+
+        DB::transaction(function () use ($layoutKey, $roleSlug, $divisionId): void {
+            DashboardLayout::query()
+                ->where('layout_key', $layoutKey)
+                ->where('role_slug', $roleSlug)
+                ->when(
+                    $divisionId === null,
+                    fn ($query) => $query->whereNull('division_id'),
+                    fn ($query) => $query->where('division_id', $divisionId),
+                )
+                ->delete();
+        });
+
+        if ($request->expectsJson()) {
+            $config = config('dashboard_layouts');
+            $divisionSlug = $divisionId !== null
+                ? Division::query()->whereKey($divisionId)->value('slug')
+                : null;
+
+            return response()->json([
+                'message' => 'Layout dashboard dikembalikan ke bawaan.',
+                'layout_key' => $layoutKey,
+                'widgets' => $this->resolveFallbackWidgetsForTarget(
+                    $roleSlug,
+                    is_string($divisionSlug) ? $divisionSlug : null,
+                    $config,
+                ),
+            ]);
+        }
+
+        return redirect()
+            ->route('dashboard')
+            ->with('status', 'Layout dashboard dikembalikan ke bawaan.');
+    }
+
+    /**
+     * Payload konfigurasi UI Dashboard Builder untuk pemegang dashboard.update.
+     *
+     * @return array{
+     *     catalog: list<array{key: string, label: string, permission: string|null}>,
+     *     targets: list<array{
+     *         layout_key: string,
+     *         label: string,
+     *         role_slug: string,
+     *         division_id: int|null,
+     *         active_widgets: list<string>,
+     *         fallback_widgets: list<string>,
+     *         is_customized: bool
+     *     }>,
+     *     initial_target_key: string,
+     *     current_user_layout_key: string
+     * }
+     */
+    private function layoutEditorData(?User $user): array
+    {
+        if ($user === null || ! Gate::forUser($user)->allows('dashboard.update')) {
+            return [
+                'catalog' => [],
+                'targets' => [],
+                'initial_target_key' => '',
+                'current_user_layout_key' => '',
+            ];
+        }
+
+        $config = config('dashboard_layouts');
+        $allowedKeys = DashboardLayout::allowedWidgetKeys($config);
+
+        $catalog = [];
+        foreach ($allowedKeys as $widgetKey) {
+            $meta = $config['widgets'][$widgetKey] ?? [];
+            $catalog[] = [
+                'key' => $widgetKey,
+                'label' => (string) ($meta['label'] ?? $widgetKey),
+                'permission' => isset($meta['permission']) && is_string($meta['permission'])
+                    ? $meta['permission']
+                    : null,
+            ];
+        }
+
+        try {
+            $dbRecords = DashboardLayout::query()
+                ->get(['layout_key', 'widgets'])
+                ->keyBy('layout_key');
+        } catch (QueryException) {
+            $dbRecords = collect();
+        }
+
+        $targetDefinitions = [
+            ['role_slug' => Role::EDITOR_DASHBOARD, 'division_id' => null, 'division_slug' => null, 'label' => 'Editor Dashboard'],
+            ['role_slug' => Role::MANAGEMENT, 'division_id' => null, 'division_slug' => null, 'label' => 'Management'],
+            ['role_slug' => Role::ADMIN, 'division_id' => null, 'division_slug' => null, 'label' => 'Admin'],
+            ['role_slug' => Role::STAFF_DIVISI, 'division_id' => null, 'division_slug' => null, 'label' => 'Staf Divisi (Default)'],
+        ];
+
+        $divisions = Division::query()->orderBy('name')->get(['id', 'name', 'slug']);
+        foreach ($divisions as $division) {
+            if (DashboardLayout::isValidDivisionSlug($division->slug)) {
+                $targetDefinitions[] = [
+                    'role_slug' => Role::STAFF_DIVISI,
+                    'division_id' => (int) $division->id,
+                    'division_slug' => $division->slug,
+                    'label' => 'Staf Divisi - '.$division->name,
+                ];
+            }
+        }
+
+        $targets = [];
+        foreach ($targetDefinitions as $def) {
+            $layoutKey = DashboardLayout::keyFor($def['role_slug'], $def['division_slug']);
+            $fallbackWidgets = $this->resolveFallbackWidgetsForTarget(
+                $def['role_slug'],
+                $def['division_slug'],
+                $config,
+            );
+
+            $dbWidgets = $dbRecords->has($layoutKey)
+                ? DashboardLayout::sanitizeWidgets($dbRecords->get($layoutKey)->widgets, $config)
+                : [];
+
+            $isCustomized = $dbWidgets !== [];
+            $activeWidgets = $isCustomized ? $dbWidgets : $fallbackWidgets;
+
+            $targets[] = [
+                'layout_key' => $layoutKey,
+                'label' => $def['label'],
+                'role_slug' => $def['role_slug'],
+                'division_id' => $def['division_id'],
+                'active_widgets' => $activeWidgets,
+                'fallback_widgets' => $fallbackWidgets,
+                'is_customized' => $isCustomized,
+            ];
+        }
+
+        $userRoleSlug = $user->role?->slug;
+        $userDivisionSlug = $userRoleSlug === Role::STAFF_DIVISI && DashboardLayout::isValidDivisionSlug($user->division?->slug)
+            ? $user->division?->slug
+            : null;
+        $currentUserLayoutKey = is_string($userRoleSlug) && in_array($userRoleSlug, DashboardLayout::ALLOWED_ROLES, true)
+            ? DashboardLayout::keyFor($userRoleSlug, $userDivisionSlug)
+            : Role::EDITOR_DASHBOARD;
+
+        return [
+            'catalog' => $catalog,
+            'targets' => $targets,
+            'initial_target_key' => $currentUserLayoutKey,
+            'current_user_layout_key' => $currentUserLayoutKey,
+        ];
+    }
+
+    /**
+     * Resolusi daftar widget fallback (tanpa override DB target itu sendiri).
+     *
+     * @param  array<string, mixed>  $config
+     * @return list<string>
+     */
+    private function resolveFallbackWidgetsForTarget(string $roleSlug, ?string $divisionSlug, array $config): array
+    {
+        if ($roleSlug === Role::STAFF_DIVISI) {
+            if (DashboardLayout::isValidDivisionSlug($divisionSlug)) {
+                $divisionKey = DashboardLayout::keyFor(Role::STAFF_DIVISI, $divisionSlug);
+                if (($cfgDivision = DashboardLayout::sanitizeWidgets($this->resolveConfigLayout($divisionKey, $config), $config)) !== []) {
+                    return $cfgDivision;
+                }
+
+                if (($dbStaff = $this->resolveDbLayout(Role::STAFF_DIVISI, $config)) !== []) {
+                    return $dbStaff;
+                }
+            }
+
+            if (($cfgStaff = DashboardLayout::sanitizeWidgets($this->resolveConfigLayout(Role::STAFF_DIVISI, $config), $config)) !== []) {
+                return $cfgStaff;
+            }
+
+            return DashboardLayout::sanitizeWidgets($config['default'] ?? [], $config);
+        }
+
+        if (($cfgRole = DashboardLayout::sanitizeWidgets($this->resolveConfigLayout($roleSlug, $config), $config)) !== []) {
+            return $cfgRole;
+        }
+
+        return DashboardLayout::sanitizeWidgets($config['default'] ?? [], $config);
+    }
+
+    /**
+     * Resolusi daftar widget_key terurut dengan prioritas database lalu fallback config.
+     *
+     * Urutan kandidat untuk staff_divisi berdivisi <slug>:
+     * 1. DB staff_divisi:<slug>
+     * 2. Config staff_divisi:<slug>
+     * 3. DB staff_divisi
+     * 4. Config staff_divisi
+     * 5. Config default
+     *
+     * Urutan kandidat untuk role lain:
+     * 1. DB <role_slug>
+     * 2. Config <role_slug>
+     * 3. Config default
+     *
+     * @param  array<string, mixed>  $config
+     * @return list<string>
+     */
+    private function resolveLayout(?User $user, array $config): array
+    {
+        $roleSlug = $user?->role?->slug;
+
+        if ($roleSlug === Role::STAFF_DIVISI) {
+            $divisionSlug = $user?->division?->slug;
+
+            if (DashboardLayout::isValidDivisionSlug($divisionSlug)) {
+                $divisionKey = DashboardLayout::keyFor(Role::STAFF_DIVISI, $divisionSlug);
+
+                if (($dbDivision = $this->resolveDbLayout($divisionKey, $config)) !== []) {
+                    return $dbDivision;
+                }
+
+                if (($cfgDivision = $this->resolveConfigLayout($divisionKey, $config)) !== []) {
+                    return $cfgDivision;
+                }
+            }
+
+            if (($dbStaff = $this->resolveDbLayout(Role::STAFF_DIVISI, $config)) !== []) {
+                return $dbStaff;
+            }
+
+            if (($cfgStaff = $this->resolveConfigLayout(Role::STAFF_DIVISI, $config)) !== []) {
+                return $cfgStaff;
+            }
+
+            return is_array($config['default'] ?? null) ? $config['default'] : [];
+        }
+
+        if (is_string($roleSlug) && in_array($roleSlug, DashboardLayout::ALLOWED_ROLES, true)) {
+            if (($dbRole = $this->resolveDbLayout($roleSlug, $config)) !== []) {
+                return $dbRole;
+            }
+
+            if (($cfgRole = $this->resolveConfigLayout($roleSlug, $config)) !== []) {
+                return $cfgRole;
+            }
+        } elseif (is_string($roleSlug) && isset($config['layouts'][$roleSlug])) {
+            if (($cfgCustom = $this->resolveConfigLayout($roleSlug, $config)) !== []) {
+                return $cfgCustom;
+            }
+        }
+
+        return is_array($config['default'] ?? null) ? $config['default'] : [];
+    }
+
+    /**
+     * Ambil dan saring daftar widget dari database untuk layout_key tertentu.
+     *
+     * @param  array<string, mixed>  $config
+     * @return list<string>
+     */
+    private function resolveDbLayout(string $layoutKey, array $config): array
+    {
+        try {
+            $record = DashboardLayout::query()
+                ->where('layout_key', $layoutKey)
+                ->first(['layout_key', 'role_slug', 'division_id', 'widgets']);
+        } catch (QueryException) {
+            return [];
+        }
+
+        if ($record === null) {
+            return [];
+        }
+
+        if (str_starts_with($layoutKey, Role::STAFF_DIVISI.':')) {
+            if ($record->role_slug !== Role::STAFF_DIVISI || $record->division_id === null) {
+                return [];
+            }
+        } elseif ($record->role_slug !== $layoutKey || $record->division_id !== null) {
+            return [];
+        }
+
+        return DashboardLayout::sanitizeWidgets($record->widgets, $config);
+    }
+
+    /**
+     * Ambil daftar widget dari config untuk layout_key tertentu.
+     *
+     * @param  array<string, mixed>  $config
+     * @return list<string>
+     */
+    private function resolveConfigLayout(string $layoutKey, array $config): array
+    {
+        if (! isset($config['layouts'][$layoutKey]) || ! is_array($config['layouts'][$layoutKey])) {
+            return [];
+        }
+
+        return array_values(array_filter(
+            $config['layouts'][$layoutKey],
+            static fn (mixed $item): bool => is_string($item) && $item !== '',
+        ));
+    }
+
+    /**
+     * Validasi target layout (role_slug, division_id, layout_key) dan opsional daftar widgets.
+     *
+     * @return array{0: string, 1: int|null, 2: string, 3: list<string>}
+     */
+    private function validateLayoutTarget(Request $request, bool $requireWidgets): array
+    {
+        $roleSlugInput = $request->input('role_slug');
+        $divisionRule = $roleSlugInput === Role::STAFF_DIVISI
+            ? ['nullable', 'integer', 'exists:divisions,id']
+            : ['prohibited'];
+        $divisionSlugRule = $roleSlugInput === Role::STAFF_DIVISI
+            ? ['nullable', 'string']
+            : ['prohibited'];
+
+        $rules = [
+            'role_slug' => ['required', 'string', Rule::in(DashboardLayout::ALLOWED_ROLES)],
+            'division_id' => $divisionRule,
+            'division_slug' => $divisionSlugRule,
+            'layout_key' => ['nullable', 'string'],
+        ];
+
+        if ($requireWidgets) {
+            $rules['widgets'] = ['required', 'array', 'list', 'min:1'];
+            $rules['widgets.*'] = [
+                'required',
+                'string',
+                'distinct',
+                Rule::in(DashboardLayout::allowedWidgetKeys()),
+            ];
+        }
+
+        $validated = $request->validate($rules);
+
+        $roleSlug = (string) $validated['role_slug'];
+        $divisionId = isset($validated['division_id']) ? (int) $validated['division_id'] : null;
+        $divisionSlug = null;
+
+        if ($divisionId !== null) {
+            $divisionSlug = Division::query()->whereKey($divisionId)->value('slug');
+
+            if (! DashboardLayout::isValidDivisionSlug(is_string($divisionSlug) ? $divisionSlug : null)) {
+                throw ValidationException::withMessages([
+                    'division_id' => 'Divisi yang dipilih tidak memiliki slug yang valid untuk layout dashboard.',
+                ]);
+            }
+        }
+
+        if (array_key_exists('division_slug', $validated) && $validated['division_slug'] !== null && $validated['division_slug'] !== '') {
+            $inputDivisionSlug = (string) $validated['division_slug'];
+            if (! DashboardLayout::isValidDivisionSlug($inputDivisionSlug) || $divisionSlug === null || $inputDivisionSlug !== $divisionSlug) {
+                throw ValidationException::withMessages([
+                    'division_slug' => 'Slug divisi tidak valid atau tidak sesuai dengan division_id.',
+                ]);
+            }
+        }
+
+        $expectedKey = DashboardLayout::keyFor($roleSlug, is_string($divisionSlug) ? $divisionSlug : null);
+
+        if (isset($validated['layout_key']) && $validated['layout_key'] !== '' && $validated['layout_key'] !== $expectedKey) {
+            throw ValidationException::withMessages([
+                'layout_key' => 'Kunci layout tidak sesuai dengan kombinasi role dan divisi.',
+            ]);
+        }
+
+        /** @var list<string> $widgets */
+        $widgets = $requireWidgets ? array_values($validated['widgets']) : [];
+
+        return [$roleSlug, $divisionId, $expectedKey, $widgets];
     }
 }

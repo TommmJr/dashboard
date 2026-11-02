@@ -32,8 +32,14 @@ Route::middleware('guest')->group(function () {
 // Grup route yang wajib login terlebih dahulu.
 Route::middleware('auth')->group(function () {
     // Halaman utama dashboard: controller invokable, merakit widget
-    // per role dari config/dashboard_layouts.php (Dashboard Builder Fase 1).
+    // dengan prioritas tabel dashboard_layouts dan fallback config/dashboard_layouts.php.
     Route::get('/dashboard', DashboardController::class)->name('dashboard');
+    Route::middleware('can:dashboard.update')->group(function () {
+        Route::put('/dashboard/layout', [DashboardController::class, 'updateLayout'])
+            ->name('dashboard.layout.update');
+        Route::delete('/dashboard/layout', [DashboardController::class, 'resetLayout'])
+            ->name('dashboard.layout.reset');
+    });
     // Proses logout via POST (bukan GET, supaya aman dari CSRF/clickjacking).
     Route::post('/logout', [AuthController::class, 'destroy'])->name('logout');
 
