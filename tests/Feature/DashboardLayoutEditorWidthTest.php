@@ -66,4 +66,17 @@ class DashboardLayoutEditorWidthTest extends TestCase
             ->assertSee('x-show="toast.show"', false)
             ->assertSee('x-text="toast.message"', false);
     }
+
+    public function test_dashboard_builder_renders_visual_palette_and_interactive_canvas(): void
+    {
+        $admin = User::factory()->withRole(Role::ADMIN)->create();
+
+        $response = $this->actingAs($admin)->get(route('dashboard.builder'));
+
+        $response->assertOk()
+            ->assertSee('Palet Komponen')
+            ->assertSee('Kanvas Presentasi Dashboard')
+            ->assertSee('draggable="true"', false)
+            ->assertSee('onCanvasDrop', false);
+    }
 }
