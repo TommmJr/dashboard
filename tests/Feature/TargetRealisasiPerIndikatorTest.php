@@ -348,6 +348,7 @@ class TargetRealisasiPerIndikatorTest extends TestCase
             'period' => self::PERIOD,
         ]);
 
+        config(['kpi.read_model' => 'legacy']);
         $legacy = $this->panels();
         $this->assertSame('legacy', config('kpi.read_model'));
 

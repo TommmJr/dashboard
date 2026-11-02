@@ -199,6 +199,9 @@ class KpiReportConverterTest extends TestCase
         // Rantai penuh: konversi -> upload -> widget. Mengunci kesepakatan
         // format metric_name antara converter ('{UNIT} | NKO') dan query
         // widget ('% | NKO') supaya perubahan salah satu sisi ketangkap.
+        // Widget peringkat membaca performance_metrics (jalur legacy); mode
+        // legacy ditetapkan eksplisit karena default produksi kini 'structured'.
+        config(['kpi.read_model' => 'legacy']);
         $this->seed(RolePermissionSeeder::class);
         $this->seed(UnitDivisionSeeder::class);
 

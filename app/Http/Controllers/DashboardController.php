@@ -161,7 +161,7 @@ class DashboardController extends Controller
      * (kalau diambil dari payload API, unit yang ter-filter akan menghilang
      * dari daftar pilihannya sendiri).
      *
-     * Flag-gated sejak Unit 5B: default 'legacy' -> query lama persis.
+     * Flag-gated sejak Unit 5B: mode 'legacy' (override eksplisit) -> query lama persis.
      * Branch 'structured' membaca nama unit dari org_units.name.
      *
      * @return list<string>
@@ -415,7 +415,8 @@ class DashboardController extends Controller
      * tanggal yang konsisten.
      *
      * Sejak Unit 5B reader ini flag-gated (config('kpi.read_model')); default
-     * 'legacy' -> query lama persis. Lihat kpiReadModelStructured().
+     * 'structured' sejak Fase 4.3 Tahap B, sedangkan 'legacy' (override eksplisit)
+     * -> query lama persis. Lihat kpiReadModelStructured().
      *
      * Caller pada jalur legacy memanggil latestLegacyReadyPeriod() secara
      * eksplisit saat membaca baris performance_metrics (mis. R5/R7 pada cabang
@@ -580,7 +581,7 @@ class DashboardController extends Controller
      * dan '| realisasi' pada periode terbaru di divisi user, diselaraskan
      * dengan skor PENCAPAIAN Excel di performance_observations bila tersedia.
      *
-     * Sejak migrasi R6 reader ini flag-gated; default 'legacy'. R9
+     * Sejak migrasi R6 reader ini flag-gated; default 'structured' (Tahap B). R9
      * (pencapaianNko) mendelegasi ke sini, jadi ikut aturan yang sama.
      */
     private function kinerjaRealisasi(?User $user, ?string $startDate = null, ?string $endDate = null): array
@@ -1104,8 +1105,8 @@ class DashboardController extends Controller
     /**
      * Period helper khusus reader panel per indikator.
      *
-     * SENGAJA tidak memakai `latestReadyPeriod()`: saat ini (read model
-     * default `legacy`) helper itu memilih periode dari
+     * SENGAJA tidak memakai `latestReadyPeriod()`: pada read model
+     * `legacy` helper itu memilih periode dari
      * `performance_metrics`. Reader panel membaca dataset terstruktur READY,
      * jadi periodenya harus berasal dari sumber yang sama. Filter divisi
      * mengikuti `latestStructuredReadyPeriod()`.
@@ -1291,7 +1292,7 @@ class DashboardController extends Controller
 
     // ------------------------------------------------------------------
     // Branch terstruktur. Hanya aktif bila
-    // config('kpi.read_model') === 'structured'; default tetap 'legacy'.
+    // config('kpi.read_model') === 'structured' (default sejak Fase 4.3 Tahap B).
     // ------------------------------------------------------------------
 
     /**

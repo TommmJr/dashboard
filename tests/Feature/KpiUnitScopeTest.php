@@ -44,6 +44,10 @@ class KpiUnitScopeTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        // Default produksi kini 'structured' (Fase 4.3 Tahap B). Test ini
+        // mengunci jalur legacy, jadi mode legacy ditetapkan eksplisit.
+        config(['kpi.read_model' => 'legacy']);
+
         $this->seed(RolePermissionSeeder::class);
     }
 

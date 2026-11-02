@@ -34,6 +34,9 @@ class AssetIsolationTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        // Default produksi kini 'structured' (Fase 4.3 Tahap B). Test ini
+        // mengunci jalur legacy, jadi mode legacy ditetapkan eksplisit.
+        config(['kpi.read_model' => 'legacy']);
 
         // Isolasi domain Aset diuji dengan nama unit stand-in (RST). Batas unit
         // TAMPIL (keputusan 2026-10-12, `kpi.visible_units`) dimatikan supaya

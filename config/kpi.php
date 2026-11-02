@@ -3,20 +3,24 @@
 /*
  * Read-model KPI: sumber data untuk reader dashboard yang SUDAH dimigrasi.
  *
- * 'legacy'     -> performance_metrics (default; perilaku lama persis).
- * 'structured' -> performance_observations + org_units.
+ * 'legacy'     -> performance_metrics (perilaku lama persis; jalur rollback).
+ * 'structured' -> performance_observations + org_units (default sejak Fase 4.3
+ *                 Tahap B).
  *
- * Default WAJIB 'legacy'. Flag ini merupakan jaring rollback: reader aktif
- * (R1-R7, R9, R10) telah memiliki cabang implementasi structured di belakang
- * flag ini, sedangkan R8 targetVsRealisasi telah dipensiunkan (unmounted pada
+ * Default 'structured' (Fase 4.3 Tahap B, persetujuan eksplisit user; BUKAN
+ * sign-off mentor). Flag ini tetap menjadi jaring rollback: set
+ * KPI_READ_MODEL=legacy di environment lalu `php artisan config:clear` (atau
+ * `config:cache` ulang) dan restart container untuk kembali ke jalur legacy.
+ * Reader aktif (R1-R7, R9, R10) memiliki cabang structured dan legacy di
+ * belakang flag ini; R8 targetVsRealisasi telah dipensiunkan (unmounted pada
  * Sesi 95) dan digantikan oleh target-realisasi-per-indikator.
  *
- * PERINGATAN: 'structured' BELUM aman untuk production. Reader legacy tetap
- * aktif sebagai default sampai pengujian paritas data riil menyeluruh selesai
- * dan proses deprecation legacy resmi dijalankan (Fase 4.3).
+ * Reader legacy, tabel performance_metrics, dan dual-write import TETAP ada
+ * sampai Tahap C (deprecation) disetujui. Validasi staging belum dilakukan;
+ * rollout production adalah pekerjaan deployment terpisah.
  */
 return [
-    'read_model' => env('KPI_READ_MODEL', 'legacy'),
+    'read_model' => env('KPI_READ_MODEL', 'structured'),
 
     /*
      * Unit yang boleh TAMPIL di dashboard KPI.

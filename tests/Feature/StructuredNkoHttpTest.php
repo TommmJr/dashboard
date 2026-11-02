@@ -53,6 +53,10 @@ class StructuredNkoHttpTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        // Default produksi kini 'structured' (Fase 4.3 Tahap B). Test ini
+        // mengunci jalur legacy, jadi mode legacy ditetapkan eksplisit.
+        config(['kpi.read_model' => 'legacy']);
+
         $this->seed(RolePermissionSeeder::class);
 
         // Uji lewat HTTP untuk kontrak terstruktur (routing, middleware, dataset
@@ -292,9 +296,10 @@ class StructuredNkoHttpTest extends TestCase
         $this->assertContains('GHOST', $managementNames);
     }
 
-    public function test_r1_tanpa_flag_tetap_membaca_legacy(): void
+    public function test_r1_mode_legacy_eksplisit_tetap_membaca_legacy(): void
     {
-        // Sengaja TIDAK menyalakan flag: default 'legacy' harus tetap utuh.
+        // Mode legacy ditetapkan eksplisit (default produksi kini 'structured'):
+        // jalur rollback KPI_READ_MODEL=legacy harus tetap utuh.
         $division = $this->division('Divisi A');
         $dataset = $this->readyDataset($division);
         $this->legacyMetric($dataset, $division, 'LEGACY'.KpiReportConverter::NKO_SUFFIX, 100.0);
@@ -470,7 +475,7 @@ class StructuredNkoHttpTest extends TestCase
             ->assertSee('105,50');
     }
 
-    public function test_r3_tanpa_flag_tetap_membaca_legacy(): void
+    public function test_r3_mode_legacy_eksplisit_tetap_membaca_legacy(): void
     {
         $division = $this->division('Divisi A');
         $dataset = $this->readyDataset($division);

@@ -21,7 +21,7 @@ use Tests\TestCase;
  *
  * Kontrak yang dikunci di sini:
  *
- * 1. Default 'legacy' -> R2 dan R4 membaca performance_metrics persis.
+ * 1. Default 'structured' (sejak Fase 4.3 Tahap B); override eksplisit\n *    KPI_READ_MODEL=legacy -> R2 dan R4 membaca performance_metrics persis.
  * 2. 'structured' -> R2 dan R4 membaca performance_observations / org_units.
  * 3. Reader yang BELUM dimigrasi (R5 datasetStatus, R8 targetVsRealisasi) TIDAK
  *    ikut flag: dengan data legacy saja mereka harus tetap mengembalikan hasil
@@ -95,15 +95,84 @@ class KpiReadModelFlagTest extends TestCase
 
     // ------------------------------------------------------ config default --
 
-    public function test_default_read_model_adalah_legacy(): void
+    /**
+     * Muat config/kpi.php apa adanya dengan KPI_READ_MODEL yang dikendalikan
+     * (null = tanpa override environment), lalu pulihkan environment.
+     *
+     * @return array<string, mixed>
+     */
+    private function kpiConfigFileWithEnv(?string $value): array
     {
-        $this->assertSame('legacy', config('kpi.read_model'));
+        $previous = [getenv('KPI_READ_MODEL'), $_ENV['KPI_READ_MODEL'] ?? null, $_SERVER['KPI_READ_MODEL'] ?? null];
+
+        unset($_ENV['KPI_READ_MODEL'], $_SERVER['KPI_READ_MODEL']);
+        putenv($value === null ? 'KPI_READ_MODEL' : 'KPI_READ_MODEL='.$value);
+
+        if ($value !== null) {
+            $_ENV['KPI_READ_MODEL'] = $value;
+            $_SERVER['KPI_READ_MODEL'] = $value;
+        }
+
+        try {
+            return require config_path('kpi.php');
+        } finally {
+            unset($_ENV['KPI_READ_MODEL'], $_SERVER['KPI_READ_MODEL']);
+            putenv($previous[0] === false ? 'KPI_READ_MODEL' : 'KPI_READ_MODEL='.$previous[0]);
+
+            if ($previous[1] !== null) {
+                $_ENV['KPI_READ_MODEL'] = $previous[1];
+            }
+
+            if ($previous[2] !== null) {
+                $_SERVER['KPI_READ_MODEL'] = $previous[2];
+            }
+        }
+    }
+
+    public function test_default_read_model_tanpa_override_environment_adalah_structured(): void
+    {
+        $this->assertSame('structured', $this->kpiConfigFileWithEnv(null)['read_model']);
+    }
+
+    public function test_override_eksplisit_legacy_dan_structured_dihormati_config(): void
+    {
+        $this->assertSame('legacy', $this->kpiConfigFileWithEnv('legacy')['read_model']);
+        $this->assertSame('structured', $this->kpiConfigFileWithEnv('structured')['read_model']);
+    }
+
+    public function test_kedua_mode_dapat_dipakai_bergantian_dalam_satu_proses(): void
+    {
+        $division = $this->division('Pengusahaan');
+        $dataset = Dataset::factory()->create(['division_id' => $division->id]);
+
+        $this->legacyMetric($dataset, $division, 'DARI_LEGACY | NKO', 100.0, '2026-08-31');
+        $this->observation($dataset, OrgUnit::factory()->create(['name' => 'DARI_STRUKTUR']), $division, '2026-08-31');
+
+        config(['kpi.read_model' => 'legacy']);
+        $this->assertSame(['DARI_LEGACY'], $this->reader('availableUnits', [$this->management()]));
+
+        config(['kpi.read_model' => 'structured']);
+        $this->assertSame(['DARI_STRUKTUR'], $this->reader('availableUnits', [$this->management()]));
+
+        config(['kpi.read_model' => 'legacy']);
+        $this->assertSame(['DARI_LEGACY'], $this->reader('availableUnits', [$this->management()]));
+    }
+
+    public function test_aplikasi_booted_memakai_structured_jika_tidak_ada_override_environment(): void
+    {
+        if (env('KPI_READ_MODEL') !== null) {
+            $this->markTestSkipped('Environment menetapkan KPI_READ_MODEL secara eksplisit.');
+        }
+
+        $this->assertSame('structured', config('kpi.read_model'));
     }
 
     // ---------------------------------------------------------------- R4 ----
 
-    public function test_r4_default_legacy_membaca_periode_dari_performance_metrics(): void
+    public function test_r4_mode_legacy_eksplisit_membaca_periode_dari_performance_metrics(): void
     {
+        config(['kpi.read_model' => 'legacy']);
+
         $division = $this->division('Pengusahaan');
         $dataset = Dataset::factory()->create(['division_id' => $division->id]);
 
@@ -206,8 +275,10 @@ class KpiReadModelFlagTest extends TestCase
 
     // ---------------------------------------------------------------- R2 ----
 
-    public function test_r2_default_legacy_membaca_nama_unit_dari_metric_name(): void
+    public function test_r2_mode_legacy_eksplisit_membaca_nama_unit_dari_metric_name(): void
     {
+        config(['kpi.read_model' => 'legacy']);
+
         $division = $this->division('Pengusahaan');
         $dataset = Dataset::factory()->create(['division_id' => $division->id]);
 
