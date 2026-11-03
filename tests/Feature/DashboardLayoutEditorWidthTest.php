@@ -212,4 +212,14 @@ class DashboardLayoutEditorWidthTest extends TestCase
             ->assertSee('@dragover="autoScrollPreview($event)"', false)
             ->assertSee('autoScrollPreview(event)', false);
     }
+
+    public function test_dashboard_builder_auto_scroll_uses_visible_edges(): void
+    {
+        $admin = User::factory()->withRole(Role::ADMIN)->create();
+
+        $this->actingAs($admin)->get(route('dashboard.builder'))
+            ->assertOk()
+            ->assertSee('Math.min(rect.bottom, window.innerHeight)', false)
+            ->assertSee("closest('.app-content')", false);
+    }
 }

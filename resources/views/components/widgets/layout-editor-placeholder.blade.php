@@ -724,22 +724,35 @@
                         const edge = 60;
                         const step = 16;
                         const viewport = document.getElementById('preview-canvas-viewport');
-                        const isScrollable = viewport && (viewport.scrollHeight > viewport.clientHeight);
+                        if (!viewport) return;
 
-                        if (isScrollable) {
-                            const rect = viewport.getBoundingClientRect();
-                            const y = event.clientY;
-                            if (y - rect.top < edge) {
-                                viewport.scrollTop -= step;
-                            } else if (rect.bottom - y < edge) {
-                                viewport.scrollTop += step;
+                        const rect = viewport.getBoundingClientRect();
+                        const top = Math.max(rect.top, 0);
+                        const bottom = Math.min(rect.bottom, window.innerHeight);
+                        const y = event.clientY;
+
+                        const scrollPage = (delta) => {
+                            const container = viewport.closest('.app-content');
+                            if (container && container.scrollHeight > container.clientHeight) {
+                                container.scrollTop += delta;
+                            } else {
+                                window.scrollBy(0, delta);
                             }
-                        } else {
-                            const y = event.clientY;
-                            if (y < edge) {
-                                window.scrollBy(0, -step);
-                            } else if (window.innerHeight - y < edge) {
-                                window.scrollBy(0, step);
+                        };
+
+                        const isScrollable = viewport.scrollHeight > viewport.clientHeight;
+
+                        if (y - top < edge) {
+                            if (isScrollable && viewport.scrollTop > 0) {
+                                viewport.scrollTop -= step;
+                            } else {
+                                scrollPage(-step);
+                            }
+                        } else if (bottom - y < edge) {
+                            if (isScrollable && viewport.scrollTop + viewport.clientHeight < viewport.scrollHeight) {
+                                viewport.scrollTop += step;
+                            } else {
+                                scrollPage(step);
                             }
                         }
                     },
