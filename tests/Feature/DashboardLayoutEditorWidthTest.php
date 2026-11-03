@@ -113,4 +113,20 @@ class DashboardLayoutEditorWidthTest extends TestCase
             ->assertSee(route('dashboard'))
             ->assertSee('Buka Dashboard');
     }
+
+    public function test_dashboard_builder_renders_split_view_editor_and_preview_panes(): void
+    {
+        $admin = User::factory()->withRole(Role::ADMIN)->create();
+
+        $response = $this->actingAs($admin)->get(route('dashboard.builder'));
+
+        $response->assertOk()
+            ->assertSee('id="builder-split-view"', false)
+            ->assertSee('id="builder-config-pane"', false)
+            ->assertSee('id="builder-preview-pane"', false)
+            ->assertSee('lg:grid-cols-12', false)
+            ->assertSee('lg:col-span-5', false)
+            ->assertSee('lg:col-span-7', false)
+            ->assertSee('Pratinjau Langsung (Split-View)');
+    }
 }
