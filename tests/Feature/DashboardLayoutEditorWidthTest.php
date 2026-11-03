@@ -189,4 +189,17 @@ class DashboardLayoutEditorWidthTest extends TestCase
             ->assertDontSee('(Split-View)')
             ->assertDontSee('x-text="item.key"', false);
     }
+
+    public function test_dashboard_builder_preview_shows_sketch_for_every_widget(): void
+    {
+        $admin = User::factory()->withRole(Role::ADMIN)->create();
+
+        $this->actingAs($admin)->get(route('dashboard.builder'))
+            ->assertOk()
+            ->assertSee('preview-sketch', false)
+            ->assertSee('paletteVisual(w.key)', false)
+            ->assertSee('paletteVisual(item.key)', false)
+            ->assertDontSee('Komponen akan dirender penuh')
+            ->assertDontSee('Pratinjau Visual:');
+    }
 }

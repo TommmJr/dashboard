@@ -135,57 +135,7 @@
                             >
                                 <div>
                                     <div class="palette-thumb relative mb-2 flex h-14 w-full items-center justify-center rounded-md bg-slate-50 border border-slate-100 text-primary/80 group-hover:bg-primary/5 group-hover:border-primary/20 transition-colors overflow-hidden">
-                                        <template x-if="paletteVisual(item.key).type === 'bar'">
-                                            <svg class="h-10 w-full" viewBox="0 0 64 36" fill="none" stroke="currentColor" aria-hidden="true">
-                                                <line x1="6" y1="30" x2="58" y2="30" stroke="currentColor" stroke-width="1" stroke-opacity="0.25" />
-                                                <rect x="10" y="16" width="8" height="14" rx="1" fill="currentColor" fill-opacity="0.45" />
-                                                <rect x="22" y="10" width="8" height="20" rx="1" fill="currentColor" fill-opacity="0.7" />
-                                                <rect x="34" y="18" width="8" height="12" rx="1" fill="currentColor" fill-opacity="0.45" />
-                                                <rect x="46" y="6" width="8" height="24" rx="1" fill="currentColor" />
-                                            </svg>
-                                        </template>
-                                        <template x-if="paletteVisual(item.key).type === 'line'">
-                                            <svg class="h-10 w-full" viewBox="0 0 64 36" fill="none" stroke="currentColor" aria-hidden="true">
-                                                <line x1="6" y1="30" x2="58" y2="30" stroke="currentColor" stroke-width="1" stroke-opacity="0.25" stroke-dasharray="2 2" />
-                                                <polyline points="8,26 22,14 38,20 56,8" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
-                                                <circle cx="56" cy="8" r="2.5" fill="currentColor" />
-                                            </svg>
-                                        </template>
-                                        <template x-if="paletteVisual(item.key).type === 'donut'">
-                                            <svg class="h-10 w-full" viewBox="0 0 64 36" fill="none" stroke="currentColor" aria-hidden="true">
-                                                <circle cx="32" cy="18" r="11" fill="none" stroke="currentColor" stroke-opacity="0.2" stroke-width="5" />
-                                                <circle cx="32" cy="18" r="11" fill="none" stroke="currentColor" stroke-width="5" stroke-dasharray="45 70" stroke-dashoffset="15" stroke-linecap="round" />
-                                            </svg>
-                                        </template>
-                                        <template x-if="paletteVisual(item.key).type === 'scorecard'">
-                                            <svg class="h-10 w-full" viewBox="0 0 64 36" fill="none" stroke="currentColor" aria-hidden="true">
-                                                <rect x="5" y="8" width="16" height="20" rx="2" fill="currentColor" fill-opacity="0.15" stroke="currentColor" stroke-width="1.2" />
-                                                <rect x="24" y="8" width="16" height="20" rx="2" fill="currentColor" fill-opacity="0.3" stroke="currentColor" stroke-width="1.2" />
-                                                <rect x="43" y="8" width="16" height="20" rx="2" fill="currentColor" fill-opacity="0.15" stroke="currentColor" stroke-width="1.2" />
-                                            </svg>
-                                        </template>
-                                        <template x-if="paletteVisual(item.key).type === 'table'">
-                                            <svg class="h-10 w-full" viewBox="0 0 64 36" fill="none" stroke="currentColor" aria-hidden="true">
-                                                <rect x="6" y="6" width="52" height="24" rx="2" fill="none" stroke="currentColor" stroke-width="1.2" stroke-opacity="0.4" />
-                                                <line x1="6" y1="14" x2="58" y2="14" stroke="currentColor" stroke-width="1" stroke-opacity="0.5" />
-                                                <line x1="6" y1="22" x2="58" y2="22" stroke="currentColor" stroke-width="1" stroke-opacity="0.3" />
-                                                <line x1="24" y1="6" x2="24" y2="30" stroke="currentColor" stroke-width="1" stroke-opacity="0.3" />
-                                            </svg>
-                                        </template>
-                                        <template x-if="paletteVisual(item.key).type === 'ranking'">
-                                            <svg class="h-10 w-full" viewBox="0 0 64 36" fill="none" stroke="currentColor" aria-hidden="true">
-                                                <line x1="8" y1="6" x2="8" y2="30" stroke="currentColor" stroke-width="1" stroke-opacity="0.25" />
-                                                <rect x="12" y="8" width="44" height="4" rx="1" fill="currentColor" />
-                                                <rect x="12" y="16" width="32" height="4" rx="1" fill="currentColor" fill-opacity="0.6" />
-                                                <rect x="12" y="24" width="20" height="4" rx="1" fill="currentColor" fill-opacity="0.35" />
-                                            </svg>
-                                        </template>
-                                        <template x-if="paletteVisual(item.key).type === 'generic'">
-                                            <svg class="h-10 w-full" viewBox="0 0 64 36" fill="none" stroke="currentColor" aria-hidden="true">
-                                                <rect x="6" y="6" width="52" height="24" rx="2" fill="currentColor" fill-opacity="0.08" stroke="currentColor" stroke-width="1.2" stroke-dasharray="3 3" />
-                                                <circle cx="32" cy="18" r="4" fill="currentColor" fill-opacity="0.3" />
-                                            </svg>
-                                        </template>
+                                        @include('components.widgets.partials.widget-sketch', ['keyExpr' => 'item.key', 'sizeClass' => 'h-10 w-full'])
                                     </div>
                                     <div class="flex items-center justify-between gap-1 mb-1.5">
                                         <span
@@ -529,9 +479,9 @@
                                     </template>
 
                                     <template x-if="!['custom-chart', 'trend-chart', 'kpi-summary', 'nko-ranking'].includes(w.key)">
-                                        <div class="mt-2 rounded border border-dashed border-slate-200 bg-slate-50/40 p-3 text-center">
-                                            <p class="text-xs font-semibold text-slate-600" x-text="`Pratinjau Visual: ${widgetLabel(w.key)}`"></p>
-                                            <p class="mt-0.5 text-[10px] text-slate-400">Komponen akan dirender penuh pada tata letak dashboard utama.</p>
+                                        <div class="preview-sketch mt-2 flex h-32 flex-col items-center justify-center rounded border border-slate-100 bg-slate-50/60 text-primary/70">
+                                            @include('components.widgets.partials.widget-sketch', ['keyExpr' => 'w.key', 'sizeClass' => 'h-24 w-full'])
+                                            <span class="mt-1 text-[11px] text-slate-500" x-text="paletteVisual(w.key).label"></span>
                                         </div>
                                     </template>
                                 </div>
