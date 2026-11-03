@@ -43,7 +43,7 @@
         </div>
 
         {{-- Split-View Workspace: panel konfigurasi (kiri) dan pratinjau langsung (kanan) --}}
-        <div id="builder-split-view" @resize.window="viewportWidth = window.innerWidth" class="mt-4 grid grid-cols-1 items-start gap-6 lg:grid-cols-12">
+        <div id="builder-split-view" @resize.window="viewportWidth = window.innerWidth; resizePreviewCharts()" class="mt-4 grid grid-cols-1 items-start gap-6 lg:grid-cols-12">
             {{-- Panel Konfigurasi, Palet, dan Aksi --}}
             <div id="builder-config-pane" class="flex min-w-0 flex-col gap-5 lg:col-span-5">
                 <div class="flex flex-col gap-4 border-b border-slate-200 pb-4">
@@ -444,19 +444,19 @@
                                     {{-- Live In-Canvas WYSIWYG Previews --}}
                                     <template x-if="w.key === 'custom-chart'">
                                         <div
-                                            class="canvas-chart-container relative mt-2 h-44 w-full rounded border border-slate-100 bg-slate-50/60 p-2"
-                                            x-init="$nextTick(() => initCanvasChart($el, w))"
+                                            class="preview-chart-container canvas-chart-container relative mt-2 h-44 w-full rounded border border-slate-100 bg-slate-50/60 p-2"
+                                            x-effect="initPreviewChart($el, w)"
                                         >
-                                            <div class="h-full w-full echarts-instance"></div>
+                                            <div class="h-full w-full echarts-instance" :id="`preview-chart-${w._uid}`"></div>
                                         </div>
                                     </template>
 
                                     <template x-if="w.key === 'trend-chart'">
                                         <div
-                                            class="canvas-chart-container relative mt-2 h-40 w-full rounded border border-slate-100 bg-slate-50/60 p-2"
-                                            x-init="$nextTick(() => initTrendPreviewChart($el, w))"
+                                            class="preview-chart-container canvas-chart-container relative mt-2 h-40 w-full rounded border border-slate-100 bg-slate-50/60 p-2"
+                                            x-effect="initPreviewChart($el, w)"
                                         >
-                                            <div class="h-full w-full echarts-instance"></div>
+                                            <div class="h-full w-full echarts-instance" :id="`preview-chart-${w._uid}`"></div>
                                         </div>
                                     </template>
 
@@ -556,6 +556,8 @@
                     viewportWidth: window.innerWidth,
                     currentUserLayoutKey: initial.current_user_layout_key || '',
                     toast: { show: false, message: '', type: 'success', timer: null },
+                    previewChartInstances: {},
+                    previewResizeFrame: null,
 
                     showToast(msg, type = 'success') {
                         if (this.toast.timer) {
@@ -577,9 +579,11 @@
                     },
 
                     normalizeItem(item) {
+                        const uid = 'w_' + Math.random().toString(36).substring(2, 9);
                         if (typeof item === 'string') {
                             const cat = this.catalog.find((c) => c.key === item);
                             return {
+                                _uid: uid,
                                 key: item,
                                 cols: cat?.default_cols || 3,
                                 config: item === 'custom-chart' ? { title: 'Grafik Kustom', chart_type: 'bar', metric: 'nko_score' } : {},
@@ -588,6 +592,7 @@
                         }
                         const cat = this.catalog.find((c) => c.key === item.key);
                         return {
+                            _uid: item._uid || uid,
                             key: item.key,
                             cols: item.cols || cat?.default_cols || 3,
                             config: item.config || (item.key === 'custom-chart' ? { title: 'Grafik Kustom', chart_type: 'bar', metric: 'nko_score' } : {}),
@@ -604,6 +609,7 @@
                     },
 
                     selectTarget(targetKey) {
+                        this.disposeAllPreviewCharts();
                         this.selectedTargetKey = targetKey;
                         const target = this.currentTarget();
                         this.activeWidgets = (target && Array.isArray(target.active_widgets))
@@ -651,8 +657,12 @@
                         if (item && this.isLockedWidget(item.key)) {
                             return;
                         }
+                        if (item && item._uid) {
+                            this.disposePreviewChart(item._uid);
+                        }
                         this.clearMessages();
                         this.activeWidgets.splice(index, 1);
+                        this.resizePreviewCharts();
                     },
 
                     moveUp(index) {
@@ -767,27 +777,28 @@
                         this.onCardDragEnd();
                     },
 
-                    initCanvasChart(containerEl, widget) {
-                        if (typeof window.echarts === 'undefined' || !containerEl) {
-                            return;
+                    previewChartOption(widget) {
+                        if (widget.key === 'trend-chart') {
+                            return {
+                                color: ['#00a896'],
+                                grid: { top: 15, right: 15, bottom: 25, left: 35 },
+                                xAxis: { type: 'category', data: ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu'], axisLabel: { fontSize: 10 } },
+                                yAxis: { type: 'value', min: 95, axisLabel: { fontSize: 10 } },
+                                series: [{ data: [98.2, 99.1, 100.4, 101.2, 102.5, 103.8, 104.9, 105.5], type: 'line', smooth: true }]
+                            };
                         }
-                        const chartDom = containerEl.querySelector('.echarts-instance') || containerEl;
-                        let chartInstance = window.echarts.getInstanceByDom(chartDom);
-                        if (!chartInstance) {
-                            chartInstance = window.echarts.init(chartDom);
-                        }
-                        const chartType = widget?.config?.chart_type || 'bar';
-                        const isNko = (widget?.config?.metric || 'nko_score') === 'nko_score';
+
+                        const chartType = widget.config?.chart_type || 'bar';
+                        const isNko = (widget.config?.metric || 'nko_score') === 'nko_score';
                         const units = ['TJBT', 'Smg', 'Skr', 'Pwt', 'Ygy'];
                         const values = isNko ? [105.5, 102.3, 101.8, 100.4, 99.8] : [100, 95.2, 98.4, 92.1, 91.5];
 
-                        let option = {};
                         if (chartType === 'donut') {
-                            option = {
+                            return {
                                 color: ['#005b96', '#00a896', '#f39c12', '#2ecc71'],
                                 tooltip: { trigger: 'item' },
                                 series: [{
-                                    name: widget?.config?.title || 'Metrik',
+                                    name: widget.config?.title || 'Metrik',
                                     type: 'pie',
                                     radius: ['45%', '70%'],
                                     avoidLabelOverlap: false,
@@ -800,50 +811,95 @@
                                     ]
                                 }]
                             };
-                        } else if (chartType === 'line') {
-                            option = {
-                                color: ['#005b96'],
-                                grid: { top: 15, right: 15, bottom: 25, left: 35 },
-                                xAxis: { type: 'category', data: units, axisLabel: { fontSize: 10 } },
-                                yAxis: { type: 'value', axisLabel: { fontSize: 10 } },
-                                series: [{ data: values, type: 'line', smooth: true, areaStyle: { opacity: 0.15 } }]
-                            };
-                        } else {
-                            option = {
-                                color: ['#005b96'],
-                                grid: { top: 15, right: 15, bottom: 25, left: 35 },
-                                xAxis: { type: 'category', data: units, axisLabel: { fontSize: 10 } },
-                                yAxis: { type: 'value', axisLabel: { fontSize: 10 } },
-                                series: [{ data: values, type: 'bar', barWidth: '45%', itemStyle: { borderRadius: [3, 3, 0, 0] } }]
-                            };
                         }
-                        chartInstance.setOption(option);
-                        setTimeout(() => chartInstance.resize(), 50);
+
+                        return {
+                            color: ['#005b96'],
+                            grid: { top: 15, right: 15, bottom: 25, left: 35 },
+                            xAxis: { type: 'category', data: units, axisLabel: { fontSize: 10 } },
+                            yAxis: { type: 'value', axisLabel: { fontSize: 10 } },
+                            series: chartType === 'line'
+                                ? [{ data: values, type: 'line', smooth: true, areaStyle: { opacity: 0.15 } }]
+                                : [{ data: values, type: 'bar', barWidth: '45%', itemStyle: { borderRadius: [3, 3, 0, 0] } }]
+                        };
+                    },
+
+                    initPreviewChart(containerEl, widget) {
+                        if (typeof window.echarts === 'undefined' || !containerEl || !widget) {
+                            return;
+                        }
+                        void widget.cols;
+                        void widget.config?.chart_type;
+                        void widget.config?.metric;
+                        void widget.config?.title;
+
+                        const chartDom = containerEl.querySelector('.echarts-instance') || containerEl;
+                        const uid = widget._uid || (widget._uid = 'w_' + Math.random().toString(36).substring(2, 9));
+                        let chartInstance = this.previewChartInstances[uid];
+                        if (chartInstance && (chartInstance.isDisposed() || chartInstance.getDom() !== chartDom)) {
+                            this.disposePreviewChart(uid);
+                            chartInstance = null;
+                        }
+                        if (!chartInstance) {
+                            chartInstance = window.echarts.getInstanceByDom(chartDom) || window.echarts.init(chartDom);
+                            this.previewChartInstances[uid] = chartInstance;
+                        }
+                        chartInstance.setOption(this.previewChartOption(widget), true);
+                        this.resizePreviewCharts();
+                    },
+
+                    initCanvasChart(containerEl, widget) {
+                        return this.initPreviewChart(containerEl, widget);
                     },
 
                     initTrendPreviewChart(containerEl, widget) {
-                        if (typeof window.echarts === 'undefined' || !containerEl) {
+                        return this.initPreviewChart(containerEl, widget);
+                    },
+
+                    resizePreviewCharts() {
+                        if (this.previewResizeFrame !== null) {
+                            cancelAnimationFrame(this.previewResizeFrame);
+                        }
+                        this.previewResizeFrame = requestAnimationFrame(() => {
+                            this.previewResizeFrame = null;
+                            this.pruneDetachedPreviewCharts();
+                            Object.values(this.previewChartInstances).forEach((chartInstance) => {
+                                if (chartInstance && !chartInstance.isDisposed()) {
+                                    chartInstance.resize();
+                                }
+                            });
+                        });
+                    },
+
+                    disposePreviewChart(uid) {
+                        const chartInstance = this.previewChartInstances[uid];
+                        if (!chartInstance) {
                             return;
                         }
-                        const chartDom = containerEl.querySelector('.echarts-instance') || containerEl;
-                        let chartInstance = window.echarts.getInstanceByDom(chartDom);
-                        if (!chartInstance) {
-                            chartInstance = window.echarts.init(chartDom);
+                        if (!chartInstance.isDisposed()) {
+                            chartInstance.dispose();
                         }
-                        const option = {
-                            color: ['#00a896'],
-                            grid: { top: 15, right: 15, bottom: 25, left: 35 },
-                            xAxis: { type: 'category', data: ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu'], axisLabel: { fontSize: 10 } },
-                            yAxis: { type: 'value', min: 95, axisLabel: { fontSize: 10 } },
-                            series: [{ data: [98.2, 99.1, 100.4, 101.2, 102.5, 103.8, 104.9, 105.5], type: 'line', smooth: true }]
-                        };
-                        chartInstance.setOption(option);
-                        setTimeout(() => chartInstance.resize(), 50);
+                        delete this.previewChartInstances[uid];
+                    },
+
+                    disposeAllPreviewCharts() {
+                        Object.keys(this.previewChartInstances).forEach((uid) => this.disposePreviewChart(uid));
+                    },
+
+                    pruneDetachedPreviewCharts() {
+                        Object.keys(this.previewChartInstances).forEach((uid) => {
+                            const inst = this.previewChartInstances[uid];
+                            const dom = inst && !inst.isDisposed() ? inst.getDom() : null;
+                            if (!dom || !dom.isConnected) {
+                                this.disposePreviewChart(uid);
+                            }
+                        });
                     },
 
                     setWidgetCols(widget, cols) {
                         widget.cols = cols;
                         this.$nextTick(() => {
+                            this.resizePreviewCharts();
                             window.dispatchEvent(new Event('resize'));
                         });
                     },
@@ -1008,6 +1064,7 @@
                                 return;
                             }
 
+                            this.disposeAllPreviewCharts();
                             const restoredWidgets = Array.isArray(payload.widgets)
                                 ? payload.widgets
                                 : [...(target.fallback_widgets || [])];
@@ -1016,6 +1073,7 @@
                             this.activeWidgets = restoredWidgets.map((w) => this.normalizeItem(w));
                             this.statusMessage = payload.message || 'Layout dashboard dikembalikan ke bawaan.';
                             this.showToast(this.statusMessage, 'success');
+                            this.resizePreviewCharts();
 
                             if (target.layout_key === this.currentUserLayoutKey) {
                                 window.location.reload();

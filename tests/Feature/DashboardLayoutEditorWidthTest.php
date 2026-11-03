@@ -144,4 +144,20 @@ class DashboardLayoutEditorWidthTest extends TestCase
             ->assertSee('previewSpanClass', false)
             ->assertSee('md:grid-cols-3', false);
     }
+
+    public function test_dashboard_builder_preview_pane_initializes_and_resizes_live_charts(): void
+    {
+        $admin = User::factory()->withRole(Role::ADMIN)->create();
+
+        $response = $this->actingAs($admin)->get(route('dashboard.builder'));
+
+        $response->assertOk()
+            ->assertSee('preview-chart-container', false)
+            ->assertSee('x-effect="initPreviewChart($el, w)"', false)
+            ->assertSee('initPreviewChart', false)
+            ->assertSee('resizePreviewCharts', false)
+            ->assertSee('disposePreviewChart', false)
+            ->assertSee('disposeAllPreviewCharts', false)
+            ->assertSee('previewChartInstances', false);
+    }
 }
