@@ -137,7 +137,7 @@ class DashboardLayoutEditorWidthTest extends TestCase
         $response = $this->actingAs($admin)->get(route('dashboard.builder'));
 
         $response->assertOk()
-            ->assertSee('id="active-widget-list"', false)
+            ->assertDontSee('id="active-widget-list"', false)
             ->assertSee('id="preview-canvas-viewport"', false)
             ->assertSee('preview-card-item', false)
             ->assertSee('previewSpanClass', false)
@@ -183,11 +183,23 @@ class DashboardLayoutEditorWidthTest extends TestCase
         $this->actingAs($admin)->get(route('dashboard.builder'))
             ->assertOk()
             ->assertSee('Komponen')
-            ->assertSee('Widget Aktif')
+            ->assertDontSee('Widget Aktif')
             ->assertSee('Pratinjau')
             ->assertDontSee('Sinkronisasi Real-Time')
             ->assertDontSee('(Split-View)')
             ->assertDontSee('x-text="item.key"', false);
+    }
+
+    public function test_dashboard_builder_preview_cards_carry_width_and_delete_controls(): void
+    {
+        $admin = User::factory()->withRole(Role::ADMIN)->create();
+
+        $html = $this->actingAs($admin)->get(route('dashboard.builder'))->assertOk()->getContent();
+
+        $this->assertMatchesRegularExpression('/preview-card-item.*canvas-card-toolbar.*setWidgetCols\(w, n\).*removeWidget\(index\)/s', $html);
+        $this->assertStringContainsString('isLockedWidget(w.key)', $html);
+        $this->assertSame(1, substr_count($html, '@click="removeWidget(index)"'));
+        $this->assertStringNotContainsString('x-model.number="w.cols"', $html);
     }
 
     public function test_dashboard_builder_preview_shows_sketch_for_every_widget(): void

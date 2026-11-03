@@ -134,7 +134,7 @@ class DashboardWidgetLayoutTest extends TestCase
             ->assertOk()
             ->assertSee('id="dashboard-layout-builder"', false)
             ->assertSee('id="layout-editor-target"', false)
-            ->assertSee('Widget Aktif')
+            ->assertSee('id="preview-canvas-viewport"', false)
             ->assertSee('Komponen')
             ->assertSee('Simpan Layout')
             ->assertSee('Reset ke Bawaan')
