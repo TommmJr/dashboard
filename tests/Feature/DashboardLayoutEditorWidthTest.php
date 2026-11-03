@@ -29,7 +29,7 @@ class DashboardLayoutEditorWidthTest extends TestCase
 
         $response->assertOk()
             ->assertSee('Lebar Kolom')
-            ->assertSee('Pratinjau Tata Letak');
+            ->assertSee('id="preview-canvas-viewport"', false);
 
         // Halaman dashboard utama tidak menggabungkan editor tata letak
         $this->actingAs($admin)
@@ -74,8 +74,8 @@ class DashboardLayoutEditorWidthTest extends TestCase
         $response = $this->actingAs($admin)->get(route('dashboard.builder'));
 
         $response->assertOk()
-            ->assertSee('Palet Komponen')
-            ->assertSee('Kanvas Presentasi Dashboard')
+            ->assertSee('Komponen')
+            ->assertSee('id="builder-preview-pane"', false)
             ->assertSee('draggable="true"', false)
             ->assertSee('onCanvasDrop', false);
     }
@@ -127,7 +127,7 @@ class DashboardLayoutEditorWidthTest extends TestCase
             ->assertSee('lg:grid-cols-12', false)
             ->assertSee('lg:col-span-5', false)
             ->assertSee('lg:col-span-7', false)
-            ->assertSee('Pratinjau Langsung (Split-View)');
+            ->assertSee('Pratinjau');
     }
 
     public function test_dashboard_builder_preview_pane_mirrors_active_widgets_in_real_time(): void
@@ -139,7 +139,6 @@ class DashboardLayoutEditorWidthTest extends TestCase
         $response->assertOk()
             ->assertSee('id="active-widget-list"', false)
             ->assertSee('id="preview-canvas-viewport"', false)
-            ->assertSee('Sinkronisasi Real-Time')
             ->assertSee('preview-card-item', false)
             ->assertSee('previewSpanClass', false)
             ->assertSee('md:grid-cols-3', false);
@@ -175,5 +174,19 @@ class DashboardLayoutEditorWidthTest extends TestCase
             ->assertSee('Grafik Donat')
             ->assertSee('Kartu Skor')
             ->assertDontSee('item.key.substring(0, 2)', false);
+    }
+
+    public function test_dashboard_builder_has_no_redundant_helper_copy(): void
+    {
+        $admin = User::factory()->withRole(Role::ADMIN)->create();
+
+        $this->actingAs($admin)->get(route('dashboard.builder'))
+            ->assertOk()
+            ->assertSee('Komponen')
+            ->assertSee('Widget Aktif')
+            ->assertSee('Pratinjau')
+            ->assertDontSee('Sinkronisasi Real-Time')
+            ->assertDontSee('(Split-View)')
+            ->assertDontSee('x-text="item.key"', false);
     }
 }

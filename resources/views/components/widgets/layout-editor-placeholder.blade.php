@@ -58,9 +58,6 @@
                                 Bawaan (Konfigurasi Fallback)
                             </span>
                         </div>
-                        <p class="mt-1 text-sm text-slate-500">
-                            Kelola susunan, lebar kolom, urutan, dan visibilitas widget dashboard per role atau divisi.
-                        </p>
                     </div>
 
                     <div class="flex flex-col gap-1.5">
@@ -118,17 +115,12 @@
 
                 {{-- Palet Komponen Visual (Top Toolbar Looker Studio Style) --}}
                 <div class="rounded-lg border border-slate-200 bg-slate-50/70 p-4">
-                    <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-b border-slate-200 pb-3">
-                        <div>
-                            <div class="flex items-center gap-2">
-                                <h4 class="text-sm font-bold uppercase tracking-wide text-primary">Palet Komponen (Katalog Widget Tersedia)</h4>
-                                <span class="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">
-                                    {{ count($catalog) }} Komponen Tersedia
-                                </span>
-                            </div>
-                            <p class="mt-0.5 text-xs text-slate-500">
-                                Tarik (drag) kartu komponen dari palet ini ke dalam Kanvas Presentasi pada panel pratinjau, atau klik tombol Tambah.
-                            </p>
+                    <div class="flex items-center justify-between border-b border-slate-200 pb-3">
+                        <div class="flex items-center gap-2">
+                            <h4 class="text-sm font-bold uppercase tracking-wide text-primary">Komponen</h4>
+                            <span class="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">
+                                {{ count($catalog) }}
+                            </span>
                         </div>
                     </div>
 
@@ -206,7 +198,6 @@
                                         ></span>
                                     </div>
                                     <p class="text-xs font-bold text-primary line-clamp-2" x-text="item.label"></p>
-                                    <p class="mt-0.5 text-[11px] text-slate-400 font-mono truncate" x-text="item.key"></p>
                                 </div>
 
                                 <div class="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between">
@@ -244,9 +235,6 @@
                     <div class="flex items-center justify-between gap-2 border-b border-slate-200 pb-3">
                         <div>
                             <h4 class="text-sm font-bold uppercase tracking-wide text-primary">Widget Aktif</h4>
-                            <p class="mt-0.5 text-xs text-slate-500">
-                                Atur urutan, lebar kolom, dan konfigurasi. Perubahan langsung tampil pada panel pratinjau.
-                            </p>
                         </div>
                         <span
                             class="shrink-0 rounded bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary"
@@ -293,6 +281,7 @@
                                                 <button
                                                     type="button"
                                                     @click="setWidgetCols(w, n)"
+                                                    :aria-label="`Lebar ${n} kolom`"
                                                     :class="(w.cols === n) ? 'bg-primary text-white shadow-xs' : 'text-slate-600 hover:text-primary'"
                                                     class="rounded px-2 py-0.5 text-[11px] font-semibold transition"
                                                     x-text="n"
@@ -446,21 +435,13 @@
 
             {{-- Panel Pratinjau Langsung (sticky pada layar lebar) --}}
             <div id="builder-preview-pane" class="min-w-0 lg:sticky lg:top-6 lg:col-span-7">
-                <p class="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500">Pratinjau Langsung (Split-View)</p>
-                {{-- Kanvas Presentasi Dashboard: pratinjau langsung tata letak 3 kolom --}}
+                <p class="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500">Pratinjau</p>
                 <div class="rounded-lg border border-slate-200 bg-slate-50/50 p-4">
                     <div class="flex flex-col gap-2 border-b border-slate-200 pb-3 sm:flex-row sm:items-center sm:justify-between">
                         <div>
-                            <h4 class="text-sm font-bold uppercase tracking-wide text-primary">Kanvas Presentasi Dashboard</h4>
-                            <p class="mt-0.5 text-xs text-slate-500">
-                                Pratinjau Tata Letak Grid 3 Kolom yang mengikuti urutan dan lebar widget di panel kiri.
-                            </p>
+                            <h4 class="text-sm font-bold uppercase tracking-wide text-primary">Pratinjau</h4>
                         </div>
                         <div class="flex flex-wrap items-center gap-2">
-                            <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
-                                <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
-                                Sinkronisasi Real-Time
-                            </span>
                             <span class="rounded bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary" x-text="`${activeWidgets.length} Widget di Kanvas`"></span>
                             <span class="rounded bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600" x-text="`Viewport ${viewportWidth}px`"></span>
                         </div>

@@ -135,7 +135,7 @@ class DashboardWidgetLayoutTest extends TestCase
             ->assertSee('id="dashboard-layout-builder"', false)
             ->assertSee('id="layout-editor-target"', false)
             ->assertSee('Widget Aktif')
-            ->assertSee('Katalog Widget Tersedia')
+            ->assertSee('Komponen')
             ->assertSee('Simpan Layout')
             ->assertSee('Reset ke Bawaan')
             ->assertSee('staff_divisi:perencanaan-pengusahaan', false)
