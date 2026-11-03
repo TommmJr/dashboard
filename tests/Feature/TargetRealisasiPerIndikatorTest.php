@@ -380,6 +380,7 @@ class TargetRealisasiPerIndikatorTest extends TestCase
         $response->assertSee('Target dan Realisasi per Indikator');
         $response->assertSee('data-indicator-id="'.$indicator->id.'"', false);
         $response->assertSee('100,1%');
+        $response->assertSee('id="target-realisasi-chart-', false);
         // Widget lama tetap tidak ter-mount.
         $response->assertDontSee('Target vs Realisasi');
     }
