@@ -1,6 +1,7 @@
 @props(['widget' => [], 'data' => null])
 
 {{-- Widget detail metrik KPI per unit/indikator (server-side).
+     Modern Looker Studio-style data table dengan inline achievement progress bars.
      Data dihitung dari laporan KPI untuk periode terpilih. --}}
 @php
     $period = $data['period'] ?? null;
@@ -45,11 +46,11 @@
     };
 @endphp
 
-<div class="rounded-lg bg-white border border-slate-200 shadow-sm p-6">
+<div class="h-full rounded-lg bg-white border border-slate-200 shadow-sm p-6">
     <div class="flex flex-wrap items-start justify-between gap-3">
         <div>
             <h3 class="text-lg font-bold text-primary">{{ $widget['label'] ?? 'Detail Metrik KPI' }}</h3>
-            <p class="mt-1 text-sm text-gray-500">Periode {{ $period ?? '—' }}</p>
+            <p class="mt-1 text-xs text-gray-500">Periode {{ $period ?? '—' }}</p>
         </div>
 
         @if (! empty($unitOptions))
@@ -93,27 +94,52 @@
             Belum ada data metrik pada periode ini.
         </p>
     @else
-        <div class="overflow-x-auto">
-            <table class="mt-4 w-full text-sm">
-                <thead>
-                    <tr class="border-b text-left text-gray-600">
-                        <th class="py-2">Unit</th>
-                        <th class="py-2">Indikator</th>
-                        <th class="py-2 text-right">Target</th>
-                        <th class="py-2 text-right">Realisasi</th>
-                        <th class="py-2 text-right">Pencapaian %</th>
-                        <th class="py-2 text-right">NKO</th>
+        <div class="overflow-x-auto mt-4 rounded-lg border border-slate-200">
+            <table class="w-full text-sm">
+                <thead class="bg-slate-50/80 text-xs text-slate-600 font-semibold uppercase tracking-wider border-b border-slate-200">
+                    <tr>
+                        <th class="py-2.5 px-3 text-left">Unit</th>
+                        <th class="py-2.5 px-3 text-left">Indikator</th>
+                        <th class="py-2.5 px-3 text-right">Target</th>
+                        <th class="py-2.5 px-3 text-right">Realisasi</th>
+                        <th class="py-2.5 px-3 text-right">Pencapaian %</th>
+                        <th class="py-2.5 px-3 text-right">NKO</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody class="divide-y divide-slate-100">
                     @foreach ($rows as $row)
-                        <tr class="border-b">
-                            <td class="py-2 font-medium">{{ $row['unit'] }}</td>
-                            <td class="py-2">{{ $row['indikator'] }}</td>
-                            <td class="py-2 text-right">{{ $row['target_display'] ?? $fmt($row['target'] ?? null, 2) }}</td>
-                            <td class="py-2 text-right">{{ $row['realisasi_display'] ?? $fmt($row['realisasi'] ?? null, 2) }}</td>
-                            <td class="py-2 text-right">{{ $fmt($row['pencapaian'] ?? null, 1, '%') }}</td>
-                            <td class="py-2 text-right">{{ $fmt($row['nko'] ?? null, 2) }}</td>
+                        @php
+                            $pencapaianVal = $row['pencapaian'] ?? null;
+                            $barWidth = 0;
+                            $barColor = 'bg-slate-300';
+                            if ($pencapaianVal !== null) {
+                                $numVal = (float) $pencapaianVal;
+                                $barWidth = max(0, min(100, $numVal));
+                                if ($numVal >= 100) {
+                                    $barColor = 'bg-emerald-500';
+                                } elseif ($numVal >= 95) {
+                                    $barColor = 'bg-amber-500';
+                                } else {
+                                    $barColor = 'bg-rose-500';
+                                }
+                            }
+                        @endphp
+                        <tr class="hover:bg-slate-50/60 transition-colors">
+                            <td class="py-2.5 px-3 font-semibold text-primary">{{ $row['unit'] }}</td>
+                            <td class="py-2.5 px-3 text-slate-800">{{ $row['indikator'] }}</td>
+                            <td class="py-2.5 px-3 text-right font-medium text-slate-600">{{ $row['target_display'] ?? $fmt($row['target'] ?? null, 2) }}</td>
+                            <td class="py-2.5 px-3 text-right font-medium text-slate-600">{{ $row['realisasi_display'] ?? $fmt($row['realisasi'] ?? null, 2) }}</td>
+                            <td class="py-2.5 px-3 text-right">
+                                <div class="flex flex-col items-end">
+                                    <span class="font-medium text-slate-800">{{ $fmt($pencapaianVal, 1, '%') }}</span>
+                                    @if ($pencapaianVal !== null)
+                                        <div class="mt-1 h-1.5 w-16 sm:w-20 rounded-full bg-slate-100 overflow-hidden">
+                                            <div class="h-full rounded-full {{ $barColor }}" style="width: {{ round($barWidth, 1) }}%"></div>
+                                        </div>
+                                    @endif
+                                </div>
+                            </td>
+                            <td class="py-2.5 px-3 text-right font-semibold text-slate-700">{{ $fmt($row['nko'] ?? null, 2) }}</td>
                         </tr>
                     @endforeach
                 </tbody>

@@ -265,6 +265,8 @@ class KinerjaDetailUnitFilterTest extends TestCase
             ->assertOk();
 
         $response->assertSee('value="TJBT" selected', false);
+        $response->assertSee('Detail Metrik KPI');
+        $response->assertSee('Pencapaian %');
         $response->assertSee('Indikator A');
         $response->assertDontSee('Indikator B');
     }
