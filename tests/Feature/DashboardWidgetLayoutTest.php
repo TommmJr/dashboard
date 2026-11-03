@@ -96,6 +96,16 @@ class DashboardWidgetLayoutTest extends TestCase
             ->assertSee('Reset');
     }
 
+    public function test_management_filter_is_compact_inside_dashboard_header(): void
+    {
+        $management = User::factory()->withRole(Role::MANAGEMENT)->create();
+
+        $html = $this->actingAs($management)->get(route('dashboard'))->assertOk()->getContent();
+
+        $this->assertMatchesRegularExpression('/id="dashboard-header".*id="dashboard-filter".*name="start_date"/s', $html);
+        $this->assertStringNotContainsString('Beranda / Dashboard', $html);
+    }
+
     public function test_management_tidak_melihat_widget_admin(): void
     {
         $management = User::factory()->withRole(Role::MANAGEMENT)->create();

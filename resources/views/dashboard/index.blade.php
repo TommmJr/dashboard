@@ -24,62 +24,68 @@
 
 @section('content')
 <div class="mx-auto max-w-7xl" @if ($needsPerformanceState) x-data="performanceDashboard(@js($filters ?? []))" x-init="load()" @endif>
-    @if ($isAdminDashboard)
-        <div class="mb-6">
-            <p class="text-xs font-medium text-slate-500">Beranda / Dashboard Admin</p>
-            <h1 class="mt-2 text-2xl font-bold text-primary">Dashboard Admin</h1>
-            <p class="mt-1 text-sm text-slate-500">Ringkasan operasional data dan aktivitas sistem</p>
+    <div id="dashboard-header" class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-primary">
+                {{ $isAdminDashboard ? 'Dashboard Admin' : 'Dashboard' }}
+            </h1>
         </div>
-    @else
-        <div class="mb-6">
-            <p class="text-xs font-medium text-slate-500">Beranda / Dashboard</p>
-            <h1 class="mt-2 text-2xl font-bold text-primary">Dashboard</h1>
-            <p class="mt-1 text-sm text-slate-500">Ringkasan kinerja dan dataset untuk divisi Anda.</p>
-        </div>
-    @endif
+
+        @if (! $isAdminDashboard && ! $isStaffDashboard)
+            {{-- Form GET (bukan fetch): halaman dimuat ulang sehingga widget
+                 SERVER-SIDE (peringkat NKO) dan CLIENT-SIDE (chart) memakai rentang
+                 filter yang sama. Tanpa reload, peringkat tidak akan ikut terfilter. --}}
+            <form id="dashboard-filter" method="GET" action="{{ route('dashboard') }}" class="flex flex-wrap items-center gap-2">
+                <div class="flex items-center gap-1.5">
+                    <label for="start_date" class="sr-only">Dari tanggal</label>
+                    <input id="start_date" name="start_date" type="date" value="{{ $filters['start_date'] ?? '' }}" class="h-9 rounded border border-slate-200 bg-white px-2.5 text-sm text-primary outline-none focus:border-accent focus:ring-2 focus:ring-accent/20">
+                    <span class="text-xs text-slate-400" aria-hidden="true">&ndash;</span>
+                    <label for="end_date" class="sr-only">Sampai tanggal</label>
+                    <input id="end_date" name="end_date" type="date" value="{{ $filters['end_date'] ?? '' }}" class="h-9 rounded border border-slate-200 bg-white px-2.5 text-sm text-primary outline-none focus:border-accent focus:ring-2 focus:ring-accent/20">
+                </div>
+
+                <div class="relative">
+                    <label for="unit" class="sr-only">Unit</label>
+                    <details class="group relative">
+                        <summary id="unit" class="flex h-9 min-w-[130px] cursor-pointer list-none items-center justify-between gap-2 rounded border border-slate-200 bg-white px-2.5 text-left text-sm text-primary outline-none transition hover:border-accent focus:border-accent focus:ring-2 focus:ring-accent/20">
+                            <span class="truncate" x-text="selectedUnitLabel()">{{ count($filters['units'] ?? []) > 0 ? count($filters['units']).' unit dipilih' : 'Semua unit' }}</span>
+                            <svg class="h-4 w-4 shrink-0 text-slate-400 transition group-open:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 9 6 6 6-6" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                        </summary>
+                        <div class="absolute right-0 z-30 mt-1 max-h-60 w-56 overflow-y-auto rounded border border-slate-200 bg-white p-2 shadow-lg" role="group" aria-label="Pilihan unit">
+                            @forelse ($availableUnits ?? [] as $unitName)
+                                <label class="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm text-primary hover:bg-surface">
+                                    <input type="checkbox" name="unit[]" value="{{ $unitName }}" @checked(in_array($unitName, $filters['units'] ?? [], true)) class="h-4 w-4 rounded border-slate-200 text-accent focus:ring-accent/30">
+                                    <span class="truncate">{{ $unitName }}</span>
+                                </label>
+                            @empty
+                                <p class="px-2 py-1.5 text-sm text-slate-500">Belum ada unit.</p>
+                            @endforelse
+                        </div>
+                    </details>
+                </div>
+
+                <div class="flex items-center gap-1.5">
+                    <button type="submit"
+                            title="Terapkan Filter"
+                            aria-label="Terapkan"
+                            class="inline-flex h-9 w-9 items-center justify-center rounded bg-accent text-white transition hover:bg-primary focus:outline-none focus:ring-2 focus:ring-accent/30 disabled:cursor-not-allowed disabled:opacity-60">
+                        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 4h18M6 12h12M10 20h4" stroke-linecap="round" /></svg>
+                        <span class="sr-only">Terapkan</span>
+                    </button>
+                    <a href="{{ route('dashboard') }}"
+                       title="Reset Filter"
+                       aria-label="Reset"
+                       class="inline-flex h-9 w-9 items-center justify-center rounded border border-slate-200 bg-white text-slate-600 transition hover:border-accent hover:text-accent focus:outline-none focus:ring-2 focus:ring-accent/30">
+                        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7M3 4v5h5" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                        <span class="sr-only">Reset</span>
+                    </a>
+                </div>
+            </form>
+        @endif
+    </div>
 
     @if (! $isAdminDashboard && ! $isStaffDashboard)
-        {{-- Form GET (bukan fetch): halaman dimuat ulang sehingga widget
-             SERVER-SIDE (peringkat NKO) dan CLIENT-SIDE (chart) memakai rentang
-             filter yang sama. Tanpa reload, peringkat tidak akan ikut terfilter. --}}
-        <form method="GET" action="{{ route('dashboard') }}" class="mt-6 grid gap-4 border border-slate-200 bg-white p-4 shadow sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1.25fr_auto_auto] lg:items-end">
-        <div class="flex flex-col gap-1.5">
-            <label for="start_date" class="text-xs font-semibold uppercase tracking-wide text-gray-500">Dari tanggal</label>
-            <input id="start_date" name="start_date" type="date" value="{{ $filters['start_date'] ?? '' }}" class="h-10 rounded border border-slate-200 bg-white px-3 text-sm text-primary outline-none focus:border-accent focus:ring-2 focus:ring-accent/20">
-        </div>
-        <div class="flex flex-col gap-1.5">
-            <label for="end_date" class="text-xs font-semibold uppercase tracking-wide text-gray-500">Sampai tanggal</label>
-            <input id="end_date" name="end_date" type="date" value="{{ $filters['end_date'] ?? '' }}" class="h-10 rounded border border-slate-200 bg-white px-3 text-sm text-primary outline-none focus:border-accent focus:ring-2 focus:ring-accent/20">
-        </div>
-        <div class="flex flex-col gap-1.5">
-            <label for="unit" class="text-xs font-semibold uppercase tracking-wide text-gray-500">Unit</label>
-            <details class="group relative">
-                <summary id="unit" class="flex h-10 w-full cursor-pointer list-none items-center justify-between gap-3 rounded border border-slate-200 bg-white px-3 text-left text-sm text-primary outline-none transition hover:border-accent focus:border-accent focus:ring-2 focus:ring-accent/20">
-                    <span x-text="selectedUnitLabel()">{{ count($filters['units'] ?? []) > 0 ? count($filters['units']).' unit dipilih' : 'Semua unit' }}</span>
-                    <svg class="h-4 w-4 shrink-0 text-gray-500 transition group-open:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 9 6 6 6-6" stroke-linecap="round" stroke-linejoin="round" /></svg>
-                </summary>
-                <div class="absolute left-0 right-0 z-20 mt-2 max-h-60 overflow-y-auto rounded border border-slate-200 bg-white p-2 shadow-lg" role="group" aria-label="Pilihan unit">
-                    @forelse ($availableUnits ?? [] as $unitName)
-                        <label class="flex cursor-pointer items-center gap-2 rounded px-2 py-2 text-sm text-primary hover:bg-surface">
-                            <input type="checkbox" name="unit[]" value="{{ $unitName }}" @checked(in_array($unitName, $filters['units'] ?? [], true)) class="h-4 w-4 rounded border-slate-200 text-accent focus:ring-accent/30">
-                            <span>{{ $unitName }}</span>
-                        </label>
-                    @empty
-                        <p class="px-2 py-2 text-sm text-gray-500">Belum ada unit.</p>
-                    @endforelse
-                </div>
-            </details>
-        </div>
-        <button type="submit" class="inline-flex h-10 items-center justify-center gap-2 rounded bg-primary px-4 text-sm font-semibold text-white transition hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60">
-            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 4h18M6 12h12M10 20h4" stroke-linecap="round" /></svg>
-            Terapkan
-        </button>
-        <a href="{{ route('dashboard') }}" class="inline-flex h-10 items-center justify-center gap-2 rounded border border-slate-200 px-4 text-sm font-semibold text-primary transition hover:border-accent hover:text-accent">
-            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7M3 4v5h5" stroke-linecap="round" stroke-linejoin="round" /></svg>
-            Reset
-        </a>
-        </form>
-        <p x-show="error" x-cloak class="mt-2 text-sm font-medium text-red-700" x-text="error" role="alert"></p>
+        <p x-show="error" x-cloak class="-mt-4 mb-4 text-sm font-medium text-red-700" x-text="error" role="alert"></p>
     @endif
 
     {{-- Widget per role: satu loop generik, urutan & komposisi dari config. --}}
