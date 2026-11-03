@@ -2401,9 +2401,7 @@ class KpiReadModelFlagTest extends TestCase
 
         $structuredStaffResponse->assertOk()
             ->assertViewHas('availableUnits', ['TJBT'])
-            ->assertSee('name="unit[]" value="TJBT"', false)
-            ->assertDontSee('name="unit[]" value="MES"', false)
-            ->assertDontSee('Belum ada unit.');
+            ->assertDontSee('name="unit[]"', false);
 
         $structuredMgmtResponse->assertOk()
             ->assertViewHas('availableUnits', ['TJBT'])
@@ -2428,7 +2426,7 @@ class KpiReadModelFlagTest extends TestCase
         // Empty state R2 structured saat tabel performance_observations kosong
         PerformanceObservation::query()->delete();
         config(['kpi.visible_units' => ['TJBT']]);
-        $emptyResponse = $this->actingAs($staff)->get(route('dashboard'));
+        $emptyResponse = $this->actingAs($management)->get(route('dashboard'));
         $emptyResponse->assertOk()
             ->assertViewHas('availableUnits', [])
             ->assertSee('Belum ada unit.');
