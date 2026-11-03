@@ -25,7 +25,7 @@
             class="app-content flex min-h-full flex-col overflow-auto transition-all duration-200 ease-in-out"
             :style="`margin-left: ${$store.ui.sidebarExpanded ? '16rem' : '4rem'}`"
         >
-            <header class="sticky top-0 z-30 flex min-h-[78px] items-center justify-between gap-4 border-b border-slate-200 bg-white/95 px-5 backdrop-blur sm:px-8">
+            <header class="sticky top-0 z-30 flex min-h-[78px] items-center justify-between gap-4 border-b border-slate-200 bg-white px-5 sm:px-8">
                 <div class="flex items-center gap-3">
                     <button type="button"
                             class="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-300 bg-white text-primary lg:hidden"
@@ -38,28 +38,6 @@
                         </svg>
                     </button>
                     <p class="text-sm font-bold text-primary">@yield('title', 'Dashboard')</p>
-                </div>
-
-                <div class="flex items-center gap-3">
-                    <div class="hidden text-right sm:block">
-                        <p class="text-sm font-semibold text-primary">{{ auth()->user()->name }}</p>
-                        @if (auth()->user()->role)
-                            <p class="mt-0.5 text-xs text-slate-500">{{ auth()->user()->role->name }}</p>
-                        @endif
-                    </div>
-                    <span class="inline-flex h-10 w-10 items-center justify-center rounded-full bg-primary text-sm font-bold text-white" aria-hidden="true">
-                        {{ mb_strtoupper(mb_substr(auth()->user()->name, 0, 1)) }}
-                    </span>
-                    <form method="POST" action="{{ route('logout') }}" onsubmit="return confirm('Yakin ingin logout?');">
-                        @csrf
-                        <button type="submit" class="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-primary transition hover:border-accent hover:text-accent">
-                            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-                                <path d="M10 17l5-5-5-5M15 12H3m10-9h6a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-6" stroke-linecap="round" stroke-linejoin="round" />
-                            </svg>
-                            <span class="hidden sm:inline">Keluar</span>
-                            <span class="sr-only sm:hidden">Keluar</span>
-                        </button>
-                    </form>
                 </div>
             </header>
 

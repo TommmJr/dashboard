@@ -99,9 +99,30 @@
         @endcan
     </nav>
 
-    <div class="border-t border-white/10 px-4 py-4">
-        <p x-show="$store.ui.sidebarExpanded" x-transition.opacity class="sidebar-label text-xs text-white/60">
-            &copy; {{ date('Y') }} PLN UIT JBT Internal System
-        </p>
+    <div id="sidebar-user" class="border-t border-white/10 p-3">
+        <div class="flex items-center" :class="$store.ui.sidebarExpanded ? 'justify-between gap-2' : 'flex-col gap-2'">
+            <div class="flex items-center gap-3 min-w-0">
+                <span class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/20 text-sm font-bold text-white" aria-hidden="true">
+                    {{ mb_strtoupper(mb_substr(auth()->user()->name, 0, 1)) }}
+                </span>
+                <div x-show="$store.ui.sidebarExpanded" x-transition.opacity class="sidebar-label min-w-0">
+                    <p class="truncate text-sm font-semibold text-white">{{ auth()->user()->name }}</p>
+                    @if (auth()->user()->role)
+                        <p class="truncate text-xs text-white/70">{{ auth()->user()->role->name }}</p>
+                    @endif
+                </div>
+            </div>
+            <form method="POST" action="{{ route('logout') }}" onsubmit="return confirm('Yakin ingin logout?');" class="shrink-0">
+                @csrf
+                <button type="submit"
+                        aria-label="Keluar"
+                        title="Keluar"
+                        class="inline-flex h-9 w-9 items-center justify-center rounded-lg text-white/80 transition hover:bg-white/10 hover:text-white">
+                    <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                        <path d="M10 17l5-5-5-5M15 12H3m10-9h6a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-6" stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
+                </button>
+            </form>
+        </div>
     </div>
 </aside>
