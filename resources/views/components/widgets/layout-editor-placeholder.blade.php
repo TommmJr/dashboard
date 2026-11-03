@@ -43,7 +43,7 @@
         </div>
 
         {{-- Split-View Workspace: panel konfigurasi (kiri) dan pratinjau langsung (kanan) --}}
-        <div id="builder-split-view" class="mt-4 grid grid-cols-1 items-start gap-6 lg:grid-cols-12">
+        <div id="builder-split-view" @resize.window="viewportWidth = window.innerWidth" class="mt-4 grid grid-cols-1 items-start gap-6 lg:grid-cols-12">
             {{-- Panel Konfigurasi, Palet, dan Aksi --}}
             <div id="builder-config-pane" class="flex min-w-0 flex-col gap-5 lg:col-span-5">
                 <div class="flex flex-col gap-4 border-b border-slate-200 pb-4">
@@ -179,6 +179,182 @@
                     </div>
                 </div>
 
+                {{-- Daftar Widget Aktif: kontrol susunan, lebar, dan konfigurasi --}}
+                <div
+                    id="active-widget-list"
+                    @dragover.prevent="isDragOverCanvas = true"
+                    @dragleave="isDragOverCanvas = false"
+                    @drop.prevent="isDragOverCanvas = false; onCanvasDrop(activeWidgets.length)"
+                    :class="isDragOverCanvas ? 'ring-2 ring-accent bg-accent/5' : 'bg-white'"
+                    class="rounded-lg border border-slate-200 p-4 transition"
+                >
+                    <div class="flex items-center justify-between gap-2 border-b border-slate-200 pb-3">
+                        <div>
+                            <h4 class="text-sm font-bold uppercase tracking-wide text-primary">Widget Aktif</h4>
+                            <p class="mt-0.5 text-xs text-slate-500">
+                                Atur urutan, lebar kolom, dan konfigurasi. Perubahan langsung tampil pada panel pratinjau.
+                            </p>
+                        </div>
+                        <span
+                            class="shrink-0 rounded bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary"
+                            x-text="`${activeWidgets.length} Widget`"
+                        ></span>
+                    </div>
+
+                    <ul class="mt-3 space-y-2.5">
+                        <template x-for="(w, index) in activeWidgets" :key="index">
+                            <li
+                                draggable="true"
+                                @dragstart="onCardDragStart(index)"
+                                @dragover.prevent="onCardDragOver(index)"
+                                @drop.prevent.stop="onCardDrop(index)"
+                                @dragend="onCardDragEnd()"
+                                :class="canvasDragIndex === index ? 'opacity-40 border-dashed border-accent' : 'border-slate-200'"
+                                class="rounded-lg border bg-slate-50/60 p-3 transition hover:shadow-sm"
+                            >
+                                <div class="canvas-card-toolbar flex flex-wrap items-center justify-between gap-2">
+                                    <div class="flex min-w-0 items-center gap-2.5">
+                                        <span
+                                            class="canvas-drag-handle inline-flex h-7 w-7 shrink-0 items-center justify-center rounded bg-slate-100 text-xs font-bold text-slate-600 cursor-grab active:cursor-grabbing hover:bg-slate-200 transition"
+                                            title="Tarik untuk memindahkan urutan widget"
+                                        >
+                                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16" />
+                                            </svg>
+                                        </span>
+                                        <div class="min-w-0">
+                                            <p class="truncate text-sm font-bold text-primary" x-text="widgetLabel(w.key)"></p>
+                                            <div class="flex items-center gap-1.5 text-xs text-slate-400">
+                                                <span class="font-mono text-[11px]" x-text="w.key"></span>
+                                                <span>&bull;</span>
+                                                <span class="font-semibold text-accent" x-text="`${w.cols || 3} Kolom`"></span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="flex flex-wrap items-center gap-1.5">
+                                        {{-- Atur Lebar Selector --}}
+                                        <div class="flex items-center rounded-lg border border-slate-200 bg-white p-0.5 text-xs font-medium" title="Atur Lebar Kolom">
+                                            <span class="px-1.5 text-[11px] font-semibold text-slate-500">Atur Lebar:</span>
+                                            <template x-for="n in [1, 2, 3]" :key="n">
+                                                <button
+                                                    type="button"
+                                                    @click="setWidgetCols(w, n)"
+                                                    :class="(w.cols === n) ? 'bg-primary text-white shadow-xs' : 'text-slate-600 hover:text-primary'"
+                                                    class="rounded px-2 py-0.5 text-[11px] font-semibold transition"
+                                                    x-text="n"
+                                                ></button>
+                                            </template>
+                                        </div>
+
+                                        <button
+                                            type="button"
+                                            @click="moveUp(index)"
+                                            :disabled="saving || index === 0"
+                                            class="inline-flex h-7 w-7 items-center justify-center rounded border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
+                                            :aria-label="`Naikkan ${widgetLabel(w.key)}`"
+                                            title="Geser ke atas / kiri"
+                                        >
+                                            &uarr;
+                                        </button>
+                                        <button
+                                            type="button"
+                                            @click="moveDown(index)"
+                                            :disabled="saving || index === activeWidgets.length - 1"
+                                            class="inline-flex h-7 w-7 items-center justify-center rounded border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
+                                            :aria-label="`Turunkan ${widgetLabel(w.key)}`"
+                                            title="Geser ke bawah / kanan"
+                                        >
+                                            &darr;
+                                        </button>
+                                        <button
+                                            type="button"
+                                            @click="removeWidget(index)"
+                                            :disabled="saving || activeWidgets.length <= 1 || isLockedWidget(w.key)"
+                                            class="inline-flex h-7 items-center rounded border border-red-200 bg-red-50 px-2 text-xs font-semibold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-40"
+                                            :aria-label="`Hapus ${widgetLabel(w.key)}`"
+                                            :title="isLockedWidget(w.key) ? 'Widget wajib ada untuk peran ini' : 'Hapus widget dari dashboard'"
+                                        >
+                                            Hapus
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div class="mt-2.5 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
+                                    <div class="flex items-center gap-2">
+                                        <span class="font-medium">Lebar Kolom:</span>
+                                        <select
+                                            x-model.number="w.cols"
+                                            class="rounded border border-slate-200 bg-white px-2 py-1 text-xs text-primary font-semibold outline-none focus:border-accent"
+                                        >
+                                            <option :value="1">1 Kolom (1/3)</option>
+                                            <option :value="2">2 Kolom (2/3)</option>
+                                            <option :value="3">3 Kolom (Penuh)</option>
+                                        </select>
+                                    </div>
+
+                                    <template x-if="w.key === 'custom-chart'">
+                                        <button
+                                            type="button"
+                                            @click="w._openConfig = !w._openConfig"
+                                            class="inline-flex items-center gap-1 font-semibold text-accent hover:underline"
+                                        >
+                                            <span x-text="w._openConfig ? 'Tutup Konfigurasi' : 'Atur Grafik'"></span>
+                                        </button>
+                                    </template>
+                                </div>
+
+                                {{-- Panel Konfigurasi Inline untuk Custom Chart --}}
+                                <template x-if="w.key === 'custom-chart' && w._openConfig">
+                                    <div class="mt-2.5 space-y-2.5 rounded-lg border border-slate-200 bg-white p-3 text-xs">
+                                        <div>
+                                            <label class="mb-1 block font-semibold text-slate-600">Judul Grafik</label>
+                                            <input
+                                                type="text"
+                                                x-model="w.config.title"
+                                                maxlength="60"
+                                                class="w-full rounded border border-slate-300 bg-white px-2.5 py-1 text-xs text-primary outline-none focus:border-accent"
+                                                placeholder="Contoh: Distribusi Skor NKO"
+                                            />
+                                        </div>
+                                        <div class="grid grid-cols-2 gap-2">
+                                            <div>
+                                                <label class="mb-1 block font-semibold text-slate-600">Tipe Grafik</label>
+                                                <select
+                                                    x-model="w.config.chart_type"
+                                                    class="w-full rounded border border-slate-300 bg-white px-2 py-1 text-xs text-primary outline-none focus:border-accent"
+                                                >
+                                                    <option value="bar">Bar (Batang)</option>
+                                                    <option value="line">Line (Garis)</option>
+                                                    <option value="donut">Donut (Lingkaran)</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label class="mb-1 block font-semibold text-slate-600">Metrik</label>
+                                                <select
+                                                    x-model="w.config.metric"
+                                                    class="w-full rounded border border-slate-300 bg-white px-2 py-1 text-xs text-primary outline-none focus:border-accent"
+                                                >
+                                                    <option value="nko_score">Skor NKO</option>
+                                                    <option value="pencapaian_ratio">Persentase Pencapaian</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </template>
+                            </li>
+                        </template>
+                    </ul>
+
+                    <div
+                        x-show="activeWidgets.length === 0"
+                        x-cloak
+                        class="mt-3 rounded-lg border-2 border-dashed border-slate-300 bg-white p-6 text-center text-xs text-slate-400"
+                    >
+                        Belum ada widget aktif. Tarik komponen dari palet atau klik tombol Tambah.
+                    </div>
+                </div>
+
                 {{-- Footer aksi simpan & reset --}}
                 <div class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4">
                     <p class="text-xs text-slate-500">
@@ -218,137 +394,57 @@
             {{-- Panel Pratinjau Langsung (sticky pada layar lebar) --}}
             <div id="builder-preview-pane" class="min-w-0 lg:sticky lg:top-6 lg:col-span-7">
                 <p class="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500">Pratinjau Langsung (Split-View)</p>
-                {{-- Kanvas Presentasi Dashboard WYSIWYG 3-Kolom --}}
+                {{-- Kanvas Presentasi Dashboard: pratinjau langsung tata letak 3 kolom --}}
                 <div class="rounded-lg border border-slate-200 bg-slate-50/50 p-4">
-                    <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-b border-slate-200 pb-3">
+                    <div class="flex flex-col gap-2 border-b border-slate-200 pb-3 sm:flex-row sm:items-center sm:justify-between">
                         <div>
-                            <div class="flex items-center gap-2">
-                                <h4 class="text-sm font-bold uppercase tracking-wide text-primary">Kanvas Presentasi Dashboard (Widget Aktif)</h4>
-                                <span class="inline-flex items-center rounded-full bg-accent/15 px-2.5 py-0.5 text-xs font-semibold text-primary">
-                                    Pratinjau Tata Letak Grid 3 Kolom
-                                </span>
-                            </div>
+                            <h4 class="text-sm font-bold uppercase tracking-wide text-primary">Kanvas Presentasi Dashboard</h4>
                             <p class="mt-0.5 text-xs text-slate-500">
-                                Kanvas visual interaktif merefleksikan tampilan dashboard nyata. Atur posisi dengan drag-and-drop, sesuaikan lebar, dan konfigurasikan grafik.
+                                Pratinjau Tata Letak Grid 3 Kolom yang mengikuti urutan dan lebar widget di panel kiri.
                             </p>
                         </div>
-                        <div class="flex items-center gap-2">
-                            <span
-                                class="inline-flex items-center rounded bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary"
-                                x-text="`${activeWidgets.length} Widget di Kanvas`"
-                            ></span>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                                <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+                                Sinkronisasi Real-Time
+                            </span>
+                            <span class="rounded bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary" x-text="`${activeWidgets.length} Widget di Kanvas`"></span>
+                            <span class="rounded bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600" x-text="`Viewport ${viewportWidth}px`"></span>
                         </div>
                     </div>
 
-                    {{-- Area Kanvas Drop Grid 3 Kolom --}}
+                    {{-- Viewport pratinjau ala monitor eksekutif --}}
                     <div
+                        id="preview-canvas-viewport"
                         @dragover.prevent="isDragOverCanvas = true"
                         @dragleave="isDragOverCanvas = false"
                         @drop.prevent="isDragOverCanvas = false; onCanvasDrop(activeWidgets.length)"
-                        :class="isDragOverCanvas ? 'ring-2 ring-accent ring-dashed bg-accent/5' : ''"
-                        class="mt-4 min-h-[220px] rounded-lg transition"
+                        :class="isDragOverCanvas ? 'ring-2 ring-accent bg-accent/5' : 'bg-slate-100'"
+                        class="mt-4 min-h-[260px] rounded-lg border border-slate-300 p-3 transition lg:max-h-[calc(100vh-14rem)] lg:overflow-y-auto"
                     >
-                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
                             <template x-for="(w, index) in activeWidgets" :key="index">
                                 <div
                                     draggable="true"
                                     @dragstart="onCardDragStart(index)"
                                     @dragover.prevent="onCardDragOver(index)"
-                                    @drop.prevent="onCardDrop(index)"
+                                    @drop.prevent.stop="onCardDrop(index)"
                                     @dragend="onCardDragEnd()"
                                     :class="[
-                                        colSpanClass(w.cols),
+                                        previewSpanClass(w.cols),
                                         canvasDragIndex === index ? 'opacity-40 border-dashed border-accent' : 'border-slate-200'
                                     ]"
-                                    class="flex flex-col rounded-lg border bg-white p-4 shadow-sm transition hover:shadow-md"
+                                    class="preview-card-item flex min-w-0 flex-col rounded-lg border bg-white p-3 shadow-sm transition hover:shadow-md"
                                 >
-                                    <div class="canvas-card-toolbar flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
-                                        <div class="flex min-w-0 items-center gap-2.5">
-                                            <span
-                                                class="canvas-drag-handle inline-flex h-7 w-7 shrink-0 items-center justify-center rounded bg-slate-100 text-xs font-bold text-slate-600 cursor-grab active:cursor-grabbing hover:bg-slate-200 transition"
-                                                title="Tarik untuk memindahkan urutan kartu di kanvas"
-                                            >
-                                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16" />
-                                                </svg>
-                                            </span>
-                                            <div class="min-w-0">
-                                                <p class="truncate text-sm font-bold text-primary" x-text="widgetLabel(w.key)"></p>
-                                                <div class="flex items-center gap-1.5 text-xs text-slate-400">
-                                                    <span class="font-mono text-[11px]" x-text="w.key"></span>
-                                                    <span>&bull;</span>
-                                                    <span class="font-semibold text-accent" x-text="`${w.cols || 3} Kolom`"></span>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div class="flex flex-wrap items-center gap-1.5">
-                                            {{-- Atur Lebar Selector --}}
-                                            <div class="flex items-center rounded-lg border border-slate-200 bg-slate-50 p-0.5 text-xs font-medium" title="Atur Lebar Kolom">
-                                                <span class="text-[11px] font-semibold text-slate-500 px-1.5">Atur Lebar:</span>
-                                                <button
-                                                    type="button"
-                                                    @click="setWidgetCols(w, 1)"
-                                                    :class="(w.cols === 1) ? 'bg-primary text-white shadow-xs' : 'text-slate-600 hover:text-primary'"
-                                                    class="rounded px-2 py-0.5 text-[11px] font-semibold transition"
-                                                >
-                                                    1
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    @click="setWidgetCols(w, 2)"
-                                                    :class="(w.cols === 2) ? 'bg-primary text-white shadow-xs' : 'text-slate-600 hover:text-primary'"
-                                                    class="rounded px-2 py-0.5 text-[11px] font-semibold transition"
-                                                >
-                                                    2
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    @click="setWidgetCols(w, 3)"
-                                                    :class="(w.cols === 3) ? 'bg-primary text-white shadow-xs' : 'text-slate-600 hover:text-primary'"
-                                                    class="rounded px-2 py-0.5 text-[11px] font-semibold transition"
-                                                >
-                                                    3
-                                                </button>
-                                            </div>
-
-                                            <button
-                                                type="button"
-                                                @click="moveUp(index)"
-                                                :disabled="saving || index === 0"
-                                                class="inline-flex h-7 w-7 items-center justify-center rounded border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
-                                                :aria-label="`Naikkan ${widgetLabel(w.key)}`"
-                                                title="Geser ke atas / kiri"
-                                            >
-                                                &uarr;
-                                            </button>
-                                            <button
-                                                type="button"
-                                                @click="moveDown(index)"
-                                                :disabled="saving || index === activeWidgets.length - 1"
-                                                class="inline-flex h-7 w-7 items-center justify-center rounded border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
-                                                :aria-label="`Turunkan ${widgetLabel(w.key)}`"
-                                                title="Geser ke bawah / kanan"
-                                            >
-                                                &darr;
-                                            </button>
-                                            <button
-                                                type="button"
-                                                @click="removeWidget(index)"
-                                                :disabled="saving || activeWidgets.length <= 1 || isLockedWidget(w.key)"
-                                                class="inline-flex h-7 items-center rounded border border-red-200 bg-red-50 px-2 text-xs font-semibold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-40"
-                                                :aria-label="`Hapus ${widgetLabel(w.key)}`"
-                                                :title="isLockedWidget(w.key) ? 'Widget wajib ada untuk peran ini' : 'Hapus widget dari kanvas'"
-                                            >
-                                                Hapus
-                                            </button>
-                                        </div>
+                                    <div class="flex items-center justify-between gap-2">
+                                        <p class="truncate text-xs font-bold text-primary" x-text="w.key === 'custom-chart' ? (w.config?.title || widgetLabel(w.key)) : widgetLabel(w.key)"></p>
+                                        <span class="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600" x-text="`${w.cols || 3} Kolom`"></span>
                                     </div>
 
                                     {{-- Live In-Canvas WYSIWYG Previews --}}
                                     <template x-if="w.key === 'custom-chart'">
                                         <div
-                                            class="canvas-chart-container relative mt-3 h-44 w-full rounded border border-slate-100 bg-slate-50/60 p-2"
+                                            class="canvas-chart-container relative mt-2 h-44 w-full rounded border border-slate-100 bg-slate-50/60 p-2"
                                             x-init="$nextTick(() => initCanvasChart($el, w))"
                                         >
                                             <div class="h-full w-full echarts-instance"></div>
@@ -357,7 +453,7 @@
 
                                     <template x-if="w.key === 'trend-chart'">
                                         <div
-                                            class="canvas-chart-container relative mt-3 h-40 w-full rounded border border-slate-100 bg-slate-50/60 p-2"
+                                            class="canvas-chart-container relative mt-2 h-40 w-full rounded border border-slate-100 bg-slate-50/60 p-2"
                                             x-init="$nextTick(() => initTrendPreviewChart($el, w))"
                                         >
                                             <div class="h-full w-full echarts-instance"></div>
@@ -365,24 +461,24 @@
                                     </template>
 
                                     <template x-if="w.key === 'kpi-summary'">
-                                        <div class="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-2">
-                                            <div class="rounded bg-sky-50/80 p-2.5 border border-sky-100">
-                                                <p class="text-[10px] font-bold text-sky-700 uppercase tracking-wide">Rata-rata NKO</p>
+                                        <div class="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                                            <div class="rounded border border-sky-100 bg-sky-50/80 p-2.5">
+                                                <p class="text-[10px] font-bold uppercase tracking-wide text-sky-700">Rata-rata NKO</p>
                                                 <p class="mt-1 text-base font-bold text-sky-950">105.4%</p>
                                             </div>
-                                            <div class="rounded bg-emerald-50/80 p-2.5 border border-emerald-100">
-                                                <p class="text-[10px] font-bold text-emerald-700 uppercase tracking-wide">Indikator</p>
+                                            <div class="rounded border border-emerald-100 bg-emerald-50/80 p-2.5">
+                                                <p class="text-[10px] font-bold uppercase tracking-wide text-emerald-700">Indikator</p>
                                                 <p class="mt-1 text-base font-bold text-emerald-950">16 Tercapai</p>
                                             </div>
-                                            <div class="col-span-2 sm:col-span-1 rounded bg-amber-50/80 p-2.5 border border-amber-100">
-                                                <p class="text-[10px] font-bold text-amber-700 uppercase tracking-wide">Periode Aktif</p>
+                                            <div class="col-span-2 rounded border border-amber-100 bg-amber-50/80 p-2.5 sm:col-span-1">
+                                                <p class="text-[10px] font-bold uppercase tracking-wide text-amber-700">Periode Aktif</p>
                                                 <p class="mt-1 text-xs font-bold text-amber-950">Agustus 2026</p>
                                             </div>
                                         </div>
                                     </template>
 
                                     <template x-if="w.key === 'nko-ranking'">
-                                        <div class="mt-3 rounded border border-slate-100 bg-slate-50/60 p-2.5 space-y-1.5 text-xs">
+                                        <div class="mt-2 space-y-1.5 rounded border border-slate-100 bg-slate-50/60 p-2.5 text-xs">
                                             <div class="flex items-center justify-between font-medium">
                                                 <span class="text-slate-700">1. TJBT (Jawa Bagian Tengah)</span>
                                                 <span class="font-bold text-emerald-600">105.5</span>
@@ -391,7 +487,7 @@
                                                 <span class="text-slate-700">2. TRANS (Transmisi)</span>
                                                 <span class="font-bold text-emerald-600">100.7</span>
                                             </div>
-                                            <div class="flex items-center justify-between text-slate-400 text-[11px]">
+                                            <div class="flex items-center justify-between text-[11px] text-slate-400">
                                                 <span>+13 Unit Lainnya</span>
                                                 <span class="font-semibold text-slate-500">100.0</span>
                                             </div>
@@ -399,73 +495,9 @@
                                     </template>
 
                                     <template x-if="!['custom-chart', 'trend-chart', 'kpi-summary', 'nko-ranking'].includes(w.key)">
-                                        <div class="mt-3 rounded border border-dashed border-slate-200 bg-slate-50/40 p-3 text-center">
+                                        <div class="mt-2 rounded border border-dashed border-slate-200 bg-slate-50/40 p-3 text-center">
                                             <p class="text-xs font-semibold text-slate-600" x-text="`Pratinjau Visual: ${widgetLabel(w.key)}`"></p>
                                             <p class="mt-0.5 text-[10px] text-slate-400">Komponen akan dirender penuh pada tata letak dashboard utama.</p>
-                                        </div>
-                                    </template>
-
-                                    {{-- Pengaturan Lebar Kolom & Konfigurasi --}}
-                                    <div class="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
-                                        <div class="flex items-center gap-2">
-                                            <span class="font-medium">Lebar Kolom:</span>
-                                            <select
-                                                x-model.number="w.cols"
-                                                class="rounded border border-slate-200 bg-white px-2 py-1 text-xs text-primary font-semibold outline-none focus:border-accent"
-                                            >
-                                                <option :value="1">1 Kolom (1/3)</option>
-                                                <option :value="2">2 Kolom (2/3)</option>
-                                                <option :value="3">3 Kolom (Penuh)</option>
-                                            </select>
-                                        </div>
-
-                                        <template x-if="w.key === 'custom-chart'">
-                                            <button
-                                                type="button"
-                                                @click="w._openConfig = !w._openConfig"
-                                                class="inline-flex items-center gap-1 font-semibold text-accent hover:underline"
-                                            >
-                                                <span x-text="w._openConfig ? 'Tutup Konfigurasi' : 'Atur Grafik'"></span>
-                                            </button>
-                                        </template>
-                                    </div>
-
-                                    {{-- Panel Konfigurasi Inline untuk Custom Chart --}}
-                                    <template x-if="w.key === 'custom-chart' && w._openConfig">
-                                        <div class="mt-3 rounded-lg bg-slate-50 p-3 border border-slate-200 space-y-2.5 text-xs">
-                                            <div>
-                                                <label class="block font-semibold text-slate-600 mb-1">Judul Grafik</label>
-                                                <input
-                                                    type="text"
-                                                    x-model="w.config.title"
-                                                    maxlength="60"
-                                                    class="w-full rounded border border-slate-300 bg-white px-2.5 py-1 text-xs text-primary outline-none focus:border-accent"
-                                                    placeholder="Contoh: Distribusi Skor NKO"
-                                                />
-                                            </div>
-                                            <div class="grid grid-cols-2 gap-2">
-                                                <div>
-                                                    <label class="block font-semibold text-slate-600 mb-1">Tipe Grafik</label>
-                                                    <select
-                                                        x-model="w.config.chart_type"
-                                                        class="w-full rounded border border-slate-300 bg-white px-2 py-1 text-xs text-primary outline-none focus:border-accent"
-                                                    >
-                                                        <option value="bar">Bar (Batang)</option>
-                                                        <option value="line">Line (Garis)</option>
-                                                        <option value="donut">Donut (Lingkaran)</option>
-                                                    </select>
-                                                </div>
-                                                <div>
-                                                    <label class="block font-semibold text-slate-600 mb-1">Metrik</label>
-                                                    <select
-                                                        x-model="w.config.metric"
-                                                        class="w-full rounded border border-slate-300 bg-white px-2 py-1 text-xs text-primary outline-none focus:border-accent"
-                                                    >
-                                                        <option value="nko_score">Skor NKO</option>
-                                                        <option value="pencapaian_ratio">Persentase Pencapaian</option>
-                                                    </select>
-                                                </div>
-                                            </div>
                                         </div>
                                     </template>
                                 </div>
@@ -476,15 +508,13 @@
                         <div
                             x-show="activeWidgets.length === 0"
                             x-cloak
-                            @dragover.prevent
-                            @drop.prevent="onCanvasDrop(0)"
                             class="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-300 bg-white p-8 text-center"
                         >
-                            <svg class="h-10 w-10 text-slate-400 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <svg class="mb-2 h-10 w-10 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                             </svg>
                             <p class="text-sm font-bold text-slate-600">Kanvas Presentasi Masih Kosong</p>
-                            <p class="mt-1 text-xs text-slate-400">Tarik komponen dari Palet Komponen di atas dan lepas di sini untuk memulai.</p>
+                            <p class="mt-1 text-xs text-slate-400">Tarik komponen dari Palet Komponen dan lepas di sini untuk memulai.</p>
                         </div>
                     </div>
                 </div>
@@ -523,6 +553,7 @@
                     canvasDragIndex: null,
                     paletteDragKey: null,
                     isDragOverCanvas: false,
+                    viewportWidth: window.innerWidth,
                     currentUserLayoutKey: initial.current_user_layout_key || '',
                     toast: { show: false, message: '', type: 'success', timer: null },
 
@@ -817,11 +848,11 @@
                         });
                     },
 
-                    colSpanClass(cols) {
+                    previewSpanClass(cols) {
                         const c = parseInt(cols, 10);
-                        if (c === 1) return 'col-span-1';
-                        if (c === 2) return 'col-span-2';
-                        return 'col-span-3';
+                        if (c === 1) return 'md:col-span-1';
+                        if (c === 2) return 'md:col-span-2';
+                        return 'md:col-span-3';
                     },
 
                     csrfToken() {

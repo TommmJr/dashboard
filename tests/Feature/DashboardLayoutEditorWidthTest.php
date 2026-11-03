@@ -129,4 +129,19 @@ class DashboardLayoutEditorWidthTest extends TestCase
             ->assertSee('lg:col-span-7', false)
             ->assertSee('Pratinjau Langsung (Split-View)');
     }
+
+    public function test_dashboard_builder_preview_pane_mirrors_active_widgets_in_real_time(): void
+    {
+        $admin = User::factory()->withRole(Role::ADMIN)->create();
+
+        $response = $this->actingAs($admin)->get(route('dashboard.builder'));
+
+        $response->assertOk()
+            ->assertSee('id="active-widget-list"', false)
+            ->assertSee('id="preview-canvas-viewport"', false)
+            ->assertSee('Sinkronisasi Real-Time')
+            ->assertSee('preview-card-item', false)
+            ->assertSee('previewSpanClass', false)
+            ->assertSee('md:grid-cols-3', false);
+    }
 }
