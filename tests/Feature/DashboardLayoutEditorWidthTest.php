@@ -160,4 +160,20 @@ class DashboardLayoutEditorWidthTest extends TestCase
             ->assertSee('disposeAllPreviewCharts', false)
             ->assertSee('previewChartInstances', false);
     }
+
+    public function test_dashboard_builder_palette_renders_visual_chart_thumbnails(): void
+    {
+        $admin = User::factory()->withRole(Role::ADMIN)->create();
+
+        $this->actingAs($admin)->get(route('dashboard.builder'))
+            ->assertOk()
+            ->assertSee('palette-thumb', false)
+            ->assertSee('palette-type-label', false)
+            ->assertSee('paletteVisual(item.key)', false)
+            ->assertSee('Grafik Batang')
+            ->assertSee('Grafik Garis')
+            ->assertSee('Grafik Donat')
+            ->assertSee('Kartu Skor')
+            ->assertDontSee('item.key.substring(0, 2)', false);
+    }
 }
