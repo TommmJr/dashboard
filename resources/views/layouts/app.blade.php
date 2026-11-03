@@ -37,7 +37,13 @@
                             <path d="M4 6h16M4 12h16M4 18h16" stroke-linecap="round" stroke-linejoin="round" />
                         </svg>
                     </button>
-                    <p class="text-sm font-bold text-primary">@yield('title', 'Dashboard')</p>
+                    <nav aria-label="Breadcrumb" id="header-breadcrumb" class="text-sm">
+                        <a href="{{ route('dashboard') }}" class="{{ request()->routeIs('dashboard') ? 'font-semibold text-primary' : 'text-slate-500 hover:text-accent' }}" @if(request()->routeIs('dashboard')) aria-current="page" @endif>Beranda</a>
+                        @if (! request()->routeIs('dashboard'))
+                            <span class="mx-2 text-slate-300" aria-hidden="true">/</span>
+                            <span class="font-semibold text-primary" aria-current="page">@yield('title')</span>
+                        @endif
+                    </nav>
                 </div>
             </header>
 

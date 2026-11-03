@@ -7,7 +7,7 @@
     <a href="{{ route('divisions.index') }}" class="text-sm text-indigo-600 hover:underline">&larr; Kembali ke daftar</a>
 
     <div class="mt-4 rounded-lg bg-white p-6 shadow">
-        <h1 class="text-xl font-bold text-gray-900">Tambah Divisi Baru</h1>
+        <h1 class="text-2xl font-bold text-primary">Tambah Divisi Baru</h1>
 
         @if ($errors->any())
             <div class="mt-4 rounded-md bg-red-50 p-3 text-sm text-red-700">

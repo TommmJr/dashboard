@@ -7,7 +7,7 @@
     <a href="{{ route('datasets.show', $metric->dataset_id) }}" class="text-sm text-indigo-600 hover:underline">&larr; Kembali ke dataset</a>
 
     <div class="mt-4 rounded-lg bg-white p-6 shadow">
-        <h1 class="text-xl font-bold text-gray-900">Edit Metric</h1>
+        <h1 class="text-2xl font-bold text-primary">Edit Metric</h1>
 
         {{-- Info read-only --}}
         <dl class="mt-3 grid grid-cols-2 gap-x-8 gap-y-2 text-sm text-gray-600">

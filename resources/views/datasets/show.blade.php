@@ -17,7 +17,7 @@
     <div class="mt-4 rounded-lg bg-white p-6 shadow">
         <div class="flex items-start justify-between">
             <div>
-                <h1 class="text-xl font-bold text-gray-900">{{ $dataset->original_name }}</h1>
+                <h1 class="text-2xl font-bold text-primary">{{ $dataset->original_name }}</h1>
                 <dl class="mt-3 grid grid-cols-2 gap-x-8 gap-y-2 text-sm text-gray-600 sm:grid-cols-3">
                     <div><dt class="font-semibold text-gray-800">Divisi</dt><dd>{{ $dataset->division?->name ?? '-' }}</dd></div>
                     <div><dt class="font-semibold text-gray-800">Pengunggah</dt><dd>{{ $dataset->user?->name ?? '-' }}</dd></div>

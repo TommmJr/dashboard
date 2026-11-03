@@ -30,4 +30,16 @@ class AppLayoutTest extends TestCase
         $this->assertStringNotContainsString('PLN UIT JBT Internal System', $html);
         $this->assertMatchesRegularExpression('/id="sidebar-user".*Budi Santoso.*action="'.preg_quote(route('logout'), '/').'"/s', $html);
     }
+
+    public function test_header_shows_breadcrumb_instead_of_duplicate_title(): void
+    {
+        $admin = User::factory()->withRole(Role::ADMIN)->create();
+
+        $html = $this->actingAs($admin)->get(route('audit-logs.index'))->assertOk()->getContent();
+
+        $this->assertStringContainsString('id="header-breadcrumb"', $html);
+        $this->assertMatchesRegularExpression('/id="header-breadcrumb".*Beranda.*aria-current="page"[^>]*>Audit Log</s', $html);
+        $this->assertSame(1, preg_match_all('/<h1[^>]*>\s*Audit Log\s*<\/h1>/', $html));
+        $this->assertStringNotContainsString('<p class="text-sm font-bold text-primary">', $html);
+    }
 }

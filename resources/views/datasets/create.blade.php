@@ -8,7 +8,7 @@
 
     <div class="mt-4 rounded-lg bg-white p-6 shadow">
         <div class="flex items-center justify-between">
-            <h1 class="text-xl font-bold text-gray-900">Upload Dataset Baru</h1>
+            <h1 class="text-2xl font-bold text-primary">Upload Dataset Baru</h1>
         </div>
         <p class="mt-2 text-sm text-gray-600">
             Gunakan file Excel/CSV dengan kolom <code class="rounded bg-gray-100 px-1">metric_name</code>,

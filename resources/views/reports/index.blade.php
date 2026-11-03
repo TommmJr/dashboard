@@ -9,7 +9,7 @@
 
 @section('content')
 <div class="mx-auto max-w-5xl px-4 py-8">
-    <h1 class="text-2xl font-bold text-gray-900">Reports</h1>
+    <h1 class="text-2xl font-bold text-primary">Reports</h1>
     <p class="mt-1 text-sm text-gray-600">Unduh laporan data dalam format Excel (.xlsx).</p>
 
     @if (session('success'))

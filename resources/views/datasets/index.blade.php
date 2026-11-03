@@ -6,7 +6,7 @@
 <div class="mx-auto max-w-7xl">
     <div class="flex items-center justify-between">
         <div class="flex items-center gap-4">
-            <h1 class="text-2xl font-bold text-gray-900">Datasets</h1>
+            <h1 class="text-2xl font-bold text-primary">Datasets</h1>
             @can('dataset.import')
                 <a href="{{ route('datasets.create') }}"
                    class="rounded bg-indigo-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-indigo-700">

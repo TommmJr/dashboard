@@ -10,7 +10,7 @@
 <div class="mx-auto max-w-7xl">
     <div class="flex items-center justify-between">
         <div>
-            <h1 class="text-2xl font-bold text-gray-900">Users</h1>
+            <h1 class="text-2xl font-bold text-primary">Users</h1>
             <p class="mt-1 text-sm text-gray-600">Daftar semua pengguna aplikasi beserta perannya.</p>
         </div>
         @can('user.create')
