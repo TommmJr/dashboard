@@ -89,7 +89,7 @@
     @endif
 
     {{-- Widget per role: satu loop generik, urutan & komposisi dari config. --}}
-    <div class="grid gap-6 lg:grid-cols-3">
+    <div class="grid gap-4 sm:gap-5 lg:grid-cols-3">
         @foreach ($widgets as $widget)
             @php
                 $widgetClass = match ((int) ($widget['cols'] ?? 3)) {
@@ -98,7 +98,7 @@
                     default => 'lg:col-span-3',
                 };
             @endphp
-            <div class="{{ $widgetClass }}">
+            <div class="{{ $widgetClass }} h-full">
                 <x-dynamic-component :component="$widget['view']" :widget="$widget" :data="$widget['data'] ?? null" />
             </div>
         @endforeach
@@ -137,7 +137,7 @@
                 }
 
                 if (this.chartPeriodCount <= 1) {
-                    return `Snapshot ${this.chartUnitCount} unit — ${this.periodLabels[0] ?? ''}`;
+                    return `Snapshot ${this.chartUnitCount} unit — ${this.periodLabels[0] ?? ''} · Tren muncul setelah 2+ bulan`;
                 }
 
                 return `Tren ${this.chartPeriodCount} periode — ${this.periodLabels[0]} s.d. ${this.periodLabels[this.periodLabels.length - 1]}`;

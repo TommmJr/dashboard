@@ -16,7 +16,7 @@
     };
 @endphp
 
-<div class="rounded-lg bg-white p-6 shadow-sm border border-slate-200">
+<div class="h-full rounded-lg bg-white p-6 shadow-sm border border-slate-200">
     <h3 class="text-lg font-bold text-primary">{{ $widget['label'] ?? 'Peringkat NKO Unit' }}</h3>
 
     @if ($rows->isEmpty())

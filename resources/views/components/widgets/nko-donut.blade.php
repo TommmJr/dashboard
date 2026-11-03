@@ -8,7 +8,7 @@
     $chartData = $data['data'] ?? [];
 @endphp
 
-<div class="rounded-lg bg-white border border-slate-200 shadow-sm p-6">
+<div class="h-full rounded-lg bg-white border border-slate-200 shadow-sm p-6">
     <h3 class="text-lg font-bold text-primary">{{ $widget['label'] ?? 'Distribusi NKO' }}</h3>
 
     @if ($period !== null)

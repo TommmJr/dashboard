@@ -1151,4 +1151,14 @@ class DashboardWidgetLayoutTest extends TestCase
         $this->assertStringContainsString('MarkLineComponent', $js);
         $this->assertStringContainsString('GaugeChart', $js);
     }
+
+    public function test_subjudul_snapshot_menyebut_tren_setelah_dua_bulan(): void
+    {
+        $management = User::factory()->withRole(Role::MANAGEMENT)->create();
+
+        $this->actingAs($management)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('Tren muncul setelah 2+ bulan');
+    }
 }
