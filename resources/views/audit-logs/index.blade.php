@@ -3,51 +3,53 @@
 @section('title', 'Audit Log')
 
 @section('content')
-<div class="mx-auto max-w-7xl px-4 py-8">
-    <h1 class="text-2xl font-bold text-primary">Audit Log</h1>
-    <p class="mt-1 text-sm text-gray-600">Riwayat perubahan data </p>
-    @if ($dataOnly ?? false)
-        <p class="mt-1 text-xs text-gray-500">
-            Menampilkan perubahan data saja (dataset &amp; baris data kinerja).
-        </p>
-    @endif
+<div class="mx-auto max-w-7xl">
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-primary">Audit Log</h1>
+            @if ($dataOnly ?? false)
+                <p class="mt-1 text-xs text-slate-500">
+                    Menampilkan perubahan data saja (dataset &amp; baris data kinerja).
+                </p>
+            @endif
+        </div>
 
-    {{-- Fitur Reports dinonaktifkan sementara (2026-09-15), tombol export
-         dihapus karena route reports.audit-export di-comment di routes/web.php. --}}
-    {{-- @can('report.export')
-        <form method="GET" action="{{ route('reports.audit-export') }}" class="mt-3 flex flex-wrap items-end gap-2 text-sm">
+        {{-- Fitur Reports dinonaktifkan sementara (2026-09-15), tombol export
+             dihapus karena route reports.audit-export di-comment di routes/web.php. --}}
+        {{-- @can('report.export')
+            <form method="GET" action="{{ route('reports.audit-export') }}" class="mt-3 flex flex-wrap items-end gap-2 text-sm">
+                <div>
+                    <label class="block text-gray-600" for="export_from">Export dari</label>
+                    <input id="export_from" type="date" name="from" value="{{ request('from') }}" class="rounded-md border-gray-300 text-sm" required>
+                </div>
+                <div>
+                    <label class="block text-gray-600" for="export_to">sampai</label>
+                    <input id="export_to" type="date" name="to" value="{{ request('to') }}" class="rounded-md border-gray-300 text-sm" required>
+                </div>
+                <button class="rounded bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700">Export Audit (.xlsx)</button>
+            </form>
+        @endcan --}}
+
+        <form id="audit-filter" method="GET" class="flex flex-wrap items-center gap-2">
             <div>
-                <label class="block text-gray-600" for="export_from">Export dari</label>
-                <input id="export_from" type="date" name="from" value="{{ request('from') }}" class="rounded-md border-gray-300 text-sm" required>
+                <label class="sr-only" for="action">Aksi</label>
+                <select id="action" name="action" class="h-9 rounded border border-slate-200 bg-white px-3 text-sm text-primary focus:border-accent focus:ring-2 focus:ring-accent/20">
+                    <option value="">Semua aksi</option>
+                    @foreach ($actions as $action)
+                        <option value="{{ $action }}" @selected(request('action') === $action)>{{ App\Services\AuditLogFormatter::actionLabel($action) }}</option>
+                    @endforeach
+                </select>
             </div>
-            <div>
-                <label class="block text-gray-600" for="export_to">sampai</label>
-                <input id="export_to" type="date" name="to" value="{{ request('to') }}" class="rounded-md border-gray-300 text-sm" required>
+            <div class="flex items-center gap-1.5">
+                <label class="sr-only" for="from">Dari</label>
+                <input id="from" type="date" name="from" value="{{ request('from') }}" title="Dari tanggal" class="h-9 rounded border border-slate-200 bg-white px-3 text-sm text-primary focus:border-accent focus:ring-2 focus:ring-accent/20">
+                <span class="text-xs text-slate-400" aria-hidden="true">-</span>
+                <label class="sr-only" for="to">Sampai</label>
+                <input id="to" type="date" name="to" value="{{ request('to') }}" title="Sampai tanggal" class="h-9 rounded border border-slate-200 bg-white px-3 text-sm text-primary focus:border-accent focus:ring-2 focus:ring-accent/20">
             </div>
-            <button class="rounded bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700">Export Audit (.xlsx)</button>
+            <button class="h-9 rounded bg-primary px-4 text-sm font-semibold text-white hover:bg-accent transition">Filter</button>
         </form>
-    @endcan --}}
-
-    <form method="GET" class="mt-4 flex flex-wrap items-end gap-3 text-sm">
-        <div>
-            <label class="block text-gray-600" for="action">Aksi</label>
-            <select id="action" name="action" class="rounded-md border-gray-300 text-sm">
-                <option value="">Semua</option>
-                @foreach ($actions as $action)
-                    <option value="{{ $action }}" @selected(request('action') === $action)>{{ App\Services\AuditLogFormatter::actionLabel($action) }}</option>
-                @endforeach
-            </select>
-        </div>
-        <div>
-            <label class="block text-gray-600" for="from">Dari</label>
-            <input id="from" type="date" name="from" value="{{ request('from') }}" class="rounded-md border-gray-300 text-sm">
-        </div>
-        <div>
-            <label class="block text-gray-600" for="to">Sampai</label>
-            <input id="to" type="date" name="to" value="{{ request('to') }}" class="rounded-md border-gray-300 text-sm">
-        </div>
-        <button class="rounded bg-primary px-3 py-2 text-sm font-semibold text-white hover:bg-accent">Filter</button>
-    </form>
+    </div>
 
     <div class="mt-6 overflow-x-auto rounded-lg bg-white shadow">
         <table class="min-w-full divide-y divide-gray-200 text-sm">

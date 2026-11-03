@@ -322,4 +322,15 @@ class AuditLogTest extends TestCase
         // Staf divisi tidak punya audit.view.
         $this->actingAs($this->staff)->get(route('audit-logs.index'))->assertForbidden();
     }
+
+    public function test_audit_log_has_compact_filter(): void
+    {
+        $admin = User::factory()->withRole(Role::ADMIN)->create();
+
+        $html = $this->actingAs($admin)->get(route('audit-logs.index'))->assertOk()->getContent();
+
+        $this->assertStringNotContainsString('Riwayat perubahan data', $html);
+        $this->assertMatchesRegularExpression('/id="audit-filter".*name="action".*name="from".*name="to"/s', $html);
+        $this->assertStringContainsString('Semua aksi', $html);
+    }
 }
