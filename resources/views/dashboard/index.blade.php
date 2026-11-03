@@ -18,6 +18,7 @@
 
 @php
     $isAdminDashboard = auth()->user()?->role?->slug === \App\Models\Role::ADMIN;
+    $isStaffDashboard = auth()->user()?->role?->slug === \App\Models\Role::STAFF_DIVISI;
     $needsPerformanceState = ! $isAdminDashboard || collect($widgets)->contains(fn (array $w): bool => in_array($w['key'] ?? '', ['kpi-summary', 'trend-chart'], true));
 @endphp
 
@@ -37,7 +38,7 @@
         </div>
     @endif
 
-    @if (! $isAdminDashboard)
+    @if (! $isAdminDashboard && ! $isStaffDashboard)
         {{-- Form GET (bukan fetch): halaman dimuat ulang sehingga widget
              SERVER-SIDE (peringkat NKO) dan CLIENT-SIDE (chart) memakai rentang
              filter yang sama. Tanpa reload, peringkat tidak akan ikut terfilter. --}}

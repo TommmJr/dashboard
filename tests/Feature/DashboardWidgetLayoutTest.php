@@ -1075,4 +1075,17 @@ class DashboardWidgetLayoutTest extends TestCase
             ->assertSee("const el = document.getElementById('performanceChart');", false)
             ->assertSee('if (!el) return;', false);
     }
+
+    public function test_staff_divisi_tidak_melihat_filter_dashboard(): void
+    {
+        $division = Division::factory()->create(['slug' => 'perencanaan-pengusahaan']);
+        $staff = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $division->id]);
+
+        $this->actingAs($staff)->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('Grafik Tren Kinerja')
+            ->assertDontSee('name="start_date"', false)
+            ->assertDontSee('name="unit[]"', false)
+            ->assertDontSee('Terapkan');
+    }
 }
