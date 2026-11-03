@@ -1144,4 +1144,11 @@ class DashboardWidgetLayoutTest extends TestCase
 
         return $payload;
     }
+
+    public function test_echarts_mark_line_component_is_registered_in_bundle(): void
+    {
+        $js = file_get_contents(resource_path('js/app.js'));
+        $this->assertStringContainsString('MarkLineComponent', $js);
+        $this->assertStringContainsString('GaugeChart', $js);
+    }
 }
