@@ -400,7 +400,7 @@
                     {{-- Viewport pratinjau ala monitor eksekutif --}}
                     <div
                         id="preview-canvas-viewport"
-                        @dragover.prevent="isDragOverCanvas = true"
+                        @dragover="autoScrollPreview($event)"
                         @dragleave="isDragOverCanvas = false"
                         @drop.prevent="isDragOverCanvas = false; onCanvasDrop(activeWidgets.length)"
                         :class="isDragOverCanvas ? 'ring-2 ring-accent bg-accent/5' : 'bg-slate-100'"
@@ -711,6 +711,37 @@
 
                     onCardDragOver(index) {
                         if (this.saving) return;
+                    },
+
+                    autoScrollPreview(event) {
+                        if (this.canvasDragIndex === null && !this.paletteDragKey) {
+                            return;
+                        }
+                        this.isDragOverCanvas = true;
+                        event.preventDefault();
+
+                        // ponytail: fixed step, add acceleration by distance if users find it slow
+                        const edge = 60;
+                        const step = 16;
+                        const viewport = document.getElementById('preview-canvas-viewport');
+                        const isScrollable = viewport && (viewport.scrollHeight > viewport.clientHeight);
+
+                        if (isScrollable) {
+                            const rect = viewport.getBoundingClientRect();
+                            const y = event.clientY;
+                            if (y - rect.top < edge) {
+                                viewport.scrollTop -= step;
+                            } else if (rect.bottom - y < edge) {
+                                viewport.scrollTop += step;
+                            }
+                        } else {
+                            const y = event.clientY;
+                            if (y < edge) {
+                                window.scrollBy(0, -step);
+                            } else if (window.innerHeight - y < edge) {
+                                window.scrollBy(0, step);
+                            }
+                        }
                     },
 
                     onCardDrop(targetIndex) {

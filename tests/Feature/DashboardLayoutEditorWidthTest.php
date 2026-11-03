@@ -202,4 +202,14 @@ class DashboardLayoutEditorWidthTest extends TestCase
             ->assertDontSee('Komponen akan dirender penuh')
             ->assertDontSee('Pratinjau Visual:');
     }
+
+    public function test_dashboard_builder_preview_auto_scrolls_during_drag(): void
+    {
+        $admin = User::factory()->withRole(Role::ADMIN)->create();
+
+        $this->actingAs($admin)->get(route('dashboard.builder'))
+            ->assertOk()
+            ->assertSee('@dragover="autoScrollPreview($event)"', false)
+            ->assertSee('autoScrollPreview(event)', false);
+    }
 }
