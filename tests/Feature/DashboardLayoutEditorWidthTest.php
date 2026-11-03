@@ -234,4 +234,17 @@ class DashboardLayoutEditorWidthTest extends TestCase
             ->assertSee('Math.min(rect.bottom, window.innerHeight)', false)
             ->assertSee("closest('.app-content')", false);
     }
+
+    public function test_dashboard_builder_supports_cursor_direction_placement_and_indicators(): void
+    {
+        $admin = User::factory()->withRole(Role::ADMIN)->create();
+
+        $this->actingAs($admin)->get(route('dashboard.builder'))
+            ->assertOk()
+            ->assertSee('getDropPlacement', false)
+            ->assertSee('dropTargetIndex', false)
+            ->assertSee('dropPlacement', false)
+            ->assertSee('onCardDragLeave', false)
+            ->assertSee('onViewportDragLeave', false);
+    }
 }

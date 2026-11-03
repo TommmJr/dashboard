@@ -227,22 +227,31 @@
                     <div
                         id="preview-canvas-viewport"
                         @dragover="autoScrollPreview($event)"
-                        @dragleave="isDragOverCanvas = false"
-                        @drop.prevent="isDragOverCanvas = false; onCanvasDrop(activeWidgets.length)"
+                        @dragleave="onViewportDragLeave($event)"
+                        @drop.prevent="isDragOverCanvas = false; onCanvasDrop($event)"
                         :class="isDragOverCanvas ? 'ring-2 ring-accent bg-accent/5' : 'bg-slate-100'"
                         class="mt-4 min-h-[260px] rounded-lg border border-slate-300 p-3 transition lg:max-h-[calc(100vh-14rem)] lg:overflow-y-auto"
                     >
                         <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
-                            <template x-for="(w, index) in activeWidgets" :key="index">
+                            <template x-for="(w, index) in activeWidgets" :key="w._uid || index">
                                 <div
-                                    @dragover.prevent="onCardDragOver(index)"
-                                    @drop.prevent.stop="onCardDrop(index)"
+                                    @dragover.prevent="onCardDragOver($event, index)"
+                                    @dragleave="onCardDragLeave($event, index)"
+                                    @drop.prevent.stop="onCardDrop($event, index)"
                                     :class="[
                                         previewSpanClass(w.cols),
-                                        canvasDragIndex === index ? 'opacity-40 border-dashed border-accent' : 'border-slate-200'
+                                        canvasDragIndex === index ? 'opacity-40 border-dashed border-accent' : 'border-slate-200',
+                                        (dropTargetIndex === index && (canvasDragIndex !== index || paletteDragKey)) ? 'ring-2 ring-accent ring-offset-1' : ''
                                     ]"
-                                    class="preview-card-item flex min-w-0 flex-col rounded-lg border bg-white p-3 shadow-sm transition hover:shadow-md"
+                                    class="preview-card-item relative flex min-w-0 flex-col rounded-lg border bg-white p-3 shadow-sm transition hover:shadow-md"
                                 >
+                                    {{-- Indikator garis posisi drop (sebelum / sesudah) --}}
+                                    <div
+                                        x-show="dropTargetIndex === index && (canvasDragIndex !== index || paletteDragKey)"
+                                        x-cloak
+                                        :class="dropPlacement === 'before' ? '-top-2 left-1 right-1 h-1.5' : '-bottom-2 left-1 right-1 h-1.5'"
+                                        class="pointer-events-none absolute z-30 rounded-full bg-accent shadow"
+                                    ></div>
                                     <div class="canvas-card-toolbar flex flex-wrap items-center justify-between gap-1.5 border-b border-slate-100 pb-2">
                                         <div class="flex min-w-0 items-center gap-1.5">
                                             <span
@@ -485,6 +494,8 @@
                     validationErrors: [],
                     dragIndex: null,
                     canvasDragIndex: null,
+                    dropTargetIndex: null,
+                    dropPlacement: 'before',
                     paletteDragKey: null,
                     isDragOverCanvas: false,
                     viewportWidth: window.innerWidth,
@@ -651,16 +662,68 @@
                     endPaletteDrag() {
                         this.paletteDragKey = null;
                         this.isDragOverCanvas = false;
+                        this.dropTargetIndex = null;
                     },
 
                     onCardDragStart(index) {
                         if (this.saving) return;
                         this.canvasDragIndex = index;
                         this.dragIndex = index;
+                        this.dropTargetIndex = null;
                     },
 
-                    onCardDragOver(index) {
+                    getDropPlacement(event, cardEl, cols = 3) {
+                        if (!cardEl) return 'after';
+                        const rect = cardEl.getBoundingClientRect();
+                        const relY = event.clientY - rect.top;
+                        const relX = event.clientX - rect.left;
+                        const height = Math.max(rect.height, 1);
+                        const width = Math.max(rect.width, 1);
+
+                        // Kartu penuh (3 kolom) atau tampilan mobile: ambang tengah vertikal
+                        if (parseInt(cols, 10) === 3 || window.innerWidth < 768) {
+                            return relY < height / 2 ? 'before' : 'after';
+                        }
+
+                        // Kartu berdampingan (1 atau 2 kolom):
+                        // Jika jelas di 35% atas -> letakkan sebelum
+                        if (relY < height * 0.35) return 'before';
+                        // Jika jelas di 35% bawah -> letakkan sesudah
+                        if (relY > height * 0.65) return 'after';
+                        // Pada area tengah: cek koordinat horizontal (kiri = sebelum, kanan = sesudah)
+                        return relX < width / 2 ? 'before' : 'after';
+                    },
+
+                    onCardDragOver(event, index) {
                         if (this.saving) return;
+                        this.autoScrollPreview(event);
+
+                        if (this.canvasDragIndex === index) {
+                            this.dropTargetIndex = null;
+                            return;
+                        }
+
+                        const cardEl = event.currentTarget;
+                        this.dropTargetIndex = index;
+                        const cols = this.activeWidgets[index]?.cols ?? 3;
+                        this.dropPlacement = this.getDropPlacement(event, cardEl, cols);
+                    },
+
+                    onCardDragLeave(event, index) {
+                        if (event.relatedTarget && event.currentTarget && event.currentTarget.contains(event.relatedTarget)) {
+                            return;
+                        }
+                        if (this.dropTargetIndex === index) {
+                            this.dropTargetIndex = null;
+                        }
+                    },
+
+                    onViewportDragLeave(event) {
+                        if (event.relatedTarget && event.currentTarget && event.currentTarget.contains(event.relatedTarget)) {
+                            return;
+                        }
+                        this.isDragOverCanvas = false;
+                        this.dropTargetIndex = null;
                     },
 
                     autoScrollPreview(event) {
@@ -707,55 +770,107 @@
                         }
                     },
 
-                    onCardDrop(targetIndex) {
+                    onCardDrop(event, targetIndex) {
                         if (this.saving) return;
-                        if (this.paletteDragKey) {
-                            this.onCanvasDrop(targetIndex);
-                            return;
-                        }
-                        if (this.canvasDragIndex === null || this.canvasDragIndex === targetIndex) {
-                            this.canvasDragIndex = null;
-                            this.dragIndex = null;
-                            return;
-                        }
-                        this.clearMessages();
-                        const copy = [...this.activeWidgets];
-                        const [moved] = copy.splice(this.canvasDragIndex, 1);
-                        copy.splice(targetIndex, 0, moved);
-                        this.activeWidgets = copy;
-                        this.canvasDragIndex = null;
-                        this.dragIndex = null;
-                    },
 
-                    onCardDragEnd() {
-                        this.canvasDragIndex = null;
-                        this.dragIndex = null;
-                    },
+                        const cardEl = event.currentTarget;
+                        const cols = this.activeWidgets[targetIndex]?.cols ?? 3;
+                        const placement = this.getDropPlacement(event, cardEl, cols);
 
-                    onCanvasDrop(index = null) {
-                        if (this.saving) return;
+                        this.dropTargetIndex = null;
+                        this.isDragOverCanvas = false;
+
                         if (this.paletteDragKey) {
                             const key = this.paletteDragKey;
                             this.paletteDragKey = null;
-                            this.isDragOverCanvas = false;
+
                             if (key !== 'custom-chart' && this.hasWidget(key)) {
                                 this.showToast(`Widget "${this.widgetLabel(key)}" sudah ada di kanvas.`, 'error');
                                 return;
                             }
                             this.clearMessages();
                             const newItem = this.normalizeItem(key);
-                            const insertIdx = (index !== null && index >= 0 && index <= this.activeWidgets.length)
-                                ? index
-                                : this.activeWidgets.length;
+                            const insertIdx = placement === 'before' ? targetIndex : targetIndex + 1;
                             this.activeWidgets.splice(insertIdx, 0, newItem);
                             this.showToast(`Widget "${this.widgetLabel(key)}" berhasil ditambahkan ke kanvas.`, 'success');
+                            this.$nextTick(() => {
+                                this.resizePreviewCharts();
+                            });
                             return;
                         }
+
+                        const fromIndex = this.canvasDragIndex;
+                        this.canvasDragIndex = null;
+                        this.dragIndex = null;
+
+                        if (fromIndex === null || fromIndex === targetIndex) {
+                            return;
+                        }
+
+                        this.clearMessages();
+                        const copy = [...this.activeWidgets];
+                        const [moved] = copy.splice(fromIndex, 1);
+
+                        let insertIndex;
+                        if (fromIndex < targetIndex) {
+                            insertIndex = placement === 'before' ? targetIndex - 1 : targetIndex;
+                        } else {
+                            insertIndex = placement === 'before' ? targetIndex : targetIndex + 1;
+                        }
+
+                        insertIndex = Math.max(0, Math.min(insertIndex, copy.length));
+                        copy.splice(insertIndex, 0, moved);
+                        this.activeWidgets = copy;
+
+                        this.$nextTick(() => {
+                            this.resizePreviewCharts();
+                        });
+                    },
+
+                    onCardDragEnd() {
+                        this.canvasDragIndex = null;
+                        this.dragIndex = null;
+                        this.dropTargetIndex = null;
+                        this.isDragOverCanvas = false;
+                    },
+
+                    onCanvasDrop(event) {
+                        if (this.saving) return;
+                        this.isDragOverCanvas = false;
+                        this.dropTargetIndex = null;
+
+                        if (this.paletteDragKey) {
+                            const key = this.paletteDragKey;
+                            this.paletteDragKey = null;
+                            if (key !== 'custom-chart' && this.hasWidget(key)) {
+                                this.showToast(`Widget "${this.widgetLabel(key)}" sudah ada di kanvas.`, 'error');
+                                return;
+                            }
+                            this.clearMessages();
+                            const newItem = this.normalizeItem(key);
+                            this.activeWidgets.push(newItem);
+                            this.showToast(`Widget "${this.widgetLabel(key)}" berhasil ditambahkan ke kanvas.`, 'success');
+                            this.$nextTick(() => {
+                                this.resizePreviewCharts();
+                            });
+                            return;
+                        }
+
                         if (this.canvasDragIndex !== null) {
-                            const targetIdx = (index !== null && index >= 0 && index <= this.activeWidgets.length)
-                                ? Math.min(index, this.activeWidgets.length - 1)
-                                : this.activeWidgets.length - 1;
-                            this.onCardDrop(targetIdx);
+                            const fromIndex = this.canvasDragIndex;
+                            this.canvasDragIndex = null;
+                            this.dragIndex = null;
+
+                            if (fromIndex < this.activeWidgets.length - 1) {
+                                this.clearMessages();
+                                const copy = [...this.activeWidgets];
+                                const [moved] = copy.splice(fromIndex, 1);
+                                copy.push(moved);
+                                this.activeWidgets = copy;
+                                this.$nextTick(() => {
+                                    this.resizePreviewCharts();
+                                });
+                            }
                         }
                     },
 
