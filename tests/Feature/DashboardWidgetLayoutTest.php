@@ -161,14 +161,12 @@ class DashboardWidgetLayoutTest extends TestCase
         $this->assertNotContains('aset-upt-chart', $catalogKeys);
         $this->assertNotContains('target-vs-realisasi', $catalogKeys);
 
-        $targetsByKey = collect($payload['targets'] ?? [])->keyBy('layout_key');
-        $this->assertTrue($targetsByKey->has('editor_dashboard'));
-        $this->assertTrue($targetsByKey->has('management'));
-        $this->assertTrue($targetsByKey->has('admin'));
-        $this->assertTrue($targetsByKey->has('staff_divisi'));
-        $this->assertTrue($targetsByKey->has('staff_divisi:perencanaan-pengusahaan'));
-        $this->assertSame($division->id, $targetsByKey->get('staff_divisi:perencanaan-pengusahaan')['division_id']);
-        $this->assertFalse($targetsByKey->get('staff_divisi:perencanaan-pengusahaan')['is_customized']);
+        $this->assertSame(
+            ['admin', 'staff_divisi:perencanaan-pengusahaan'],
+            array_column($payload['targets'] ?? [], 'layout_key'),
+        ); // that test only creates the pengusahaan division -> manset target skipped
+        $this->assertSame($division->id, $payload['targets'][1]['division_id']);
+        $this->assertFalse($payload['targets'][1]['is_customized']);
     }
 
     public function test_staff_divisi_non_pengusahaan_melihat_status_dataset_saja(): void
@@ -1097,5 +1095,53 @@ class DashboardWidgetLayoutTest extends TestCase
             ->assertDontSee('name="start_date"', false)
             ->assertDontSee('name="unit[]"', false)
             ->assertDontSee('Terapkan');
+    }
+
+    public function test_builder_hanya_tiga_target_dan_simpan_sampai_ke_staf_divisi(): void
+    {
+        $pengusahaan = Division::factory()->create(['slug' => 'perencanaan-pengusahaan']);
+        $manset = Division::factory()->create(['slug' => 'managemen-aset']);
+        Division::factory()->create(['slug' => 'perencanaan-aset']);
+        $admin = User::factory()->withRole(Role::ADMIN)->create();
+        $editor = User::factory()->withRole(Role::EDITOR_DASHBOARD)->create();
+        $stafManset = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $manset->id]);
+
+        // Existing generic row must not hijack the manset dashboard after a manset save.
+        DashboardLayout::create(['role_slug' => Role::STAFF_DIVISI, 'division_id' => null, 'widgets' => ['nko-donut']]);
+
+        $payload = $this->builderPayload($admin);
+        $this->assertSame(
+            ['admin', 'staff_divisi:perencanaan-pengusahaan', 'staff_divisi:managemen-aset'],
+            array_column($payload['targets'], 'layout_key'),
+        );
+        $this->assertContains('trend-chart', $payload['targets'][1]['active_widgets']); // config, not DB generic
+        $this->assertContains($this->builderPayload($editor)['initial_target_key'], array_column($payload['targets'], 'layout_key'));
+
+        $this->actingAs($admin)->putJson(route('dashboard.layout.update'), [
+            'role_slug' => Role::STAFF_DIVISI,
+            'division_id' => $manset->id,
+            'layout_key' => 'staff_divisi:managemen-aset',
+            'widgets' => ['dataset-status'],
+        ])->assertOk();
+
+        $this->actingAs($stafManset)->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('Status Dataset')
+            ->assertDontSee('Distribusi NKO');
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function builderPayload(User $user): array
+    {
+        $response = $this->actingAs($user)->get(route('dashboard.builder'))->assertOk();
+        preg_match("/dashboardLayoutBuilder\('([^']+)'\)/", (string) $response->getContent(), $matches);
+        $this->assertNotEmpty($matches[1] ?? '');
+
+        $payload = json_decode((string) base64_decode($matches[1], true), true);
+        $this->assertIsArray($payload);
+
+        return $payload;
     }
 }

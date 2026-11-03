@@ -1741,20 +1741,27 @@ class DashboardController extends Controller
         }
 
         $targetDefinitions = [
-            ['role_slug' => Role::EDITOR_DASHBOARD, 'division_id' => null, 'division_slug' => null, 'label' => 'Editor Dashboard'],
-            ['role_slug' => Role::MANAGEMENT, 'division_id' => null, 'division_slug' => null, 'label' => 'Management'],
             ['role_slug' => Role::ADMIN, 'division_id' => null, 'division_slug' => null, 'label' => 'Admin'],
-            ['role_slug' => Role::STAFF_DIVISI, 'division_id' => null, 'division_slug' => null, 'label' => 'Staf Divisi (Default)'],
         ];
 
-        $divisions = Division::query()->orderBy('name')->get(['id', 'name', 'slug']);
-        foreach ($divisions as $division) {
-            if (DashboardLayout::isValidDivisionSlug($division->slug)) {
+        $targetDivisions = [
+            'perencanaan-pengusahaan' => 'Staf Perencanaan Pengusahaan',
+            'managemen-aset' => 'Staf Managemen Aset',
+        ];
+
+        $divisionsBySlug = Division::query()
+            ->whereIn('slug', array_keys($targetDivisions))
+            ->get(['id', 'name', 'slug'])
+            ->keyBy('slug');
+
+        foreach ($targetDivisions as $slug => $label) {
+            $division = $divisionsBySlug->get($slug);
+            if ($division && DashboardLayout::isValidDivisionSlug($division->slug)) {
                 $targetDefinitions[] = [
                     'role_slug' => Role::STAFF_DIVISI,
                     'division_id' => (int) $division->id,
                     'division_slug' => $division->slug,
-                    'label' => 'Staf Divisi - '.$division->name,
+                    'label' => $label,
                 ];
             }
         }
@@ -1798,10 +1805,15 @@ class DashboardController extends Controller
             ? DashboardLayout::keyFor($userRoleSlug, $userDivisionSlug)
             : Role::EDITOR_DASHBOARD;
 
+        $targetKeys = array_column($targets, 'layout_key');
+        $initialTargetKey = in_array($currentUserLayoutKey, $targetKeys, true)
+            ? $currentUserLayoutKey
+            : ($targetKeys[0] ?? Role::ADMIN);
+
         return [
             'catalog' => $catalog,
             'targets' => $targets,
-            'initial_target_key' => $currentUserLayoutKey,
+            'initial_target_key' => $initialTargetKey,
             'current_user_layout_key' => $currentUserLayoutKey,
         ];
     }
