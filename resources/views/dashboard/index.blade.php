@@ -25,32 +25,36 @@
 @section('content')
 <div class="mx-auto max-w-7xl" @if ($needsPerformanceState) x-data="performanceDashboard(@js($filters ?? []))" x-init="load()" @endif>
     @if ($isStaffDashboard)
-        <div id="dashboard-header" class="mb-6 flex flex-col gap-4 rounded-xl border border-slate-200 bg-white p-5 shadow-xs sm:flex-row sm:items-center sm:justify-between">
-            <div class="flex items-start gap-3.5">
-                <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-teal-100 bg-teal-50 text-teal-700">
-                    <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M3 21h18M3 7v14M21 7v14M9 3h6v4H9zM9 11h2M13 11h2M9 15h2M13 15h2" stroke-linecap="round" stroke-linejoin="round"/>
+        <div id="dashboard-header" class="mb-6 flex flex-col gap-4 rounded-xl border border-slate-200/80 bg-white p-5 shadow-[0_1px_3px_0_rgba(0,0,0,0.04)] sm:flex-row sm:items-center sm:justify-between">
+            <div class="flex items-center gap-4">
+                <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-teal-500/20 bg-teal-50 text-primary shadow-xs">
+                    <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <path d="M3 3v18h18" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="m19 9-5 5-4-4-3 3" stroke-linecap="round" stroke-linejoin="round"/>
                     </svg>
                 </div>
-                <div>
-                    <div class="flex flex-wrap items-center gap-2">
-                        <h1 class="text-xl font-bold text-primary">Dashboard Kinerja Divisi</h1>
-                        <span class="inline-flex items-center rounded-full border border-teal-200 bg-teal-50 px-2.5 py-0.5 text-xs font-semibold text-teal-800">
+                <div class="min-w-0">
+                    <div class="flex flex-wrap items-center gap-2.5">
+                        <h1 class="text-xl font-bold tracking-tight text-primary">Dashboard Kinerja Divisi</h1>
+                        <span class="inline-flex items-center rounded-md border border-teal-200/80 bg-teal-50 px-2.5 py-0.5 text-xs font-semibold text-teal-800">
                             {{ auth()->user()?->division?->name ?? 'Divisi' }}
                         </span>
                     </div>
-                    <div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
-                        <span>Cakupan Unit: <strong class="font-semibold text-slate-700">TJBT</strong></span>
-                        <span class="text-slate-300">&bull;</span>
+                    <div class="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-slate-500">
+                        <span class="inline-flex items-center gap-1">
+                            <span>Cakupan Unit:</span>
+                            <strong class="font-semibold text-slate-800">TJBT</strong>
+                        </span>
+                        <span class="text-slate-300" aria-hidden="true">&bull;</span>
                         <span>Ruang Kerja Operasional Data KPI</span>
                     </div>
                 </div>
             </div>
 
             @can('dataset.import')
-                <div class="flex shrink-0 items-center gap-2">
-                    <a href="{{ route('datasets.create') }}" class="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3.5 py-2 text-xs font-semibold text-white shadow-xs transition hover:bg-primary">
-                        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <div class="flex shrink-0 items-center">
+                    <a href="{{ route('datasets.create') }}" class="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-xs font-semibold text-white shadow-xs transition hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2">
+                        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                             <path d="M12 5v14M5 12h14" stroke-linecap="round" stroke-linejoin="round"/>
                         </svg>
                         Unggah Dataset
@@ -176,10 +180,15 @@
         @foreach ($widgets as $widget)
             @php
                 $isSingleStaffWidget = $isStaffDashboard && count($widgets) === 1 && ($widget['key'] ?? '') === 'dataset-status';
-                $widgetClass = $isSingleStaffWidget ? 'lg:col-span-1' : match ((int) ($widget['cols'] ?? 3)) {
-                    1 => 'lg:col-span-1',
-                    2 => 'lg:col-span-2',
-                    default => 'lg:col-span-3',
+                $widgetClass = match (true) {
+                    $isSingleStaffWidget => 'lg:col-span-1',
+                    $isStaffDashboard && ($widget['key'] ?? '') === 'nko-ranking' => 'lg:col-span-2',
+                    $isStaffDashboard && ($widget['key'] ?? '') === 'dataset-status' => 'lg:col-span-1',
+                    default => match ((int) ($widget['cols'] ?? 3)) {
+                        1 => 'lg:col-span-1',
+                        2 => 'lg:col-span-2',
+                        default => 'lg:col-span-3',
+                    },
                 };
             @endphp
             <div class="{{ $widgetClass }} h-full">
