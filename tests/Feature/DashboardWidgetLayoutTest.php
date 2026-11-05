@@ -1203,4 +1203,27 @@ class DashboardWidgetLayoutTest extends TestCase
             ->assertSee('Dataset Terverifikasi')
             ->assertSee('Parameter Pantau');
     }
+
+    public function test_dataset_status_menampilkan_tautan_dan_kartu_kesehatan_operasional(): void
+    {
+        $division = Division::factory()->create();
+        $dataset = Dataset::factory()->create(['status' => Dataset::STATUS_READY, 'division_id' => $division->id]);
+        PerformanceMetric::factory()->create([
+            'dataset_id' => $dataset->id,
+            'division_id' => $division->id,
+            'metric_name' => 'TJBT | Indikator A | target',
+            'value' => 100,
+            'period' => '2026-08-31',
+        ]);
+
+        $staff = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $division->id]);
+
+        $this->actingAs($staff)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('Status Dataset')
+            ->assertSee('Dataset READY (Divisi)')
+            ->assertSee('Baris Data Aktif (TJBT)')
+            ->assertSee('Kelola Dataset');
+    }
 }
