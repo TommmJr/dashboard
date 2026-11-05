@@ -588,10 +588,10 @@ class StructuredKpiDualWriteTest extends TestCase
     }
 
     // ------------------------------------------------------------------
-    // Isolasi kegagalan: legacy tidak boleh ikut gagal
+    // Integritas kegagalan: structured failure menggagalkan dataset & membersihkan legacy
     // ------------------------------------------------------------------
 
-    public function test_kegagalan_tulis_terstruktur_tidak_membatalkan_legacy(): void
+    public function test_kegagalan_tulis_terstruktur_menggagalkan_dataset_dan_membersihkan_legacy(): void
     {
         $this->mock(StructuredKpiImporter::class, function ($mock): void {
             $mock->shouldReceive('import')->andThrow(new RuntimeException('gagal disengaja'));
@@ -601,9 +601,10 @@ class StructuredKpiDualWriteTest extends TestCase
 
         $dataset = Dataset::sole();
 
-        // Legacy tetap READY dan berisi, tabel terstruktur kosong.
-        $this->assertSame(Dataset::STATUS_READY, $dataset->status->value);
-        $this->assertGreaterThan(0, PerformanceMetric::where('dataset_id', $dataset->id)->count());
+        // Kontrak integritas baru: status FAILED, metrik legacy dibersihkan (0 baris),
+        // tabel terstruktur kosong, dan kegagalan dicatat pada session.
+        $this->assertSame(Dataset::STATUS_FAILED, $dataset->status->value);
+        $this->assertSame(0, PerformanceMetric::where('dataset_id', $dataset->id)->count());
         $this->assertSame(0, Indicator::count());
         $this->assertSame(0, PerformanceObservation::count());
 

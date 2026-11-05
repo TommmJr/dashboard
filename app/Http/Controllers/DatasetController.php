@@ -267,11 +267,6 @@ class DatasetController extends Controller
 
                         if (($structuredCounts['observations'] ?? 0) > 0) {
                             $structuredSuccess = true;
-                            $imported[] = "{$owner->name}: {$result['imported']} baris".sprintf(
-                                ' (+%d indikator, %d observasi terstruktur)',
-                                $structuredCounts['indicators'],
-                                $structuredCounts['observations'],
-                            );
                         } else {
                             $failed[] = $owner->name.': tidak ada observasi terstruktur yang dihasilkan dari file.';
                         }
@@ -299,14 +294,44 @@ class DatasetController extends Controller
                             ->where('status', Dataset::STATUS_READY)
                             ->whereKeyNot($dataset->id)
                             ->whereHas('metrics', fn ($query) => $query->where('period', $period))
+                            ->orderBy('id')
                             ->get();
 
+                        $archivalSuccess = true;
+
                         if ($superseded->isNotEmpty()) {
-                            DB::transaction(function () use ($superseded) {
-                                foreach ($superseded as $previous) {
-                                    $previous->update(['status' => Dataset::STATUS_ARCHIVED]);
-                                }
-                            });
+                            try {
+                                DB::transaction(function () use ($superseded) {
+                                    foreach ($superseded as $previous) {
+                                        $previous->update(['status' => Dataset::STATUS_ARCHIVED]);
+                                    }
+                                });
+                            } catch (Throwable $e) {
+                                $archivalSuccess = false;
+                                Log::warning('Pengarsipan dataset lama gagal; kompensasi membatalkan dataset baru ke FAILED', [
+                                    'user_id' => $user->id,
+                                    'dataset_id' => $dataset->id,
+                                    'error' => $e->getMessage(),
+                                ]);
+
+                                $dataset->observations()->delete();
+                                $dataset->metrics()->delete();
+                                $dataset->update([
+                                    'status' => DatasetStatus::FAILED,
+                                    'error_message' => 'Gagal mengarsipkan dataset sebelumnya: '.$e->getMessage(),
+                                ]);
+
+                                $failed[] = $owner->name.': gagal mengarsipkan dataset lama — '.$e->getMessage();
+                                $superseded = collect();
+                            }
+                        }
+
+                        if ($archivalSuccess) {
+                            $imported[] = "{$owner->name}: {$result['imported']} baris".sprintf(
+                                ' (+%d indikator, %d observasi terstruktur)',
+                                $structuredCounts['indicators'],
+                                $structuredCounts['observations'],
+                            );
                         }
                     }
                 }

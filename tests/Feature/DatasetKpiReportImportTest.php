@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\DatasetStatus;
 use App\Models\Dataset;
 use App\Models\Division;
 use App\Models\Indicator;
@@ -67,7 +68,7 @@ class DatasetKpiReportImportTest extends TestCase
         $this->assertSame(1, Dataset::count());
     }
 
-    public function test_satu_sheet_korup_tidak_menghentikan_sheet_lain(): void
+    public function test_satu_sheet_korup_membatalkan_seluruh_import_dan_dataset_failed(): void
     {
         $admin = User::factory()->withRole(Role::ADMIN)->create(['division_id' => null]);
 
@@ -78,17 +79,16 @@ class DatasetKpiReportImportTest extends TestCase
 
         $response->assertRedirect(route('datasets.create'));
         $this->assertSame(1, Dataset::count());
-        // Legacy tetap baris-demi-baris: sheet RUSAK dilewati, 7 baris sisanya
-        // masuk seperti sebelum dual-write.
-        $this->assertSame(7, Dataset::sole()->metrics()->count());
+        $dataset = Dataset::sole();
+
+        // Kontrak integritas baru: sisi terstruktur ALL-OR-NOTHING. Jika ada sheet
+        // dengan layout tak dikenali, structured import gagal total, dataset baru
+        // dikompensasi menjadi FAILED, dan metrik legacy dibersihkan agar tidak
+        // menjadi ghost dataset dengan 0 observasi terstruktur.
+        $this->assertSame(Dataset::STATUS_FAILED, $dataset->status->value);
+        $this->assertSame(0, $dataset->metrics()->count());
         $this->assertStringContainsString('RUSAK', session('kpi_failed')[0]);
 
-        // Sisi terstruktur ALL-OR-NOTHING. extractStructured() milik Unit 4A
-        // sengaja gagal keras saat layout sheet tak dikenali (lebih baik gagal
-        // terang daripada menulis sebagian), jadi satu sheet korup membatalkan
-        // seluruh penulisan terstruktur — termasuk baris dari sheet yang sehat.
-        // Yang penting: data legacy tidak ikut hilang, dan kegagalannya
-        // dilaporkan ke pengguna, bukan ditelan senyap.
         $this->assertSame(0, Indicator::count());
         $this->assertSame(0, PerformanceObservation::count());
 
@@ -97,6 +97,8 @@ class DatasetKpiReportImportTest extends TestCase
             'penulisan tabel terstruktur gagal',
             implode(' | ', session('kpi_failed')),
         );
+        $response->assertSessionHas('error');
+        $response->assertSessionMissing('success');
     }
 
     public function test_file_korup_ditolak_dengan_pesan_awam(): void
@@ -456,6 +458,108 @@ class DatasetKpiReportImportTest extends TestCase
         $response->assertSessionMissing('success');
         $response->assertSessionHas('error', fn ($msg) => str_contains($msg, 'Gagal mengimpor') || str_contains($msg, 'tidak dapat diproses'));
         $response->assertSessionHas('kpi_failed', fn ($items) => count($items) > 0);
+    }
+
+    public function test_kegagalan_saat_archive_menggagalkan_seluruh_arsip_secara_atomis(): void
+    {
+        $owner = Division::where('slug', 'perencanaan-pengusahaan')->sole();
+        $admin = User::factory()->withRole(Role::ADMIN)->create(['division_id' => null]);
+        $period = '2026-08-31';
+
+        // Buat 2 dataset terdahulu berstatus READY
+        $prev1 = Dataset::factory()->create([
+            'division_id' => $owner->id,
+            'status' => Dataset::STATUS_READY,
+        ]);
+        PerformanceMetric::factory()->create(['dataset_id' => $prev1->id, 'period' => $period]);
+
+        $prev2 = Dataset::factory()->create([
+            'division_id' => $owner->id,
+            'status' => Dataset::STATUS_READY,
+        ]);
+        PerformanceMetric::factory()->create(['dataset_id' => $prev2->id, 'period' => $period]);
+
+        // Simulasikan error saat update record kedua di dalam transaction
+        try {
+            Dataset::updating(function ($dataset) use ($prev2) {
+                if ($dataset->id === $prev2->id && ($dataset->status === DatasetStatus::ARCHIVED || $dataset->status?->value === Dataset::STATUS_ARCHIVED)) {
+                    throw new \RuntimeException('Simulasi database error saat archive');
+                }
+            });
+
+            $response = $this->actingAs($admin)->post(route('datasets.kpi-import'), [
+                'file' => $this->makeKpiReport(),
+                'period' => $period,
+                'confirm_archive' => 1,
+            ]);
+
+            $response->assertRedirect(route('datasets.create'));
+            $response->assertSessionHas('error');
+            $response->assertSessionMissing('success');
+
+            // 1. Pastikan prev1 dan prev2 tetap READY karena rollback atomis
+            $this->assertSame(Dataset::STATUS_READY, $prev1->fresh()->status->value);
+            $this->assertSame(Dataset::STATUS_READY, $prev2->fresh()->status->value);
+
+            // 2. Pastikan dataset baru dikompensasi menjadi FAILED dan metrik/observasinya bersih
+            $newDataset = Dataset::whereNotIn('id', [$prev1->id, $prev2->id])->sole();
+            $this->assertSame(Dataset::STATUS_FAILED, $newDataset->status->value);
+            $this->assertSame(0, $newDataset->metrics()->count());
+            $this->assertSame(0, $newDataset->observations()->count());
+            $this->assertStringContainsString('Gagal mengarsipkan dataset sebelumnya', (string) $newDataset->error_message);
+
+            // 3. Pastikan jumlah dataset READY pada divisi dan periode tersebut tidak bertambah
+            $readyCount = Dataset::where('division_id', $owner->id)
+                ->where('status', Dataset::STATUS_READY)
+                ->whereHas('metrics', fn ($q) => $q->where('period', $period))
+                ->count();
+            $this->assertSame(2, $readyCount);
+        } finally {
+            Dataset::getEventDispatcher()->forget('eloquent.updating: '.Dataset::class);
+        }
+    }
+
+    public function test_dashboard_tetap_menampilkan_data_lama_ketika_revisi_gagal_structured(): void
+    {
+        config(['kpi.read_model' => 'structured']);
+        config(['kpi.visible_units' => ['TJBT']]);
+
+        $owner = Division::where('slug', 'perencanaan-pengusahaan')->sole();
+        $admin = User::factory()->withRole(Role::ADMIN)->create(['division_id' => null]);
+        $period = '2026-08-31';
+
+        // 1. Import awal yang sukses
+        $this->actingAs($admin)->post(route('datasets.kpi-import'), [
+            'file' => $this->makeKpiReport(),
+            'period' => $period,
+        ]);
+
+        // Verifikasi endpoint performance data mengembalikan NKO awal (105.5) dan dashboard render OK
+        $this->actingAs($admin)->get(route('dashboard'))->assertOk();
+        $responseBefore = $this->actingAs($admin)->getJson(route('performance.data'));
+        $responseBefore->assertOk();
+        $this->assertEquals([105.5], $responseBefore->json('series.0.data'));
+
+        // 2. Import revisi yang gagal pada structured importer
+        $this->mock(StructuredKpiImporter::class, function ($mock): void {
+            $mock->shouldReceive('import')->andThrow(new \RuntimeException('Layout sheet korup'));
+        });
+
+        $this->actingAs($admin)->post(route('datasets.kpi-import'), [
+            'file' => $this->makeKpiReport(),
+            'period' => $period,
+            'confirm_archive' => 1,
+        ]);
+
+        // 3. Verifikasi dashboard TETAP mengembalikan NKO awal (105.5) dan TIDAK kosong
+        $this->actingAs($admin)->get(route('dashboard'))->assertOk();
+        $responseAfter = $this->actingAs($admin)->getJson(route('performance.data'));
+        $responseAfter->assertOk();
+        $this->assertEquals(
+            [105.5],
+            $responseAfter->json('series.0.data'),
+            'Dashboard harus tetap menyajikan data valid dataset terdahulu setelah revisi gagal.',
+        );
     }
 
     private function makeKpiReport(bool $withBrokenSheet = false): UploadedFile
