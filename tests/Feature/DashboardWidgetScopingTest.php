@@ -73,6 +73,31 @@ class DashboardWidgetScopingTest extends TestCase
         }
     }
 
+    public function test_recent_audit_widget_excludes_internal_kpi_noise_for_admin(): void
+    {
+        config(['dashboard_layouts.layouts.admin' => ['recent-audit']]);
+
+        $admin = User::factory()->withRole(Role::ADMIN)->create();
+
+        AuditLog::record(AuditLog::ACTION_LOGIN, null, null, null, $admin->id);
+
+        AuditLog::create([
+            'user_id' => $admin->id,
+            'action' => AuditLog::ACTION_CREATE,
+            'auditable_type' => 'App\\Models\\PerformanceObservation',
+            'auditable_id' => 999,
+            'new_values' => ['value' => 100],
+        ]);
+
+        $response = $this->actingAs($admin)
+            ->get(route('dashboard'))
+            ->assertOk();
+
+        $response->assertSee('Audit Terbaru');
+        $response->assertSee('Aktivitas akun');
+        $response->assertDontSee('Observasi kinerja terstruktur #999');
+    }
+
     public function test_recent_audit_widget_restricts_editor_to_dataset_and_metric_changes(): void
     {
         config(['dashboard_layouts.layouts.editor_dashboard' => ['recent-audit']]);

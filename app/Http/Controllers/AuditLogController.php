@@ -35,6 +35,7 @@ class AuditLogController extends Controller
 
         $logs = AuditLog::query()
             ->with('user:id,name')
+            ->cleanAuditTrail()
             ->when($dataOnly, fn ($q) => $q->whereIn('auditable_type', [
                 (new Dataset)->getMorphClass(),
                 (new PerformanceMetric)->getMorphClass(),

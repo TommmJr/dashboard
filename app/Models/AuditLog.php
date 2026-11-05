@@ -44,6 +44,18 @@ class AuditLog extends Model
 
     public const ACTION_IMPORT = 'IMPORT';
 
+    /**
+     * Tipe auditable internal pipeline yang dikecualikan dari reader audit log utama
+     * demi mencegah polusi log massal.
+     *
+     * @var list<string>
+     */
+    public const EXCLUDED_AUDITABLE_TYPES = [
+        'App\\Models\\PerformanceObservation',
+        'App\\Models\\Indicator',
+        'App\\Models\\OrgUnit',
+    ];
+
     protected $casts = [
         'old_values' => 'array',
         'new_values' => 'array',
@@ -58,6 +70,18 @@ class AuditLog extends Model
     public function auditable(): MorphTo
     {
         return $this->morphTo();
+    }
+
+    /**
+     * Scope query untuk mengecualikan entri granular terstruktur historis
+     * dengan tetap mempertahankan baris ber-auditable_type NULL (seperti LOGIN/LOGOUT).
+     */
+    public function scopeCleanAuditTrail($query)
+    {
+        return $query->where(function ($q) {
+            $q->whereNull('auditable_type')
+                ->orWhereNotIn('auditable_type', self::EXCLUDED_AUDITABLE_TYPES);
+        });
     }
 
     /**

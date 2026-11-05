@@ -184,4 +184,48 @@ class AuditLogScopingTest extends TestCase
         $logs = $response->viewData('logs');
         $this->assertCount(1, $logs->items());
     }
+
+    public function test_reader_mengecualikan_entri_audit_noise_terstruktur_tetapi_mempertahankan_login(): void
+    {
+        $admin = User::factory()->withRole(Role::ADMIN)->create();
+
+        // Entri login (auditable_type = null)
+        $login = AuditLog::record(AuditLog::ACTION_LOGIN, null, null, null, $admin->id);
+
+        // Entri noise terstruktur historis
+        AuditLog::create([
+            'user_id' => $admin->id,
+            'action' => AuditLog::ACTION_CREATE,
+            'auditable_type' => 'App\\Models\\PerformanceObservation',
+            'auditable_id' => 999,
+            'new_values' => ['value' => 100],
+        ]);
+        AuditLog::create([
+            'user_id' => $admin->id,
+            'action' => AuditLog::ACTION_CREATE,
+            'auditable_type' => 'App\\Models\\Indicator',
+            'auditable_id' => 888,
+            'new_values' => ['name' => 'Test Indicator'],
+        ]);
+        AuditLog::create([
+            'user_id' => $admin->id,
+            'action' => AuditLog::ACTION_CREATE,
+            'auditable_type' => 'App\\Models\\OrgUnit',
+            'auditable_id' => 777,
+            'new_values' => ['name' => 'TJBT'],
+        ]);
+
+        $response = $this->actingAs($admin)
+            ->get(route('audit-logs.index'))
+            ->assertOk();
+
+        // Login log tetap terlihat
+        $response->assertSee('Aktivitas akun');
+        $response->assertSee('Masuk');
+
+        // Noise internal terstruktur tidak tampil
+        $response->assertDontSee('Observasi kinerja terstruktur #999');
+        $response->assertDontSee('Indikator kinerja #888');
+        $response->assertDontSee('Unit organisasi #777');
+    }
 }

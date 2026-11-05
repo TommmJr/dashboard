@@ -293,6 +293,7 @@ class DashboardController extends Controller
 
         return AuditLog::query()
             ->with('user:id,name')
+            ->cleanAuditTrail()
             ->when($dataOnly, fn ($query) => $query->whereIn('auditable_type', [
                 (new Dataset)->getMorphClass(),
                 (new PerformanceMetric)->getMorphClass(),
