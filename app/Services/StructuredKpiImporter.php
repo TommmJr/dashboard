@@ -6,6 +6,7 @@ use App\Models\Dataset;
 use App\Models\Indicator;
 use App\Models\OrgUnit;
 use App\Models\PerformanceObservation;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
@@ -120,6 +121,16 @@ class StructuredKpiImporter
             $indicatorByRow = [];
             $units = [];
 
+            // Pre-fetch periode observasi READY maksimum per indicator_id
+            // untuk melindungi metadata dari penimpaan mundur (chronological guard).
+            $maxReadyPeriods = $this->maxReadyPeriods($dataset);
+
+            // Pre-fetch seluruh indikator eksisting ke memori untuk lookup O(1) bebas N+1 query.
+            /** @var Collection<string, Indicator> $existingIndicators */
+            $existingIndicators = Indicator::all()->keyBy(
+                fn (Indicator $i): string => $i->org_unit_id."\0".$i->name
+            );
+
             foreach ($rows as $row) {
                 $unitName = $row['org_unit'];
                 $label = trim((string) $row['label']);
@@ -160,29 +171,47 @@ class StructuredKpiImporter
                 // dan metadata indikator lain dikosongkan. F40/F21=100 di
                 // workbook adalah konstanta skala NKO, jadi bobot WAJIB null
                 // (tidak boleh terbaca sebagai bobot indikator).
-                $indicator = Indicator::updateOrCreate(
-                    ['org_unit_id' => $orgUnitId, 'name' => $identity['name']],
-                    [
-                        'parent_id' => $isNko ? null : $parentId,
-                        'aggregation_code' => $isNko ? null : $row['aggregation_code'],
-                        'polarity' => $isNko ? null : $row['polarity'],
-                        'formula' => $isNko ? null : $row['formula'],
-                        'satuan' => $isNko ? null : $row['satuan'],
-                        // Normalisasi satuan masih blocker bisnis (blm ada
-                        // daftar otoritatif) -> dibiarkan null, bukan dikarang.
-                        'satuan_normalized' => null,
-                        'bobot' => $isNko ? null : $row['bobot'],
-                        'bobot_value' => $isNko ? null : $row['bobot_value'],
-                        'bobot_min' => $isNko ? null : $row['bobot_min'],
-                        'bobot_max' => $isNko ? null : $row['bobot_max'],
-                        'is_group' => $isNko ? false : $row['is_group'],
-                        'pencapaian_formula_kind' => $isNko ? null : $row['pencapaian_formula_kind'],
-                        'category' => $identity['category'],
-                    ],
-                );
+                $indicatorAttributes = [
+                    'parent_id' => $isNko ? null : $parentId,
+                    'aggregation_code' => $isNko ? null : $row['aggregation_code'],
+                    'polarity' => $isNko ? null : $row['polarity'],
+                    'formula' => $isNko ? null : $row['formula'],
+                    'satuan' => $isNko ? null : $row['satuan'],
+                    // Normalisasi satuan masih blocker bisnis (blm ada
+                    // daftar otoritatif) -> dibiarkan null, bukan dikarang.
+                    'satuan_normalized' => null,
+                    'bobot' => $isNko ? null : $row['bobot'],
+                    'bobot_value' => $isNko ? null : $row['bobot_value'],
+                    'bobot_min' => $isNko ? null : $row['bobot_min'],
+                    'bobot_max' => $isNko ? null : $row['bobot_max'],
+                    'is_group' => $isNko ? false : $row['is_group'],
+                    'pencapaian_formula_kind' => $isNko ? null : $row['pencapaian_formula_kind'],
+                    'category' => $identity['category'],
+                ];
 
-                if ($indicator->wasRecentlyCreated) {
+                $lookupKey = $orgUnitId."\0".$identity['name'];
+                $indicator = $existingIndicators->get($lookupKey);
+
+                if ($indicator === null) {
+                    $indicator = Indicator::create([
+                        'org_unit_id' => $orgUnitId,
+                        'name' => $identity['name'],
+                        ...$indicatorAttributes,
+                    ]);
+
                     $counts['indicators']++;
+                    $existingIndicators->put($lookupKey, $indicator);
+                } else {
+                    // Chronological Guard: hanya perbarui metadata jika periode dataset
+                    // yang sedang diimpor sama dengan atau lebih baru daripada periode
+                    // observasi READY yang sudah ada. Jika mengimpor file lampau/revisi,
+                    // jangan timpa metadata indikator periode terbaru.
+                    $maxPeriod = $maxReadyPeriods[$indicator->id] ?? null;
+                    $shouldUpdateMetadata = ($maxPeriod === null || $period >= $maxPeriod);
+
+                    if ($shouldUpdateMetadata) {
+                        $indicator->update($indicatorAttributes);
+                    }
                 }
 
                 $indicatorByRow[$unitName][$row['row']] = $indicator->id;
