@@ -30,7 +30,7 @@ class UnitDivisionSeeder extends Seeder
      */
     public const UNITS = [
         'Perencanaan Pengusahaan' => 'Perencanaan Pengusahaan',
-        'Data Aset' => 'Data Aset',
+        'Managemen Aset' => 'Managemen Aset',
     ];
 
     public function run(): void

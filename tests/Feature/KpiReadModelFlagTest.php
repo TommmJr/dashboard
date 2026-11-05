@@ -1903,8 +1903,8 @@ class KpiReadModelFlagTest extends TestCase
     public function test_r5_http_kasus_c_staff_divisi_non_kpi_structured_fallback_periode_legacy(): void
     {
         $division = Division::factory()->create([
-            'name' => 'Manajemen Aset',
-            'slug' => 'manajemen-aset',
+            'name' => 'Managemen Aset',
+            'slug' => 'managemen-aset',
         ]);
         $dataset = Dataset::factory()->create([
             'division_id' => $division->id,

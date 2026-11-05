@@ -94,11 +94,13 @@ class DatabaseSeeder extends Seeder
         $demoPassword = env('DEMO_USER_PASSWORD', 'password');
 
         $pengusahaan = Division::where('slug', 'perencanaan-pengusahaan')->firstOrFail();
-        $dataAset = Division::where('slug', 'data-aset')->firstOrFail();
+        $dataAset = Division::where('slug', 'managemen-aset')
+            ->orWhere('slug', 'data-aset')
+            ->firstOrFail();
 
         $demoUsers = [
             ['staf@dashboard.local', 'Staf Perencanaan Pengusahaan', Role::STAFF_DIVISI, $pengusahaan->id],
-            ['staf.aset@dashboard.local', 'Staf Data Aset', Role::STAFF_DIVISI, $dataAset->id],
+            ['staf.aset@dashboard.local', 'Staf Managemen Aset', Role::STAFF_DIVISI, $dataAset->id],
             ['editor@dashboard.local', 'Editor Dashboard', Role::EDITOR_DASHBOARD, null],
             ['management@dashboard.local', 'Management', Role::MANAGEMENT, null],
         ];
@@ -117,7 +119,7 @@ class DatabaseSeeder extends Seeder
         if ($this->command) {
             $this->command->info('Akun demo (env local, password dari DEMO_USER_PASSWORD, default "password"):');
             $this->command->line('  staf@dashboard.local (Staf Perencanaan Pengusahaan)');
-            $this->command->line('  staf.aset@dashboard.local (Staf Data Aset)');
+            $this->command->line('  staf.aset@dashboard.local (Staf Managemen Aset)');
             $this->command->line('  editor@dashboard.local (Editor) / management@dashboard.local (Management)');
         }
     }
