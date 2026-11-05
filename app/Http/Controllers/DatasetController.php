@@ -257,52 +257,57 @@ class DatasetController extends Controller
                 if ($result === null || $dataset->status === DatasetStatus::FAILED) {
                     $failed[] = $owner->name.': gagal diproses — '.($dataset->error_message ?? 'coba periksa file.');
                 } else {
-                    $imported[] = "{$owner->name}: {$result['imported']} baris";
+                    $structuredSuccess = false;
+                    $structuredCounts = null;
 
-                    // Unit 4B — dual-write. Setelah jalur legacy sukses, sumber
-                    // yang sama ditulis juga ke tabel struktural (org_units /
-                    // indicators / performance_observations). Keduanya BERDIRI
-                    // SENDIRI: tidak digabung, dan kegagalan sisi terstruktur
-                    // tidak boleh membatalkan data legacy yang sudah commit —
-                    // itu sebabnya exception-nya ditangkap, bukan dibiarkan naik.
-                    // Periodenya tetap period eksplisit dari form; banner tiap
-                    // sheet (sheet_period) tidak menimpanya (blocker G3).
                     try {
-                        $structured = $structuredImporter->import(
+                        $structuredCounts = $structuredImporter->import(
                             $originalPath, $dataset, $period,
                         );
 
-                        $imported[array_key_last($imported)] .= sprintf(
-                            ' (+%d indikator, %d observasi terstruktur)',
-                            $structured['indicators'],
-                            $structured['observations'],
-                        );
+                        if (($structuredCounts['observations'] ?? 0) > 0) {
+                            $structuredSuccess = true;
+                            $imported[] = "{$owner->name}: {$result['imported']} baris".sprintf(
+                                ' (+%d indikator, %d observasi terstruktur)',
+                                $structuredCounts['indicators'],
+                                $structuredCounts['observations'],
+                            );
+                        } else {
+                            $failed[] = $owner->name.': tidak ada observasi terstruktur yang dihasilkan dari file.';
+                        }
                     } catch (Throwable $e) {
-                        Log::warning('Tulis terstruktur KPI gagal (data legacy tetap tersimpan)', [
+                        Log::warning('Tulis terstruktur KPI gagal (membatalkan status READY dan pengarsipan)', [
                             'user_id' => $user->id,
                             'dataset_id' => $dataset->id,
                             'error' => $e->getMessage(),
                         ]);
 
-                        $failed[] = $owner->name.': data legacy tersimpan, tetapi penulisan tabel terstruktur gagal.';
+                        $failed[] = $owner->name.': penulisan tabel terstruktur gagal — '.$e->getMessage();
                     }
 
-                    // B2: periode sama = revisi, bukan duplikat. Dataset READY
-                    // lama untuk periode + divisi yang sama di-ARCHIVE SETELAH
-                    // import sukses (kalau diarsipkan lebih dulu, import gagal
-                    // akan meninggalkan periode tanpa dataset aktif). Diarsipkan,
-                    // bukan dihapus — data lama tetap reversible, sesuai pola
-                    // archive-vs-delete. Tanpa langkah ini, dua dataset periode
-                    // sama membuat metric_count dan sisa agregasi berlipat.
-                    $superseded = Dataset::query()
-                        ->where('division_id', $owner->id)
-                        ->where('status', Dataset::STATUS_READY)
-                        ->whereKeyNot($dataset->id)
-                        ->whereHas('metrics', fn ($query) => $query->where('period', $period))
-                        ->get();
+                    if (! $structuredSuccess) {
+                        // Gagalkan dataset baru dan bersihkan metrik legacy agar tidak menjadi ghost READY
+                        $dataset->metrics()->delete();
+                        $dataset->update([
+                            'status' => DatasetStatus::FAILED,
+                            'error_message' => 'Penulisan tabel terstruktur gagal. Dataset lama tetap dipertahankan aktif.',
+                        ]);
+                    } else {
+                        // Hanya mengarsipkan dataset lama jika dataset baru terbukti READY dan lengkap
+                        $superseded = Dataset::query()
+                            ->where('division_id', $owner->id)
+                            ->where('status', Dataset::STATUS_READY)
+                            ->whereKeyNot($dataset->id)
+                            ->whereHas('metrics', fn ($query) => $query->where('period', $period))
+                            ->get();
 
-                    foreach ($superseded as $previous) {
-                        $previous->update(['status' => Dataset::STATUS_ARCHIVED]);
+                        if ($superseded->isNotEmpty()) {
+                            DB::transaction(function () use ($superseded) {
+                                foreach ($superseded as $previous) {
+                                    $previous->update(['status' => Dataset::STATUS_ARCHIVED]);
+                                }
+                            });
+                        }
                     }
                 }
             } finally {
@@ -310,17 +315,20 @@ class DatasetController extends Controller
             }
         }
 
-        $message = $imported !== []
-            ? 'Berhasil mengimpor '.count($imported)." dataset.\n".implode("\n", $imported)
-            : 'Tidak ada unit yang berhasil diimpor.';
-
-        if ($superseded->isNotEmpty()) {
-            $message .= "\n\nDataset periode {$period} sebelumnya diarsipkan otomatis (".$superseded->count().' dataset) agar data tidak berlipat.';
+        if ($imported !== []) {
+            $message = 'Berhasil mengimpor '.count($imported)." dataset.\n".implode("\n", $imported);
+            if ($superseded->isNotEmpty()) {
+                $message .= "\n\nDataset periode {$period} sebelumnya diarsipkan otomatis (".$superseded->count().' dataset) agar data tidak berlipat.';
+            }
+            $flashKey = $failed !== [] ? 'error' : 'success';
+        } else {
+            $message = 'Gagal mengimpor laporan KPI. Data lama tetap dipertahankan.';
+            $flashKey = 'error';
         }
 
         return redirect()
             ->route('datasets.create')
-            ->with($imported !== [] ? 'success' : 'error', $message)
+            ->with($flashKey, $message)
             ->with('kpi_failed', $failed);
     }
 

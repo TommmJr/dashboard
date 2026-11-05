@@ -10,6 +10,7 @@ use App\Models\PerformanceMetric;
 use App\Models\PerformanceObservation;
 use App\Models\Role;
 use App\Models\User;
+use App\Services\StructuredKpiImporter;
 use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\UnitDivisionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -337,6 +338,124 @@ class DatasetKpiReportImportTest extends TestCase
             ->assertDontSee('Import Laporan KPI dari Mentor (Otomatis)')
             ->assertDontSee(route('datasets.kpi-import'), false)
             ->assertDontSee('Periode yang sudah pernah diimpor');
+    }
+
+    public function test_kegagalan_structured_import_tidak_mengarsipkan_dataset_lama_dan_dataset_baru_failed(): void
+    {
+        $owner = Division::where('slug', 'perencanaan-pengusahaan')->sole();
+        $admin = User::factory()->withRole(Role::ADMIN)->create(['division_id' => null]);
+        $period = '2026-08-31';
+
+        // 1. Import dataset pertama (sukses penuh)
+        $this->actingAs($admin)->post(route('datasets.kpi-import'), [
+            'file' => $this->makeKpiReport(),
+            'period' => $period,
+        ])->assertRedirect(route('datasets.create'));
+
+        $firstDataset = Dataset::where('division_id', $owner->id)->sole();
+        $this->assertSame(Dataset::STATUS_READY, $firstDataset->status->value);
+        $this->assertGreaterThan(0, PerformanceObservation::where('dataset_id', $firstDataset->id)->count());
+
+        // 2. Mock StructuredKpiImporter agar melempar exception pada import revisi
+        $this->mock(StructuredKpiImporter::class, function ($mock): void {
+            $mock->shouldReceive('import')->andThrow(new \RuntimeException('Koneksi terputus saat tulis terstruktur'));
+        });
+
+        // 3. Import revisi dengan confirm_archive = 1
+        $response = $this->actingAs($admin)->post(route('datasets.kpi-import'), [
+            'file' => $this->makeKpiReport(),
+            'period' => $period,
+            'confirm_archive' => 1,
+        ]);
+
+        $response->assertRedirect(route('datasets.create'));
+
+        // 4. Verifikasi dataset pertama TETAP READY (tidak diarsipkan)
+        $this->assertSame(
+            Dataset::STATUS_READY,
+            $firstDataset->fresh()->status->value,
+            'Dataset lama harus tetap READY jika import revisi gagal pada layer terstruktur.',
+        );
+
+        // 5. Verifikasi dataset kedua berstatus FAILED dan metrik legacynya dibersihkan
+        $newDataset = Dataset::where('id', '!=', $firstDataset->id)->sole();
+        $this->assertSame(
+            Dataset::STATUS_FAILED,
+            $newDataset->status->value,
+            'Dataset baru harus berstatus FAILED jika penulisan terstruktur gagal.',
+        );
+        $this->assertStringContainsString('tabel terstruktur gagal', (string) $newDataset->error_message);
+        $this->assertSame(
+            0,
+            $newDataset->metrics()->count(),
+            'Metrik legacy dari dataset yang gagal terstruktur harus dibersihkan agar tidak meninggalkan baris yatim.',
+        );
+    }
+
+    public function test_import_menghasilkan_nol_observasi_ditolak_dan_tidak_mengarsipkan_dataset_lama(): void
+    {
+        $owner = Division::where('slug', 'perencanaan-pengusahaan')->sole();
+        $admin = User::factory()->withRole(Role::ADMIN)->create(['division_id' => null]);
+        $period = '2026-08-31';
+
+        // 1. Dataset awal yang aktif
+        $this->actingAs($admin)->post(route('datasets.kpi-import'), [
+            'file' => $this->makeKpiReport(),
+            'period' => $period,
+        ])->assertRedirect(route('datasets.create'));
+
+        $firstDataset = Dataset::where('division_id', $owner->id)->sole();
+        $this->assertSame(Dataset::STATUS_READY, $firstDataset->status->value);
+
+        // 2. Mock importer agar mengembalikan 0 observasi (misal semua baris kosong/terfilter)
+        $this->mock(StructuredKpiImporter::class, function ($mock): void {
+            $mock->shouldReceive('import')->andReturn([
+                'org_units' => 0,
+                'indicators' => 0,
+                'observations' => 0,
+                'excluded' => 10,
+            ]);
+        });
+
+        // 3. Eksekusi import revisi
+        $response = $this->actingAs($admin)->post(route('datasets.kpi-import'), [
+            'file' => $this->makeKpiReport(),
+            'period' => $period,
+            'confirm_archive' => 1,
+        ]);
+
+        $response->assertRedirect(route('datasets.create'));
+
+        // 4. Dataset lama tetap aktif
+        $this->assertSame(Dataset::STATUS_READY, $firstDataset->fresh()->status->value);
+
+        // 5. Dataset baru ditandai FAILED
+        $newDataset = Dataset::where('id', '!=', $firstDataset->id)->sole();
+        $this->assertSame(Dataset::STATUS_FAILED, $newDataset->status->value);
+        $this->assertSame(0, $newDataset->metrics()->count());
+    }
+
+    public function test_flash_message_melaporkan_error_dan_bukan_success_ketika_structured_gagal(): void
+    {
+        $owner = Division::where('slug', 'perencanaan-pengusahaan')->sole();
+        $admin = User::factory()->withRole(Role::ADMIN)->create(['division_id' => null]);
+        $period = '2026-08-31';
+
+        $this->mock(StructuredKpiImporter::class, function ($mock): void {
+            $mock->shouldReceive('import')->andThrow(new \RuntimeException('Gagal memproses sheet'));
+        });
+
+        $response = $this->actingAs($admin)->post(route('datasets.kpi-import'), [
+            'file' => $this->makeKpiReport(),
+            'period' => $period,
+        ]);
+
+        $response->assertRedirect(route('datasets.create'));
+        // Harus ada flash error, BUKAN flash success
+        $response->assertSessionHas('error');
+        $response->assertSessionMissing('success');
+        $response->assertSessionHas('error', fn ($msg) => str_contains($msg, 'Gagal mengimpor') || str_contains($msg, 'tidak dapat diproses'));
+        $response->assertSessionHas('kpi_failed', fn ($items) => count($items) > 0);
     }
 
     private function makeKpiReport(bool $withBrokenSheet = false): UploadedFile
