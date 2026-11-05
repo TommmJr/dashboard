@@ -218,6 +218,26 @@ class StructuredKpiImporter
     }
 
     /**
+     * Peta indicator_id -> MAX(period) dari observasi dataset berstatus READY,
+     * mengecualikan dataset yang sedang diproses. Dataset FAILED dan ARCHIVED
+     * diabaikan dari penentuan batas waktu aktif.
+     *
+     * @return array<int, string>
+     */
+    private function maxReadyPeriods(Dataset $currentDataset): array
+    {
+        return DB::table('performance_observations as po')
+            ->join('datasets as d', 'd.id', '=', 'po.dataset_id')
+            ->where('d.status', Dataset::STATUS_READY)
+            ->where('d.id', '<>', $currentDataset->id)
+            ->groupBy('po.indicator_id')
+            ->select('po.indicator_id', DB::raw('MAX(po.period) as max_period'))
+            ->pluck('max_period', 'po.indicator_id')
+            ->map(fn ($period): string => substr((string) $period, 0, 10))
+            ->all();
+    }
+
+    /**
      * Baris tanpa satu pun nilai KPI. Dipakai untuk membuang baris kop laporan
      * (judul, nama direktorat, nama divisi) yang lolos filter label converter.
      */
