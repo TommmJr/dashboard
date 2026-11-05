@@ -1175,4 +1175,18 @@ class DashboardWidgetLayoutTest extends TestCase
             ->assertSee('TJBT')
             ->assertSee('Unggah Dataset');
     }
+
+    public function test_layout_staff_pengusahaan_memiliki_urutan_seimbang_tanpa_celah_grid(): void
+    {
+        $layout = config('dashboard_layouts.layouts')['staff_divisi:perencanaan-pengusahaan'];
+
+        // Baris 1: kpi-summary (3)
+        $this->assertSame('kpi-summary', $layout[0]);
+        // Baris 2: trend-chart (2) + nko-donut (1) = 3
+        $this->assertSame('trend-chart', $layout[1]);
+        $this->assertSame('nko-donut', $layout[2]);
+        // Baris 3: nko-ranking (2) + dataset-status (1) = 3
+        $this->assertSame('nko-ranking', $layout[3]);
+        $this->assertSame('dataset-status', $layout[4]);
+    }
 }

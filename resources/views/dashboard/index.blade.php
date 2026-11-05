@@ -125,7 +125,7 @@
     @endif
 
     {{-- Widget per role: satu loop generik, urutan & komposisi dari config. --}}
-    <div class="grid gap-4 sm:gap-5 lg:grid-cols-3">
+    <div class="grid grid-flow-dense gap-4 sm:gap-5 lg:grid-cols-3">
         @foreach ($widgets as $widget)
             @php
                 $widgetClass = match ((int) ($widget['cols'] ?? 3)) {

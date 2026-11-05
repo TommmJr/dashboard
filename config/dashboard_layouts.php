@@ -107,9 +107,12 @@ return [
         // (`target-realisasi-per-indikator`) dan menghapus definisi widget
         // agregat lama (`target-vs-realisasi`) dari katalog.
         'staff_divisi:perencanaan-pengusahaan' => [
-            'kpi-summary', 'trend-chart', 'nko-ranking', 'nko-donut',
-            'dataset-status', 'kinerja-realisasi', 'pencapaian-nko', 'kinerja-detail',
+            'kpi-summary',
+            'trend-chart', 'nko-donut',
+            'nko-ranking', 'dataset-status',
+            'kinerja-realisasi', 'pencapaian-nko',
             'target-realisasi-per-indikator',
+            'kinerja-detail',
         ],
     ],
 
