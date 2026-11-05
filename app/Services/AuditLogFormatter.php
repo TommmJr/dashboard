@@ -58,6 +58,9 @@ class AuditLogFormatter
         'layout_key' => 'Kunci layout',
         'widgets' => 'Daftar widget',
         'role_slug' => 'Peran target',
+        'org_units_count' => 'Unit organisasi',
+        'indicators_count' => 'Indikator terstruktur',
+        'observations_count' => 'Observasi terstruktur',
     ];
 
     /**
@@ -87,6 +90,9 @@ class AuditLogFormatter
         'Role' => 'Peran',
         'Permission' => 'Permission',
         'DashboardLayout' => 'Tata letak dashboard',
+        'PerformanceObservation' => 'Observasi kinerja terstruktur',
+        'Indicator' => 'Indikator kinerja',
+        'OrgUnit' => 'Unit organisasi',
     ];
 
     /**

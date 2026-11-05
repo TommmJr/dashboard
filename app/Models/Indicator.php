@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use App\Models\Concerns\Auditable;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -26,7 +25,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 ])]
 class Indicator extends Model
 {
-    use Auditable, HasFactory;
+    use HasFactory;
 
     protected function casts(): array
     {

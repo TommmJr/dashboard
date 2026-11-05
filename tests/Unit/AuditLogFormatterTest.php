@@ -33,6 +33,30 @@ class AuditLogFormatterTest extends TestCase
         $this->assertSame('Nama berkas', AuditLogFormatter::fieldLabel('original_name'));
         $this->assertSame('Baris diimpor', AuditLogFormatter::fieldLabel('rows_imported'));
         $this->assertSame('Foo Bar', AuditLogFormatter::fieldLabel('foo_bar'));
+        $this->assertSame('Unit organisasi', AuditLogFormatter::fieldLabel('org_units_count'));
+        $this->assertSame('Indikator terstruktur', AuditLogFormatter::fieldLabel('indicators_count'));
+        $this->assertSame('Observasi terstruktur', AuditLogFormatter::fieldLabel('observations_count'));
+    }
+
+    public function test_label_objek_model_terstruktur_memiliki_nama_baku(): void
+    {
+        $observation = $this->log([
+            'auditable_type' => 'App\\Models\\PerformanceObservation',
+            'auditable_id' => 10,
+        ]);
+        $this->assertSame('Observasi kinerja terstruktur #10', AuditLogFormatter::objectLabel($observation));
+
+        $indicator = $this->log([
+            'auditable_type' => 'App\\Models\\Indicator',
+            'auditable_id' => 20,
+        ]);
+        $this->assertSame('Indikator kinerja #20', AuditLogFormatter::objectLabel($indicator));
+
+        $orgUnit = $this->log([
+            'auditable_type' => 'App\\Models\\OrgUnit',
+            'auditable_id' => 30,
+        ]);
+        $this->assertSame('Unit organisasi #30', AuditLogFormatter::objectLabel($orgUnit));
     }
 
     public function test_aksi_dan_objek_dilabeli_readable(): void

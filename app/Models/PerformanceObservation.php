@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use App\Models\Concerns\Auditable;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -28,7 +27,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 ])]
 class PerformanceObservation extends Model
 {
-    use Auditable, HasFactory;
+    use HasFactory;
 
     /** Tipe nilai target/realisasi. Sumber: numeric, date, text, atau kosong. */
     public const TYPE_NUMERIC = 'numeric';
