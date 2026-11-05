@@ -102,6 +102,20 @@ class UserController extends Controller
             'division_id.exists' => 'Divisi yang dipilih tidak valid.',
         ]);
 
+        $newRole = Role::find($validated['role_id']);
+        $isDemotingAdmin = $user->hasRole(Role::ADMIN) && ($newRole?->slug !== Role::ADMIN);
+
+        if ($isDemotingAdmin) {
+            if ($user->is(auth()->user())) {
+                return redirect()->route('users.index')->with('error', 'Tidak dapat menurunkan role akun admin sendiri.');
+            }
+
+            $adminCount = User::whereRelation('role', 'slug', Role::ADMIN)->count();
+            if ($adminCount <= 1) {
+                return redirect()->route('users.index')->with('error', 'Tidak dapat mengubah role admin terakhir.');
+            }
+        }
+
         $user->name = $validated['name'];
         $user->email = $validated['email'];
 
@@ -124,6 +138,13 @@ class UserController extends Controller
     {
         if ($user->is(auth()->user())) {
             return redirect()->route('users.index')->with('error', 'Tidak dapat menghapus akun sendiri.');
+        }
+
+        if ($user->hasRole(Role::ADMIN)) {
+            $adminCount = User::whereRelation('role', 'slug', Role::ADMIN)->count();
+            if ($adminCount <= 1) {
+                return redirect()->route('users.index')->with('error', 'Tidak dapat menghapus akun admin terakhir.');
+            }
         }
 
         $name = $user->name;

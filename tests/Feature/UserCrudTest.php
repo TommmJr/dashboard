@@ -6,6 +6,7 @@ use App\Models\AuditLog;
 use App\Models\Dataset;
 use App\Models\Division;
 use App\Models\PerformanceMetric;
+use App\Models\Permission;
 use App\Models\Role;
 use App\Models\User;
 use Database\Seeders\RolePermissionSeeder;
@@ -563,5 +564,105 @@ class UserCrudTest extends TestCase
             ])
             ->assertStatus(422)
             ->assertJsonPath('errors.division_id.0', 'Divisi wajib dipilih untuk role Staf Divisi.');
+    }
+
+    public function test_destroy_admin_terakhir_ditolak(): void
+    {
+        // Hanya ada 1 admin di setup awal ($this->admin).
+        // Buat admin kedua sementara untuk melakukan request delete terhadap $this->admin
+        $secondAdmin = User::factory()->withRole(Role::ADMIN)->create();
+
+        // Hapus secondAdmin terlebih dahulu agar tersisa 1 admin
+        $this->actingAs($this->admin)
+            ->delete(route('users.destroy', $secondAdmin))
+            ->assertRedirect(route('users.index'));
+
+        $this->assertDatabaseMissing('users', ['id' => $secondAdmin->id]);
+        $this->assertSame(1, User::whereRelation('role', 'slug', Role::ADMIN)->count());
+
+        // Sekarang coba hapus $this->admin lewat akun lain jika ada atau request langsung
+        // Karena $this->admin tidak bisa delete diri sendiri, kita buat user non-admin yang punya permission user.delete untuk menguji guard level controller
+        $privilegedStaff = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $this->division->id]);
+        $deletePermission = Permission::firstOrCreate(['name' => 'user.delete']);
+        $privilegedStaff->role->permissions()->attach($deletePermission);
+
+        $this->actingAs($privilegedStaff)
+            ->delete(route('users.destroy', $this->admin))
+            ->assertRedirect(route('users.index'))
+            ->assertSessionHas('error', 'Tidak dapat menghapus akun admin terakhir.');
+
+        $this->assertDatabaseHas('users', ['id' => $this->admin->id]);
+    }
+
+    public function test_destroy_admin_diizinkan_jika_ada_admin_lain(): void
+    {
+        $secondAdmin = User::factory()->withRole(Role::ADMIN)->create();
+
+        $this->actingAs($this->admin)
+            ->delete(route('users.destroy', $secondAdmin))
+            ->assertRedirect(route('users.index'))
+            ->assertSessionHas('success');
+
+        $this->assertDatabaseMissing('users', ['id' => $secondAdmin->id]);
+    }
+
+    public function test_update_self_demotion_admin_ditolak(): void
+    {
+        $staffRoleId = Role::where('slug', Role::STAFF_DIVISI)->value('id');
+
+        $this->actingAs($this->admin)
+            ->patch(route('users.update', $this->admin), [
+                'name' => $this->admin->name,
+                'email' => $this->admin->email,
+                'role_id' => $staffRoleId,
+                'division_id' => $this->division->id,
+            ])
+            ->assertRedirect(route('users.index'))
+            ->assertSessionHas('error', 'Tidak dapat menurunkan role akun admin sendiri.');
+
+        $this->assertTrue($this->admin->fresh()->hasRole(Role::ADMIN));
+    }
+
+    public function test_update_demotion_admin_terakhir_oleh_admin_lain_ditolak(): void
+    {
+        // Setup situasi di mana target adalah satu-satunya admin
+        $targetAdmin = $this->admin;
+        $staffRoleId = Role::where('slug', Role::STAFF_DIVISI)->value('id');
+
+        // Buat aktor non-admin dengan permission user.update
+        $editor = User::factory()->withRole(Role::MANAGEMENT)->create();
+        $updatePermission = Permission::firstOrCreate(['name' => 'user.update']);
+        $editor->role->permissions()->attach($updatePermission);
+
+        $this->actingAs($editor)
+            ->patch(route('users.update', $targetAdmin), [
+                'name' => $targetAdmin->name,
+                'email' => $targetAdmin->email,
+                'role_id' => $staffRoleId,
+                'division_id' => $this->division->id,
+            ])
+            ->assertRedirect(route('users.index'))
+            ->assertSessionHas('error', 'Tidak dapat mengubah role admin terakhir.');
+
+        $this->assertTrue($targetAdmin->fresh()->hasRole(Role::ADMIN));
+    }
+
+    public function test_update_admin_diizinkan_ganti_role_jika_ada_admin_lain(): void
+    {
+        $adminTwo = User::factory()->withRole(Role::ADMIN)->create();
+        $staffRoleId = Role::where('slug', Role::STAFF_DIVISI)->value('id');
+
+        // Admin 1 mengubah role Admin 2 menjadi staf divisi
+        $this->actingAs($this->admin)
+            ->patch(route('users.update', $adminTwo), [
+                'name' => $adminTwo->name,
+                'email' => $adminTwo->email,
+                'role_id' => $staffRoleId,
+                'division_id' => $this->division->id,
+            ])
+            ->assertRedirect(route('users.index'))
+            ->assertSessionHas('success');
+
+        $this->assertTrue($adminTwo->fresh()->hasRole(Role::STAFF_DIVISI));
     }
 }
