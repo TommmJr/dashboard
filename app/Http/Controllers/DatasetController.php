@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\DatasetStatus;
+use App\Models\AuditLog;
 use App\Models\Dataset;
 use App\Models\Division;
 use App\Models\Role;
@@ -251,7 +252,7 @@ class DatasetController extends Controller
                     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', null, true);
 
                 ['dataset' => $dataset, 'result' => $result] = $this->storeAndImport(
-                    $file, $owner->id, $user, $importService,
+                    $file, $owner->id, $user, $importService, recordAudit: false,
                 );
 
                 if ($result === null || $dataset->status === DatasetStatus::FAILED) {
@@ -327,6 +328,20 @@ class DatasetController extends Controller
                         }
 
                         if ($archivalSuccess) {
+                            AuditLog::record(
+                                AuditLog::ACTION_IMPORT,
+                                $dataset,
+                                null,
+                                [
+                                    'rows_imported' => $result['imported'],
+                                    'rows_skipped' => $result['skipped'],
+                                    'org_units_count' => $structuredCounts['org_units'] ?? 0,
+                                    'indicators_count' => $structuredCounts['indicators'] ?? 0,
+                                    'observations_count' => $structuredCounts['observations'] ?? 0,
+                                ],
+                                $user->id,
+                            );
+
                             $imported[] = "{$owner->name}: {$result['imported']} baris".sprintf(
                                 ' (+%d indikator, %d observasi terstruktur)',
                                 $structuredCounts['indicators'],

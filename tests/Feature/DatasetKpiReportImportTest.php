@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\DatasetStatus;
+use App\Models\AuditLog;
 use App\Models\Dataset;
 use App\Models\Division;
 use App\Models\Indicator;
@@ -508,6 +509,15 @@ class DatasetKpiReportImportTest extends TestCase
             $this->assertSame(0, $newDataset->observations()->count());
             $this->assertStringContainsString('Gagal mengarsipkan dataset sebelumnya', (string) $newDataset->error_message);
 
+            // Pastikan dataset baru yang gagal tidak meninggalkan jejak ACTION_IMPORT
+            $this->assertSame(
+                0,
+                AuditLog::where('action', AuditLog::ACTION_IMPORT)
+                    ->where('auditable_type', Dataset::class)
+                    ->where('auditable_id', $newDataset->id)
+                    ->count()
+            );
+
             // 3. Pastikan jumlah dataset READY pada divisi dan periode tersebut tidak bertambah
             $readyCount = Dataset::where('division_id', $owner->id)
                 ->where('status', Dataset::STATUS_READY)
@@ -559,6 +569,66 @@ class DatasetKpiReportImportTest extends TestCase
             [105.5],
             $responseAfter->json('series.0.data'),
             'Dashboard harus tetap menyajikan data valid dataset terdahulu setelah revisi gagal.',
+        );
+    }
+
+    public function test_import_kpi_sukses_mencatat_satu_action_import_terkonsolidasi_dengan_nol_noise_granular(): void
+    {
+        $owner = Division::where('slug', 'perencanaan-pengusahaan')->sole();
+        $admin = User::factory()->withRole(Role::ADMIN)->create(['division_id' => null]);
+
+        $this->actingAs($admin)->post(route('datasets.kpi-import'), [
+            'file' => $this->makeKpiReport(),
+            'period' => '2026-08-31',
+        ])->assertRedirect(route('datasets.create'));
+
+        $dataset = Dataset::where('status', Dataset::STATUS_READY)->latest('id')->firstOrFail();
+
+        // 1. Tepat 1 entri ACTION_IMPORT untuk dataset ini
+        $importLogs = AuditLog::where('action', AuditLog::ACTION_IMPORT)
+            ->where('auditable_type', Dataset::class)
+            ->where('auditable_id', $dataset->id)
+            ->get();
+        $this->assertCount(1, $importLogs);
+
+        $payload = $importLogs->first()->new_values;
+        $this->assertArrayHasKey('rows_imported', $payload);
+        $this->assertArrayHasKey('org_units_count', $payload);
+        $this->assertArrayHasKey('indicators_count', $payload);
+        $this->assertArrayHasKey('observations_count', $payload);
+        $this->assertSame(7, $payload['rows_imported']);
+        $this->assertGreaterThan(0, $payload['observations_count']);
+
+        // 2. Nol log untuk model terstruktur individual
+        $this->assertSame(0, AuditLog::where('auditable_type', 'App\\Models\\PerformanceObservation')->count());
+        $this->assertSame(0, AuditLog::where('auditable_type', 'App\\Models\\Indicator')->count());
+        $this->assertSame(0, AuditLog::where('auditable_type', 'App\\Models\\OrgUnit')->count());
+    }
+
+    public function test_impor_kpi_gagal_pada_structured_tidak_meninggalkan_action_import_pada_dataset_failed(): void
+    {
+        $owner = Division::where('slug', 'perencanaan-pengusahaan')->sole();
+        $admin = User::factory()->withRole(Role::ADMIN)->create(['division_id' => null]);
+
+        // Mock StructuredKpiImporter agar melempar exception di tengah proses
+        $mockImporter = $this->mock(StructuredKpiImporter::class);
+        $mockImporter->shouldReceive('import')
+            ->andThrow(new \RuntimeException('Simulasi gagal tulis terstruktur'));
+
+        $this->actingAs($admin)->post(route('datasets.kpi-import'), [
+            'file' => $this->makeKpiReport(),
+            'period' => '2026-08-31',
+        ])->assertRedirect(route('datasets.create'));
+
+        $failedDataset = Dataset::where('status', Dataset::STATUS_FAILED)->latest('id')->firstOrFail();
+
+        // Tidak boleh ada ACTION_IMPORT sama sekali untuk dataset yang gagal
+        $this->assertSame(
+            0,
+            AuditLog::where('action', AuditLog::ACTION_IMPORT)
+                ->where('auditable_type', Dataset::class)
+                ->where('auditable_id', $failedDataset->id)
+                ->count()
         );
     }
 
