@@ -1189,4 +1189,18 @@ class DashboardWidgetLayoutTest extends TestCase
         $this->assertSame('nko-ranking', $layout[3]);
         $this->assertSame('dataset-status', $layout[4]);
     }
+
+    public function test_kpi_summary_menampilkan_badge_dan_ikon_konteks_informatif(): void
+    {
+        $division = Division::factory()->create(['slug' => 'perencanaan-pengusahaan']);
+        $staff = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $division->id]);
+
+        $this->actingAs($staff)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('Rata-rata NKO')
+            ->assertSee('Skor Utama')
+            ->assertSee('Dataset Terverifikasi')
+            ->assertSee('Parameter Pantau');
+    }
 }
