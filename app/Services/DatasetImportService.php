@@ -43,7 +43,7 @@ class DatasetImportService
      *
      * @return array{imported: int, skipped: int, warnings: int, errors: array<int, string>}
      */
-    public function import(UploadedFile $file, User $uploader, Dataset $dataset): array
+    public function import(UploadedFile $file, User $uploader, Dataset $dataset, bool $recordAudit = true): array
     {
         $rows = $this->parseRows($file);
 
@@ -53,7 +53,7 @@ class DatasetImportService
         $issues = [];
         $inserts = [];
 
-        DB::transaction(function () use ($rows, $uploader, $dataset, &$imported, &$warnings, &$errors, &$issues, &$inserts) {
+        DB::transaction(function () use ($rows, $uploader, $dataset, &$imported, &$warnings, &$errors, &$issues, &$inserts, $recordAudit) {
             $dataset->update(['status' => Dataset::STATUS_VALIDATING]);
 
             // Pass 1: validasi per-baris + deteksi duplikat kunci.
@@ -119,13 +119,15 @@ class DatasetImportService
                 // entri IMPORT pada dataset (bukan per-baris).
                 PerformanceMetric::insert(array_values($inserts));
 
-                AuditLog::record(
-                    AuditLog::ACTION_IMPORT,
-                    $dataset,
-                    null,
-                    ['rows_imported' => count($inserts), 'rows_skipped' => count($errors)],
-                    $uploader->id,
-                );
+                if ($recordAudit) {
+                    AuditLog::record(
+                        AuditLog::ACTION_IMPORT,
+                        $dataset,
+                        null,
+                        ['rows_imported' => count($inserts), 'rows_skipped' => count($errors)],
+                        $uploader->id,
+                    );
+                }
             }
 
             $imported = count($inserts);

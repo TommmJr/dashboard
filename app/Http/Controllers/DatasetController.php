@@ -364,8 +364,13 @@ class DatasetController extends Controller
      *
      * @return array{dataset: Dataset, result: array{imported: int, skipped: int, warnings: int}|null}
      */
-    private function storeAndImport(UploadedFile $file, int $divisionId, User $user, DatasetImportService $importService): array
-    {
+    private function storeAndImport(
+        UploadedFile $file,
+        int $divisionId,
+        User $user,
+        DatasetImportService $importService,
+        bool $recordAudit = true,
+    ): array {
         // Ekstensi dari whitelist (bukan dari client) + sanitasi nama file asli
         // agar karakter berbahaya tidak tersimpan di DB (MEDIUM-04).
         $allowedExts = config('dataset_import.extensions', ['xlsx', 'csv']);
@@ -398,7 +403,7 @@ class DatasetController extends Controller
         ]);
 
         try {
-            $result = $importService->import($file, $user, $dataset);
+            $result = $importService->import($file, $user, $dataset, $recordAudit);
         } catch (Throwable $e) {
             $dataset->update([
                 'status' => Dataset::STATUS_FAILED,

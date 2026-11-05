@@ -2,11 +2,13 @@
 
 namespace Tests\Feature;
 
+use App\Models\AuditLog;
 use App\Models\Dataset;
 use App\Models\Division;
 use App\Models\PerformanceMetric;
 use App\Models\Role;
 use App\Models\User;
+use App\Services\DatasetImportService;
 use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\UnitDivisionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -308,5 +310,30 @@ class DatasetImportTest extends TestCase
 
         $this->assertSame(0, Dataset::count());
         $this->assertSame(0, PerformanceMetric::count());
+    }
+
+    public function test_import_dengan_record_audit_false_tidak_mencatat_action_import(): void
+    {
+        $user = User::factory()->withRole(Role::ADMIN)->create();
+        $division = Division::factory()->create();
+        $dataset = Dataset::factory()->create([
+            'division_id' => $division->id,
+            'user_id' => $user->id,
+            'status' => Dataset::STATUS_UPLOADING,
+        ]);
+
+        $file = $this->makeXlsx($this->validRows());
+
+        $initialAuditCount = AuditLog::where('action', AuditLog::ACTION_IMPORT)->count();
+
+        $service = app(DatasetImportService::class);
+        $result = $service->import($file, $user, $dataset, recordAudit: false);
+
+        $this->assertGreaterThan(0, $result['imported']);
+        $this->assertSame(
+            $initialAuditCount,
+            AuditLog::where('action', AuditLog::ACTION_IMPORT)->count(),
+            'ACTION_IMPORT tidak boleh dicatat saat recordAudit false'
+        );
     }
 }
