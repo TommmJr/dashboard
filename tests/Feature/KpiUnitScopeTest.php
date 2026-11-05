@@ -627,4 +627,22 @@ class KpiUnitScopeTest extends TestCase
         $response->assertSee('TJBT');
         $response->assertDontSee('MES');
     }
+
+    public function test_dashboard_renders_dynamic_unit_scope_label(): void
+    {
+        config(['kpi.visible_units' => ['TJBT', 'UPT-SMG']]);
+
+        $this->actingAs($this->management())
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('TJBT, UPT-SMG');
+
+        $division = $this->division();
+        $staff = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $division->id]);
+
+        $this->actingAs($staff)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('TJBT, UPT-SMG');
+    }
 }

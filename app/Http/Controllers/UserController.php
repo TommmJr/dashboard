@@ -22,7 +22,12 @@ class UserController extends Controller
             ->orderBy('name')
             ->paginate(50);
 
-        return view('users.index', ['users' => $users]);
+        $adminCount = User::whereRelation('role', 'slug', Role::ADMIN)->count();
+
+        return view('users.index', [
+            'users' => $users,
+            'adminCount' => $adminCount,
+        ]);
     }
 
     /**

@@ -43,7 +43,7 @@
                     <div class="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-slate-500">
                         <span class="inline-flex items-center gap-1">
                             <span>Cakupan Unit:</span>
-                            <strong class="font-semibold text-slate-800">TJBT</strong>
+                            <strong class="font-semibold text-slate-800">{{ !empty(config('kpi.visible_units')) ? implode(', ', config('kpi.visible_units')) : 'Semua Unit' }}</strong>
                         </span>
                         <span class="text-slate-300" aria-hidden="true">&bull;</span>
                         <span>Ruang Kerja Operasional Data KPI</span>

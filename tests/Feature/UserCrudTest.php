@@ -665,4 +665,13 @@ class UserCrudTest extends TestCase
 
         $this->assertTrue($adminTwo->fresh()->hasRole(Role::STAFF_DIVISI));
     }
+
+    public function test_users_index_shows_badge_for_last_admin(): void
+    {
+        // Hanya ada 1 admin di sistem
+        $this->actingAs($this->admin)
+            ->get(route('users.index'))
+            ->assertOk()
+            ->assertSee('Admin Terakhir');
+    }
 }

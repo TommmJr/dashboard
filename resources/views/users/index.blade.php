@@ -53,7 +53,7 @@
                         </td>
                         <td class="whitespace-nowrap px-6 py-4 text-sm text-gray-600">{{ $user->division?->name ?? '-' }}</td>
                         <td class="whitespace-nowrap px-6 py-4 text-sm">
-                            <div class="flex gap-2">
+                            <div class="flex items-center gap-2">
                                 @can('user.update')
                                     <a href="{{ route('users.edit', $user) }}"
                                        class="rounded bg-yellow-500 px-2 py-1 text-xs font-semibold text-white hover:bg-yellow-600">
@@ -61,15 +61,20 @@
                                     </a>
                                 @endcan
                                 @can('user.delete')
-                                    @unless ($user->is(auth()->user()))
-                                    <form method="POST" action="{{ route('users.destroy', $user) }}"
-                                          onsubmit="return confirm('Hapus permanen user \"{{ addslashes($user->name) }}\"? Dataset miliknya juga akan terhapus.');">
-                                        @csrf @method('DELETE')
-                                        <button class="rounded bg-red-600 px-2 py-1 text-xs font-semibold text-white hover:bg-red-700">
-                                            Hapus
-                                        </button>
-                                    </form>
-                                    @endunless
+                                    @if ($user->is(auth()->user()))
+                                        <span class="inline-flex items-center rounded bg-slate-100 px-2 py-1 text-xs font-medium text-slate-500">Akun Anda</span>
+                                    @endif
+                                    @if ($user->hasRole(\App\Models\Role::ADMIN) && ($adminCount ?? 1) <= 1)
+                                        <span class="inline-flex items-center rounded border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700">Admin Terakhir</span>
+                                    @elseif (! $user->is(auth()->user()))
+                                        <form method="POST" action="{{ route('users.destroy', $user) }}"
+                                              onsubmit="return confirm('Hapus permanen user &quot;{{ addslashes($user->name) }}&quot;? Seluruh dataset yang diunggah oleh user ini akan ikut terhapus secara permanen.');">
+                                            @csrf @method('DELETE')
+                                            <button type="submit" class="rounded bg-red-600 px-2 py-1 text-xs font-semibold text-white hover:bg-red-700">
+                                                Hapus
+                                            </button>
+                                        </form>
+                                    @endif
                                 @endcan
                             </div>
                         </td>

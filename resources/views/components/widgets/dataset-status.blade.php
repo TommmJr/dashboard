@@ -48,8 +48,11 @@
                     <p class="text-xs font-semibold text-rose-800">Dataset GAGAL</p>
                     <p class="mt-1.5 text-2xl font-extrabold tracking-tight text-rose-700 leading-none">{{ $failed }}</p>
                 </div>
+                @php
+                    $visibleUnitsLabel = !empty(config('kpi.visible_units')) ? implode(', ', config('kpi.visible_units')) : 'Semua Unit';
+                @endphp
                 <div class="rounded-xl border border-blue-100 bg-blue-50/40 p-3.5 transition hover:bg-blue-50/60">
-                    <p class="text-xs font-semibold text-blue-800">Baris Data Aktif (TJBT)</p>
+                    <p class="text-xs font-semibold text-blue-800">Baris Data Aktif ({{ $visibleUnitsLabel }})</p>
                     <p class="mt-1.5 text-2xl font-extrabold tracking-tight text-blue-700 leading-none">{{ $latestRows }}</p>
                 </div>
             </div>

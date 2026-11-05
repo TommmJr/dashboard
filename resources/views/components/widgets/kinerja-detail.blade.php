@@ -77,13 +77,16 @@
                 </noscript>
                 {{-- Jalan pintas supaya pembaca non-developer langsung menjangkau
                      TJBT (di urutan pertama daftar). --}}
+                @php
+                    $primaryUnit = !empty(config('kpi.visible_units')) ? config('kpi.visible_units')[0] : 'TJBT';
+                @endphp
                 <a href="{{ route('dashboard', array_filter([
-                        'unit' => 'TJBT',
+                        'unit' => $primaryUnit,
                         'start_date' => is_string($startDate) ? $startDate : null,
                         'end_date' => is_string($endDate) ? $endDate : null,
                     ])) }}"
                    class="inline-flex h-9 items-center rounded border border-primary px-3 text-sm font-medium text-primary hover:bg-primary hover:text-white">
-                    TJBT
+                    {{ $primaryUnit }}
                 </a>
             </form>
         @endif

@@ -45,10 +45,13 @@
     </div>
 
     {{-- Card 3: Baris Data Aktif --}}
+    @php
+        $visibleUnitsLabel = !empty(config('kpi.visible_units')) ? implode(', ', config('kpi.visible_units')) : 'Semua Unit';
+    @endphp
     <div class="relative overflow-hidden rounded-xl border border-slate-200/80 bg-white p-5 shadow-[0_1px_3px_0_rgba(0,0,0,0.04)] transition hover:shadow-xs">
         <div class="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-blue-500 to-blue-400"></div>
         <div class="flex items-center justify-between">
-            <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Baris Data Aktif (TJBT)</p>
+            <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Baris Data Aktif ({{ $visibleUnitsLabel }})</p>
             <div class="flex h-9 w-9 items-center justify-center rounded-lg border border-blue-100/80 bg-blue-50 text-blue-700 shadow-2xs">
                 <svg class="h-4.5 w-4.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                     <path d="M3 3v18h18" stroke-linecap="round" stroke-linejoin="round"/>
@@ -61,7 +64,7 @@
             <span class="inline-flex items-center rounded-md border border-blue-200/80 bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-800">
                 Parameter Pantau
             </span>
-            <span>Unit TJBT</span>
+            <span>Unit {{ $visibleUnitsLabel }}</span>
         </div>
     </div>
 </div>
