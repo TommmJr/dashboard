@@ -210,13 +210,13 @@ class TargetRealisasiPerIndikatorTest extends TestCase
         $this->assertNull($panel['numeric'], 'skor tidak boleh disamarkan sebagai nilai numerik');
     }
 
-    public function test_skor_tanpa_bukti_skala_tidak_dikonversi(): void
+    public function test_skor_di_bawah_ambang_tanpa_formula_terinferensi_sebagai_rasio(): void
     {
         $dataset = $this->dataset();
         $indicator = $this->indicator('TJBT', 'Pengendalian Anggaran Investasi sesuai RKAP');
 
         // Bentuk id 403: target numeric, realisasi teks, skor 1,0485 dan
-        // formula tidak terklasifikasi -> rasio vs persen tidak terbukti.
+        // formula tidak terklasifikasi -> terinferensi sebagai rasio via KpiScoreNormalizer.
         $this->observe($dataset, $indicator, [
             'target_type' => PerformanceObservation::TYPE_NUMERIC,
             'realisasi_type' => PerformanceObservation::TYPE_TEXT,
@@ -230,8 +230,8 @@ class TargetRealisasiPerIndikatorTest extends TestCase
         $panel = $this->panelById($this->panels(), $indicator->id);
 
         $this->assertSame('score_only', $panel['mode']);
-        $this->assertSame('unverified', $panel['score']['scale']);
-        $this->assertNull($panel['score']['percent'], 'skala tak terbukti tidak boleh dikonversi');
+        $this->assertSame('ratio', $panel['score']['scale']);
+        $this->assertEqualsWithDelta(104.85, $panel['score']['percent'], 0.01);
     }
 
     public function test_skor_rasio_terbukti_dikali_seratus(): void
@@ -406,7 +406,7 @@ class TargetRealisasiPerIndikatorTest extends TestCase
             ->assertDontSee('11.000%');
     }
 
-    public function test_skor_tak_terverifikasi_dirender_tanpa_persen(): void
+    public function test_skor_terinferensi_rasio_dirender_sebagai_persen(): void
     {
         $dataset = $this->dataset();
         $indicator = $this->indicator('TJBT', 'Pengendalian Anggaran Investasi sesuai RKAP');
@@ -423,8 +423,8 @@ class TargetRealisasiPerIndikatorTest extends TestCase
 
         $this->actingAs($staff)->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('Skor tidak terverifikasi')
-            ->assertDontSee('104,85%');
+            ->assertSee('104,9%')
+            ->assertDontSee('Skor tidak terverifikasi');
     }
 
     public function test_empty_state_saat_tidak_ada_data_terstruktur(): void

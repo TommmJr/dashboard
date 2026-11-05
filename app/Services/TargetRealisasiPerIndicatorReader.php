@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\PerformanceObservation;
+use App\Support\KpiScoreNormalizer;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -22,14 +23,14 @@ use Illuminate\Support\Facades\DB;
  * - tidak menghitung ulang skor dari target/realisasi — `pencapaian` dipakai
  *   apa adanya, hanya SKALANYA yang ditandai.
  *
- * Skala skor (evidence-based, tanpa menebak dari besar-kecilnya angka):
+ * Skala skor (mengikuti konsolidasi KpiScoreNormalizer):
  * - `indicators.pencapaian_formula_kind` = polarity_ratio/average/date_delta
  *   -> formula workbook menghasilkan RASIO 0..1,1 -> `ratio`.
  * - formula tidak terklasifikasi (NULL) TAPI nilai > 1,1 -> `percent`
  *   (batas atas rasio 1,1 terdokumentasi di formula workbook, jadi nilai di
  *   atasnya tidak mungkin rasio; 110 pada id 410 = 110%).
- * - selain itu -> `unverified`: rasio 1,0485 dan persen 1,0485 tidak bisa
- *   dibedakan dari data tersimpan, jadi JANGAN dikonversi (id 403).
+ * - formula tidak terklasifikasi (NULL) DAN nilai <= 1,1 -> `ratio`:
+ *   selaras dengan keputusan 2026-10-25 di mana observasi Excel dibaca sebagai rasio (id 403 & 413).
  *
  * ponytail: klasifikasi skala bergantung pada kolom formula_kind yang baru
  * terisi pada impor berikutnya (dataset #49 belum di-re-import). Baris lama
@@ -194,7 +195,7 @@ class TargetRealisasiPerIndicatorReader
     }
 
     /**
-     * Penanda skala eksplisit; `percent` null bila skala tidak terverifikasi.
+     * Penanda skala eksplisit via KpiScoreNormalizer.
      *
      * @return array{raw: float, scale: string, percent: float|null}|null
      */
@@ -204,25 +205,7 @@ class TargetRealisasiPerIndicatorReader
             return null;
         }
 
-        $raw = (float) $row->pencapaian;
-        $kind = $row->pencapaian_formula_kind;
-
-        $ratioKinds = [
-            KpiReportConverter::PENCAPAIAN_FORMULA_POLARITY_RATIO,
-            KpiReportConverter::PENCAPAIAN_FORMULA_AVERAGE,
-            KpiReportConverter::PENCAPAIAN_FORMULA_DATE_DELTA,
-        ];
-
-        if (in_array($kind, $ratioKinds, true)) {
-            return ['raw' => $raw, 'scale' => 'ratio', 'percent' => $raw * 100];
-        }
-
-        // Nilai di atas batas atas rasio workbook (1,1) tidak mungkin rasio.
-        if ($raw > 1.1) {
-            return ['raw' => $raw, 'scale' => 'percent', 'percent' => $raw];
-        }
-
-        return ['raw' => $raw, 'scale' => 'unverified', 'percent' => null];
+        return KpiScoreNormalizer::scoreScale((float) $row->pencapaian, $row->pencapaian_formula_kind);
     }
 
     private function date(mixed $value): ?string

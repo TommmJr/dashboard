@@ -16,6 +16,7 @@ use App\Services\AssetStockReport;
 use App\Services\KpiReportConverter;
 use App\Services\StructuredNkoReader;
 use App\Services\TargetRealisasiPerIndicatorReader;
+use App\Support\KpiScoreNormalizer;
 use Carbon\Carbon;
 use Illuminate\Database\QueryException;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -56,15 +57,15 @@ class DashboardController extends Controller
     private const ASET_ATTRIBUTE_PREFIXES = ['Tower ', 'Transmisi ', 'Trafo '];
 
     /** Batas skor indikator R6/R9 dalam persen (keputusan Pak Gama 2026-10-25, mengikuti Excel). */
-    private const KPI_SCORE_MIN = 0.0;
+    private const KPI_SCORE_MIN = KpiScoreNormalizer::SCORE_MIN;
 
-    private const KPI_SCORE_MAX = 110.0;
+    private const KPI_SCORE_MAX = KpiScoreNormalizer::SCORE_MAX;
 
     /**
      * Batas atas skor PENCAPAIAN Excel dalam skala rasio. Nilai di atasnya tidak
      * mungkin rasio, jadi dibaca sebagai persen (mis. observasi #410 = 110.0).
      */
-    private const KPI_SCORE_RATIO_MAX = 1.1;
+    private const KPI_SCORE_RATIO_MAX = KpiScoreNormalizer::RATIO_MAX;
 
     public function __construct(
         private readonly StructuredNkoReader $structuredNko,
@@ -852,7 +853,7 @@ class DashboardController extends Controller
                 if ($p !== null) {
                     // Batas skor Excel 0%..110% berlaku untuk semua baris,
                     // termasuk ATTB yang realisasinya diterima apa adanya.
-                    $p = max(self::KPI_SCORE_MIN, min(self::KPI_SCORE_MAX, $p));
+                    $p = KpiScoreNormalizer::clamp($p);
                     $total++;
                     $pencapaianSum += $p;
                     $counted++;
@@ -1541,7 +1542,7 @@ class DashboardController extends Controller
      */
     private function normalizeExcelScore(float $raw): float
     {
-        return $raw > self::KPI_SCORE_RATIO_MAX ? $raw : $raw * 100;
+        return KpiScoreNormalizer::normalize($raw);
     }
 
     /**
