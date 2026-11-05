@@ -123,6 +123,15 @@ class StructuredKpiChronologicalGuardTest extends TestCase
             'status' => Dataset::STATUS_READY,
         ]);
 
+        PerformanceObservation::create([
+            'dataset_id' => $currentDataset->id,
+            'indicator_id' => $indicatorA->id,
+            'org_unit_id' => $this->orgUnit->id,
+            'period' => '2026-11-30',
+            'target_type' => PerformanceObservation::TYPE_EMPTY,
+            'realisasi_type' => PerformanceObservation::TYPE_EMPTY,
+        ]);
+
         $reflection = new \ReflectionClass($importer);
         $method = $reflection->getMethod('maxReadyPeriods');
         $method->setAccessible(true);
@@ -131,16 +140,23 @@ class StructuredKpiChronologicalGuardTest extends TestCase
         $result = $method->invoke($importer, $currentDataset);
 
         $this->assertArrayHasKey($indicatorA->id, $result);
-        $this->assertSame('2026-08-31', $result[$indicatorA->id]);
+        $this->assertSame('2026-08-31', $result[$indicatorA->id], 'Observasi pada current dataset tidak boleh mempengaruhi maxReadyPeriods');
         $this->assertArrayNotHasKey($indicatorB->id, $result, 'Dataset archived tidak boleh masuk acuan maxReadyPeriods');
     }
 
     public function test_impor_periode_lama_tidak_menimpa_metadata_indikator_periode_terbaru(): void
     {
         // 1. Kondisi awal: Indikator sudah ada dari periode Agustus 2026 (READY)
+        $parentIndicator = Indicator::create([
+            'org_unit_id' => $this->orgUnit->id,
+            'name' => 'Induk Trafo',
+            'is_group' => true,
+        ]);
+
         $indicator = Indicator::create([
             'org_unit_id' => $this->orgUnit->id,
             'name' => 'Keandalan Trafo',
+            'parent_id' => $parentIndicator->id,
             'is_group' => false,
             'satuan' => '%',
             'pencapaian_formula_kind' => KpiReportConverter::PENCAPAIAN_FORMULA_POLARITY_RATIO,
@@ -213,6 +229,7 @@ class StructuredKpiChronologicalGuardTest extends TestCase
 
         // 3. Verifikasi proteksi metadata pada master indicator
         $refreshed = $indicator->fresh();
+        $this->assertSame($parentIndicator->id, $refreshed->parent_id, 'parent_id tidak boleh tertimpa oleh file lampau');
         $this->assertFalse((bool) $refreshed->is_group, 'is_group tidak boleh tertimpa menjadi true oleh file lampau');
         $this->assertSame('%', $refreshed->satuan, 'satuan tidak boleh tertimpa menjadi Kali oleh file lampau');
         $this->assertSame(
