@@ -1161,4 +1161,18 @@ class DashboardWidgetLayoutTest extends TestCase
             ->assertOk()
             ->assertSee('Tren muncul setelah 2+ bulan');
     }
+
+    public function test_staff_dashboard_menampilkan_hero_banner_identitas_divisi_dan_aksi_cepat(): void
+    {
+        $division = Division::factory()->create(['name' => 'Perencanaan Pengusahaan', 'slug' => 'perencanaan-pengusahaan']);
+        $staff = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $division->id]);
+
+        $this->actingAs($staff)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('Dashboard Kinerja Divisi')
+            ->assertSee('Perencanaan Pengusahaan')
+            ->assertSee('TJBT')
+            ->assertSee('Unggah Dataset');
+    }
 }
