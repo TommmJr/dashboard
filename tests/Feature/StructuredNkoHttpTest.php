@@ -493,7 +493,7 @@ class StructuredNkoHttpTest extends TestCase
     // D. R7 terstruktur (GET /dashboard, widget kinerja-detail)
     // ------------------------------------------------------------------
 
-    public function test_r7_terstruktur_mengisi_kolom_nko_lewat_http(): void
+    public function test_r7_terstruktur_merender_tabel_detail_kpi_tanpa_kolom_nko_lewat_http(): void
     {
         config(['kpi.read_model' => 'structured']);
 
@@ -506,7 +506,8 @@ class StructuredNkoHttpTest extends TestCase
             ->get(route('dashboard'))
             ->assertOk()
             ->assertSee('Detail Metrik KPI')
-            ->assertSeeInOrder(['Indikator A', '200', '100', '50%', '105,5']);
+            ->assertSeeInOrder(['Indikator A', '200', '100', '50%'])
+            ->assertDontSee('<th class="py-2.5 px-3 text-right">NKO</th>', false);
     }
 
     public function test_r7_terstruktur_dataset_terbaru_menang(): void
@@ -579,6 +580,12 @@ class StructuredNkoHttpTest extends TestCase
             ->assertSee('"name":"Tercapai","value":1', false)
             ->assertSee('"name":"Hampir Tercapai","value":1', false)
             ->assertSee('"name":"Perlu Peningkatan","value":1', false)
+            ->assertSee('Total Unit Terdistribusi')
+            ->assertSee('NKO ≥ 100')
+            ->assertSee('95 ≤ NKO < 100')
+            ->assertSee('NKO < 95')
+            ->assertSee('1 unit')
+            ->assertSee('33,3%')
             ->assertDontSee('Belum ada data NKO pada periode ini.');
     }
 

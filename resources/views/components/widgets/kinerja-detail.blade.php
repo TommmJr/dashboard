@@ -103,7 +103,6 @@
                         <th class="py-2.5 px-3 text-right">Target</th>
                         <th class="py-2.5 px-3 text-right">Realisasi</th>
                         <th class="py-2.5 px-3 text-right">Pencapaian %</th>
-                        <th class="py-2.5 px-3 text-right">NKO</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">
@@ -139,7 +138,6 @@
                                     @endif
                                 </div>
                             </td>
-                            <td class="py-2.5 px-3 text-right font-semibold text-slate-700">{{ $fmt($row['nko'] ?? null, 2) }}</td>
                         </tr>
                     @endforeach
                 </tbody>
