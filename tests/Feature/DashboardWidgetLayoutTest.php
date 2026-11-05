@@ -1226,4 +1226,17 @@ class DashboardWidgetLayoutTest extends TestCase
             ->assertSee('Baris Data Aktif (TJBT)')
             ->assertSee('Kelola Dataset');
     }
+
+    public function test_staff_divisi_non_pengusahaan_melihat_kartu_panduan_alur_kerja(): void
+    {
+        $division = Division::factory()->create(['name' => 'Managemen Aset', 'slug' => 'managemen-aset']);
+        $staff = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $division->id]);
+
+        $this->actingAs($staff)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('Ruang Kerja Divisi')
+            ->assertSee('Managemen Aset')
+            ->assertSee('Status Dataset');
+    }
 }

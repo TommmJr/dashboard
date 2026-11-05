@@ -126,9 +126,57 @@
 
     {{-- Widget per role: satu loop generik, urutan & komposisi dari config. --}}
     <div class="grid grid-flow-dense gap-4 sm:gap-5 lg:grid-cols-3">
+        @if ($isStaffDashboard && count($widgets) === 1 && ($widgets[0]['key'] ?? '') === 'dataset-status')
+            <div class="h-full rounded-lg border border-slate-200 bg-white p-6 shadow-sm lg:col-span-2">
+                <div class="flex items-center gap-3">
+                    <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-teal-100 bg-teal-50 text-teal-700">
+                        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M19 21V5a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v5m-4 0h4" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <h2 class="text-lg font-bold text-primary">Ruang Kerja Divisi {{ auth()->user()?->division?->name ?? '' }}</h2>
+                        <p class="text-xs text-slate-500">Pusat kendali operasional integrasi dan pengelolaan data divisi.</p>
+                    </div>
+                </div>
+
+                <div class="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div class="rounded-lg border border-slate-100 bg-slate-50/60 p-4">
+                        <p class="text-xs font-semibold text-slate-700">Manajemen Dataset</p>
+                        <p class="mt-1 text-xs text-slate-500">Kelola dan pantau dataset berkala milik divisi Anda, termasuk riwayat unggah dan status verifikasi.</p>
+                        <a href="{{ route('datasets.index') }}" class="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-accent transition hover:text-primary">
+                            Lihat Arsip Dataset &rarr;
+                        </a>
+                    </div>
+                    <div class="rounded-lg border border-slate-100 bg-slate-50/60 p-4">
+                        <p class="text-xs font-semibold text-slate-700">Unggah Data Baru</p>
+                        <p class="mt-1 text-xs text-slate-500">Kirimkan berkas dataset operasional terbaru untuk diproses secara terstruktur ke dalam sistem.</p>
+                        @can('dataset.import')
+                            <a href="{{ route('datasets.create') }}" class="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-accent transition hover:text-primary">
+                                Unggah Dataset Baru &rarr;
+                            </a>
+                        @else
+                            <span class="mt-3 inline-flex text-xs text-slate-400">Hubungi Admin untuk izin impor</span>
+                        @endcan
+                    </div>
+                </div>
+
+                <div class="mt-4 rounded-lg border border-blue-100 bg-blue-50/40 p-3.5 text-xs text-slate-600">
+                    <p class="flex items-center gap-2">
+                        <svg class="h-4 w-4 shrink-0 text-blue-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"/>
+                            <path d="M12 16v-4M12 8h.01"/>
+                        </svg>
+                        <span>Widget visualisasi analitik khusus untuk divisi ini sedang dalam penyiapan data terstruktur oleh tim pengelola.</span>
+                    </p>
+                </div>
+            </div>
+        @endif
+
         @foreach ($widgets as $widget)
             @php
-                $widgetClass = match ((int) ($widget['cols'] ?? 3)) {
+                $isSingleStaffWidget = $isStaffDashboard && count($widgets) === 1 && ($widget['key'] ?? '') === 'dataset-status';
+                $widgetClass = $isSingleStaffWidget ? 'lg:col-span-1' : match ((int) ($widget['cols'] ?? 3)) {
                     1 => 'lg:col-span-1',
                     2 => 'lg:col-span-2',
                     default => 'lg:col-span-3',
