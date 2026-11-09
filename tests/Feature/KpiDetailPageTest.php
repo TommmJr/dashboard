@@ -129,4 +129,71 @@ class KpiDetailPageTest extends TestCase
             ]))
             ->assertOk();
     }
+
+    public function test_sidebar_menampilkan_link_rincian_kpi_untuk_staf_pengusahaan_dan_menyembunyikannya_untuk_staf_aset(): void
+    {
+        $role = Role::where('slug', Role::STAFF_DIVISI)->firstOrFail();
+
+        $stafPengusahaan = User::factory()->create([
+            'role_id' => $role->id,
+            'division_id' => $this->pengusahaan->id,
+        ]);
+
+        $stafAset = User::factory()->create([
+            'role_id' => $role->id,
+            'division_id' => $this->aset->id,
+        ]);
+
+        $this->actingAs($stafPengusahaan)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('id="sidebar-kpi-detail-link"', false)
+            ->assertSee('Rincian KPI');
+
+        $this->actingAs($stafAset)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertDontSee('id="sidebar-kpi-detail-link"', false);
+    }
+
+    public function test_widget_kinerja_detail_di_dashboard_utama_memiliki_tautan_ke_halaman_rincian_kpi(): void
+    {
+        $role = Role::where('slug', Role::STAFF_DIVISI)->firstOrFail();
+        $stafPengusahaan = User::factory()->create([
+            'role_id' => $role->id,
+            'division_id' => $this->pengusahaan->id,
+        ]);
+
+        $dataset = Dataset::factory()->create([
+            'division_id' => $this->pengusahaan->id,
+            'status' => Dataset::STATUS_READY,
+        ]);
+
+        $unit = OrgUnit::create(['name' => 'TJBT']);
+        $indicator = Indicator::create([
+            'org_unit_id' => $unit->id,
+            'name' => 'Indikator Pintas',
+            'satuan' => '%',
+            'is_group' => false,
+            'pencapaian_formula_kind' => 'polarity_ratio',
+        ]);
+
+        PerformanceObservation::create([
+            'dataset_id' => $dataset->id,
+            'indicator_id' => $indicator->id,
+            'org_unit_id' => $unit->id,
+            'division_id' => $this->pengusahaan->id,
+            'period' => '2026-08-31',
+            'target_type' => PerformanceObservation::TYPE_NUMERIC,
+            'realisasi_type' => PerformanceObservation::TYPE_NUMERIC,
+            'target_value' => 100.0,
+            'realisasi_value' => 100.0,
+            'pencapaian' => 1.0,
+        ]);
+
+        $this->actingAs($stafPengusahaan)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee(route('dashboard.kpi-detail'), false);
+    }
 }

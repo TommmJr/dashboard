@@ -166,15 +166,26 @@
             <span>
                 Menampilkan {{ $displayRows->count() }} dari {{ $totalRows > 0 ? $totalRows : $rows->count() }} baris.
             </span>
-            @if ($isLimited)
-                <a href="{{ route('dashboard', $seeAllParams) }}#kinerja-detail" class="font-semibold text-primary hover:underline inline-flex items-center gap-1">
-                    Lihat semua ({{ $totalRows > 0 ? $totalRows : $rows->count() }} baris) &rarr;
-                </a>
-            @elseif ($showAll && $rows->count() > 10)
-                <a href="{{ route('dashboard', $seeAllParams) }}#kinerja-detail" class="font-semibold text-primary hover:underline inline-flex items-center gap-1">
-                    Tampilkan ringkas (10 baris) &rarr;
-                </a>
-            @endif
+            <div class="flex flex-wrap items-center gap-3">
+                @if ($isLimited)
+                    <a href="{{ route($currentRouteName, $seeAllParams) }}#kinerja-detail" class="font-semibold text-primary hover:underline inline-flex items-center gap-1">
+                        Lihat semua ({{ $totalRows > 0 ? $totalRows : $rows->count() }} baris) &rarr;
+                    </a>
+                @elseif (! request()->routeIs('dashboard.kpi-detail') && $showAll && $rows->count() > 10)
+                    <a href="{{ route($currentRouteName, $seeAllParams) }}#kinerja-detail" class="font-semibold text-primary hover:underline inline-flex items-center gap-1">
+                        Tampilkan ringkas (10 baris) &rarr;
+                    </a>
+                @endif
+                @if (! request()->routeIs('dashboard.kpi-detail') && \App\Http\Controllers\DashboardController::canAccessKpiDetail(auth()->user()))
+                    <a href="{{ route('dashboard.kpi-detail', array_filter([
+                        'unit' => $selectedUnit,
+                        'start_date' => is_string($startDate) ? $startDate : null,
+                        'end_date' => is_string($endDate) ? $endDate : null,
+                    ])) }}" class="font-semibold text-teal-700 hover:underline inline-flex items-center gap-1">
+                        Halaman Rincian KPI &rarr;
+                    </a>
+                @endif
+            </div>
         </div>
     @endif
 </div>

@@ -32,6 +32,19 @@
             <span x-show="$store.ui.sidebarExpanded" x-transition.opacity class="sidebar-label whitespace-nowrap">Dashboard</span>
         </a>
 
+        @if (\App\Http\Controllers\DashboardController::canAccessKpiDetail(auth()->user()))
+            <a href="{{ route('dashboard.kpi-detail') }}"
+               id="sidebar-kpi-detail-link"
+               @if (request()->routeIs('dashboard.kpi-detail')) aria-current="page" @endif
+               class="flex items-center gap-3 rounded-lg border-l-2 px-3 py-2 text-xs font-medium transition {{ request()->routeIs('dashboard.kpi-detail') ? 'border-highlight bg-white/15 text-white' : 'border-transparent text-white/70 hover:bg-white/10 hover:text-white' }}"
+               :class="$store.ui.sidebarExpanded ? 'pl-8' : 'px-3'">
+                <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                    <path d="M9 17v-6m3 6V7m3 10v-4M5 21h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2Z" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                <span x-show="$store.ui.sidebarExpanded" x-transition.opacity class="sidebar-label whitespace-nowrap">Rincian KPI</span>
+            </a>
+        @endif
+
         @can('dataset.view')
             <a href="{{ route('datasets.index') }}"
                @if ((request()->routeIs('datasets.index') || request()->routeIs('datasets.show'))) aria-current="page" @endif
