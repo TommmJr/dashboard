@@ -25,36 +25,33 @@
 @section('content')
 <div class="mx-auto max-w-7xl" @if ($needsPerformanceState) x-data="performanceDashboard(@js($filters ?? []))" x-init="load()" @endif>
     @if ($isStaffDashboard)
-        <div id="dashboard-header" class="mb-6 flex flex-col gap-4 rounded-xl border border-slate-200/80 bg-white p-5 shadow-[0_1px_3px_0_rgba(0,0,0,0.04)] sm:flex-row sm:items-center sm:justify-between">
-            <div class="flex items-center gap-4">
-                <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-teal-500/20 bg-teal-50 text-primary shadow-xs">
-                    <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                        <path d="M3 3v18h18" stroke-linecap="round" stroke-linejoin="round"/>
-                        <path d="m19 9-5 5-4-4-3 3" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
+        <div id="dashboard-header" class="mb-4 flex flex-col gap-3 rounded-lg border border-slate-200/80 bg-white px-4 py-3 shadow-[0_1px_2px_0_rgba(0,0,0,0.03)] sm:flex-row sm:items-center sm:justify-between">
+            <div class="flex flex-wrap items-center gap-3">
+                <div class="flex items-center gap-2">
+                    <div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-teal-500/20 bg-teal-50 text-primary">
+                        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                            <path d="M3 3v18h18" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="m19 9-5 5-4-4-3 3" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </div>
+                    <h1 class="text-base font-bold tracking-tight text-primary">Dashboard Kinerja Divisi</h1>
                 </div>
-                <div class="min-w-0">
-                    <div class="flex flex-wrap items-center gap-2.5">
-                        <h1 class="text-xl font-bold tracking-tight text-primary">Dashboard Kinerja Divisi</h1>
-                        <span class="inline-flex items-center rounded-md border border-teal-200/80 bg-teal-50 px-2.5 py-0.5 text-xs font-semibold text-teal-800">
-                            {{ auth()->user()?->division?->name ?? 'Divisi' }}
-                        </span>
-                    </div>
-                    <div class="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-slate-500">
-                        <span class="inline-flex items-center gap-1">
-                            <span>Cakupan Unit:</span>
-                            <strong class="font-semibold text-slate-800">{{ !empty(config('kpi.visible_units')) ? implode(', ', config('kpi.visible_units')) : 'Semua Unit' }}</strong>
-                        </span>
-                        <span class="text-slate-300" aria-hidden="true">&bull;</span>
-                        <span>Ruang Kerja Operasional Data KPI</span>
-                    </div>
+                <div class="flex items-center gap-2 text-xs">
+                    <span class="inline-flex items-center rounded border border-teal-200/80 bg-teal-50 px-2 py-0.5 font-semibold text-teal-800">
+                        {{ auth()->user()?->division?->name ?? 'Divisi' }}
+                    </span>
+                    <span class="text-slate-300" aria-hidden="true">&bull;</span>
+                    <span class="inline-flex items-center gap-1 text-slate-500">
+                        <span>Cakupan Unit:</span>
+                        <strong class="font-semibold text-slate-800">{{ !empty(config('kpi.visible_units')) ? implode(', ', config('kpi.visible_units')) : 'Semua Unit' }}</strong>
+                    </span>
                 </div>
             </div>
 
             @can('dataset.import')
                 <div class="flex shrink-0 items-center">
-                    <a href="{{ route('datasets.create') }}" class="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-xs font-semibold text-white shadow-xs transition hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2">
-                        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <a href="{{ route('datasets.create') }}" class="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-white shadow-2xs transition hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-1">
+                        <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                             <path d="M12 5v14M5 12h14" stroke-linecap="round" stroke-linejoin="round"/>
                         </svg>
                         Unggah Dataset

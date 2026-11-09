@@ -49,21 +49,15 @@
     }
 @endphp
 
-<div class="h-full rounded-lg bg-white border border-slate-200 shadow-sm p-6">
+<div class="h-full rounded-lg bg-white border border-slate-200 shadow-sm p-4 sm:p-5">
     <div class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-        <h3 class="text-lg font-bold text-primary">{{ $widget['label'] ?? 'Target dan Realisasi per Indikator' }}</h3>
+        <h3 class="text-base font-bold text-primary">{{ $widget['label'] ?? 'Target dan Realisasi per Indikator' }}</h3>
         @if ($period !== null)
             <span class="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
                 Periode {{ $period }}@if (count($units) > 0) · {{ implode(', ', $units) }}@endif
             </span>
         @endif
     </div>
-
-    @if ($period !== null)
-        <p class="mt-1 text-xs text-gray-500">
-            Perbandingan % pencapaian terhadap target (garis 100%). Target dan realisasi mentah ditampilkan pada tooltip.
-        </p>
-    @endif
 
     @if (empty($sections))
         <p class="mt-4 rounded-lg bg-slate-50 p-5 text-sm text-gray-600">
@@ -94,7 +88,7 @@
             @endif
         </div>
 
-        <div class="mt-5 space-y-8">
+        <div class="mt-4 space-y-4">
             @foreach ($sections as $sectionIndex => $section)
                 @php
                     $panels = $section['panels'] ?? [];
