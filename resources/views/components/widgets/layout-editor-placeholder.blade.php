@@ -644,6 +644,7 @@
                             'pencapaian-nko': { type: 'bar', label: 'Grafik Batang' },
                             'custom-chart': { type: 'bar', label: 'Grafik Batang' },
                             'nko-donut': { type: 'donut', label: 'Grafik Donat' },
+                            'kpi-rag-status': { type: 'scorecard', label: 'Tile Status RAG' },
                             'nko-ranking': { type: 'ranking', label: 'Peringkat' },
                             'kinerja-detail': { type: 'table', label: 'Tabel' },
                             'dataset-status': { type: 'table', label: 'Tabel' },

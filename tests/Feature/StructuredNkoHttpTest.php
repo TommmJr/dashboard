@@ -65,6 +65,12 @@ class StructuredNkoHttpTest extends TestCase
         // di sini supaya stand-in itu tetap valid; batas itu diuji di
         // `KpiUnitScopeTest`.
         config(['kpi.visible_units' => null]);
+
+        // Pasang nko-ranking dan nko-donut pada layout test staff_divisi:perencanaan-pengusahaan
+        // untuk menguji HTTP rendering R3 & R10 terstruktur.
+        config(['dashboard_layouts.layouts.staff_divisi:perencanaan-pengusahaan' => [
+            'kpi-summary', 'trend-chart', 'nko-donut', 'nko-ranking', 'dataset-status', 'kinerja-detail',
+        ]]);
     }
 
     // ------------------------------------------------------------------

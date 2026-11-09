@@ -1,9 +1,9 @@
 @props(['widget' => [], 'data' => null])
 
-{{-- Panel Target vs Realisasi PER INDIKATOR (Looker Studio style).
-     Menampilkan bar horizontal % pencapaian per indikator dengan garis target 100%.
+{{-- Panel Target vs Realisasi PER INDIKATOR (Looker Studio style - Varian Compact).
+     Menampilkan daftar 1 baris per indikator dengan mini-bar % pencapaian.
      Target, realisasi, dan satuan mentah tersedia di tooltip.
-     Milestone tanggal dan skor unverified disajikan dalam kartu terpisah di bawah grafik.
+     Milestone tanggal dan skor unverified disajikan dalam chip padat.
 
      Data: App\Services\TargetRealisasiPerIndicatorReader (selalu terstruktur).
 --}}
@@ -65,7 +65,7 @@
         </p>
     @else
         {{-- Summary stat badges --}}
-        <div class="mt-4 flex flex-wrap items-center gap-2 text-xs">
+        <div class="mt-3 flex flex-wrap items-center gap-2 text-xs">
             <span class="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-700">
                 <span class="h-2 w-2 rounded-full bg-slate-400"></span>
                 Total: {{ $totalCount }} Indikator
@@ -107,226 +107,104 @@
                     }
 
                     $chartId = 'target-realisasi-chart-'.$sectionIndex.'-'.$instanceId;
-
-                    $names = [];
-                    $seriesData = [];
-                    $extraData = [];
-                    $maxVal = 120;
-
-                    foreach ($chartable as $p) {
-                        $pct = round((float) $p['score']['percent'], 1);
-                        if ($pct > $maxVal) {
-                            $maxVal = $pct;
-                        }
-                        $names[] = $p['name'];
-                        $color = $pct >= 100 ? '#16a34a' : ($pct >= 95 ? '#eab308' : '#dc2626');
-                        $seriesData[] = [
-                            'value' => $pct,
-                            'itemStyle' => ['color' => $color, 'borderRadius' => [0, 4, 4, 0]],
-                        ];
-                        $extraData[] = [
-                            'target' => $p['numeric'] ? $fmt((float) $p['numeric']['target']) : null,
-                            'realisasi' => $p['numeric'] ? $fmt((float) $p['numeric']['realisasi']) : null,
-                            'satuan' => $p['satuan'],
-                        ];
-                    }
-
-                    $xAxisMax = (int) (ceil($maxVal / 10) * 10);
-                    $chartHeight = max(220, count($chartable) * 38 + 60);
                 @endphp
 
-                <section>
+                <section class="border-t border-slate-100 pt-3 first:border-0 first:pt-0">
                     @if (! empty($section['name']))
-                        <h4 class="text-sm font-semibold text-primary border-b border-slate-100 pb-1.5">{{ $section['name'] }}</h4>
+                        <h4 class="text-xs font-semibold uppercase tracking-wider text-primary pb-1">{{ $section['name'] }}</h4>
                     @endif
 
                     @if (count($chartable) > 0)
-                        <div class="mt-3">
-                            <div id="{{ $chartId }}" class="w-full" style="height: {{ $chartHeight }}px;"></div>
-                            <script>
-                                (function() {
-                                    function init() {
-                                        const el = document.getElementById(@json($chartId));
-                                        if (!el || !window.echarts) return;
-                                        const extra = @json($extraData);
-                                        const chart = window.echarts.init(el);
-                                        chart.setOption({
-                                            tooltip: {
-                                                trigger: 'axis',
-                                                axisPointer: { type: 'shadow' },
-                                                formatter: function(params) {
-                                                    if (!params || !params.length) return '';
-                                                    const p = params[0];
-                                                    const item = extra[p.dataIndex];
-                                                    let tip = '<div class="text-xs font-semibold text-slate-800 mb-1">' + p.name + '</div>';
-                                                    tip += '<div class="text-xs text-slate-600 space-y-0.5">';
-                                                    if (item && item.target !== null && item.target !== undefined) {
-                                                        tip += '<div>Target: <span class="font-medium text-slate-800">' + item.target + (item.satuan ? ' ' + item.satuan : '') + '</span></div>';
-                                                    }
-                                                    if (item && item.realisasi !== null && item.realisasi !== undefined) {
-                                                        tip += '<div>Realisasi: <span class="font-medium text-slate-800">' + item.realisasi + (item.satuan ? ' ' + item.satuan : '') + '</span></div>';
-                                                    }
-                                                    tip += '<div>Pencapaian: <span class="font-bold" style="color:' + p.color + '">' + p.value + '%</span></div>';
-                                                    tip += '</div>';
-                                                    return tip;
-                                                }
-                                            },
-                                            grid: {
-                                                left: 8,
-                                                right: 50,
-                                                top: 20,
-                                                bottom: 24,
-                                                containLabel: true,
-                                            },
-                                            xAxis: {
-                                                type: 'value',
-                                                min: 0,
-                                                max: {{ $xAxisMax }},
-                                                axisLabel: {
-                                                    formatter: '{value}%',
-                                                    color: '#64748b',
-                                                    fontSize: 11,
-                                                },
-                                                splitLine: {
-                                                    lineStyle: {
-                                                        type: 'dashed',
-                                                        color: '#e2e8f0',
-                                                    },
-                                                },
-                                            },
-                                            yAxis: {
-                                                type: 'category',
-                                                inverse: true,
-                                                data: @json($names),
-                                                axisLabel: {
-                                                    color: '#334155',
-                                                    fontSize: 11,
-                                                    width: 180,
-                                                    overflow: 'truncate',
-                                                    ellipsis: '...',
-                                                },
-                                                axisTick: { show: false },
-                                                axisLine: { lineStyle: { color: '#cbd5e1' } },
-                                            },
-                                            series: [
-                                                {
-                                                    name: 'Pencapaian %',
-                                                    type: 'bar',
-                                                    barMaxWidth: 18,
-                                                    data: @json($seriesData),
-                                                    label: {
-                                                        show: true,
-                                                        position: 'right',
-                                                        formatter: '{c}%',
-                                                        color: '#475569',
-                                                        fontSize: 11,
-                                                        fontWeight: 500,
-                                                    },
-                                                    markLine: {
-                                                        symbol: 'none',
-                                                        silent: true,
-                                                        lineStyle: {
-                                                            color: '#0b6175',
-                                                            type: 'dashed',
-                                                            width: 1.5,
-                                                        },
-                                                        data: [
-                                                            {
-                                                                xAxis: 100,
-                                                                label: {
-                                                                    formatter: '100%',
-                                                                    position: 'end',
-                                                                    color: '#0b6175',
-                                                                    fontSize: 10,
-                                                                    fontWeight: 600,
-                                                                },
-                                                            },
-                                                        ],
-                                                    },
-                                                },
-                                            ],
-                                        });
-                                        new ResizeObserver(() => chart.resize()).observe(el);
-                                    }
-                                    if (document.readyState === 'loading') {
-                                        window.addEventListener('DOMContentLoaded', init);
+                        <div id="{{ $chartId }}" class="mt-2 space-y-1">
+                            @foreach ($chartable as $p)
+                                @php
+                                    $pct = round((float) $p['score']['percent'], 1);
+                                    $barWidth = max(0, min(100, $pct));
+                                    if ($pct >= 100) {
+                                        $barColor = 'bg-emerald-500';
+                                        $textColor = 'text-emerald-700';
+                                    } elseif ($pct >= 95) {
+                                        $barColor = 'bg-amber-500';
+                                        $textColor = 'text-amber-700';
                                     } else {
-                                        init();
+                                        $barColor = 'bg-rose-500';
+                                        $textColor = 'text-rose-700';
                                     }
-                                })();
-                            </script>
+                                    $targetStr = $p['numeric'] ? $fmt((float) $p['numeric']['target']) : null;
+                                    $realisasiStr = $p['numeric'] ? $fmt((float) $p['numeric']['realisasi']) : null;
+                                    $satuanStr = $p['satuan'] ? ' '.$p['satuan'] : '';
+                                    $tooltip = $p['name'].' | Target: '.($targetStr ?? '—').$satuanStr.' | Realisasi: '.($realisasiStr ?? '—').$satuanStr.' | Pencapaian: '.$fmtPercent($p['score']['percent']);
+                                @endphp
+                                <div
+                                    class="flex items-center justify-between gap-3 rounded px-2 py-1 text-xs hover:bg-slate-50 transition-colors"
+                                    data-indicator-id="{{ $p['indicator_id'] }}"
+                                    data-mode="{{ $p['mode'] }}"
+                                    title="{{ $tooltip }}"
+                                >
+                                    <span class="truncate font-medium text-slate-700 flex-1 max-w-[50%]" title="{{ $p['name'] }}">
+                                        {{ $p['name'] }}
+                                    </span>
+                                    <div class="flex items-center gap-3 w-1/2 sm:w-2/5 justify-end">
+                                        <div class="h-2 w-full max-w-[140px] rounded-full bg-slate-100 overflow-hidden">
+                                            <div class="h-full rounded-full {{ $barColor }}" style="width: {{ $barWidth }}%"></div>
+                                        </div>
+                                        <span class="w-14 text-right font-bold {{ $textColor }}">
+                                            {{ $fmtPercent($p['score']['percent']) }}
+                                        </span>
+                                    </div>
+                                </div>
+                            @endforeach
                         </div>
                     @endif
 
-                    {{-- Timeline & Milestone Tanggal --}}
+                    {{-- Milestone tanggal --}}
                     @if (count($datePanels) > 0)
-                        <div class="mt-4 space-y-2">
-                            <h5 class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Milestone & Indikator Tanggal</h5>
-                            <div class="grid gap-3 sm:grid-cols-2">
-                                @foreach ($datePanels as $panel)
-                                    <div
-                                        class="rounded-lg border border-slate-200 bg-slate-50/60 p-3"
-                                        data-indicator-id="{{ $panel['indicator_id'] }}"
-                                        data-mode="{{ $panel['mode'] }}"
-                                    >
-                                        <div class="flex items-start justify-between gap-2">
-                                            <span class="text-xs font-medium text-slate-800">{{ $panel['name'] }}</span>
-                                            @if ($panel['score'] !== null && $panel['score']['percent'] !== null)
-                                                <span class="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold {{ $panel['score']['percent'] >= 100 ? 'bg-emerald-100 text-emerald-800' : ($panel['score']['percent'] >= 95 ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800') }}">
-                                                    {{ $fmtPercent($panel['score']['percent']) }}
-                                                </span>
-                                            @endif
-                                        </div>
-                                        <div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-600">
-                                            <div>Target: <span class="font-medium text-slate-800">{{ $panel['date']['target'] ?? '—' }}</span></div>
-                                            <div>Realisasi: <span class="font-medium text-slate-800">{{ $panel['date']['realisasi'] ?? '—' }}</span></div>
-                                            <div>
-                                                Selisih:
-                                                <span class="font-medium {{ ($panel['date']['delta_days'] ?? 0) <= 0 ? 'text-emerald-700' : 'text-rose-700' }}">
-                                                    @if ($panel['date']['delta_days'] === null)
-                                                        —
-                                                    @else
-                                                        {{ $panel['date']['delta_days'] }} hari ({{ $panel['date']['delta_days'] <= 0 ? 'lebih cepat' : 'lebih lambat' }})
-                                                    @endif
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                @endforeach
-                            </div>
+                        <div class="mt-2.5 flex flex-wrap items-center gap-1.5">
+                            <span class="text-[11px] font-semibold text-slate-500">Milestone:</span>
+                            @foreach ($datePanels as $panel)
+                                @php
+                                    $targetDate = $panel['date']['target'] ?? '—';
+                                    $realisasiDate = $panel['date']['realisasi'] ?? '—';
+                                    $deltaDays = $panel['date']['delta_days'] ?? null;
+                                    $deltaText = $deltaDays === null ? '—' : ($deltaDays <= 0 ? abs($deltaDays).' hari lebih cepat' : $deltaDays.' hari lebih lambat');
+                                    $chipTooltip = $panel['name'].' | Target: '.$targetDate.' | Realisasi: '.$realisasiDate.' | Selisih: '.$deltaText;
+                                    $chipBorder = ($deltaDays !== null && $deltaDays <= 0)
+                                        ? 'border-emerald-200 bg-emerald-50/70 text-emerald-800'
+                                        : 'border-rose-200 bg-rose-50/70 text-rose-800';
+                                @endphp
+                                <div
+                                    class="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-medium {{ $chipBorder }} cursor-help"
+                                    data-indicator-id="{{ $panel['indicator_id'] }}"
+                                    data-mode="{{ $panel['mode'] }}"
+                                    title="{{ $chipTooltip }}"
+                                >
+                                    <span class="truncate max-w-[160px]">{{ $panel['name'] }}</span>
+                                    @if ($panel['score'] !== null && $panel['score']['percent'] !== null)
+                                        <span class="font-bold">{{ $fmtPercent($panel['score']['percent']) }}</span>
+                                    @endif
+                                    <span class="text-[10px] opacity-75">({{ $realisasiDate }})</span>
+                                </div>
+                            @endforeach
                         </div>
                     @endif
 
                     {{-- Unverified Skor --}}
                     @if (count($unverifiedPanels) > 0)
-                        <div class="mt-4 rounded-lg border border-amber-200 bg-amber-50/60 p-3.5">
-                            <h5 class="text-xs font-semibold text-amber-900 flex items-center gap-1.5">
-                                <svg class="h-4 w-4 text-amber-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                </svg>
-                                Perlu Verifikasi Skala Skor
-                            </h5>
-                            <p class="mt-1 text-xs text-amber-800">
-                                Indikator berikut tidak diplot pada grafik bar % untuk mencegah kesalahan skala (skor workbook asli tanpa satuan baku):
-                            </p>
-                            <div class="mt-2.5 divide-y divide-amber-200/60">
-                                @foreach ($unverifiedPanels as $panel)
-                                    <div
-                                        class="py-1.5 flex flex-wrap items-center justify-between gap-2 text-xs"
-                                        data-indicator-id="{{ $panel['indicator_id'] }}"
-                                        data-mode="{{ $panel['mode'] }}"
-                                    >
-                                        <span class="font-medium text-amber-950">{{ $panel['name'] }}</span>
-                                        <div class="flex items-center gap-2">
-                                            @if ($panel['satuan'])
-                                                <span class="text-amber-800">({{ $panel['satuan'] }})</span>
-                                            @endif
-                                            <span class="rounded bg-yellow-100 px-2 py-0.5 font-medium text-yellow-800">Skor tidak terverifikasi</span>
-                                            <span class="text-amber-700">Nilai mentah: {{ $fmt($panel['score']['raw'] ?? null) }}</span>
-                                        </div>
-                                    </div>
-                                @endforeach
-                            </div>
+                        <div class="mt-2 flex flex-wrap items-center gap-1.5">
+                            @foreach ($unverifiedPanels as $panel)
+                                <div
+                                    class="inline-flex items-center gap-1.5 rounded border border-amber-200 bg-amber-50/80 px-2 py-0.5 text-[11px] text-amber-900"
+                                    data-indicator-id="{{ $panel['indicator_id'] }}"
+                                    data-mode="{{ $panel['mode'] }}"
+                                    title="Nilai mentah: {{ $fmt($panel['score']['raw'] ?? null) }}"
+                                >
+                                    <span class="font-medium">{{ $panel['name'] }}</span>
+                                    @if ($panel['satuan'])
+                                        <span class="text-amber-700">({{ $panel['satuan'] }})</span>
+                                    @endif
+                                    <span class="rounded bg-yellow-100 px-1 py-0.2 font-semibold text-yellow-800 text-[10px]">Skor tidak terverifikasi</span>
+                                </div>
+                            @endforeach
                         </div>
                     @endif
 

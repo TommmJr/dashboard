@@ -9,6 +9,11 @@
     $truncated = (bool) ($data['truncated'] ?? false);
     $totalRows = (int) ($data['total_rows'] ?? 0);
 
+    $showAll = request()->boolean('all') || request()->boolean('show_all');
+    $limit = $showAll ? PHP_INT_MAX : (int) ($widget['limit'] ?? 10);
+    $isLimited = ! $showAll && $rows->count() > $limit;
+    $displayRows = $isLimited ? $rows->take($limit) : $rows;
+
     // Daftar SEMUA unit di data (termasuk yang barisnya terpotong cap 50),
     // dipakai untuk dropdown pemilih unit. Payload reader tidak ditambah key.
     $unitOptions = array_values(array_filter(
@@ -109,7 +114,7 @@
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">
-                    @foreach ($rows as $row)
+                    @foreach ($displayRows as $row)
                         @php
                             $pencapaianVal = $row['pencapaian'] ?? null;
                             $barWidth = 0;
@@ -147,8 +152,27 @@
             </table>
         </div>
 
-        @if ($truncated)
-            <p class="mt-3 text-xs text-gray-500">Menampilkan 50 dari {{ $totalRows }} baris.</p>
-        @endif
+        @php
+            $seeAllParams = array_filter([
+                'unit' => $selectedUnit,
+                'start_date' => is_string($startDate) ? $startDate : null,
+                'end_date' => is_string($endDate) ? $endDate : null,
+                'all' => $showAll ? null : 1,
+            ]);
+        @endphp
+        <div class="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-gray-500">
+            <span>
+                Menampilkan {{ $displayRows->count() }} dari {{ $totalRows > 0 ? $totalRows : $rows->count() }} baris.
+            </span>
+            @if ($isLimited)
+                <a href="{{ route('dashboard', $seeAllParams) }}#kinerja-detail" class="font-semibold text-primary hover:underline inline-flex items-center gap-1">
+                    Lihat semua ({{ $totalRows > 0 ? $totalRows : $rows->count() }} baris) &rarr;
+                </a>
+            @elseif ($showAll && $rows->count() > 10)
+                <a href="{{ route('dashboard', $seeAllParams) }}#kinerja-detail" class="font-semibold text-primary hover:underline inline-flex items-center gap-1">
+                    Tampilkan ringkas (10 baris) &rarr;
+                </a>
+            @endif
+        </div>
     @endif
 </div>

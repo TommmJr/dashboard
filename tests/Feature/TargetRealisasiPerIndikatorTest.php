@@ -436,4 +436,49 @@ class TargetRealisasiPerIndikatorTest extends TestCase
             ->assertSee('Target dan Realisasi per Indikator')
             ->assertSee('Belum ada data target/realisasi terstruktur pada periode ini.');
     }
+
+    public function test_varian_compact_merender_baris_indikator_tooltip_dan_chip_milestone(): void
+    {
+        $dataset = $this->dataset();
+
+        // 1 Indikator Numerik
+        $indicatorNum = $this->indicator('TJBT', 'Kesiapan Instalasi Sistem');
+        $this->observe($dataset, $indicatorNum, [
+            'target_value' => 99.5,
+            'realisasi_value' => 100.0,
+            'pencapaian' => 1.005,
+        ]);
+
+        // 1 Indikator Tanggal (Milestone)
+        $indicatorDate = $this->indicator('TJBT', 'Milestone Sertifikasi Tanah');
+        $this->observe($dataset, $indicatorDate, [
+            'target_type' => PerformanceObservation::TYPE_DATE,
+            'realisasi_type' => PerformanceObservation::TYPE_DATE,
+            'target_date' => '2026-08-15',
+            'realisasi_date' => '2026-08-10',
+            'pencapaian' => 1.05,
+        ]);
+
+        $staff = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $this->division->id]);
+
+        $response = $this->actingAs($staff)->get(route('dashboard'))->assertOk();
+
+        // Verifikasi container id chart tetap ada untuk kompatibilitas test
+        $response->assertSee('id="target-realisasi-chart-', false);
+
+        // Verifikasi indikator numerik dalam format 1 baris
+        $response->assertSee('data-indicator-id="'.$indicatorNum->id.'"', false);
+        $response->assertSee('Kesiapan Instalasi Sistem');
+        $response->assertSee('100,5%');
+        $response->assertSee('bg-emerald-500', false);
+
+        // Verifikasi chip milestone tanggal
+        $response->assertSee('data-indicator-id="'.$indicatorDate->id.'"', false);
+        $response->assertSee('Milestone:');
+        $response->assertSee('Milestone Sertifikasi Tanah');
+        $response->assertSee('(2026-08-10)');
+
+        // Verifikasi blok aksesibilitas sr-only tetap terpelihara
+        $response->assertSee('class="sr-only"', false);
+    }
 }

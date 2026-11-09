@@ -222,14 +222,15 @@ class DashboardController extends Controller
     }
 
     /**
-     * Data server-side ringan per widget. Widget client-side (kpi-summary,
-     * trend-chart) mengambil data sendiri via /api/performance-data -> null.
+     * Data server-side ringan per widget.
      *
      * @param  array{start_date: ?string, end_date: ?string}  $filters
      */
     private function dataFor(string $key, ?User $user = null, array $filters = []): mixed
     {
         return match ($key) {
+            'kpi-summary' => $this->kpiSummary($user, $filters['start_date'] ?? null, $filters['end_date'] ?? null),
+            'kpi-rag-status' => $this->kpiRagStatus($user, $filters['start_date'] ?? null, $filters['end_date'] ?? null),
             'nko-ranking' => $this->nkoRanking($user, $filters['start_date'] ?? null, $filters['end_date'] ?? null),
             'aset-upt-chart' => $this->asetUptChart($user),
             'recent-audit' => $this->recentAudit($user),
@@ -834,6 +835,8 @@ class DashboardController extends Controller
         foreach ($pairs as $unit => $indikators) {
             $total = 0;
             $achieved = 0;
+            $hampir = 0;
+            $perlu = 0;
             $pencapaianSum = 0;
             $counted = 0;
 
@@ -859,6 +862,10 @@ class DashboardController extends Controller
                     $counted++;
                     if ($p >= 100) {
                         $achieved++;
+                    } elseif ($p >= 95) {
+                        $hampir++;
+                    } else {
+                        $perlu++;
                     }
                 }
             }
@@ -868,6 +875,8 @@ class DashboardController extends Controller
                 $rows[] = [
                     'unit' => $unit,
                     'achieved' => $achieved,
+                    'hampir' => $hampir,
+                    'perlu' => $perlu,
                     'total' => $total,
                     'avg' => round($avg, 1),
                     'status' => $avg >= 100 ? 'Tercapai' : ($avg >= 95 ? 'Hampir Tercapai' : 'Perlu Peningkatan'),
@@ -878,6 +887,82 @@ class DashboardController extends Controller
         usort($rows, fn ($a, $b) => $b['avg'] <=> $a['avg']);
 
         return ['period' => $period, 'rows' => $rows, 'has_data' => $rows !== []];
+    }
+
+    /**
+     * Ringkasan performa untuk kartu 4-5 kpi-summary:
+     * - Kartu 4: Rata-rata pencapaian indikator daun berskor (maks 110%, unweighted mean).
+     * - Kartu 5: Indikator tercapai (achieved / total across all rows).
+     *
+     * @return array{has_data: bool, avg_pencapaian: ?float, achieved_count: ?int, total_count: ?int}
+     */
+    private function kpiSummary(?User $user, ?string $startDate = null, ?string $endDate = null): array
+    {
+        $kinerja = $this->kinerjaRealisasi($user, $startDate, $endDate);
+        $rows = $kinerja['rows'] ?? [];
+
+        if (empty($rows)) {
+            return [
+                'has_data' => false,
+                'avg_pencapaian' => null,
+                'achieved_count' => null,
+                'total_count' => null,
+            ];
+        }
+
+        $achievedCount = (int) array_sum(array_column($rows, 'achieved'));
+        $totalCount = (int) array_sum(array_column($rows, 'total'));
+        $avgPencapaian = count($rows) > 0
+            ? round(array_sum(array_column($rows, 'avg')) / count($rows), 1)
+            : null;
+
+        return [
+            'has_data' => true,
+            'avg_pencapaian' => $avgPencapaian,
+            'achieved_count' => $achievedCount,
+            'total_count' => $totalCount,
+        ];
+    }
+
+    /**
+     * Ubin status RAG indikator daun (Tercapai >= 100, Hampir 95..100, Perlu < 95).
+     * Menjumlahkan achieved, hampir, perlu, dan total di SEMUA baris kinerjaRealisasi.
+     *
+     * @return array{period: ?string, has_data: bool, counts: array{tercapai: int, hampir: int, perlu: int, total: int}}
+     */
+    private function kpiRagStatus(?User $user, ?string $startDate = null, ?string $endDate = null): array
+    {
+        $kinerja = $this->kinerjaRealisasi($user, $startDate, $endDate);
+        $rows = $kinerja['rows'] ?? [];
+
+        if (empty($rows)) {
+            return [
+                'period' => $kinerja['period'] ?? null,
+                'has_data' => false,
+                'counts' => [
+                    'tercapai' => 0,
+                    'hampir' => 0,
+                    'perlu' => 0,
+                    'total' => 0,
+                ],
+            ];
+        }
+
+        $tercapai = (int) array_sum(array_column($rows, 'achieved'));
+        $hampir = (int) array_sum(array_column($rows, 'hampir'));
+        $perlu = (int) array_sum(array_column($rows, 'perlu'));
+        $total = (int) array_sum(array_column($rows, 'total'));
+
+        return [
+            'period' => $kinerja['period'] ?? null,
+            'has_data' => $total > 0,
+            'counts' => [
+                'tercapai' => $tercapai,
+                'hampir' => $hampir,
+                'perlu' => $perlu,
+                'total' => $total,
+            ],
+        ];
     }
 
     /**

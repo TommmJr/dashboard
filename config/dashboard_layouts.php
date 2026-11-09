@@ -43,6 +43,7 @@ return [
         'target-realisasi-per-indikator' => ['default_cols' => 3, 'label' => 'Target dan Realisasi per Indikator', 'view' => 'widgets.target-realisasi-per-indikator', 'permission' => 'dashboard.view'],
         'pencapaian-nko' => ['default_cols' => 1, 'label' => 'Pencapaian % per Unit', 'view' => 'widgets.pencapaian-nko', 'permission' => null],
         'nko-donut' => ['default_cols' => 1, 'label' => 'Distribusi NKO', 'view' => 'widgets.nko-donut', 'permission' => null],
+        'kpi-rag-status' => ['default_cols' => 1, 'label' => 'Status RAG Indikator', 'view' => 'widgets.kpi-rag-status', 'permission' => 'dashboard.view'],
         // Grafik generik ECharts (Opsi C, Sesi 119): judul/jenis/metrik dari
         // `config` per-instance di layout, divalidasi whitelist di backend.
         'custom-chart' => ['default_cols' => 2, 'label' => 'Grafik Kustom', 'view' => 'widgets.custom-chart', 'permission' => 'dashboard.view'],
@@ -106,10 +107,13 @@ return [
         // satuan C-1 resmi ditutup dengan memilih tampilan kartu per indikator
         // (`target-realisasi-per-indikator`) dan menghapus definisi widget
         // agregat lama (`target-vs-realisasi`) dari katalog.
+        // REVISI 2026-11-09 (Tahap 2): nko-ranking dan nko-donut dilepas dari
+        // layout default staff pengusahaan (tetap ada di katalog). Peran donut
+        // digantikan ubin kompak status RAG indikator daun (kpi-rag-status).
         'staff_divisi:perencanaan-pengusahaan' => [
             'kpi-summary',
-            'trend-chart', 'nko-donut',
-            'nko-ranking', 'dataset-status',
+            'trend-chart', 'kpi-rag-status',
+            'dataset-status',
             'kinerja-realisasi', 'pencapaian-nko',
             'target-realisasi-per-indikator',
             'kinerja-detail',

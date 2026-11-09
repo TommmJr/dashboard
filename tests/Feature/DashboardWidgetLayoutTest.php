@@ -2,10 +2,14 @@
 
 namespace Tests\Feature;
 
+use App\Http\Controllers\DashboardController;
 use App\Models\DashboardLayout;
 use App\Models\Dataset;
 use App\Models\Division;
+use App\Models\Indicator;
+use App\Models\OrgUnit;
 use App\Models\PerformanceMetric;
+use App\Models\PerformanceObservation;
 use App\Models\Role;
 use App\Models\User;
 use Database\Seeders\RolePermissionSeeder;
@@ -227,7 +231,9 @@ class DashboardWidgetLayoutTest extends TestCase
             ->assertDontSee('Target vs Realisasi')
             // Widget BARU (keputusan Pak Gama 2026-10-19 11:17) ter-mount.
             ->assertSee('Target dan Realisasi per Indikator</h3>', false)
-            ->assertSee('Distribusi NKO')
+            ->assertSee('Status RAG Indikator')
+            ->assertDontSee('Distribusi NKO')
+            ->assertDontSee('Peringkat NKO Unit')
             ->assertDontSee('Audit Terbaru')
             ->assertDontSee('Dataset Gagal')
             ->assertDontSee('Editor Layout');
@@ -345,12 +351,13 @@ class DashboardWidgetLayoutTest extends TestCase
         ]);
 
         // Staff Pengusahaan punya Config staff_divisi:perencanaan-pengusahaan (urutan #2),
-        // sehingga tetap melihat Grafik Tren Kinerja (bukan hanya nko-donut dari DB staff_divisi #3).
+        // sehingga tetap melihat Grafik Tren Kinerja dan Status RAG Indikator (bukan hanya nko-donut dari DB staff_divisi #3).
         $this->actingAs($staffPengusahaan)
             ->get(route('dashboard'))
             ->assertOk()
             ->assertSee('Grafik Tren Kinerja')
-            ->assertSee('Distribusi NKO');
+            ->assertSee('Status RAG Indikator')
+            ->assertDontSee('Distribusi NKO');
 
         // 3. Staff divisi lain yang tidak punya override divisi di DB (#1) maupun Config (#2)
         // memakai DB staff_divisi (#3) di atas Config staff_divisi (#4).
@@ -711,7 +718,7 @@ class DashboardWidgetLayoutTest extends TestCase
         $this->actingAs($staffPengusahaan)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSeeInOrder(['Rata-rata NKO', 'Grafik Tren Kinerja', 'Distribusi NKO']);
+            ->assertSeeInOrder(['Rata-rata NKO', 'Grafik Tren Kinerja', 'Status RAG Indikator']);
     }
 
     public function test_endpoint_json_mengembalikan_422_untuk_widget_terlarang_widget_asing_dan_konflik_scoping(): void
@@ -1182,12 +1189,11 @@ class DashboardWidgetLayoutTest extends TestCase
 
         // Baris 1: kpi-summary (3)
         $this->assertSame('kpi-summary', $layout[0]);
-        // Baris 2: trend-chart (2) + nko-donut (1) = 3
+        // Baris 2: trend-chart (2) + kpi-rag-status (1) = 3
         $this->assertSame('trend-chart', $layout[1]);
-        $this->assertSame('nko-donut', $layout[2]);
-        // Baris 3: nko-ranking (2) + dataset-status (1) = 3
-        $this->assertSame('nko-ranking', $layout[3]);
-        $this->assertSame('dataset-status', $layout[4]);
+        $this->assertSame('kpi-rag-status', $layout[2]);
+        // Baris 3: dataset-status (3)
+        $this->assertSame('dataset-status', $layout[3]);
     }
 
     public function test_kpi_summary_menampilkan_badge_dan_ikon_konteks_informatif(): void
@@ -1201,7 +1207,112 @@ class DashboardWidgetLayoutTest extends TestCase
             ->assertSee('Rata-rata NKO')
             ->assertSee('Skor Utama')
             ->assertSee('Dataset Terverifikasi')
-            ->assertSee('Parameter Pantau');
+            ->assertSee('Parameter Pantau')
+            ->assertSee('Rata-rata Pencapaian Indikator')
+            ->assertSee('Indikator Tercapai')
+            ->assertSee('Dihitung (Maks 110%)')
+            ->assertSee('Beda dari NKO workbook')
+            ->assertSee('Daun berskor');
+    }
+
+    public function test_tercapai_di_kartu_5_sama_dengan_tercapai_di_rag(): void
+    {
+        $division = Division::factory()->create(['slug' => 'perencanaan-pengusahaan']);
+        $dataset = Dataset::factory()->create([
+            'division_id' => $division->id,
+            'status' => Dataset::STATUS_READY,
+        ]);
+        $orgUnit = OrgUnit::firstOrCreate(['name' => 'TJBT']);
+
+        // Indikator 1: >= 100% (Tercapai)
+        $ind1 = Indicator::create([
+            'org_unit_id' => $orgUnit->id,
+            'name' => 'Indikator A',
+            'is_group' => false,
+        ]);
+        PerformanceObservation::create([
+            'dataset_id' => $dataset->id,
+            'indicator_id' => $ind1->id,
+            'org_unit_id' => $orgUnit->id,
+            'division_id' => $division->id,
+            'period' => '2026-08-31',
+            'target_value' => 100,
+            'realisasi_value' => 105,
+            'target_type' => PerformanceObservation::TYPE_NUMERIC,
+            'realisasi_type' => PerformanceObservation::TYPE_NUMERIC,
+            'pencapaian' => 1.05,
+        ]);
+
+        // Indikator 2: 95% <= Skor < 100% (Hampir Tercapai)
+        $ind2 = Indicator::create([
+            'org_unit_id' => $orgUnit->id,
+            'name' => 'Indikator B',
+            'is_group' => false,
+        ]);
+        PerformanceObservation::create([
+            'dataset_id' => $dataset->id,
+            'indicator_id' => $ind2->id,
+            'org_unit_id' => $orgUnit->id,
+            'division_id' => $division->id,
+            'period' => '2026-08-31',
+            'target_value' => 100,
+            'realisasi_value' => 97,
+            'target_type' => PerformanceObservation::TYPE_NUMERIC,
+            'realisasi_type' => PerformanceObservation::TYPE_NUMERIC,
+            'pencapaian' => 0.97,
+        ]);
+
+        // Indikator 3: < 95% (Perlu Peningkatan)
+        $ind3 = Indicator::create([
+            'org_unit_id' => $orgUnit->id,
+            'name' => 'Indikator C',
+            'is_group' => false,
+        ]);
+        PerformanceObservation::create([
+            'dataset_id' => $dataset->id,
+            'indicator_id' => $ind3->id,
+            'org_unit_id' => $orgUnit->id,
+            'division_id' => $division->id,
+            'period' => '2026-08-31',
+            'target_value' => 100,
+            'realisasi_value' => 90,
+            'target_type' => PerformanceObservation::TYPE_NUMERIC,
+            'realisasi_type' => PerformanceObservation::TYPE_NUMERIC,
+            'pencapaian' => 0.90,
+        ]);
+
+        $staff = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $division->id]);
+
+        $response = $this->actingAs($staff)->get(route('dashboard'))->assertOk();
+
+        // Kartu 5 menampilkan "1 / 3"
+        $response->assertSee('1 / 3');
+
+        // Widget RAG menampilkan status
+        $response->assertSee('Status RAG Indikator');
+        $response->assertSee('Pencapaian &ge; 100%', false);
+        $response->assertSee('95% &le; Skor &lt; 100%', false);
+        $response->assertSee('Skor &lt; 95%', false);
+
+        // Verifikasi kesetaraan data controller: tercapai kartu 5 == tercapai RAG
+        $controller = app(DashboardController::class);
+        $ref = new \ReflectionClass($controller);
+
+        $kpiSummaryMethod = $ref->getMethod('kpiSummary');
+        $kpiSummaryMethod->setAccessible(true);
+        $kpiSummary = $kpiSummaryMethod->invoke($controller, $staff, null, null);
+
+        $kpiRagMethod = $ref->getMethod('kpiRagStatus');
+        $kpiRagMethod->setAccessible(true);
+        $kpiRag = $kpiRagMethod->invoke($controller, $staff, null, null);
+
+        $this->assertSame(1, $kpiSummary['achieved_count']);
+        $this->assertSame(3, $kpiSummary['total_count']);
+        $this->assertSame(1, $kpiRag['counts']['tercapai']);
+        $this->assertSame(1, $kpiRag['counts']['hampir']);
+        $this->assertSame(1, $kpiRag['counts']['perlu']);
+        $this->assertSame(3, $kpiRag['counts']['total']);
+        $this->assertSame($kpiSummary['achieved_count'], $kpiRag['counts']['tercapai']);
     }
 
     public function test_dataset_status_menampilkan_tautan_dan_kartu_kesehatan_operasional(): void

@@ -554,6 +554,37 @@ class KinerjaDetailUnitFilterTest extends TestCase
         config(['kpi.read_model' => 'legacy']);
     }
 
+    public function test_kinerja_detail_membatasi_top_10_dan_menampilkan_link_lihat_semua(): void
+    {
+        $division = $this->pengusahaanDivision();
+        $dataset = Dataset::factory()->create(['division_id' => $division->id]);
+
+        for ($i = 1; $i <= 12; $i++) {
+            $name = sprintf('Metrik Baris %02d', $i);
+            $this->metric($dataset, $division, 'TJBT | '.$name.' | target', 100);
+            $this->metric($dataset, $division, 'TJBT | '.$name.' | realisasi', 100);
+            $this->numericObservation($dataset, $division, 'TJBT', $name, 100, 100, 100.0);
+        }
+
+        $staff = $this->staffOf($division);
+
+        // Akses default: hanya menampilkan 10 baris teratas pada tabel dan link Lihat semua
+        $response = $this->actingAs($staff)->get(route('dashboard'))->assertOk();
+        $response->assertSee('Menampilkan 10 dari 12 baris.');
+        $response->assertSee('Lihat semua (12 baris)');
+        $response->assertSee('<td class="py-2.5 px-3 text-slate-800">Metrik Baris 01</td>', false);
+        $response->assertSee('<td class="py-2.5 px-3 text-slate-800">Metrik Baris 10</td>', false);
+        $response->assertDontSee('<td class="py-2.5 px-3 text-slate-800">Metrik Baris 11</td>', false);
+        $response->assertDontSee('<td class="py-2.5 px-3 text-slate-800">Metrik Baris 12</td>', false);
+
+        // Akses dengan parameter all=1: menampilkan seluruh 12 baris pada tabel dan opsi kembali ringkas
+        $responseAll = $this->actingAs($staff)->get(route('dashboard', ['all' => 1]))->assertOk();
+        $responseAll->assertSee('Menampilkan 12 dari 12 baris.');
+        $responseAll->assertSee('Tampilkan ringkas (10 baris)');
+        $responseAll->assertSee('<td class="py-2.5 px-3 text-slate-800">Metrik Baris 11</td>', false);
+        $responseAll->assertSee('<td class="py-2.5 px-3 text-slate-800">Metrik Baris 12</td>', false);
+    }
+
     // ------------------------------------------------------------------
     // Helpers
     // ------------------------------------------------------------------
