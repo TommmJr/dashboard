@@ -46,7 +46,7 @@ class AssetPipelineRoundTripTest extends TestCase
         $this->seed(RolePermissionSeeder::class);
         $this->seed(UnitDivisionSeeder::class);
 
-        $asetDivision = Division::where('slug', 'data-aset')->sole();
+        $asetDivision = Division::where('slug', 'managemen-aset')->sole();
         $admin = User::factory()->withRole(Role::ADMIN)->create(['division_id' => null]);
 
         $converter = app(AssetStockConverter::class);

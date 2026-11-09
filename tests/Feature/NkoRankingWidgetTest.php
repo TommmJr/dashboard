@@ -67,6 +67,11 @@ class NkoRankingWidgetTest extends TestCase
         // Perencanaan Pengusahaan (layout per-divisi), tidak untuk staf divisi lain.
         // slug harus di-set eksplisit: factory menurunkan slug dari nama default-nya,
         // sehingga cukup memberi 'name' tidak cukup. Pengusahaan = override slug.
+        // REVISI 2026-11-09: default layout staff pengusahaan kini memakai kpi-rag-status
+        // dan nko-ranking dilepas ke katalog. Konfigurasikan layout eksplisit agar
+        // widget peringkat terpasang saat menguji isolasi data antar-divisi staf.
+        config(['dashboard_layouts.layouts.staff_divisi:perencanaan-pengusahaan' => ['nko-ranking']]);
+
         $own = Division::factory()->create(['name' => 'Perencanaan Pengusahaan', 'slug' => 'perencanaan-pengusahaan']);
         $other = Division::factory()->create(['name' => 'Divisi Lain']);
         // $other intentionally slug acak (bukan perencanaan-pengusahaan) supaya staf

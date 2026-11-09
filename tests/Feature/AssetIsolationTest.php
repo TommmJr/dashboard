@@ -59,7 +59,7 @@ class AssetIsolationTest extends TestCase
         $this->seed(UnitDivisionSeeder::class);
 
         $kpiDivision = Division::where('slug', 'perencanaan-pengusahaan')->sole();
-        $asetDivision = Division::where('slug', 'data-aset')->sole();
+        $asetDivision = Division::where('slug', 'managemen-aset')->sole();
         $admin = User::factory()->withRole(Role::ADMIN)->create(['division_id' => null]);
 
         $dataset = Dataset::factory()->create([
@@ -107,7 +107,7 @@ class AssetIsolationTest extends TestCase
         $this->seed(UnitDivisionSeeder::class);
 
         $kpiDivision = Division::where('slug', 'perencanaan-pengusahaan')->sole();
-        $asetDivision = Division::where('slug', 'data-aset')->sole();
+        $asetDivision = Division::where('slug', 'managemen-aset')->sole();
         $admin = User::factory()->withRole(Role::ADMIN)->create(['division_id' => null]);
 
         $dataset = Dataset::factory()->create([

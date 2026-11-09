@@ -21,9 +21,9 @@ class UnitDivisionSeederTest extends TestCase
         $this->assertSame(count(UnitDivisionSeeder::UNITS), Division::count());
 
         $pengusahaan = Division::where('slug', 'perencanaan-pengusahaan')->sole();
-        $dataAset = Division::where('slug', 'data-aset')->sole();
+        $dataAset = Division::where('slug', 'managemen-aset')->sole();
         $this->assertSame('Perencanaan Pengusahaan', $pengusahaan->name);
-        $this->assertSame('Data Aset', $dataAset->name);
+        $this->assertSame('Managemen Aset', $dataAset->name);
     }
 
     public function test_seeder_idempoten_saat_dijalankan_ulang(): void
@@ -39,7 +39,7 @@ class UnitDivisionSeederTest extends TestCase
         $this->seed(UnitDivisionSeeder::class);
 
         $this->assertSame('Perencanaan Pengusahaan', Division::where('slug', 'perencanaan-pengusahaan')->sole()->name);
-        $this->assertSame('Data Aset', Division::where('slug', 'data-aset')->sole()->name);
+        $this->assertSame('Managemen Aset', Division::where('slug', 'managemen-aset')->sole()->name);
     }
 
     public function test_entitas_pembanding_tidak_dijadikan_division(): void

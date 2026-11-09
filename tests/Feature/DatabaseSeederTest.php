@@ -81,7 +81,7 @@ class DatabaseSeederTest extends TestCase
         $this->artisan('db:seed')->assertExitCode(0);
 
         Division::where('slug', 'perencanaan-pengusahaan')->sole();
-        Division::where('slug', 'data-aset')->sole();
+        Division::where('slug', 'managemen-aset')->sole();
     }
 
     public function test_db_seed_local_berhasil_dan_idempoten_dari_database_kosong(): void
@@ -106,7 +106,7 @@ class DatabaseSeederTest extends TestCase
             $stafAset = User::where('email', 'staf.aset@dashboard.local')->sole();
             $this->assertSame(Role::STAFF_DIVISI, $stafAset->role->slug);
             $this->assertSame(
-                Division::where('slug', 'data-aset')->sole()->id,
+                Division::where('slug', 'managemen-aset')->sole()->id,
                 $stafAset->division_id,
             );
 

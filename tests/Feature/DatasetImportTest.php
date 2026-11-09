@@ -252,7 +252,7 @@ class DatasetImportTest extends TestCase
     public function test_admin_dapat_memilih_divisi_tujuan(): void
     {
         $admin = User::factory()->withRole(Role::ADMIN)->create(['division_id' => null]);
-        $targetDivision = Division::where('slug', 'data-aset')->sole();
+        $targetDivision = Division::where('slug', 'managemen-aset')->sole();
 
         $file = $this->makeXlsx($this->validRows());
 
