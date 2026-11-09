@@ -9,10 +9,12 @@
     $truncated = (bool) ($data['truncated'] ?? false);
     $totalRows = (int) ($data['total_rows'] ?? 0);
 
-    $showAll = request()->boolean('all') || request()->boolean('show_all');
-    $limit = $showAll ? PHP_INT_MAX : (int) ($widget['limit'] ?? 10);
+    $widgetLimit = (int) ($widget['limit'] ?? 10);
+    $showAll = request()->boolean('all') || request()->boolean('show_all') || $widgetLimit >= PHP_INT_MAX;
+    $limit = $showAll ? PHP_INT_MAX : $widgetLimit;
     $isLimited = ! $showAll && $rows->count() > $limit;
     $displayRows = $isLimited ? $rows->take($limit) : $rows;
+    $currentRouteName = request()->routeIs('dashboard.kpi-detail') ? 'dashboard.kpi-detail' : 'dashboard';
 
     // Daftar SEMUA unit di data (termasuk yang barisnya terpotong cap 50),
     // dipakai untuk dropdown pemilih unit. Payload reader tidak ditambah key.
@@ -62,7 +64,7 @@
             {{-- Form GET: halaman dimuat ulang supaya widget server-side lain
                  (kinerja-realisasi, target vs realisasi) ikut unit yang sama.
                  Filter tanggal dibawa agar tidak hilang saat pindah unit. --}}
-            <form method="GET" action="{{ route('dashboard') }}" class="flex flex-wrap items-end gap-2">
+            <form method="GET" action="{{ route($currentRouteName) }}" class="flex flex-wrap items-end gap-2">
                 @if (is_string($startDate) && $startDate !== '')
                     <input type="hidden" name="start_date" value="{{ $startDate }}">
                 @endif
@@ -85,7 +87,7 @@
                 @php
                     $primaryUnit = !empty(config('kpi.visible_units')) ? config('kpi.visible_units')[0] : 'TJBT';
                 @endphp
-                <a href="{{ route('dashboard', array_filter([
+                <a href="{{ route($currentRouteName, array_filter([
                         'unit' => $primaryUnit,
                         'start_date' => is_string($startDate) ? $startDate : null,
                         'end_date' => is_string($endDate) ? $endDate : null,

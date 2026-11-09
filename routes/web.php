@@ -35,6 +35,8 @@ Route::middleware('auth')->group(function () {
     // Halaman utama dashboard: controller invokable, merakit widget
     // dengan prioritas tabel dashboard_layouts dan fallback config/dashboard_layouts.php.
     Route::get('/dashboard', DashboardController::class)->name('dashboard');
+    Route::get('/dashboard/kpi-detail', [DashboardController::class, 'kpiDetail'])
+        ->name('dashboard.kpi-detail');
     Route::middleware('can:dashboard.update')->group(function () {
         Route::get('/dashboard/builder', [DashboardController::class, 'builder'])
             ->name('dashboard.builder');

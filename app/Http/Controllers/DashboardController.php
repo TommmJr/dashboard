@@ -144,6 +144,90 @@ class DashboardController extends Controller
     }
 
     /**
+     * Periksa apakah user berhak membuka halaman rincian KPI terpisah:
+     * - Role lintas divisi ber-permission dashboard.view (management, editor_dashboard, admin)
+     * - Staf divisi Perencanaan Pengusahaan
+     * Menggunakan User::hasRole() (app/Models/User.php:61).
+     */
+    public static function canAccessKpiDetail(?User $user): bool
+    {
+        if ($user === null) {
+            return false;
+        }
+
+        $user->loadMissing('role', 'division');
+
+        if ($user->hasRole(Role::MANAGEMENT)
+            || $user->hasRole(Role::EDITOR_DASHBOARD)
+            || $user->hasRole(Role::ADMIN)) {
+            return Gate::forUser($user)->allows('dashboard.view');
+        }
+
+        return $user->hasRole(Role::STAFF_DIVISI)
+            && $user->division?->slug === 'perencanaan-pengusahaan';
+    }
+
+    /**
+     * Halaman rincian KPI mandiri (Tahap 3): menampilkan panel per indikator
+     * dan tabel detail metrik penuh tanpa pemotongan 10 baris.
+     */
+    public function kpiDetail(Request $request): View
+    {
+        $user = Auth::user();
+        abort_unless(self::canAccessKpiDetail($user), 403);
+
+        $filters = [
+            'start_date' => $this->dateOrNull($request->query('start_date')),
+            'end_date' => $this->dateOrNull($request->query('end_date')),
+            'units' => array_values(array_filter(
+                (array) $request->query('unit', []),
+                fn ($unit): bool => is_string($unit) && $unit !== '',
+            )),
+        ];
+
+        if ($filters['start_date'] !== null && $filters['end_date'] !== null
+            && $filters['start_date'] > $filters['end_date']) {
+            $filters['start_date'] = null;
+            $filters['end_date'] = null;
+        }
+
+        $targetRealisasiData = $this->targetRealisasiPerIndikator(
+            $user,
+            $filters['start_date'],
+            $filters['end_date'],
+        );
+
+        // PENTING: $this->kinerjaDetail() mengisi properti internal
+        // $this->kinerjaDetailUnits (daftar seluruh opsi unit di dataset untuk
+        // dropdown #kinerja-detail-unit), sama seperti di __invoke() baris 131.
+        $kinerjaDetailData = $this->kinerjaDetail(
+            $user,
+            $filters['start_date'],
+            $filters['end_date'],
+            $filters['units'],
+        );
+
+        return view('dashboard.kpi-detail', [
+            'filters' => $filters,
+            'availableUnits' => $this->availableUnits($user),
+            'targetRealisasiWidget' => [
+                'key' => 'target-realisasi-per-indikator',
+                'label' => 'Target dan Realisasi per Indikator',
+                'instance' => 0,
+            ],
+            'targetRealisasiData' => $targetRealisasiData,
+            'kinerjaDetailWidget' => [
+                'key' => 'kinerja-detail',
+                'label' => 'Detail Metrik KPI',
+                'limit' => PHP_INT_MAX,
+                'units' => $this->kinerjaDetailUnits ?? [],
+                'instance' => 1,
+            ],
+            'kinerjaDetailData' => $kinerjaDetailData,
+        ]);
+    }
+
+    /**
      * Terima hanya tanggal Y-m-d; selain itu null. Dipakai untuk query string
      * halaman dashboard agar nilai rusak tidak pernah sampai ke query DB.
      */
