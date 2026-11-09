@@ -26,6 +26,11 @@
 
     $instanceId = $widget['instance'] ?? 0;
 
+    $ragThresholds = \App\Support\KpiScoreNormalizer::ragThresholds();
+    $tercapaiMinLabel = $fmt($ragThresholds['tercapai_min']);
+    $hampirMinLabel = $fmt($ragThresholds['hampir_min']);
+    $hampirMaxLabel = $fmt(max($ragThresholds['hampir_min'], $ragThresholds['tercapai_min'] - 1));
+
     // Summary counts across all sections
     $totalCount = 0;
     $achievedCount = 0;
@@ -37,9 +42,10 @@
             $totalCount++;
             $pct = $panel['score']['percent'] ?? null;
             if ($pct !== null) {
-                if ($pct >= 100) {
+                $tier = \App\Support\KpiScoreNormalizer::ragTier((float) $pct);
+                if ($tier === \App\Support\KpiScoreNormalizer::TIER_TERCAPAI) {
                     $achievedCount++;
-                } elseif ($pct >= 95) {
+                } elseif ($tier === \App\Support\KpiScoreNormalizer::TIER_HAMPIR) {
                     $nearCount++;
                 } else {
                     $belowCount++;
@@ -72,18 +78,18 @@
             </span>
             <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 font-medium text-emerald-700 border border-emerald-200">
                 <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
-                Tercapai (&ge;100%): {{ $achievedCount }}
+                Tercapai (&ge;{{ $tercapaiMinLabel }}%): {{ $achievedCount }}
             </span>
             @if ($nearCount > 0)
                 <span class="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 font-medium text-amber-700 border border-amber-200">
                     <span class="h-2 w-2 rounded-full bg-amber-500"></span>
-                    Mendekati (95–99%): {{ $nearCount }}
+                    Mendekati ({{ $hampirMinLabel }}–{{ $hampirMaxLabel }}%): {{ $nearCount }}
                 </span>
             @endif
             @if ($belowCount > 0)
                 <span class="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-2.5 py-1 font-medium text-rose-700 border border-rose-200">
                     <span class="h-2 w-2 rounded-full bg-rose-500"></span>
-                    Perlu Perhatian (&lt;95%): {{ $belowCount }}
+                    Perlu Perhatian (&lt;{{ $hampirMinLabel }}%): {{ $belowCount }}
                 </span>
             @endif
         </div>
@@ -120,10 +126,11 @@
                                 @php
                                     $pct = round((float) $p['score']['percent'], 1);
                                     $barWidth = max(0, min(100, $pct));
-                                    if ($pct >= 100) {
+                                    $tier = \App\Support\KpiScoreNormalizer::ragTier($pct);
+                                    if ($tier === \App\Support\KpiScoreNormalizer::TIER_TERCAPAI) {
                                         $barColor = 'bg-emerald-500';
                                         $textColor = 'text-emerald-700';
-                                    } elseif ($pct >= 95) {
+                                    } elseif ($tier === \App\Support\KpiScoreNormalizer::TIER_HAMPIR) {
                                         $barColor = 'bg-amber-500';
                                         $textColor = 'text-amber-700';
                                     } else {

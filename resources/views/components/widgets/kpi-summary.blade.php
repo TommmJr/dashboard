@@ -9,6 +9,8 @@
     $tercapaiDisplay = ($achievedCount !== null && $totalCount !== null && $totalCount > 0)
         ? $achievedCount . ' / ' . $totalCount
         : '—';
+    $ragThresholds = \App\Support\KpiScoreNormalizer::ragThresholds();
+    $tercapaiMinLabel = rtrim(rtrim(number_format($ragThresholds['tercapai_min'], 1, ',', '.'), '0'), ',');
 @endphp
 
 <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
@@ -110,7 +112,7 @@
         <p class="mt-3 text-2xl sm:text-3xl font-extrabold leading-none tracking-tight text-slate-800">{{ $tercapaiDisplay }}</p>
         <div class="mt-3 flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
             <span class="inline-flex items-center rounded-md border border-amber-200/80 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
-                Skor &ge; 100%
+                Skor &ge; {{ $tercapaiMinLabel }}%
             </span>
             <span class="text-[11px]">Daun berskor</span>
         </div>

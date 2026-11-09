@@ -944,9 +944,10 @@ class DashboardController extends Controller
                     $total++;
                     $pencapaianSum += $p;
                     $counted++;
-                    if ($p >= 100) {
+                    $tier = KpiScoreNormalizer::ragTier($p);
+                    if ($tier === KpiScoreNormalizer::TIER_TERCAPAI) {
                         $achieved++;
-                    } elseif ($p >= 95) {
+                    } elseif ($tier === KpiScoreNormalizer::TIER_HAMPIR) {
                         $hampir++;
                     } else {
                         $perlu++;
@@ -956,6 +957,7 @@ class DashboardController extends Controller
 
             if ($total > 0) {
                 $avg = $pencapaianSum / $counted;
+                $avgTier = KpiScoreNormalizer::ragTier($avg);
                 $rows[] = [
                     'unit' => $unit,
                     'achieved' => $achieved,
@@ -963,7 +965,9 @@ class DashboardController extends Controller
                     'perlu' => $perlu,
                     'total' => $total,
                     'avg' => round($avg, 1),
-                    'status' => $avg >= 100 ? 'Tercapai' : ($avg >= 95 ? 'Hampir Tercapai' : 'Perlu Peningkatan'),
+                    'status' => $avgTier === KpiScoreNormalizer::TIER_TERCAPAI
+                        ? 'Tercapai'
+                        : ($avgTier === KpiScoreNormalizer::TIER_HAMPIR ? 'Hampir Tercapai' : 'Perlu Peningkatan'),
                 ];
             }
         }

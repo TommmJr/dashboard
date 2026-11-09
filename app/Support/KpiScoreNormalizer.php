@@ -21,6 +21,16 @@ class KpiScoreNormalizer
 
     public const SCORE_MAX = 110.0;
 
+    public const TIER_TERCAPAI = 'tercapai';
+
+    public const TIER_HAMPIR = 'hampir';
+
+    public const TIER_PERLU = 'perlu';
+
+    public const DEFAULT_TERCAPAI_MIN = 100.0;
+
+    public const DEFAULT_HAMPIR_MIN = 95.0;
+
     /**
      * Memeriksa apakah nilai mentah merupakan skala rasio (<= 1.10).
      */
@@ -77,5 +87,52 @@ class KpiScoreNormalizer
         // Skor <= 1.10 tanpa metadata formula (seperti indikator #403 & #413 pada file lampau):
         // Selaras dengan keputusan 2026-10-25 di mana seluruh observasi Excel dibaca sebagai rasio.
         return ['raw' => $raw, 'scale' => 'ratio', 'percent' => $raw * 100.0];
+    }
+
+    /**
+     * Ambil konfigurasi ambang batas RAG dengan fallback aman ke standar 100/95.
+     *
+     * @return array{tercapai_min: float, hampir_min: float}
+     */
+    public static function ragThresholds(): array
+    {
+        $configured = config('kpi.rag_thresholds');
+        if (! is_array($configured)) {
+            return [
+                'tercapai_min' => self::DEFAULT_TERCAPAI_MIN,
+                'hampir_min' => self::DEFAULT_HAMPIR_MIN,
+            ];
+        }
+
+        $tercapaiMin = isset($configured['tercapai_min']) && is_numeric($configured['tercapai_min'])
+            ? (float) $configured['tercapai_min']
+            : self::DEFAULT_TERCAPAI_MIN;
+
+        $hampirMin = isset($configured['hampir_min']) && is_numeric($configured['hampir_min'])
+            ? (float) $configured['hampir_min']
+            : self::DEFAULT_HAMPIR_MIN;
+
+        return [
+            'tercapai_min' => $tercapaiMin,
+            'hampir_min' => $hampirMin,
+        ];
+    }
+
+    /**
+     * Tentukan kategori status RAG dari nilai persen pencapaian.
+     */
+    public static function ragTier(float $percentScore): string
+    {
+        $thresholds = self::ragThresholds();
+
+        if ($percentScore >= $thresholds['tercapai_min']) {
+            return self::TIER_TERCAPAI;
+        }
+
+        if ($percentScore >= $thresholds['hampir_min']) {
+            return self::TIER_HAMPIR;
+        }
+
+        return self::TIER_PERLU;
     }
 }

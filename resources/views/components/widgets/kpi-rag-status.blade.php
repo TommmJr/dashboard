@@ -14,6 +14,9 @@
     $pctPerlu = $total > 0 ? round(($perlu / $total) * 100, 1) : 0;
 
     $fmtPct = fn (float $val): string => rtrim(rtrim(number_format($val, 1, ',', '.'), '0'), ',');
+    $ragThresholds = \App\Support\KpiScoreNormalizer::ragThresholds();
+    $tercapaiMinLabel = $fmtPct($ragThresholds['tercapai_min']);
+    $hampirMinLabel = $fmtPct($ragThresholds['hampir_min']);
 @endphp
 
 <div class="h-full rounded-lg bg-white border border-slate-200 shadow-sm p-4 sm:p-5 flex flex-col justify-between">
@@ -39,7 +42,7 @@
                         <span class="h-2.5 w-2.5 rounded-full shrink-0 bg-emerald-500"></span>
                         <div class="truncate">
                             <span class="font-semibold block text-slate-900">Tercapai</span>
-                            <span class="text-[11px] text-emerald-700 block">Pencapaian &ge; 100%</span>
+                            <span class="text-[11px] text-emerald-700 block">Pencapaian &ge; {{ $tercapaiMinLabel }}%</span>
                         </div>
                     </div>
                     <div class="text-right shrink-0 pl-2">
@@ -54,7 +57,7 @@
                         <span class="h-2.5 w-2.5 rounded-full shrink-0 bg-amber-500"></span>
                         <div class="truncate">
                             <span class="font-semibold block text-slate-900">Hampir Tercapai</span>
-                            <span class="text-[11px] text-amber-700 block">95% &le; Skor &lt; 100%</span>
+                            <span class="text-[11px] text-amber-700 block">{{ $hampirMinLabel }}% &le; Skor &lt; {{ $tercapaiMinLabel }}%</span>
                         </div>
                     </div>
                     <div class="text-right shrink-0 pl-2">
@@ -69,7 +72,7 @@
                         <span class="h-2.5 w-2.5 rounded-full shrink-0 bg-rose-500"></span>
                         <div class="truncate">
                             <span class="font-semibold block text-slate-900">Perlu Peningkatan</span>
-                            <span class="text-[11px] text-rose-700 block">Skor &lt; 95%</span>
+                            <span class="text-[11px] text-rose-700 block">Skor &lt; {{ $hampirMinLabel }}%</span>
                         </div>
                     </div>
                     <div class="text-right shrink-0 pl-2">

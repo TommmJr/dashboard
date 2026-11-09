@@ -60,4 +60,16 @@ return [
      * @var list<string>|null
      */
     'visible_units' => ['TJBT'],
+
+    /*
+     * Ambang batas kategori warna status RAG indikator KPI (dalam persen).
+     * Default resmi PLN UIT JBT:
+     * - Tercapai (Hijau)        : >= 100.0%
+     * - Hampir Tercapai (Kuning): >= 95.0% dan < 100.0%
+     * - Perlu Peningkatan (Merah): < 95.0%
+     */
+    'rag_thresholds' => [
+        'tercapai_min' => 100.0,
+        'hampir_min' => 95.0,
+    ],
 ];

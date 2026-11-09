@@ -124,9 +124,10 @@
                             if ($pencapaianVal !== null) {
                                 $numVal = (float) $pencapaianVal;
                                 $barWidth = max(0, min(100, $numVal));
-                                if ($numVal >= 100) {
+                                $tier = \App\Support\KpiScoreNormalizer::ragTier($numVal);
+                                if ($tier === \App\Support\KpiScoreNormalizer::TIER_TERCAPAI) {
                                     $barColor = 'bg-emerald-500';
-                                } elseif ($numVal >= 95) {
+                                } elseif ($tier === \App\Support\KpiScoreNormalizer::TIER_HAMPIR) {
                                     $barColor = 'bg-amber-500';
                                 } else {
                                     $barColor = 'bg-rose-500';
