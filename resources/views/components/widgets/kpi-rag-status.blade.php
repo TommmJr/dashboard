@@ -37,47 +37,47 @@
         @else
             <div class="mt-3.5 space-y-2">
                 {{-- Tile 1: Tercapai --}}
-                <div class="flex items-center justify-between rounded-lg border border-emerald-200 bg-emerald-50/70 p-2.5 text-xs text-emerald-900 transition hover:bg-emerald-50">
+                <div class="flex items-center justify-between rounded-lg border border-slate-200/80 bg-white p-2.5 text-xs transition hover:border-slate-300 hover:bg-slate-50/50">
                     <div class="flex items-center gap-2 min-w-0">
                         <span class="h-2.5 w-2.5 rounded-full shrink-0 bg-emerald-500"></span>
                         <div class="truncate">
-                            <span class="font-semibold block text-slate-900">Tercapai</span>
-                            <span class="text-[11px] text-emerald-700 block">Pencapaian &ge; {{ $tercapaiMinLabel }}%</span>
+                            <span class="font-semibold block text-slate-800">Tercapai</span>
+                            <span class="text-[11px] text-slate-500 block">Pencapaian &ge; {{ $tercapaiMinLabel }}%</span>
                         </div>
                     </div>
                     <div class="text-right shrink-0 pl-2">
-                        <span class="font-bold text-xs text-slate-900 block">{{ $tercapai }} indikator</span>
-                        <span class="text-[11px] font-medium text-emerald-700 block">{{ $fmtPct($pctTercapai) }}%</span>
+                        <span class="font-bold text-xs text-slate-800 block">{{ $tercapai }} indikator</span>
+                        <span class="text-[11px] font-semibold text-emerald-600 block">{{ $fmtPct($pctTercapai) }}%</span>
                     </div>
                 </div>
 
                 {{-- Tile 2: Hampir Tercapai --}}
-                <div class="flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50/70 p-2.5 text-xs text-amber-900 transition hover:bg-amber-50">
+                <div class="flex items-center justify-between rounded-lg border border-slate-200/80 bg-white p-2.5 text-xs transition hover:border-slate-300 hover:bg-slate-50/50">
                     <div class="flex items-center gap-2 min-w-0">
                         <span class="h-2.5 w-2.5 rounded-full shrink-0 bg-amber-500"></span>
                         <div class="truncate">
-                            <span class="font-semibold block text-slate-900">Hampir Tercapai</span>
-                            <span class="text-[11px] text-amber-700 block">{{ $hampirMinLabel }}% &le; Skor &lt; {{ $tercapaiMinLabel }}%</span>
+                            <span class="font-semibold block text-slate-800">Hampir Tercapai</span>
+                            <span class="text-[11px] text-slate-500 block">{{ $hampirMinLabel }}% &le; Skor &lt; {{ $tercapaiMinLabel }}%</span>
                         </div>
                     </div>
                     <div class="text-right shrink-0 pl-2">
-                        <span class="font-bold text-xs text-slate-900 block">{{ $hampir }} indikator</span>
-                        <span class="text-[11px] font-medium text-amber-700 block">{{ $fmtPct($pctHampir) }}%</span>
+                        <span class="font-bold text-xs text-slate-800 block">{{ $hampir }} indikator</span>
+                        <span class="text-[11px] font-semibold text-amber-600 block">{{ $fmtPct($pctHampir) }}%</span>
                     </div>
                 </div>
 
                 {{-- Tile 3: Perlu Peningkatan --}}
-                <div class="flex items-center justify-between rounded-lg border border-rose-200 bg-rose-50/70 p-2.5 text-xs text-rose-900 transition hover:bg-rose-50">
+                <div class="flex items-center justify-between rounded-lg border border-slate-200/80 bg-white p-2.5 text-xs transition hover:border-slate-300 hover:bg-slate-50/50">
                     <div class="flex items-center gap-2 min-w-0">
                         <span class="h-2.5 w-2.5 rounded-full shrink-0 bg-rose-500"></span>
                         <div class="truncate">
-                            <span class="font-semibold block text-slate-900">Perlu Peningkatan</span>
-                            <span class="text-[11px] text-rose-700 block">Skor &lt; {{ $hampirMinLabel }}%</span>
+                            <span class="font-semibold block text-slate-800">Perlu Peningkatan</span>
+                            <span class="text-[11px] text-slate-500 block">Skor &lt; {{ $hampirMinLabel }}%</span>
                         </div>
                     </div>
                     <div class="text-right shrink-0 pl-2">
-                        <span class="font-bold text-xs text-slate-900 block">{{ $perlu }} indikator</span>
-                        <span class="text-[11px] font-medium text-rose-700 block">{{ $fmtPct($pctPerlu) }}%</span>
+                        <span class="font-bold text-xs text-slate-800 block">{{ $perlu }} indikator</span>
+                        <span class="text-[11px] font-semibold text-rose-600 block">{{ $fmtPct($pctPerlu) }}%</span>
                     </div>
                 </div>
             </div>
