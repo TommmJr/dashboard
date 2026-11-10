@@ -168,7 +168,7 @@
 
         @if ($isLimited)
             <div class="mt-2 text-[11px] text-slate-500">
-                Menampilkan 10 baris teratas. Untuk mencari seluruh indikator, buka <a href="{{ route('dashboard.kpi-detail') }}" class="text-accent underline font-medium">Halaman Rincian KPI</a>.
+                Menampilkan 10 baris teratas.@if (\App\Http\Controllers\DashboardController::canAccessKpiDetail(auth()->user())) Untuk mencari seluruh indikator, buka <a href="{{ route('dashboard.kpi-detail') }}" class="text-accent underline font-medium">Halaman Rincian KPI</a>.@endif
             </div>
         @endif
 

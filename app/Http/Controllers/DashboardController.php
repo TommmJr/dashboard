@@ -145,7 +145,7 @@ class DashboardController extends Controller
 
     /**
      * Periksa apakah user berhak membuka halaman rincian KPI terpisah:
-     * - Role lintas divisi ber-permission dashboard.view (management, editor_dashboard, admin)
+     * - Role lintas divisi ber-permission dashboard.view (management, editor_dashboard)
      * - Staf divisi Perencanaan Pengusahaan
      * Menggunakan User::hasRole() (app/Models/User.php:61).
      */
@@ -158,8 +158,7 @@ class DashboardController extends Controller
         $user->loadMissing('role', 'division');
 
         if ($user->hasRole(Role::MANAGEMENT)
-            || $user->hasRole(Role::EDITOR_DASHBOARD)
-            || $user->hasRole(Role::ADMIN)) {
+            || $user->hasRole(Role::EDITOR_DASHBOARD)) {
             return Gate::forUser($user)->allows('dashboard.view');
         }
 
