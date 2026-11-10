@@ -16,8 +16,27 @@
     <div
         id="dashboard-layout-builder"
         x-data="dashboardLayoutBuilder('{{ $encodedBuilderData }}')"
+        @keydown.escape.window="cancelDrag()"
         class="rounded-lg border border-slate-200 bg-white p-6 shadow"
     >
+        {{-- Floating Drag Proxy (mengikuti pointer saat Pointer Events drag berlangsung) --}}
+        <div
+            x-show="pointerDrag.active && pointerDrag.item"
+            x-cloak
+            class="pointer-events-none fixed z-50 rounded-lg border-2 border-accent bg-white/95 px-3.5 py-2.5 shadow-xl select-none"
+            :style="`left: ${pointerDrag.x}px; top: ${pointerDrag.y}px; width: ${pointerDrag.width}px; transform: translate3d(-50%, -50%, 0) scale(1.02); opacity: 0.95;`"
+        >
+            <div class="flex items-center gap-2">
+                <span class="inline-flex h-5 w-5 items-center justify-center rounded bg-accent/15 text-accent">
+                    <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16" />
+                    </svg>
+                </span>
+                <span class="truncate text-xs font-bold text-primary" x-text="pointerDrag.item ? (pointerDrag.item.key === 'custom-chart' ? (pointerDrag.item.config?.title || widgetLabel(pointerDrag.item.key)) : widgetLabel(pointerDrag.item.key)) : ''"></span>
+                <span class="ml-auto shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary" x-text="`${pointerDrag.item?.cols || 3} Kolom`"></span>
+            </div>
+        </div>
+
         {{-- In-page toast feedback for layout builder mutations --}}
         <div
             x-show="toast.show"
@@ -252,23 +271,24 @@
                                         :class="dropPlacement === 'before' ? '-top-2 left-1 right-1 h-1.5' : '-bottom-2 left-1 right-1 h-1.5'"
                                         class="pointer-events-none absolute z-30 rounded-full bg-accent shadow"
                                     ></div>
-                                    <div class="canvas-card-toolbar flex flex-wrap items-center justify-between gap-1.5 border-b border-slate-100 pb-2">
-                                        <div class="flex min-w-0 items-center gap-1.5">
+                                    <div class="canvas-card-toolbar flex flex-wrap items-center justify-between gap-1.5 border-b border-slate-100 pb-2" :class="(canvasDragIndex !== null || paletteDragKey) ? 'pointer-events-none' : ''">
+                                        <div class="flex min-w-0 items-center gap-1.5 pointer-events-auto">
                                             <span
                                                 draggable="true"
-                                                @dragstart="onCardDragStart(index)"
+                                                @dragstart="onCardDragStart(index, $event)"
                                                 @dragend="onCardDragEnd()"
-                                                class="canvas-drag-handle inline-flex h-6 w-6 shrink-0 cursor-grab items-center justify-center rounded bg-slate-100 text-slate-600 transition hover:bg-slate-200 active:cursor-grabbing"
+                                                @pointerdown="onCardPointerDown($event, index)"
+                                                class="canvas-drag-handle inline-flex h-6 w-6 shrink-0 cursor-grab items-center justify-center rounded bg-slate-100 text-slate-600 transition hover:bg-slate-200 active:cursor-grabbing select-none touch-none"
                                                 title="Tarik untuk memindahkan urutan widget"
                                             >
                                                 <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16" />
                                                 </svg>
                                             </span>
-                                            <p class="truncate text-xs font-bold text-primary" x-text="w.key === 'custom-chart' ? (w.config?.title || widgetLabel(w.key)) : widgetLabel(w.key)"></p>
+                                            <p class="truncate text-xs font-bold text-primary select-none" x-text="w.key === 'custom-chart' ? (w.config?.title || widgetLabel(w.key)) : widgetLabel(w.key)"></p>
                                         </div>
 
-                                        <div class="flex flex-wrap items-center gap-1">
+                                        <div class="flex flex-wrap items-center gap-1 pointer-events-auto">
                                             {{-- Atur Lebar Selector --}}
                                             <div class="flex items-center rounded-lg border border-slate-200 bg-white p-0.5 text-xs font-medium" title="Atur Lebar Kolom">
                                                 <span class="px-1 text-[10px] font-semibold text-slate-500">Lebar:</span>
@@ -277,6 +297,7 @@
                                                         type="button"
                                                         draggable="false"
                                                         @mousedown.stop
+                                                        @pointerdown.stop
                                                         @click="setWidgetCols(w, n)"
                                                         :aria-label="`Lebar ${n} kolom`"
                                                         :class="(w.cols === n) ? 'bg-primary text-white shadow-xs' : 'text-slate-600 hover:text-primary'"
@@ -290,6 +311,7 @@
                                                 type="button"
                                                 draggable="false"
                                                 @mousedown.stop
+                                                @pointerdown.stop
                                                 @click="moveUp(index)"
                                                 :disabled="saving || index === 0"
                                                 class="inline-flex h-6 w-6 items-center justify-center rounded border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
@@ -302,6 +324,7 @@
                                                 type="button"
                                                 draggable="false"
                                                 @mousedown.stop
+                                                @pointerdown.stop
                                                 @click="moveDown(index)"
                                                 :disabled="saving || index === activeWidgets.length - 1"
                                                 class="inline-flex h-6 w-6 items-center justify-center rounded border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
@@ -316,6 +339,7 @@
                                                     type="button"
                                                     draggable="false"
                                                     @mousedown.stop
+                                                    @pointerdown.stop
                                                     @click="w._openConfig = !w._openConfig"
                                                     class="inline-flex h-6 w-6 items-center justify-center rounded border border-slate-200 bg-white text-slate-600 hover:text-primary hover:border-accent"
                                                     :title="w._openConfig ? 'Tutup Pengaturan' : 'Atur Grafik'"
@@ -332,6 +356,7 @@
                                                 type="button"
                                                 draggable="false"
                                                 @mousedown.stop
+                                                @pointerdown.stop
                                                 @click="removeWidget(index)"
                                                 :disabled="saving || activeWidgets.length <= 1 || isLockedWidget(w.key)"
                                                 class="inline-flex h-6 w-6 items-center justify-center rounded border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-40"
@@ -498,6 +523,20 @@
                     dropPlacement: 'before',
                     paletteDragKey: null,
                     isDragOverCanvas: false,
+                    pointerDrag: {
+                        active: false,
+                        item: null,
+                        width: 280,
+                        x: 0,
+                        y: 0,
+                    },
+                    pointerState: null,
+                    autoScrollState: {
+                        frame: null,
+                        speed: 0,
+                        container: null,
+                        isWindow: false,
+                    },
                     viewportWidth: window.innerWidth,
                     currentUserLayoutKey: initial.current_user_layout_key || '',
                     toast: { show: false, message: '', type: 'success', timer: null },
@@ -521,6 +560,12 @@
                         this.activeWidgets = (target && Array.isArray(target.active_widgets))
                             ? target.active_widgets.map((w) => this.normalizeItem(w))
                             : [];
+
+                        window.addEventListener('keydown', (e) => {
+                            if (e.key === 'Escape' && (this.canvasDragIndex !== null || this.pointerDrag.active || this.paletteDragKey)) {
+                                this.cancelDrag();
+                            }
+                        });
                     },
 
                     normalizeItem(item) {
@@ -666,11 +711,235 @@
                         this.dropTargetIndex = null;
                     },
 
-                    onCardDragStart(index) {
+                    onCardPointerDown(event, index) {
                         if (this.saving) return;
+                        if (event.button !== 0 && event.pointerType === 'mouse') return;
+
+                        const handleEl = event.currentTarget;
+                        const cardEl = handleEl.closest('.preview-card-item');
+                        const width = cardEl ? Math.min(cardEl.offsetWidth, 360) : 280;
+
+                        this.pointerState = {
+                            pointerId: event.pointerId,
+                            index: index,
+                            startX: event.clientX,
+                            startY: event.clientY,
+                            isDragging: false,
+                            handleEl: handleEl,
+                            cardWidth: width,
+                        };
+
+                        try {
+                            handleEl.setPointerCapture(event.pointerId);
+                        } catch (e) {}
+
+                        const onPointerMove = (e) => {
+                            if (!this.pointerState || this.pointerState.pointerId !== e.pointerId) return;
+
+                            if (!this.pointerState.isDragging) {
+                                const dist = Math.hypot(e.clientX - this.pointerState.startX, e.clientY - this.pointerState.startY);
+                                if (dist < 4) return;
+
+                                this.pointerState.isDragging = true;
+                                this.canvasDragIndex = this.pointerState.index;
+                                this.dragIndex = this.pointerState.index;
+                                this.isDragOverCanvas = true;
+                                this.pointerDrag = {
+                                    active: true,
+                                    item: this.activeWidgets[this.pointerState.index],
+                                    width: this.pointerState.cardWidth,
+                                    x: e.clientX,
+                                    y: e.clientY,
+                                };
+                            }
+
+                            if (this.pointerState.isDragging) {
+                                this.pointerDrag.x = e.clientX;
+                                this.pointerDrag.y = e.clientY;
+                                this.updateDropTargetFromPoint(e.clientX, e.clientY);
+                                this.handleAutoScroll(e.clientY);
+                            }
+                        };
+
+                        const onPointerUp = (e) => {
+                            if (!this.pointerState || this.pointerState.pointerId !== e.pointerId) return;
+
+                            const wasDragging = this.pointerState.isDragging;
+                            const fromIndex = this.canvasDragIndex;
+                            const targetIndex = this.dropTargetIndex;
+                            const placement = this.dropPlacement;
+
+                            cleanup();
+
+                            if (wasDragging) {
+                                if (fromIndex !== null && targetIndex !== null && fromIndex !== targetIndex) {
+                                    this.executeReorder(fromIndex, targetIndex, placement);
+                                }
+                            }
+                        };
+
+                        const onPointerCancel = (e) => {
+                            if (!this.pointerState || this.pointerState.pointerId !== e.pointerId) return;
+                            cleanup();
+                            this.cancelDrag();
+                        };
+
+                        const cleanup = () => {
+                            try {
+                                if (handleEl.hasPointerCapture(event.pointerId)) {
+                                    handleEl.releasePointerCapture(event.pointerId);
+                                }
+                            } catch (e) {}
+
+                            handleEl.removeEventListener('pointermove', onPointerMove);
+                            handleEl.removeEventListener('pointerup', onPointerUp);
+                            handleEl.removeEventListener('pointercancel', onPointerCancel);
+
+                            this.stopAutoScroll();
+                            this.canvasDragIndex = null;
+                            this.dragIndex = null;
+                            this.dropTargetIndex = null;
+                            this.isDragOverCanvas = false;
+                            this.pointerDrag = { active: false, item: null, width: 280, x: 0, y: 0 };
+                            this.pointerState = null;
+                            this._boundPointerCleanup = null;
+                        };
+
+                        this._boundPointerCleanup = cleanup;
+
+                        handleEl.addEventListener('pointermove', onPointerMove);
+                        handleEl.addEventListener('pointerup', onPointerUp);
+                        handleEl.addEventListener('pointercancel', onPointerCancel);
+                    },
+
+                    updateDropTargetFromPoint(clientX, clientY) {
+                        const viewport = document.getElementById('preview-canvas-viewport');
+                        if (!viewport) return;
+
+                        const vRect = viewport.getBoundingClientRect();
+                        if (clientX < vRect.left - 40 || clientX > vRect.right + 40) {
+                            this.dropTargetIndex = null;
+                            return;
+                        }
+
+                        const cardEls = Array.from(viewport.querySelectorAll('.preview-card-item'));
+                        if (cardEls.length === 0) {
+                            this.dropTargetIndex = null;
+                            return;
+                        }
+
+                        let matchedIndex = -1;
+                        let matchedPlacement = 'after';
+
+                        for (let i = 0; i < cardEls.length; i++) {
+                            const rect = cardEls[i].getBoundingClientRect();
+                            if (
+                                clientX >= rect.left &&
+                                clientX <= rect.right &&
+                                clientY >= rect.top &&
+                                clientY <= rect.bottom
+                            ) {
+                                matchedIndex = i;
+                                const cols = this.activeWidgets[i]?.cols ?? 3;
+                                matchedPlacement = this.getDropPlacement({ clientX, clientY }, cardEls[i], cols);
+                                break;
+                            }
+                        }
+
+                        if (matchedIndex === -1) {
+                            const firstRect = cardEls[0].getBoundingClientRect();
+                            const lastRect = cardEls[cardEls.length - 1].getBoundingClientRect();
+
+                            if (clientY < firstRect.top) {
+                                matchedIndex = 0;
+                                matchedPlacement = 'before';
+                            } else if (clientY > lastRect.bottom) {
+                                matchedIndex = cardEls.length - 1;
+                                matchedPlacement = 'after';
+                            } else {
+                                let minDistance = Infinity;
+                                for (let i = 0; i < cardEls.length; i++) {
+                                    const rect = cardEls[i].getBoundingClientRect();
+                                    const centerX = rect.left + rect.width / 2;
+                                    const centerY = rect.top + rect.height / 2;
+                                    const dist = Math.hypot(clientX - centerX, clientY - centerY);
+                                    if (dist < minDistance) {
+                                        minDistance = dist;
+                                        matchedIndex = i;
+                                        const cols = this.activeWidgets[i]?.cols ?? 3;
+                                        matchedPlacement = this.getDropPlacement({ clientX, clientY }, cardEls[i], cols);
+                                    }
+                                }
+                            }
+                        }
+
+                        if (matchedIndex !== -1 && matchedIndex !== this.canvasDragIndex) {
+                            this.dropTargetIndex = matchedIndex;
+                            this.dropPlacement = matchedPlacement;
+                        } else {
+                            this.dropTargetIndex = null;
+                        }
+                    },
+
+                    executeReorder(fromIndex, targetIndex, placement) {
+                        if (fromIndex === null || targetIndex === null || fromIndex === targetIndex) {
+                            return;
+                        }
+                        if (fromIndex < 0 || fromIndex >= this.activeWidgets.length) return;
+                        if (targetIndex < 0 || targetIndex >= this.activeWidgets.length) return;
+
+                        this.clearMessages();
+                        const copy = [...this.activeWidgets];
+                        const [moved] = copy.splice(fromIndex, 1);
+
+                        let insertIndex;
+                        if (fromIndex < targetIndex) {
+                            insertIndex = placement === 'before' ? targetIndex - 1 : targetIndex;
+                        } else {
+                            insertIndex = placement === 'before' ? targetIndex : targetIndex + 1;
+                        }
+
+                        insertIndex = Math.max(0, Math.min(insertIndex, copy.length));
+                        copy.splice(insertIndex, 0, moved);
+                        this.activeWidgets = copy;
+
+                        this.$nextTick(() => {
+                            this.resizePreviewCharts();
+                        });
+                    },
+
+                    cancelDrag() {
+                        this.stopAutoScroll();
+                        if (this._boundPointerCleanup) {
+                            this._boundPointerCleanup();
+                            this._boundPointerCleanup = null;
+                        }
+                        this.canvasDragIndex = null;
+                        this.dragIndex = null;
+                        this.dropTargetIndex = null;
+                        this.paletteDragKey = null;
+                        this.isDragOverCanvas = false;
+                        this.pointerDrag = { active: false, item: null, width: 280, x: 0, y: 0 };
+                        this.pointerState = null;
+                    },
+
+                    onCardDragStart(index, event) {
+                        if (this.saving) return;
+
+                        if (this.pointerState && this.pointerState.isDragging) {
+                            if (event && typeof event.preventDefault === 'function') {
+                                event.preventDefault();
+                            }
+                            return;
+                        }
+
                         this.canvasDragIndex = index;
                         this.dragIndex = index;
                         this.dropTargetIndex = null;
+                        if (event && event.dataTransfer) {
+                            event.dataTransfer.effectAllowed = 'move';
+                            event.dataTransfer.setData('text/plain', String(index));
+                        }
                     },
 
                     getDropPlacement(event, cardEl, cols = 3) {
@@ -714,6 +983,10 @@
                         if (event.relatedTarget && event.currentTarget && event.currentTarget.contains(event.relatedTarget)) {
                             return;
                         }
+                        const viewport = document.getElementById('preview-canvas-viewport');
+                        if (event.relatedTarget && viewport && viewport.contains(event.relatedTarget)) {
+                            return;
+                        }
                         if (this.dropTargetIndex === index) {
                             this.dropTargetIndex = null;
                         }
@@ -725,6 +998,7 @@
                         }
                         this.isDragOverCanvas = false;
                         this.dropTargetIndex = null;
+                        this.stopAutoScroll();
                     },
 
                     autoScrollPreview(event) {
@@ -732,48 +1006,123 @@
                             return;
                         }
                         this.isDragOverCanvas = true;
-                        event.preventDefault();
+                        if (event && typeof event.preventDefault === 'function') {
+                            event.preventDefault();
+                        }
+                        this.handleAutoScroll(event.clientY);
+                    },
 
-                        // ponytail: fixed step, add acceleration by distance if users find it slow
-                        const edge = 60;
-                        const step = 16;
+                    handleAutoScroll(clientY) {
+                        if (this.canvasDragIndex === null && !this.paletteDragKey) {
+                            this.stopAutoScroll();
+                            return;
+                        }
+
                         const viewport = document.getElementById('preview-canvas-viewport');
-                        if (!viewport) return;
+                        if (!viewport) {
+                            this.stopAutoScroll();
+                            return;
+                        }
 
                         const rect = viewport.getBoundingClientRect();
-                        const top = Math.max(rect.top, 0);
-                        const bottom = Math.min(rect.bottom, window.innerHeight);
-                        const y = event.clientY;
+                        const visibleTop = Math.max(rect.top, 0);
+                        const visibleBottom = Math.min(rect.bottom, window.innerHeight);
 
-                        const scrollPage = (delta) => {
-                            const container = viewport.closest('.app-content');
-                            if (container && container.scrollHeight > container.clientHeight) {
-                                container.scrollTop += delta;
-                            } else {
-                                window.scrollBy(0, delta);
-                            }
-                        };
+                        // If pointer is far outside viewport vertically, stop
+                        if (clientY < visibleTop - 30 || clientY > visibleBottom + 30) {
+                            this.stopAutoScroll();
+                            return;
+                        }
 
-                        const isScrollable = viewport.scrollHeight > viewport.clientHeight;
+                        const edgeZone = 60;
+                        const isScrollable = viewport.scrollHeight > viewport.clientHeight + 1;
 
-                        if (y - top < edge) {
-                            if (isScrollable && viewport.scrollTop > 0) {
-                                viewport.scrollTop -= step;
+                        let targetSpeed = 0;
+                        let targetContainer = null;
+                        let isWindow = false;
+
+                        if (isScrollable) {
+                            targetContainer = viewport;
+                            isWindow = false;
+                        } else {
+                            // Fallback for mobile / non-scrollable viewport: use app-content or window
+                            const appContainer = viewport.closest('.app-content');
+                            if (appContainer && appContainer.scrollHeight > appContainer.clientHeight + 1) {
+                                targetContainer = appContainer;
+                                isWindow = false;
                             } else {
-                                scrollPage(-step);
-                            }
-                        } else if (bottom - y < edge) {
-                            if (isScrollable && viewport.scrollTop + viewport.clientHeight < viewport.scrollHeight) {
-                                viewport.scrollTop += step;
-                            } else {
-                                scrollPage(step);
+                                targetContainer = window;
+                                isWindow = true;
                             }
                         }
+
+                        // Top edge check: scroll up
+                        if (clientY - visibleTop < edgeZone && clientY >= visibleTop - 20) {
+                            const dist = Math.max(0, clientY - visibleTop);
+                            const ratio = 1 - (dist / edgeZone);
+                            const speed = Math.round(2 + 12 * (ratio * ratio));
+                            targetSpeed = -speed;
+                        }
+                        // Bottom edge check: scroll down
+                        else if (visibleBottom - clientY < edgeZone && clientY <= visibleBottom + 20) {
+                            const dist = Math.max(0, visibleBottom - clientY);
+                            const ratio = 1 - (dist / edgeZone);
+                            const speed = Math.round(2 + 12 * (ratio * ratio));
+                            targetSpeed = speed;
+                        }
+
+                        if (targetSpeed === 0) {
+                            this.stopAutoScroll();
+                            return;
+                        }
+
+                        this.autoScrollState.speed = targetSpeed;
+                        this.autoScrollState.container = targetContainer;
+                        this.autoScrollState.isWindow = isWindow;
+
+                        if (!this.autoScrollState.frame) {
+                            this.runAutoScrollLoop();
+                        }
+                    },
+
+                    runAutoScrollLoop() {
+                        const step = () => {
+                            if (!this.autoScrollState.speed || !this.autoScrollState.container) {
+                                this.autoScrollState.frame = null;
+                                return;
+                            }
+
+                            const { container, speed, isWindow } = this.autoScrollState;
+
+                            if (isWindow) {
+                                window.scrollBy(0, speed);
+                            } else if (container) {
+                                container.scrollTop += speed;
+                            }
+
+                            if (this.pointerDrag && this.pointerDrag.active) {
+                                this.updateDropTargetFromPoint(this.pointerDrag.x, this.pointerDrag.y);
+                            }
+
+                            this.autoScrollState.frame = requestAnimationFrame(step);
+                        };
+
+                        this.autoScrollState.frame = requestAnimationFrame(step);
+                    },
+
+                    stopAutoScroll() {
+                        if (this.autoScrollState.frame) {
+                            cancelAnimationFrame(this.autoScrollState.frame);
+                            this.autoScrollState.frame = null;
+                        }
+                        this.autoScrollState.speed = 0;
+                        this.autoScrollState.container = null;
                     },
 
                     onCardDrop(event, targetIndex) {
                         if (this.saving) return;
 
+                        this.stopAutoScroll();
                         const cardEl = event.currentTarget;
                         const cols = this.activeWidgets[targetIndex]?.cols ?? 3;
                         const placement = this.getDropPlacement(event, cardEl, cols);
@@ -804,31 +1153,11 @@
                         this.canvasDragIndex = null;
                         this.dragIndex = null;
 
-                        if (fromIndex === null || fromIndex === targetIndex) {
-                            return;
-                        }
-
-                        this.clearMessages();
-                        const copy = [...this.activeWidgets];
-                        const [moved] = copy.splice(fromIndex, 1);
-
-                        let insertIndex;
-                        if (fromIndex < targetIndex) {
-                            insertIndex = placement === 'before' ? targetIndex - 1 : targetIndex;
-                        } else {
-                            insertIndex = placement === 'before' ? targetIndex : targetIndex + 1;
-                        }
-
-                        insertIndex = Math.max(0, Math.min(insertIndex, copy.length));
-                        copy.splice(insertIndex, 0, moved);
-                        this.activeWidgets = copy;
-
-                        this.$nextTick(() => {
-                            this.resizePreviewCharts();
-                        });
+                        this.executeReorder(fromIndex, targetIndex, placement);
                     },
 
                     onCardDragEnd() {
+                        this.stopAutoScroll();
                         this.canvasDragIndex = null;
                         this.dragIndex = null;
                         this.dropTargetIndex = null;
@@ -837,6 +1166,7 @@
 
                     onCanvasDrop(event) {
                         if (this.saving) return;
+                        this.stopAutoScroll();
                         this.isDragOverCanvas = false;
                         this.dropTargetIndex = null;
 
