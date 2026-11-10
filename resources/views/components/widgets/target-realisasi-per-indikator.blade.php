@@ -102,19 +102,19 @@
             @if ($achievedCount > 0)
                 <span class="inline-flex items-center gap-1.5 rounded-full border border-slate-200/80 bg-white px-2.5 py-0.5 font-medium text-slate-600 shadow-2xs">
                     <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
-                    Tercapai (&ge;{{ $tercapaiMinLabel }}%): <strong class="font-semibold text-slate-800">{{ $achievedCount }}</strong>
+                    Tercapai (&ge;{{ $tercapaiMinLabel }}%): {{ $achievedCount }}
                 </span>
             @endif
             @if ($nearCount > 0)
                 <span class="inline-flex items-center gap-1.5 rounded-full border border-slate-200/80 bg-white px-2.5 py-0.5 font-medium text-slate-600 shadow-2xs">
                     <span class="h-2 w-2 rounded-full bg-amber-500"></span>
-                    Mendekati ({{ $hampirMinLabel }}–{{ $hampirMaxLabel }}%): <strong class="font-semibold text-slate-800">{{ $nearCount }}</strong>
+                    Mendekati ({{ $hampirMinLabel }}–{{ $hampirMaxLabel }}%): {{ $nearCount }}
                 </span>
             @endif
             @if ($belowCount > 0)
                 <span class="inline-flex items-center gap-1.5 rounded-full border border-slate-200/80 bg-white px-2.5 py-0.5 font-medium text-slate-600 shadow-2xs">
                     <span class="h-2 w-2 rounded-full bg-rose-500"></span>
-                    Perlu Perhatian (&lt;{{ $hampirMinLabel }}%): <strong class="font-semibold text-slate-800">{{ $belowCount }}</strong>
+                    Perlu Perhatian (&lt;{{ $hampirMinLabel }}%): {{ $belowCount }}
                 </span>
             @endif
         </div>
