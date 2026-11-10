@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\DashboardLayout;
 use App\Models\Role;
 use App\Models\User;
 use Database\Seeders\RolePermissionSeeder;
@@ -285,5 +286,92 @@ class DashboardLayoutEditorWidthTest extends TestCase
             ->assertSee('@keydown.escape.window="cancelDrag()"', false)
             ->assertSee('cancelDrag()', false)
             ->assertSee('onPointerCancel', false);
+    }
+
+    public function test_dashboard_builder_persists_reordered_widget_layout(): void
+    {
+        $admin = User::factory()->withRole(Role::ADMIN)->create();
+
+        // 1. Initial order: admin-summary first, then layout-editor-placeholder
+        $initialWidgets = [
+            ['key' => 'admin-summary', 'cols' => 3],
+            ['key' => 'layout-editor-placeholder', 'cols' => 3],
+        ];
+
+        $response = $this->actingAs($admin)
+            ->putJson(route('dashboard.layout.update'), [
+                'role_slug' => Role::ADMIN,
+                'layout_key' => Role::ADMIN,
+                'widgets' => $initialWidgets,
+            ]);
+
+        $response->assertOk();
+        $this->assertSame(['admin-summary', 'layout-editor-placeholder'], DashboardLayout::where('role_slug', Role::ADMIN)->first()?->widgets);
+
+        // 2. Reordered layout: swapped positions
+        $reorderedWidgets = [
+            ['key' => 'layout-editor-placeholder', 'cols' => 3],
+            ['key' => 'admin-summary', 'cols' => 3],
+        ];
+
+        $reorderResponse = $this->actingAs($admin)
+            ->putJson(route('dashboard.layout.update'), [
+                'role_slug' => Role::ADMIN,
+                'layout_key' => Role::ADMIN,
+                'widgets' => $reorderedWidgets,
+            ]);
+
+        $reorderResponse->assertOk();
+        $layout = DashboardLayout::where('role_slug', Role::ADMIN)->first();
+        $this->assertNotNull($layout);
+        $this->assertSame(['layout-editor-placeholder', 'admin-summary'], $layout->widgets);
+    }
+
+    public function test_dashboard_builder_rejects_reordering_that_drops_locked_widget(): void
+    {
+        $admin = User::factory()->withRole(Role::ADMIN)->create();
+
+        // Reordering attempt that omits layout-editor-placeholder
+        $invalidWidgets = [
+            ['key' => 'admin-summary', 'cols' => 3],
+        ];
+
+        $response = $this->actingAs($admin)
+            ->putJson(route('dashboard.layout.update'), [
+                'role_slug' => Role::ADMIN,
+                'layout_key' => Role::ADMIN,
+                'widgets' => $invalidWidgets,
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['widgets']);
+    }
+
+    public function test_dashboard_builder_resets_customized_layout_to_defaults(): void
+    {
+        $admin = User::factory()->withRole(Role::ADMIN)->create();
+
+        // Save a customized layout first
+        DashboardLayout::create([
+            'role_slug' => Role::ADMIN,
+            'widgets' => ['layout-editor-placeholder', 'admin-summary'],
+            'updated_by' => $admin->id,
+        ]);
+
+        $this->assertDatabaseHas('dashboard_layouts', [
+            'role_slug' => Role::ADMIN,
+        ]);
+
+        // Reset layout
+        $response = $this->actingAs($admin)
+            ->deleteJson(route('dashboard.layout.reset'), [
+                'role_slug' => Role::ADMIN,
+                'layout_key' => Role::ADMIN,
+            ]);
+
+        $response->assertOk();
+        $this->assertDatabaseMissing('dashboard_layouts', [
+            'role_slug' => Role::ADMIN,
+        ]);
     }
 }

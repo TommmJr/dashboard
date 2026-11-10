@@ -274,9 +274,6 @@
                                     <div class="canvas-card-toolbar flex flex-wrap items-center justify-between gap-1.5 border-b border-slate-100 pb-2" :class="(canvasDragIndex !== null || paletteDragKey) ? 'pointer-events-none' : ''">
                                         <div class="flex min-w-0 items-center gap-1.5 pointer-events-auto">
                                             <span
-                                                draggable="true"
-                                                @dragstart="onCardDragStart(index, $event)"
-                                                @dragend="onCardDragEnd()"
                                                 @pointerdown="onCardPointerDown($event, index)"
                                                 class="canvas-drag-handle inline-flex h-6 w-6 shrink-0 cursor-grab items-center justify-center rounded bg-slate-100 text-slate-600 transition hover:bg-slate-200 active:cursor-grabbing select-none touch-none"
                                                 title="Tarik untuk memindahkan urutan widget"
@@ -718,9 +715,10 @@
                         const handleEl = event.currentTarget;
                         const cardEl = handleEl.closest('.preview-card-item');
                         const width = cardEl ? Math.min(cardEl.offsetWidth, 360) : 280;
+                        const pointerId = event.pointerId;
 
                         this.pointerState = {
-                            pointerId: event.pointerId,
+                            pointerId: pointerId,
                             index: index,
                             startX: event.clientX,
                             startY: event.clientY,
@@ -730,7 +728,7 @@
                         };
 
                         try {
-                            handleEl.setPointerCapture(event.pointerId);
+                            handleEl.setPointerCapture(pointerId);
                         } catch (e) {}
 
                         const onPointerMove = (e) => {
@@ -784,16 +782,23 @@
                             this.cancelDrag();
                         };
 
+                        const onLostPointerCapture = (e) => {
+                            if (e.buttons === 0) {
+                                onPointerUp(e);
+                            }
+                        };
+
                         const cleanup = () => {
                             try {
-                                if (handleEl.hasPointerCapture(event.pointerId)) {
-                                    handleEl.releasePointerCapture(event.pointerId);
+                                if (handleEl.hasPointerCapture(pointerId)) {
+                                    handleEl.releasePointerCapture(pointerId);
                                 }
                             } catch (e) {}
 
-                            handleEl.removeEventListener('pointermove', onPointerMove);
-                            handleEl.removeEventListener('pointerup', onPointerUp);
-                            handleEl.removeEventListener('pointercancel', onPointerCancel);
+                            window.removeEventListener('pointermove', onPointerMove);
+                            window.removeEventListener('pointerup', onPointerUp);
+                            window.removeEventListener('pointercancel', onPointerCancel);
+                            handleEl.removeEventListener('lostpointercapture', onLostPointerCapture);
 
                             this.stopAutoScroll();
                             this.canvasDragIndex = null;
@@ -807,9 +812,10 @@
 
                         this._boundPointerCleanup = cleanup;
 
-                        handleEl.addEventListener('pointermove', onPointerMove);
-                        handleEl.addEventListener('pointerup', onPointerUp);
-                        handleEl.addEventListener('pointercancel', onPointerCancel);
+                        window.addEventListener('pointermove', onPointerMove);
+                        window.addEventListener('pointerup', onPointerUp);
+                        window.addEventListener('pointercancel', onPointerCancel);
+                        handleEl.addEventListener('lostpointercapture', onLostPointerCapture);
                     },
 
                     updateDropTargetFromPoint(clientX, clientY) {
@@ -873,7 +879,23 @@
                             }
                         }
 
-                        if (matchedIndex !== -1 && matchedIndex !== this.canvasDragIndex) {
+                        const fromIdx = this.canvasDragIndex;
+                        if (matchedIndex !== -1 && fromIdx !== null) {
+                            if (matchedIndex === fromIdx) {
+                                this.dropTargetIndex = null;
+                                return;
+                            }
+
+                            if (matchedIndex === fromIdx + 1 && matchedPlacement === 'before') {
+                                matchedPlacement = 'after';
+                            }
+                            if (matchedIndex === fromIdx - 1 && matchedPlacement === 'after') {
+                                matchedPlacement = 'before';
+                            }
+
+                            this.dropTargetIndex = matchedIndex;
+                            this.dropPlacement = matchedPlacement;
+                        } else if (matchedIndex !== -1) {
                             this.dropTargetIndex = matchedIndex;
                             this.dropPlacement = matchedPlacement;
                         } else {
@@ -1024,28 +1046,52 @@
                             return;
                         }
 
-                        const rect = viewport.getBoundingClientRect();
-                        const visibleTop = Math.max(rect.top, 0);
-                        const visibleBottom = Math.min(rect.bottom, window.innerHeight);
-
-                        // If pointer is far outside viewport vertically, stop
-                        if (clientY < visibleTop - 30 || clientY > visibleBottom + 30) {
-                            this.stopAutoScroll();
-                            return;
-                        }
-
-                        const edgeZone = 60;
+                        const isDesktop = window.innerWidth >= 1024;
                         const isScrollable = viewport.scrollHeight > viewport.clientHeight + 1;
 
                         let targetSpeed = 0;
                         let targetContainer = null;
                         let isWindow = false;
 
-                        if (isScrollable) {
+                        if (isDesktop) {
+                            // On desktop, the preview pane is sticky and preview-canvas-viewport is the sole scroll container.
+                            // If preview content fits (not scrollable), NEVER scroll the outer page!
+                            if (!isScrollable) {
+                                this.stopAutoScroll();
+                                return;
+                            }
+
+                            const rect = viewport.getBoundingClientRect();
+                            const visibleTop = Math.max(rect.top, 0);
+                            const visibleBottom = Math.min(rect.bottom, window.innerHeight);
+
+                            // Pointer must be inside or immediately adjacent to the preview viewport
+                            if (clientY < visibleTop - 20 || clientY > visibleBottom + 20) {
+                                this.stopAutoScroll();
+                                return;
+                            }
+
                             targetContainer = viewport;
                             isWindow = false;
+
+                            const edgeZone = 60;
+                            // Top edge check: scroll up
+                            if (clientY - visibleTop < edgeZone && clientY >= visibleTop - 20) {
+                                const dist = Math.max(0, clientY - visibleTop);
+                                const ratio = 1 - (dist / edgeZone);
+                                const speed = Math.round(2 + 12 * (ratio * ratio));
+                                targetSpeed = -speed;
+                            }
+                            // Bottom edge check: scroll down
+                            else if (visibleBottom - clientY < edgeZone && clientY <= visibleBottom + 20) {
+                                const dist = Math.max(0, visibleBottom - clientY);
+                                const ratio = 1 - (dist / edgeZone);
+                                const speed = Math.round(2 + 12 * (ratio * ratio));
+                                targetSpeed = speed;
+                            }
                         } else {
-                            // Fallback for mobile / non-scrollable viewport: use app-content or window
+                            // On mobile (< 1024px), preview-canvas-viewport does not have internal scroll.
+                            // The scroll container is .app-content or window.
                             const appContainer = viewport.closest('.app-content');
                             if (appContainer && appContainer.scrollHeight > appContainer.clientHeight + 1) {
                                 targetContainer = appContainer;
@@ -1054,21 +1100,19 @@
                                 targetContainer = window;
                                 isWindow = true;
                             }
-                        }
 
-                        // Top edge check: scroll up
-                        if (clientY - visibleTop < edgeZone && clientY >= visibleTop - 20) {
-                            const dist = Math.max(0, clientY - visibleTop);
-                            const ratio = 1 - (dist / edgeZone);
-                            const speed = Math.round(2 + 12 * (ratio * ratio));
-                            targetSpeed = -speed;
-                        }
-                        // Bottom edge check: scroll down
-                        else if (visibleBottom - clientY < edgeZone && clientY <= visibleBottom + 20) {
-                            const dist = Math.max(0, visibleBottom - clientY);
-                            const ratio = 1 - (dist / edgeZone);
-                            const speed = Math.round(2 + 12 * (ratio * ratio));
-                            targetSpeed = speed;
+                            const edgeZone = 60;
+                            // On mobile, edge trigger is relative to the screen/window edges
+                            if (clientY < edgeZone && clientY >= 0) {
+                                const ratio = 1 - (clientY / edgeZone);
+                                const speed = Math.round(2 + 12 * (ratio * ratio));
+                                targetSpeed = -speed;
+                            } else if (window.innerHeight - clientY < edgeZone && clientY <= window.innerHeight) {
+                                const dist = Math.max(0, window.innerHeight - clientY);
+                                const ratio = 1 - (dist / edgeZone);
+                                const speed = Math.round(2 + 12 * (ratio * ratio));
+                                targetSpeed = speed;
+                            }
                         }
 
                         if (targetSpeed === 0) {
@@ -1094,6 +1138,24 @@
 
                             const { container, speed, isWindow } = this.autoScrollState;
 
+                            // Check container scroll limits: if at boundary, stop immediately
+                            if (speed > 0) {
+                                const maxScroll = isWindow
+                                    ? (document.documentElement.scrollHeight - window.innerHeight)
+                                    : (container.scrollHeight - container.clientHeight);
+                                const currentScroll = isWindow ? window.scrollY : container.scrollTop;
+                                if (currentScroll >= maxScroll - 1) {
+                                    this.stopAutoScroll();
+                                    return;
+                                }
+                            } else if (speed < 0) {
+                                const currentScroll = isWindow ? window.scrollY : container.scrollTop;
+                                if (currentScroll <= 1) {
+                                    this.stopAutoScroll();
+                                    return;
+                                }
+                            }
+
                             if (isWindow) {
                                 window.scrollBy(0, speed);
                             } else if (container) {
@@ -1102,9 +1164,14 @@
 
                             if (this.pointerDrag && this.pointerDrag.active) {
                                 this.updateDropTargetFromPoint(this.pointerDrag.x, this.pointerDrag.y);
+                                this.handleAutoScroll(this.pointerDrag.y);
                             }
 
-                            this.autoScrollState.frame = requestAnimationFrame(step);
+                            if (this.autoScrollState.speed && this.autoScrollState.container) {
+                                this.autoScrollState.frame = requestAnimationFrame(step);
+                            } else {
+                                this.autoScrollState.frame = null;
+                            }
                         };
 
                         this.autoScrollState.frame = requestAnimationFrame(step);
