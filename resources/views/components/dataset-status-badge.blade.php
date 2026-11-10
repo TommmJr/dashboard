@@ -1,16 +1,17 @@
 @props(['status'])
 
 @php
-    $colors = [
-        'UPLOADING'  => 'bg-gray-200 text-gray-700',
-        'VALIDATING' => 'bg-yellow-100 text-yellow-800',
-        'READY'      => 'bg-green-100 text-green-800',
-        'FAILED'     => 'bg-red-100 text-red-800',
-        'ARCHIVED'   => 'bg-gray-400 text-white',
+    $dotColors = [
+        'UPLOADING'  => 'bg-blue-500',
+        'VALIDATING' => 'bg-amber-500',
+        'READY'      => 'bg-emerald-500',
+        'FAILED'     => 'bg-rose-500',
+        'ARCHIVED'   => 'bg-slate-400',
     ];
-    $class = $colors[$status] ?? 'bg-gray-200 text-gray-700';
+    $dotClass = $dotColors[$status] ?? 'bg-slate-400';
 @endphp
 
-<span {{ $attributes->merge(['class' => "rounded-full px-2 py-1 text-xs font-semibold {$class}"]) }}>
+<span {{ $attributes->merge(['class' => 'inline-flex items-center gap-1.5 rounded-full border border-slate-200/80 bg-white px-2.5 py-0.5 text-xs font-medium text-slate-700 shadow-2xs']) }}>
+    <span class="h-1.5 w-1.5 rounded-full {{ $dotClass }}" aria-hidden="true"></span>
     {{ \App\Enums\DatasetStatus::tryFrom($status)?->label() ?? $status }}
 </span>

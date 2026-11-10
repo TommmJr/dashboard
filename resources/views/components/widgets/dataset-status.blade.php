@@ -36,24 +36,24 @@
             <p class="mt-4 rounded-lg bg-slate-50 p-5 text-sm text-gray-600">Belum ada data KPI aktif.</p>
         @else
             <div class="mt-4 grid grid-cols-2 {{ $cols >= 2 ? 'sm:grid-cols-4' : '' }} gap-3">
-                <div class="rounded-xl border border-emerald-100 bg-emerald-50/40 p-3.5 transition hover:bg-emerald-50/60">
-                    <p class="text-xs font-semibold text-emerald-800">Dataset READY (Divisi)</p>
-                    <p class="mt-1.5 text-2xl font-extrabold tracking-tight text-emerald-700 leading-none">{{ $ready }}</p>
+                <div class="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-2xs transition hover:border-slate-300 hover:bg-slate-50/50">
+                    <p class="text-xs font-medium text-slate-500">Dataset READY (Divisi)</p>
+                    <p class="mt-1.5 text-2xl font-extrabold tracking-tight text-emerald-600 leading-none">{{ $ready }}</p>
                 </div>
-                <div class="rounded-xl border border-slate-200/80 bg-slate-50/50 p-3.5 transition hover:bg-slate-50/80">
-                    <p class="text-xs font-semibold text-slate-600">Dataset ARCHIVED</p>
+                <div class="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-2xs transition hover:border-slate-300 hover:bg-slate-50/50">
+                    <p class="text-xs font-medium text-slate-500">Dataset ARCHIVED</p>
                     <p class="mt-1.5 text-2xl font-extrabold tracking-tight text-slate-700 leading-none">{{ $archived }}</p>
                 </div>
-                <div class="rounded-xl border border-rose-100 bg-rose-50/40 p-3.5 transition hover:bg-rose-50/60">
-                    <p class="text-xs font-semibold text-rose-800">Dataset GAGAL</p>
-                    <p class="mt-1.5 text-2xl font-extrabold tracking-tight text-rose-700 leading-none">{{ $failed }}</p>
+                <div class="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-2xs transition hover:border-slate-300 hover:bg-slate-50/50">
+                    <p class="text-xs font-medium text-slate-500">Dataset GAGAL</p>
+                    <p class="mt-1.5 text-2xl font-extrabold tracking-tight text-rose-600 leading-none">{{ $failed }}</p>
                 </div>
                 @php
                     $visibleUnitsLabel = !empty(config('kpi.visible_units')) ? implode(', ', config('kpi.visible_units')) : 'Semua Unit';
                 @endphp
-                <div class="rounded-xl border border-blue-100 bg-blue-50/40 p-3.5 transition hover:bg-blue-50/60">
-                    <p class="text-xs font-semibold text-blue-800">Baris Data Aktif ({{ $visibleUnitsLabel }})</p>
-                    <p class="mt-1.5 text-2xl font-extrabold tracking-tight text-blue-700 leading-none">{{ $latestRows }}</p>
+                <div class="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-2xs transition hover:border-slate-300 hover:bg-slate-50/50">
+                    <p class="text-xs font-medium text-slate-500">Baris Data Aktif ({{ $visibleUnitsLabel }})</p>
+                    <p class="mt-1.5 text-2xl font-extrabold tracking-tight text-blue-600 leading-none">{{ $latestRows }}</p>
                 </div>
             </div>
         @endif
