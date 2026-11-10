@@ -130,33 +130,37 @@
                 <button
                     type="button"
                     @click="tableRag = 'all'"
-                    :class="tableRag === 'all' ? 'bg-primary text-white border-primary shadow-xs' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'"
-                    class="cursor-pointer rounded-md border px-2.5 py-1 font-semibold transition"
+                    :class="tableRag === 'all' ? 'border-slate-800 text-slate-900 font-bold ring-1 ring-slate-800/15 shadow-2xs' : 'border-slate-200 text-slate-600 font-medium hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800'"
+                    class="inline-flex items-center gap-1.5 cursor-pointer rounded-md border bg-white px-2.5 py-1 transition"
                 >
+                    <span class="h-1.5 w-1.5 rounded-full bg-slate-400 shrink-0"></span>
                     Semua
                 </button>
                 <button
                     type="button"
                     @click="tableRag = 'tercapai'"
-                    :class="tableRag === 'tercapai' ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs' : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'"
-                    class="cursor-pointer rounded-md border px-2.5 py-1 font-semibold transition"
+                    :class="tableRag === 'tercapai' ? 'border-emerald-600 text-emerald-950 font-bold ring-1 ring-emerald-600/20 shadow-2xs' : 'border-slate-200 text-slate-600 font-medium hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800'"
+                    class="inline-flex items-center gap-1.5 cursor-pointer rounded-md border bg-white px-2.5 py-1 transition"
                 >
+                    <span class="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0"></span>
                     Tercapai
                 </button>
                 <button
                     type="button"
                     @click="tableRag = 'hampir'"
-                    :class="tableRag === 'hampir' ? 'bg-amber-500 text-white border-amber-500 shadow-xs' : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'"
-                    class="cursor-pointer rounded-md border px-2.5 py-1 font-semibold transition"
+                    :class="tableRag === 'hampir' ? 'border-amber-600 text-amber-950 font-bold ring-1 ring-amber-600/20 shadow-2xs' : 'border-slate-200 text-slate-600 font-medium hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800'"
+                    class="inline-flex items-center gap-1.5 cursor-pointer rounded-md border bg-white px-2.5 py-1 transition"
                 >
+                    <span class="h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0"></span>
                     Mendekati
                 </button>
                 <button
                     type="button"
                     @click="tableRag = 'perlu'"
-                    :class="tableRag === 'perlu' ? 'bg-rose-600 text-white border-rose-600 shadow-xs' : 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'"
-                    class="cursor-pointer rounded-md border px-2.5 py-1 font-semibold transition"
+                    :class="tableRag === 'perlu' ? 'border-rose-600 text-rose-950 font-bold ring-1 ring-rose-600/20 shadow-2xs' : 'border-slate-200 text-slate-600 font-medium hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800'"
+                    class="inline-flex items-center gap-1.5 cursor-pointer rounded-md border bg-white px-2.5 py-1 transition"
                 >
+                    <span class="h-1.5 w-1.5 rounded-full bg-rose-500 shrink-0"></span>
                     Perlu Perhatian
                 </button>
             </div>

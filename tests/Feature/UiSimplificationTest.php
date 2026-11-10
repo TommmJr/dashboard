@@ -177,4 +177,49 @@ class UiSimplificationTest extends TestCase
         $response->assertSee("activeRag === 'hampir' ? 'border-amber-600", false);
         $response->assertSee("activeRag === 'perlu' ? 'border-rose-600", false);
     }
+
+    public function test_kinerja_detail_filter_buttons_have_colored_dots_and_no_colored_backgrounds_on_kpi_detail_page(): void
+    {
+        $dataset = Dataset::factory()->create([
+            'division_id' => $this->pengusahaan->id,
+            'user_id' => $this->staffUser->id,
+            'status' => DatasetStatus::READY,
+        ]);
+
+        $unit = OrgUnit::create(['name' => 'TJBT']);
+        $indicator = Indicator::create([
+            'org_unit_id' => $unit->id,
+            'name' => 'Indikator Detail Rincian',
+            'satuan' => '%',
+            'category' => 'kpi',
+            'is_group' => false,
+        ]);
+
+        PerformanceObservation::create([
+            'dataset_id' => $dataset->id,
+            'indicator_id' => $indicator->id,
+            'org_unit_id' => $unit->id,
+            'division_id' => $this->pengusahaan->id,
+            'period' => '2026-08-31',
+            'target_value' => 10,
+            'target_type' => 'numeric',
+            'realisasi_value' => 10,
+            'realisasi_type' => 'numeric',
+            'pencapaian' => 1.0,
+            'nilai' => 10.0,
+            'source_sheet' => 'TJBT',
+            'source_row' => 12,
+        ]);
+
+        $response = $this->actingAs($this->staffUser)->get(route('dashboard.kpi-detail'));
+
+        $response->assertOk();
+        $response->assertSee('id="kinerja-detail-search"', false);
+        $response->assertDontSee("tableRag === 'tercapai' ? 'bg-emerald-600", false);
+        $response->assertDontSee("tableRag === 'hampir' ? 'bg-amber-500", false);
+        $response->assertDontSee("tableRag === 'perlu' ? 'bg-rose-600", false);
+        $response->assertSee("tableRag === 'tercapai' ? 'border-emerald-600", false);
+        $response->assertSee("tableRag === 'hampir' ? 'border-amber-600", false);
+        $response->assertSee("tableRag === 'perlu' ? 'border-rose-600", false);
+    }
 }
