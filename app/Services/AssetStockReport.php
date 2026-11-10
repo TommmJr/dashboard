@@ -18,7 +18,8 @@ class AssetStockReport
 {
     /**
      * Snapshot ASET pada periode terbaru: baris READY berprefix
-     * AssetStockConverter::PREFIX, dikelompokkan per UPT/ULTG.
+     * AssetStockConverter::PREFIX dari dataset terbaru per divisi (lihat
+     * latestDatasetIds), dikelompokkan per UPT/ULTG.
      *
      * Format metric_name diasumsikan keluaran converter:
      * "ASET | {UPT} | {ULTG} | {atribut}" (atribut sendiri boleh memuat
@@ -43,6 +44,7 @@ class AssetStockReport
 
         $groups = $base()
             ->where('performance_metrics.period', $period)
+            ->whereIn('performance_metrics.dataset_id', $this->latestDatasetIds($period))
             ->select('performance_metrics.metric_name', 'performance_metrics.value')
             ->orderBy('performance_metrics.metric_name')
             ->get()
@@ -77,6 +79,9 @@ class AssetStockReport
      * aditif selama tidak mencampur atribut berbeda satuan dalam satu
      * series — pemisahan per atribut dijaga sampai ke widget.
      *
+     * Hanya dataset READY TERBARU per divisi pada periode itu yang dijumlahkan
+     * (lihat latestDatasetIds); dataset lama yang digantikan tidak ikut.
+     *
      * Baris agregat source (Total UPT / TOTAL UIT JBT) tidak ikut
      * terjumlah karena converter memang tidak mengimpornya. Total nol
      * tetap dipertahankan sebagai grup (nol = data, bukan absen).
@@ -103,6 +108,7 @@ class AssetStockReport
 
         $totals = $base()
             ->where('performance_metrics.period', $period)
+            ->whereIn('performance_metrics.dataset_id', $this->latestDatasetIds($period, $divisionId))
             ->select('performance_metrics.metric_name', 'performance_metrics.value')
             ->orderBy('performance_metrics.metric_name')
             ->get()
@@ -124,5 +130,52 @@ class AssetStockReport
             ->values();
 
         return ['period' => $period, 'totals' => $totals];
+    }
+
+    /**
+     * ID dataset READY TERBARU per divisi untuk satu periode, dihitung hanya
+     * dari dataset yang punya baris ASET pada periode itu.
+     *
+     * Satu dataset adalah satu versi: unggahan ulang pada divisi + periode
+     * yang sama menggantikan dataset lama, bukan menambahnya. Tanpa batas
+     * ini SUM(value) menghitung ganda. Aturan "terbaru" sama dengan
+     * StructuredNkoReader::latestDatasetIds (created_at, tie-break id),
+     * tetapi sumbernya performance_metrics karena data Aset tidak punya
+     * baris performance_observations. Scope versi memakai datasets.division_id
+     * (NOT NULL), bukan performance_metrics.division_id yang nullable.
+     *
+     * @return list<int>
+     */
+    private function latestDatasetIds(string $period, ?int $divisionId = null): array
+    {
+        $prefix = AssetStockConverter::PREFIX.'%';
+
+        return DB::table('performance_metrics as pm')
+            ->join('datasets as d', 'd.id', '=', 'pm.dataset_id')
+            ->where('d.status', Dataset::STATUS_READY)
+            ->where('pm.metric_name', 'like', $prefix)
+            ->where('pm.period', $period)
+            ->when($divisionId !== null, fn ($query) => $query->where('pm.division_id', $divisionId))
+            ->whereNotExists(function ($query) use ($prefix, $period) {
+                $query->select(DB::raw(1))
+                    ->from('performance_metrics as newer')
+                    ->join('datasets as nd', 'nd.id', '=', 'newer.dataset_id')
+                    ->where('nd.status', Dataset::STATUS_READY)
+                    ->where('newer.metric_name', 'like', $prefix)
+                    ->where('newer.period', $period)
+                    ->whereColumn('nd.division_id', 'd.division_id')
+                    ->where(function ($better) {
+                        // created_at sama tetap terurut total lewat tie-break id.
+                        $better->whereColumn('nd.created_at', '>', 'd.created_at')
+                            ->orWhere(function ($tie) {
+                                $tie->whereColumn('nd.created_at', '=', 'd.created_at')
+                                    ->whereColumn('nd.id', '>', 'd.id');
+                            });
+                    });
+            })
+            ->distinct()
+            ->pluck('d.id')
+            ->map(fn ($id): int => (int) $id)
+            ->all();
     }
 }

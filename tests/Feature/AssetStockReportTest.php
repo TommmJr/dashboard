@@ -8,6 +8,7 @@ use App\Models\PerformanceMetric;
 use App\Services\AssetStockReport;
 use App\Services\KpiReportConverter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Collection;
 use Tests\TestCase;
 
 /**
@@ -202,50 +203,244 @@ class AssetStockReportTest extends TestCase
         $this->assertTrue($report['totals']->isEmpty());
     }
 
-    public function test_total_per_upt_menjumlahkan_dua_dataset_ready_pada_periode_dan_divisi_sama(): void
+    public function test_total_per_upt_memakai_dataset_ready_terbaru_pada_periode_dan_divisi_sama(): void
     {
-        // BEHAVIOR LOCK, bukan aturan bisnis. Production code saat ini
-        // menjumlahkan SEMUA baris ASET dari dataset berstatus READY pada
-        // periode terbaru, tanpa pembatas "satu dataset aktif per periode".
-        // Akibatnya dua dataset READY pada divisi + periode yang sama ikut
-        // teragregasi. Test ini merekam perilaku itu apa adanya supaya
-        // perubahan perilaku di masa depan terlihat, bukan disembunyikan.
-        // Nilai sintetis 5 + 7 (bukan angka bisnis).
+        // Satu dataset = satu versi. Dua dataset READY pada divisi + periode
+        // yang sama TIDAK boleh dijumlahkan: yang terbaru menggantikan yang
+        // lama (cegah double aggregation saat staf mengunggah ulang).
+        // Nilai sintetis 5 (lama) dan 7 (baru), bukan angka bisnis.
         $division = Division::factory()->create();
+        $old = $this->readyDataset($division, '2026-11-01 08:00:00');
+        $new = $this->readyDataset($division, '2026-11-02 08:00:00');
 
-        $datasetA = Dataset::factory()->create([
-            'division_id' => $division->id,
-            'status' => Dataset::STATUS_READY,
-        ]);
-        $datasetB = Dataset::factory()->create([
-            'division_id' => $division->id,
-            'status' => Dataset::STATUS_READY,
-        ]);
-
-        $row = fn (Dataset $dataset, float $value) => PerformanceMetric::factory()->create([
-            'metric_name' => 'ASET | BEKASI | BEKASI | Trafo 500/150 KV | Bank',
-            'dataset_id' => $dataset->id,
-            'division_id' => $division->id,
-            'period' => '2026-01-31',
-            'value' => $value,
-        ]);
-
-        $row($datasetA, 5);
-        $row($datasetB, 7);
-
-        // Sanity check fixture: benar ada dua dataset READY di divisi yang sama.
-        $this->assertSame(2, Dataset::where('division_id', $division->id)
-            ->where('status', Dataset::STATUS_READY)
-            ->count());
+        $this->assetRow($old, 'BEKASI', 'BEKASI', 'Trafo 500/150 KV | Bank', '2026-01-31', 5);
+        $this->assetRow($new, 'BEKASI', 'BEKASI', 'Trafo 500/150 KV | Bank', '2026-01-31', 7);
 
         $report = app(AssetStockReport::class)->totalsByUpt();
 
-        // 5 + 7 = 12: kedua dataset ikut terjumlah karena tidak ada
-        // pemisahan per dataset di query agregasi.
         $this->assertSame('2026-01-31', $report['period']);
         $this->assertSame([
+            ['upt' => 'BEKASI', 'attribute' => 'Trafo 500/150 KV | Bank', 'total' => 7.0],
+        ], $this->totalsAsArray($report));
+    }
+
+    public function test_total_per_upt_urutan_pembuatan_bukan_urutan_insert_yang_menentukan_terbaru(): void
+    {
+        $division = Division::factory()->create();
+        $new = $this->readyDataset($division, '2026-11-02 08:00:00');
+        $old = $this->readyDataset($division, '2026-11-01 08:00:00');
+
+        // Baris dataset baru di-insert lebih dulu dari dataset lama.
+        $this->assetRow($new, 'BEKASI', 'BEKASI', 'Trafo 500/150 KV | Bank', '2026-01-31', 7);
+        $this->assetRow($old, 'BEKASI', 'BEKASI', 'Trafo 500/150 KV | Bank', '2026-01-31', 5);
+
+        $this->assertSame([
+            ['upt' => 'BEKASI', 'attribute' => 'Trafo 500/150 KV | Bank', 'total' => 7.0],
+        ], $this->totalsAsArray(app(AssetStockReport::class)->totalsByUpt()));
+    }
+
+    public function test_total_per_upt_created_at_sama_dipecahkan_oleh_id_terbesar(): void
+    {
+        $division = Division::factory()->create();
+        $first = $this->readyDataset($division, '2026-11-01 08:00:00');
+        $second = $this->readyDataset($division, '2026-11-01 08:00:00');
+
+        $this->assetRow($first, 'BEKASI', 'BEKASI', 'Trafo 500/150 KV | Bank', '2026-01-31', 5);
+        $this->assetRow($second, 'BEKASI', 'BEKASI', 'Trafo 500/150 KV | Bank', '2026-01-31', 7);
+
+        $this->assertGreaterThan($first->id, $second->id);
+        $this->assertSame([
+            ['upt' => 'BEKASI', 'attribute' => 'Trafo 500/150 KV | Bank', 'total' => 7.0],
+        ], $this->totalsAsArray(app(AssetStockReport::class)->totalsByUpt()));
+    }
+
+    public function test_total_per_upt_dataset_lama_tidak_ikut_meski_barisnya_berbeda_atribut(): void
+    {
+        // Dataset terbaru adalah versi lengkap: atribut yang hanya ada di
+        // dataset lama tidak boleh "bocor" ke total.
+        $division = Division::factory()->create();
+        $old = $this->readyDataset($division, '2026-11-01 08:00:00');
+        $new = $this->readyDataset($division, '2026-11-02 08:00:00');
+
+        $this->assetRow($old, 'BEKASI', 'BEKASI', 'Trafo 500/150 KV | MVA', '2026-01-31', 100);
+        $this->assetRow($old, 'BOGOR', 'BOGOR', 'Trafo 500/150 KV | Bank', '2026-01-31', 3);
+        $this->assetRow($new, 'BEKASI', 'BEKASI', 'Trafo 500/150 KV | Bank', '2026-01-31', 7);
+
+        $this->assertSame([
+            ['upt' => 'BEKASI', 'attribute' => 'Trafo 500/150 KV | Bank', 'total' => 7.0],
+        ], $this->totalsAsArray(app(AssetStockReport::class)->totalsByUpt()));
+    }
+
+    public function test_total_per_upt_tetap_menjumlahkan_ultg_dalam_satu_dataset_terbaru(): void
+    {
+        $division = Division::factory()->create();
+        $old = $this->readyDataset($division, '2026-11-01 08:00:00');
+        $new = $this->readyDataset($division, '2026-11-02 08:00:00');
+
+        $this->assetRow($old, 'BEKASI', 'BEKASI', 'Trafo 500/150 KV | Bank', '2026-01-31', 99);
+        $this->assetRow($new, 'BEKASI', 'BEKASI', 'Trafo 500/150 KV | Bank', '2026-01-31', 5);
+        $this->assetRow($new, 'BEKASI', 'CIKARANG', 'Trafo 500/150 KV | Bank', '2026-01-31', 7);
+
+        $this->assertSame([
             ['upt' => 'BEKASI', 'attribute' => 'Trafo 500/150 KV | Bank', 'total' => 12.0],
-        ], $report['totals']->map(fn ($t) => ['upt' => $t->upt, 'attribute' => $t->attribute, 'total' => $t->total])->all());
+        ], $this->totalsAsArray(app(AssetStockReport::class)->totalsByUpt()));
+    }
+
+    public function test_total_per_upt_dataset_failed_lebih_baru_tidak_menggantikan_dataset_ready(): void
+    {
+        $division = Division::factory()->create();
+        $ready = $this->readyDataset($division, '2026-11-01 08:00:00');
+        $failed = Dataset::factory()->create([
+            'division_id' => $division->id,
+            'status' => Dataset::STATUS_FAILED,
+            'created_at' => '2026-11-02 08:00:00',
+        ]);
+
+        $this->assetRow($ready, 'BEKASI', 'BEKASI', 'Trafo 500/150 KV | Bank', '2026-01-31', 5);
+        $this->assetRow($failed, 'BEKASI', 'BEKASI', 'Trafo 500/150 KV | Bank', '2026-01-31', 9);
+
+        $this->assertSame([
+            ['upt' => 'BEKASI', 'attribute' => 'Trafo 500/150 KV | Bank', 'total' => 5.0],
+        ], $this->totalsAsArray(app(AssetStockReport::class)->totalsByUpt()));
+    }
+
+    public function test_total_per_upt_dataset_lebih_baru_tanpa_baris_aset_tidak_menggantikan(): void
+    {
+        // Dataset terbaru milik divisi yang sama tetapi hanya berisi metrik
+        // non-ASET pada periode itu bukan versi data Aset.
+        $division = Division::factory()->create();
+        $aset = $this->readyDataset($division, '2026-11-01 08:00:00');
+        $kpi = $this->readyDataset($division, '2026-11-02 08:00:00');
+
+        $this->assetRow($aset, 'BEKASI', 'BEKASI', 'Trafo 500/150 KV | Bank', '2026-01-31', 5);
+        PerformanceMetric::factory()->create([
+            'metric_name' => 'RST'.KpiReportConverter::NKO_SUFFIX,
+            'dataset_id' => $kpi->id,
+            'division_id' => $division->id,
+            'period' => '2026-01-31',
+            'value' => 100,
+        ]);
+
+        $this->assertSame([
+            ['upt' => 'BEKASI', 'attribute' => 'Trafo 500/150 KV | Bank', 'total' => 5.0],
+        ], $this->totalsAsArray(app(AssetStockReport::class)->totalsByUpt()));
+    }
+
+    public function test_total_per_upt_lintas_divisi_memakai_dataset_terbaru_per_divisi(): void
+    {
+        $divisionA = Division::factory()->create();
+        $divisionB = Division::factory()->create();
+        $oldA = $this->readyDataset($divisionA, '2026-11-01 08:00:00');
+        $newA = $this->readyDataset($divisionA, '2026-11-02 08:00:00');
+        $onlyB = $this->readyDataset($divisionB, '2026-10-01 08:00:00');
+
+        $this->assetRow($oldA, 'BEKASI', 'BEKASI', 'Trafo 500/150 KV | Bank', '2026-01-31', 5);
+        $this->assetRow($newA, 'BEKASI', 'BEKASI', 'Trafo 500/150 KV | Bank', '2026-01-31', 7);
+        // Dataset divisi B lebih tua secara waktu, tetapi tidak bersaing
+        // dengan divisi A: scope "terbaru" berlaku per divisi.
+        $this->assetRow($onlyB, 'BEKASI', 'BEKASI', 'Trafo 500/150 KV | Bank', '2026-01-31', 10);
+
+        $this->assertSame([
+            ['upt' => 'BEKASI', 'attribute' => 'Trafo 500/150 KV | Bank', 'total' => 17.0],
+        ], $this->totalsAsArray(app(AssetStockReport::class)->totalsByUpt()));
+
+        $this->assertSame([
+            ['upt' => 'BEKASI', 'attribute' => 'Trafo 500/150 KV | Bank', 'total' => 7.0],
+        ], $this->totalsAsArray(app(AssetStockReport::class)->totalsByUpt(divisionId: $divisionA->id)));
+    }
+
+    public function test_total_per_upt_periode_eksplisit_memakai_dataset_terbaru_pada_periode_itu(): void
+    {
+        $division = Division::factory()->create();
+        $old = $this->readyDataset($division, '2026-11-01 08:00:00');
+        $new = $this->readyDataset($division, '2026-11-02 08:00:00');
+
+        // Januari hanya ada di dataset lama, Februari di keduanya.
+        $this->assetRow($old, 'BEKASI', 'BEKASI', 'Trafo 500/150 KV | Bank', '2026-01-31', 5);
+        $this->assetRow($old, 'BEKASI', 'BEKASI', 'Trafo 500/150 KV | Bank', '2026-02-28', 6);
+        $this->assetRow($new, 'BEKASI', 'BEKASI', 'Trafo 500/150 KV | Bank', '2026-02-28', 8);
+
+        $report = app(AssetStockReport::class);
+
+        $this->assertSame([
+            ['upt' => 'BEKASI', 'attribute' => 'Trafo 500/150 KV | Bank', 'total' => 5.0],
+        ], $this->totalsAsArray($report->totalsByUpt('2026-01-31')));
+        $this->assertSame([
+            ['upt' => 'BEKASI', 'attribute' => 'Trafo 500/150 KV | Bank', 'total' => 8.0],
+        ], $this->totalsAsArray($report->totalsByUpt()));
+    }
+
+    public function test_total_per_upt_scope_versi_mengikuti_divisi_dataset_bukan_divisi_baris(): void
+    {
+        // Baris metrik boleh tanpa division_id (kolom nullable). Unit versi
+        // adalah dataset, yang selalu punya divisi, jadi baris tanpa divisi
+        // pada dataset lama tetap tersupersede dataset baru.
+        $division = Division::factory()->create();
+        $old = $this->readyDataset($division, '2026-11-01 08:00:00');
+        $new = $this->readyDataset($division, '2026-11-02 08:00:00');
+
+        foreach ([[$old, 5], [$new, 7]] as [$dataset, $value]) {
+            PerformanceMetric::factory()->create([
+                'metric_name' => 'ASET | BEKASI | BEKASI | Trafo 500/150 KV | Bank',
+                'dataset_id' => $dataset->id,
+                'division_id' => null,
+                'period' => '2026-01-31',
+                'value' => $value,
+            ]);
+        }
+
+        $this->assertSame([
+            ['upt' => 'BEKASI', 'attribute' => 'Trafo 500/150 KV | Bank', 'total' => 7.0],
+        ], $this->totalsAsArray(app(AssetStockReport::class)->totalsByUpt()));
+    }
+
+    public function test_snapshot_memakai_dataset_ready_terbaru_pada_periode_dan_divisi_sama(): void
+    {
+        $division = Division::factory()->create();
+        $old = $this->readyDataset($division, '2026-11-01 08:00:00');
+        $new = $this->readyDataset($division, '2026-11-02 08:00:00');
+
+        $this->assetRow($old, 'BEKASI', 'BEKASI', 'Trafo 500/150 KV | Bank', '2026-01-31', 5);
+        $this->assetRow($old, 'BOGOR', 'BOGOR', 'Trafo 500/150 KV | Bank', '2026-01-31', 3);
+        $this->assetRow($new, 'BEKASI', 'BEKASI', 'Trafo 500/150 KV | Bank', '2026-01-31', 7);
+
+        $snapshot = app(AssetStockReport::class)->latestSnapshot();
+
+        $this->assertSame('2026-01-31', $snapshot['period']);
+        $this->assertCount(1, $snapshot['groups']);
+        $this->assertSame('BEKASI', $snapshot['groups'][0]->upt);
+        $this->assertSame([7.0], $snapshot['groups'][0]->metrics->map(fn ($m) => $m->value)->all());
+    }
+
+    private function readyDataset(Division $division, string $createdAt): Dataset
+    {
+        return Dataset::factory()->create([
+            'division_id' => $division->id,
+            'status' => Dataset::STATUS_READY,
+            'created_at' => $createdAt,
+        ]);
+    }
+
+    private function assetRow(Dataset $dataset, string $upt, string $ultg, string $attribute, string $period, float $value): void
+    {
+        PerformanceMetric::factory()->create([
+            'metric_name' => "ASET | {$upt} | {$ultg} | {$attribute}",
+            'dataset_id' => $dataset->id,
+            'division_id' => $dataset->division_id,
+            'period' => $period,
+            'value' => $value,
+        ]);
+    }
+
+    /**
+     * @param  array{period: ?string, totals: Collection<int, object>}  $report
+     * @return list<array{upt: string, attribute: string, total: float}>
+     */
+    private function totalsAsArray(array $report): array
+    {
+        return $report['totals']
+            ->map(fn ($t) => ['upt' => $t->upt, 'attribute' => $t->attribute, 'total' => $t->total])
+            ->all();
     }
 
     /**
