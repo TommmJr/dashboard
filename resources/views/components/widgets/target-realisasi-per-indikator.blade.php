@@ -97,26 +97,24 @@
             Belum ada data target/realisasi terstruktur pada periode ini.
         </p>
     @else
-        {{-- Summary stat badges --}}
-        <div class="mt-3 flex flex-wrap items-center gap-2 text-xs">
-            <span class="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-700">
-                <span class="h-2 w-2 rounded-full bg-slate-400"></span>
-                Total: {{ $totalCount }} Indikator
-            </span>
-            <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 font-medium text-emerald-700 border border-emerald-200">
-                <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
-                Tercapai (&ge;{{ $tercapaiMinLabel }}%): {{ $achievedCount }}
-            </span>
+        {{-- Ringkasan status pill badges --}}
+        <div class="mt-2.5 flex flex-wrap items-center gap-2 text-xs">
+            @if ($achievedCount > 0)
+                <span class="inline-flex items-center gap-1.5 rounded-full border border-slate-200/80 bg-white px-2.5 py-0.5 font-medium text-slate-600 shadow-2xs">
+                    <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
+                    Tercapai (&ge;{{ $tercapaiMinLabel }}%): <strong class="font-semibold text-slate-800">{{ $achievedCount }}</strong>
+                </span>
+            @endif
             @if ($nearCount > 0)
-                <span class="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 font-medium text-amber-700 border border-amber-200">
+                <span class="inline-flex items-center gap-1.5 rounded-full border border-slate-200/80 bg-white px-2.5 py-0.5 font-medium text-slate-600 shadow-2xs">
                     <span class="h-2 w-2 rounded-full bg-amber-500"></span>
-                    Mendekati ({{ $hampirMinLabel }}–{{ $hampirMaxLabel }}%): {{ $nearCount }}
+                    Mendekati ({{ $hampirMinLabel }}–{{ $hampirMaxLabel }}%): <strong class="font-semibold text-slate-800">{{ $nearCount }}</strong>
                 </span>
             @endif
             @if ($belowCount > 0)
-                <span class="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-2.5 py-1 font-medium text-rose-700 border border-rose-200">
+                <span class="inline-flex items-center gap-1.5 rounded-full border border-slate-200/80 bg-white px-2.5 py-0.5 font-medium text-slate-600 shadow-2xs">
                     <span class="h-2 w-2 rounded-full bg-rose-500"></span>
-                    Perlu Perhatian (&lt;{{ $hampirMinLabel }}%): {{ $belowCount }}
+                    Perlu Perhatian (&lt;{{ $hampirMinLabel }}%): <strong class="font-semibold text-slate-800">{{ $belowCount }}</strong>
                 </span>
             @endif
         </div>
@@ -137,36 +135,40 @@
                     type="button"
                     data-rag-filter="all"
                     @click="activeRag = 'all'"
-                    :class="activeRag === 'all' ? 'bg-primary text-white border-primary shadow-xs' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'"
-                    class="cursor-pointer rounded-md border px-2.5 py-1 font-semibold transition"
+                    :class="activeRag === 'all' ? 'border-slate-800 text-slate-900 font-bold ring-1 ring-slate-800/15 shadow-2xs' : 'border-slate-200 text-slate-600 font-medium hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800'"
+                    class="inline-flex items-center gap-1.5 cursor-pointer rounded-md border bg-white px-2.5 py-1 transition"
                 >
+                    <span class="h-1.5 w-1.5 rounded-full bg-slate-400 shrink-0"></span>
                     Semua ({{ $totalCount }})
                 </button>
                 <button
                     type="button"
                     data-rag-filter="tercapai"
                     @click="activeRag = 'tercapai'"
-                    :class="activeRag === 'tercapai' ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs' : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'"
-                    class="cursor-pointer rounded-md border px-2.5 py-1 font-semibold transition"
+                    :class="activeRag === 'tercapai' ? 'border-emerald-600 text-emerald-950 font-bold ring-1 ring-emerald-600/20 shadow-2xs' : 'border-slate-200 text-slate-600 font-medium hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800'"
+                    class="inline-flex items-center gap-1.5 cursor-pointer rounded-md border bg-white px-2.5 py-1 transition"
                 >
+                    <span class="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0"></span>
                     Tercapai ({{ $achievedCount }})
                 </button>
                 <button
                     type="button"
                     data-rag-filter="hampir"
                     @click="activeRag = 'hampir'"
-                    :class="activeRag === 'hampir' ? 'bg-amber-500 text-white border-amber-500 shadow-xs' : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'"
-                    class="cursor-pointer rounded-md border px-2.5 py-1 font-semibold transition"
+                    :class="activeRag === 'hampir' ? 'border-amber-600 text-amber-950 font-bold ring-1 ring-amber-600/20 shadow-2xs' : 'border-slate-200 text-slate-600 font-medium hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800'"
+                    class="inline-flex items-center gap-1.5 cursor-pointer rounded-md border bg-white px-2.5 py-1 transition"
                 >
+                    <span class="h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0"></span>
                     Mendekati ({{ $nearCount }})
                 </button>
                 <button
                     type="button"
                     data-rag-filter="perlu"
                     @click="activeRag = 'perlu'"
-                    :class="activeRag === 'perlu' ? 'bg-rose-600 text-white border-rose-600 shadow-xs' : 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'"
-                    class="cursor-pointer rounded-md border px-2.5 py-1 font-semibold transition"
+                    :class="activeRag === 'perlu' ? 'border-rose-600 text-rose-950 font-bold ring-1 ring-rose-600/20 shadow-2xs' : 'border-slate-200 text-slate-600 font-medium hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800'"
+                    class="inline-flex items-center gap-1.5 cursor-pointer rounded-md border bg-white px-2.5 py-1 transition"
                 >
+                    <span class="h-1.5 w-1.5 rounded-full bg-rose-500 shrink-0"></span>
                     Perlu Perhatian ({{ $belowCount }})
                 </button>
             </div>
