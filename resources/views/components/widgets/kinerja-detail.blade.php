@@ -53,7 +53,17 @@
     };
 @endphp
 
-<div class="h-full rounded-lg bg-white border border-slate-200 shadow-sm p-6">
+<div
+    class="h-full rounded-lg bg-white border border-slate-200 shadow-sm p-6"
+    x-data="{
+        tableSearch: '',
+        tableRag: 'all',
+        matches(indikator, unit, tier) {
+            return (this.tableRag === 'all' || this.tableRag === tier) &&
+                (this.tableSearch.trim() === '' || (indikator + ' ' + unit).toLowerCase().includes(this.tableSearch.trim().toLowerCase()));
+        }
+    }"
+>
     <div class="flex flex-wrap items-start justify-between gap-3">
         <div>
             <h3 class="text-lg font-bold text-primary">{{ $widget['label'] ?? 'Detail Metrik KPI' }}</h3>
@@ -104,7 +114,61 @@
             Belum ada data metrik pada periode ini.
         </p>
     @else
-        <div class="overflow-x-auto mt-4 rounded-lg border border-slate-200">
+        {{-- Toolbar pencarian cepat & filter RAG --}}
+        <div class="mt-4 flex flex-col gap-2.5 rounded-lg border border-slate-200/80 bg-slate-50/70 p-2.5 sm:flex-row sm:items-center sm:justify-between">
+            <div class="relative flex-1 max-w-xs">
+                <input
+                    id="kinerja-detail-search"
+                    type="search"
+                    x-model="tableSearch"
+                    placeholder="Cari indikator atau unit..."
+                    aria-label="Cari indikator atau unit"
+                    class="w-full rounded-md border border-slate-300 bg-white py-1.5 pl-3 pr-3 text-xs text-slate-800 placeholder:text-slate-400 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                />
+            </div>
+            <div class="flex flex-wrap items-center gap-1.5 text-[11px]">
+                <button
+                    type="button"
+                    @click="tableRag = 'all'"
+                    :class="tableRag === 'all' ? 'bg-primary text-white border-primary shadow-xs' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'"
+                    class="cursor-pointer rounded-md border px-2.5 py-1 font-semibold transition"
+                >
+                    Semua
+                </button>
+                <button
+                    type="button"
+                    @click="tableRag = 'tercapai'"
+                    :class="tableRag === 'tercapai' ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs' : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'"
+                    class="cursor-pointer rounded-md border px-2.5 py-1 font-semibold transition"
+                >
+                    Tercapai
+                </button>
+                <button
+                    type="button"
+                    @click="tableRag = 'hampir'"
+                    :class="tableRag === 'hampir' ? 'bg-amber-500 text-white border-amber-500 shadow-xs' : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'"
+                    class="cursor-pointer rounded-md border px-2.5 py-1 font-semibold transition"
+                >
+                    Mendekati
+                </button>
+                <button
+                    type="button"
+                    @click="tableRag = 'perlu'"
+                    :class="tableRag === 'perlu' ? 'bg-rose-600 text-white border-rose-600 shadow-xs' : 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'"
+                    class="cursor-pointer rounded-md border px-2.5 py-1 font-semibold transition"
+                >
+                    Perlu Perhatian
+                </button>
+            </div>
+        </div>
+
+        @if ($isLimited)
+            <div class="mt-2 text-[11px] text-slate-500">
+                Menampilkan 10 baris teratas. Untuk mencari seluruh indikator, buka <a href="{{ route('dashboard.kpi-detail') }}" class="text-accent underline font-medium">Halaman Rincian KPI</a>.
+            </div>
+        @endif
+
+        <div class="overflow-x-auto mt-3 rounded-lg border border-slate-200">
             <table class="w-full text-sm">
                 <thead class="bg-slate-50/80 text-xs text-slate-600 font-semibold uppercase tracking-wider border-b border-slate-200">
                     <tr>
@@ -121,10 +185,12 @@
                             $pencapaianVal = $row['pencapaian'] ?? null;
                             $barWidth = 0;
                             $barColor = 'bg-slate-300';
+                            $tier = 'all';
                             if ($pencapaianVal !== null) {
                                 $numVal = (float) $pencapaianVal;
-                                $barWidth = max(0, min(100, $numVal));
-                                $tier = \App\Support\KpiScoreNormalizer::ragTier($numVal);
+                                $normalizedPencapaian = \App\Support\KpiScoreNormalizer::normalize($numVal);
+                                $barWidth = max(0, min(100, $normalizedPencapaian));
+                                $tier = \App\Support\KpiScoreNormalizer::ragTier($normalizedPencapaian);
                                 if ($tier === \App\Support\KpiScoreNormalizer::TIER_TERCAPAI) {
                                     $barColor = 'bg-emerald-500';
                                 } elseif ($tier === \App\Support\KpiScoreNormalizer::TIER_HAMPIR) {
@@ -134,7 +200,10 @@
                                 }
                             }
                         @endphp
-                        <tr class="hover:bg-slate-50/60 transition-colors">
+                        <tr
+                            x-show="matches({{ Js::from($row['indikator']) }}, {{ Js::from($row['unit']) }}, '{{ $tier }}')"
+                            class="hover:bg-slate-50/60 transition-colors"
+                        >
                             <td class="py-2.5 px-3 font-semibold text-primary">{{ $row['unit'] }}</td>
                             <td class="py-2.5 px-3 text-slate-800">{{ $row['indikator'] }}</td>
                             <td class="py-2.5 px-3 text-right font-medium text-slate-600">{{ $row['target_display'] ?? $fmt($row['target'] ?? null, 2) }}</td>

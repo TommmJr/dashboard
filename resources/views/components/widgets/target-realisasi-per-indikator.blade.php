@@ -2,7 +2,7 @@
 
 {{-- Panel Target vs Realisasi PER INDIKATOR (Looker Studio style - Varian Compact).
      Menampilkan daftar 1 baris per indikator dengan mini-bar % pencapaian.
-     Target, realisasi, dan satuan mentah tersedia di tooltip.
+     Target, realisasi, dan satuan mentah tersedia di inline compact & tooltip.
      Milestone tanggal dan skor unverified disajikan dalam chip padat.
 
      Data: App\Services\TargetRealisasiPerIndicatorReader (selalu terstruktur).
@@ -37,10 +37,13 @@
     $nearCount = 0;
     $belowCount = 0;
 
+    $allItems = [];
+
     foreach ($sections as $section) {
         foreach ($section['panels'] ?? [] as $panel) {
             $totalCount++;
             $pct = $panel['score']['percent'] ?? null;
+            $tier = 'all';
             if ($pct !== null) {
                 $tier = \App\Support\KpiScoreNormalizer::ragTier((float) $pct);
                 if ($tier === \App\Support\KpiScoreNormalizer::TIER_TERCAPAI) {
@@ -50,12 +53,36 @@
                 } else {
                     $belowCount++;
                 }
+            } elseif ($panel['mode'] === 'date') {
+                $tier = 'all';
+            } else {
+                $tier = 'unverified';
             }
+
+            $allItems[] = [
+                'id' => $panel['indicator_id'],
+                'tier' => $tier,
+                'haystack' => strtolower($panel['name'].' '.($panel['satuan'] ?? '')),
+            ];
         }
     }
 @endphp
 
-<div class="h-full rounded-lg bg-white border border-slate-200 shadow-sm p-4 sm:p-5">
+<div
+    class="h-full rounded-lg bg-white border border-slate-200 shadow-sm p-4 sm:p-5"
+    x-data="{
+        searchQuery: '',
+        activeRag: 'all',
+        items: {{ Js::from($allItems) }},
+        matches(haystack, tier) {
+            return (this.activeRag === 'all' || this.activeRag === tier) &&
+                (this.searchQuery.trim() === '' || haystack.includes(this.searchQuery.trim().toLowerCase()));
+        },
+        get visibleCount() {
+            return this.items.filter(item => this.matches(item.haystack, item.tier)).length;
+        }
+    }"
+>
     <div class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <h3 class="text-base font-bold text-primary">{{ $widget['label'] ?? 'Target dan Realisasi per Indikator' }}</h3>
         @if ($period !== null)
@@ -94,7 +121,62 @@
             @endif
         </div>
 
+        {{-- Toolbar filter & pencarian Alpine.js instan --}}
+        <div id="target-realisasi-toolbar" class="mt-3 flex flex-col gap-2.5 rounded-lg border border-slate-200/80 bg-slate-50/70 p-2.5 sm:flex-row sm:items-center sm:justify-between">
+            <div class="relative flex-1 max-w-xs">
+                <input
+                    type="search"
+                    x-model="searchQuery"
+                    placeholder="Cari nama indikator..."
+                    aria-label="Cari nama indikator"
+                    class="w-full rounded-md border border-slate-300 bg-white py-1.5 pl-3 pr-3 text-xs text-slate-800 placeholder:text-slate-400 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                />
+            </div>
+            <div class="flex flex-wrap items-center gap-1.5 text-[11px]">
+                <button
+                    type="button"
+                    data-rag-filter="all"
+                    @click="activeRag = 'all'"
+                    :class="activeRag === 'all' ? 'bg-primary text-white border-primary shadow-xs' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'"
+                    class="cursor-pointer rounded-md border px-2.5 py-1 font-semibold transition"
+                >
+                    Semua ({{ $totalCount }})
+                </button>
+                <button
+                    type="button"
+                    data-rag-filter="tercapai"
+                    @click="activeRag = 'tercapai'"
+                    :class="activeRag === 'tercapai' ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs' : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'"
+                    class="cursor-pointer rounded-md border px-2.5 py-1 font-semibold transition"
+                >
+                    Tercapai ({{ $achievedCount }})
+                </button>
+                <button
+                    type="button"
+                    data-rag-filter="hampir"
+                    @click="activeRag = 'hampir'"
+                    :class="activeRag === 'hampir' ? 'bg-amber-500 text-white border-amber-500 shadow-xs' : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'"
+                    class="cursor-pointer rounded-md border px-2.5 py-1 font-semibold transition"
+                >
+                    Mendekati ({{ $nearCount }})
+                </button>
+                <button
+                    type="button"
+                    data-rag-filter="perlu"
+                    @click="activeRag = 'perlu'"
+                    :class="activeRag === 'perlu' ? 'bg-rose-600 text-white border-rose-600 shadow-xs' : 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'"
+                    class="cursor-pointer rounded-md border px-2.5 py-1 font-semibold transition"
+                >
+                    Perlu Perhatian ({{ $belowCount }})
+                </button>
+            </div>
+        </div>
+
         <div class="mt-4 space-y-4">
+            <div x-show="visibleCount === 0" x-cloak class="rounded-lg border border-dashed border-slate-300 p-6 text-center text-xs text-slate-500">
+                Tidak ada indikator yang sesuai dengan kriteria filter atau pencarian.
+            </div>
+
             @foreach ($sections as $sectionIndex => $section)
                 @php
                     $panels = $section['panels'] ?? [];
@@ -113,9 +195,13 @@
                     }
 
                     $chartId = 'target-realisasi-chart-'.$sectionIndex.'-'.$instanceId;
+                    $sectionIndicatorIds = array_column($panels, 'indicator_id');
                 @endphp
 
-                <section class="border-t border-slate-100 pt-3 first:border-0 first:pt-0">
+                <section
+                    x-show="items.some(item => {{ Js::from($sectionIndicatorIds) }}.includes(item.id) && matches(item.haystack, item.tier))"
+                    class="border-t border-slate-100 pt-3 first:border-0 first:pt-0"
+                >
                     @if (! empty($section['name']))
                         <h4 class="text-xs font-semibold uppercase tracking-wider text-primary pb-1">{{ $section['name'] }}</h4>
                     @endif
@@ -140,22 +226,35 @@
                                     $targetStr = $p['numeric'] ? $fmt((float) $p['numeric']['target']) : null;
                                     $realisasiStr = $p['numeric'] ? $fmt((float) $p['numeric']['realisasi']) : null;
                                     $satuanStr = $p['satuan'] ? ' '.$p['satuan'] : '';
+                                    $searchHaystack = strtolower($p['name'].' '.($p['satuan'] ?? ''));
                                     $tooltip = $p['name'].' | Target: '.($targetStr ?? '—').$satuanStr.' | Realisasi: '.($realisasiStr ?? '—').$satuanStr.' | Pencapaian: '.$fmtPercent($p['score']['percent']);
                                 @endphp
                                 <div
-                                    class="flex items-center justify-between gap-3 rounded px-2 py-1 text-xs hover:bg-slate-50 transition-colors"
+                                    x-show="matches({{ Js::from($searchHaystack) }}, '{{ $tier }}')"
+                                    class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded px-2.5 py-1.5 text-xs hover:bg-slate-50 transition border border-transparent hover:border-slate-100"
                                     data-indicator-id="{{ $p['indicator_id'] }}"
                                     data-mode="{{ $p['mode'] }}"
                                     title="{{ $tooltip }}"
                                 >
-                                    <span class="truncate font-medium text-slate-700 flex-1 max-w-[50%]" title="{{ $p['name'] }}">
-                                        {{ $p['name'] }}
-                                    </span>
-                                    <div class="flex items-center gap-3 w-1/2 sm:w-2/5 justify-end">
-                                        <div class="h-2 w-full max-w-[140px] rounded-full bg-slate-100 overflow-hidden">
+                                    <div class="flex items-center gap-1.5 min-w-0 flex-1">
+                                        <span class="truncate font-medium text-slate-700" title="{{ $p['name'] }}">
+                                            {{ $p['name'] }}
+                                        </span>
+                                        @if (! empty($p['satuan']))
+                                            <span class="shrink-0 text-[10px] text-slate-400">({{ $p['satuan'] }})</span>
+                                        @endif
+                                    </div>
+                                    <div class="flex items-center gap-3 shrink-0">
+                                        @if ($p['mode'] === 'numeric')
+                                            <div class="hidden sm:flex items-center gap-2 text-[11px] text-slate-500 tabular-nums">
+                                                <span>Target: <strong class="font-semibold text-slate-700">{{ $targetStr }}</strong></span>
+                                                <span>Realisasi: <strong class="font-semibold text-slate-700">{{ $realisasiStr }}</strong></span>
+                                            </div>
+                                        @endif
+                                        <div class="h-2 w-24 sm:w-28 rounded-full bg-slate-100 overflow-hidden">
                                             <div class="h-full rounded-full {{ $barColor }}" style="width: {{ $barWidth }}%"></div>
                                         </div>
-                                        <span class="w-14 text-right font-bold {{ $textColor }}">
+                                        <span class="w-14 text-right font-bold tabular-nums {{ $textColor }}">
                                             {{ $fmtPercent($p['score']['percent']) }}
                                         </span>
                                     </div>
@@ -178,8 +277,13 @@
                                     $chipBorder = ($deltaDays !== null && $deltaDays <= 0)
                                         ? 'border-emerald-200 bg-emerald-50/70 text-emerald-800'
                                         : 'border-rose-200 bg-rose-50/70 text-rose-800';
+                                    $dateTier = ($panel['score'] !== null && $panel['score']['percent'] !== null)
+                                        ? \App\Support\KpiScoreNormalizer::ragTier((float) $panel['score']['percent'])
+                                        : 'all';
+                                    $dateHaystack = strtolower($panel['name']);
                                 @endphp
                                 <div
+                                    x-show="matches({{ Js::from($dateHaystack) }}, '{{ $dateTier }}')"
                                     class="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-medium {{ $chipBorder }} cursor-help"
                                     data-indicator-id="{{ $panel['indicator_id'] }}"
                                     data-mode="{{ $panel['mode'] }}"
@@ -199,7 +303,11 @@
                     @if (count($unverifiedPanels) > 0)
                         <div class="mt-2 flex flex-wrap items-center gap-1.5">
                             @foreach ($unverifiedPanels as $panel)
+                                @php
+                                    $unvHaystack = strtolower($panel['name'].' '.($panel['satuan'] ?? ''));
+                                @endphp
                                 <div
+                                    x-show="(activeRag === 'all') && (searchQuery.trim() === '' || {{ Js::from($unvHaystack) }}.includes(searchQuery.trim().toLowerCase()))"
                                     class="inline-flex items-center gap-1.5 rounded border border-amber-200 bg-amber-50/80 px-2 py-0.5 text-[11px] text-amber-900"
                                     data-indicator-id="{{ $panel['indicator_id'] }}"
                                     data-mode="{{ $panel['mode'] }}"

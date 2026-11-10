@@ -45,6 +45,15 @@
                         @endif
                     </nav>
                 </div>
+                @auth
+                    @if (auth()->user()->division)
+                        <div class="hidden sm:flex items-center">
+                            <span class="inline-flex items-center rounded-md border border-accent/20 bg-accent/10 px-2.5 py-1 text-xs font-semibold text-primary">
+                                {{ auth()->user()->division->name }}
+                            </span>
+                        </div>
+                    @endif
+                @endauth
             </header>
 
             <main class="flex-1 px-5 py-6 sm:px-8 sm:py-8">
