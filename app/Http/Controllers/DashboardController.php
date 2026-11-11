@@ -662,7 +662,7 @@ class DashboardController extends Controller
                 $metricQuery = DB::table('performance_metrics')
                     ->join('datasets', 'datasets.id', '=', 'performance_metrics.dataset_id')
                     ->where('datasets.status', Dataset::STATUS_READY)
-                    ->where('performance_metrics.period', $max)
+                    ->whereBetween('performance_metrics.period', [Carbon::parse($latestPeriod)->startOfMonth()->toDateString(), $latestPeriod])
                     ->when(! $isPrivileged, fn ($q) => $q->where('performance_metrics.division_id', $user?->division_id));
 
                 if (! $isPrivileged && $user?->division?->slug !== 'perencanaan-pengusahaan') {

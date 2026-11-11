@@ -2,10 +2,12 @@
 
 namespace Tests\Unit;
 
+use App\Http\Controllers\DashboardController;
 use App\Models\Dataset;
 use App\Models\Division;
 use App\Models\Indicator;
 use App\Models\OrgUnit;
+use App\Models\PerformanceMetric;
 use App\Models\PerformanceObservation;
 use App\Models\Role;
 use App\Models\User;
@@ -153,5 +155,25 @@ class KpiScoreNormalizerRagTierTest extends TestCase
             ->assertSee('bg-amber-500')
             ->assertDontSee('#16a34a')
             ->assertDontSee('bg-emerald-500');
+
+        // 3. Verifikasi nkoDonut pada DashboardController menggunakan threshold kustom
+        $dataset = Dataset::factory()->create(['status' => Dataset::STATUS_READY]);
+        PerformanceMetric::factory()->create([
+            'dataset_id' => $dataset->id,
+            'metric_name' => 'TJBT | NKO',
+            'value' => 101.0,
+            'period' => '2026-08-31',
+        ]);
+        config(['kpi.visible_units' => ['TJBT']]);
+        config(['kpi.read_model' => 'legacy']);
+
+        $controller = app(DashboardController::class);
+        $method = new \ReflectionMethod($controller, 'nkoDonut');
+        $method->setAccessible(true);
+        $donutResult = $method->invoke($controller, null);
+
+        $this->assertSame([
+            ['name' => 'Hampir Tercapai', 'value' => 1],
+        ], $donutResult['data']);
     }
 }
