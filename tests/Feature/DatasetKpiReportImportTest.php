@@ -657,6 +657,33 @@ class DatasetKpiReportImportTest extends TestCase
         Storage::disk('local')->assertMissing('datasets/'.$dataset->filename);
     }
 
+    public function test_unexpected_failure_during_kpi_import_triggers_fail_safe_cleanup(): void
+    {
+        Storage::fake('local');
+
+        $admin = User::factory()->withRole(Role::ADMIN)->create(['division_id' => null]);
+
+        // Simulasikan kegagalan tak terduga saat dataset bertransisi ke status READY (mis. deadlock / constraint DB)
+        Dataset::updating(function (Dataset $d) {
+            if ($d->status === Dataset::STATUS_READY || $d->status === DatasetStatus::READY) {
+                throw new \RuntimeException('Simulasi kegagalan tak terduga aktivasi READY');
+            }
+        });
+
+        $response = $this->actingAs($admin)->post(route('datasets.kpi-import'), [
+            'file' => $this->makeKpiReport(),
+            'period' => '2026-08-31',
+        ]);
+
+        $response->assertRedirect(route('datasets.create'));
+
+        $dataset = Dataset::latest('id')->firstOrFail();
+        $this->assertSame(DatasetStatus::FAILED, $dataset->status);
+        $this->assertSame(0, $dataset->metrics()->count());
+        $this->assertSame(0, $dataset->observations()->count());
+        Storage::disk('local')->assertMissing('datasets/'.$dataset->filename);
+    }
+
     public function test_imported_kpi_periods_detects_ready_dataset_having_only_structured_observations(): void
     {
         $owner = Division::where('slug', 'perencanaan-pengusahaan')->sole();

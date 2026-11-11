@@ -257,6 +257,7 @@ class DatasetController extends Controller
 
         if ($validRows !== []) {
             $convertedPath = $converter->write($validRows);
+            $dataset = null;
 
             try {
                 $file = new UploadedFile($convertedPath, 'laporan-kpi-'.$period.'.xlsx',
@@ -300,26 +301,45 @@ class DatasetController extends Controller
                             'Penulisan tabel terstruktur gagal. Dataset lama tetap dipertahankan aktif.',
                         );
                     } else {
-                        // Hanya mengarsipkan dataset lama jika dataset baru terbukti lengkap
-                        $superseded = Dataset::query()
-                            ->where('division_id', $owner->id)
-                            ->where('status', Dataset::STATUS_READY)
-                            ->whereKeyNot($dataset->id)
-                            ->where(function ($query) use ($period) {
-                                $query->whereHas('metrics', fn ($q) => $q->where('period', $period))
-                                    ->orWhereHas('observations', fn ($q) => $q->where('period', $period));
-                            })
-                            ->orderBy('id')
-                            ->get();
-
+                        // Hanya mengarsipkan dataset lama jika dataset baru terbukti lengkap.
+                        // Seluruh transisi status (arsip lama, aktivasi READY, dan audit log)
+                        // dibungkus dalam SATU transaksi atomis dengan penguncian (lockForUpdate)
+                        // demi mencegah race condition atau dataset menggantung.
                         $archivalSuccess = true;
 
                         try {
-                            DB::transaction(function () use ($dataset, $superseded) {
+                            DB::transaction(function () use ($dataset, $owner, $period, &$superseded, $result, $structuredCounts, $user) {
+                                $superseded = Dataset::query()
+                                    ->where('division_id', $owner->id)
+                                    ->where('status', Dataset::STATUS_READY)
+                                    ->whereKeyNot($dataset->id)
+                                    ->where(function ($query) use ($period) {
+                                        $query->whereHas('metrics', fn ($q) => $q->where('period', $period))
+                                            ->orWhereHas('observations', fn ($q) => $q->where('period', $period));
+                                    })
+                                    ->lockForUpdate()
+                                    ->orderBy('id')
+                                    ->get();
+
                                 foreach ($superseded as $previous) {
                                     $previous->update(['status' => Dataset::STATUS_ARCHIVED]);
                                 }
+
                                 $dataset->update(['status' => Dataset::STATUS_READY]);
+
+                                AuditLog::record(
+                                    AuditLog::ACTION_IMPORT,
+                                    $dataset,
+                                    null,
+                                    [
+                                        'rows_imported' => $result['imported'],
+                                        'rows_skipped' => $result['skipped'],
+                                        'org_units_count' => $structuredCounts['org_units'] ?? 0,
+                                        'indicators_count' => $structuredCounts['indicators'] ?? 0,
+                                        'observations_count' => $structuredCounts['observations'] ?? 0,
+                                    ],
+                                    $user->id,
+                                );
                             });
                         } catch (Throwable $e) {
                             $archivalSuccess = false;
@@ -339,20 +359,6 @@ class DatasetController extends Controller
                         }
 
                         if ($archivalSuccess) {
-                            AuditLog::record(
-                                AuditLog::ACTION_IMPORT,
-                                $dataset,
-                                null,
-                                [
-                                    'rows_imported' => $result['imported'],
-                                    'rows_skipped' => $result['skipped'],
-                                    'org_units_count' => $structuredCounts['org_units'] ?? 0,
-                                    'indicators_count' => $structuredCounts['indicators'] ?? 0,
-                                    'observations_count' => $structuredCounts['observations'] ?? 0,
-                                ],
-                                $user->id,
-                            );
-
                             $imported[] = "{$owner->name}: {$result['imported']} baris".sprintf(
                                 ' (+%d indikator, %d observasi terstruktur)',
                                 $structuredCounts['indicators'],
@@ -361,6 +367,20 @@ class DatasetController extends Controller
                         }
                     }
                 }
+            } catch (Throwable $unexpected) {
+                Log::error('Kegagalan tak terduga pada alur import laporan KPI', [
+                    'user_id' => $user->id,
+                    'error' => $unexpected->getMessage(),
+                ]);
+
+                if ($dataset instanceof Dataset) {
+                    $this->rollbackAndCleanupKpiDataset(
+                        $dataset,
+                        'Terjadi kesalahan saat memproses laporan KPI: '.$unexpected->getMessage(),
+                    );
+                }
+
+                $failed[] = $owner->name.': terjadi kesalahan sistem — '.$unexpected->getMessage();
             } finally {
                 @unlink($convertedPath);
             }
@@ -411,15 +431,20 @@ class DatasetController extends Controller
 
         $file->storeAs('datasets', $storedName, 'local');
 
-        $dataset = Dataset::create([
-            'division_id' => $divisionId,
-            'user_id' => $user->id,
-            'filename' => $storedName,
-            'original_name' => $safeOriginalName ?: 'dataset.'.$safeExt,
-            'mime_type' => $file->getMimeType(),
-            'size' => $file->getSize(),
-            'status' => Dataset::STATUS_UPLOADING,
-        ]);
+        try {
+            $dataset = Dataset::create([
+                'division_id' => $divisionId,
+                'user_id' => $user->id,
+                'filename' => $storedName,
+                'original_name' => $safeOriginalName ?: 'dataset.'.$safeExt,
+                'mime_type' => $file->getMimeType(),
+                'size' => $file->getSize(),
+                'status' => Dataset::STATUS_UPLOADING,
+            ]);
+        } catch (Throwable $e) {
+            Storage::disk('local')->delete('datasets/'.$storedName);
+            throw $e;
+        }
 
         // Metadata saja — JANGAN log isi baris (data kinerja sensitif).
         Log::info('Dataset import dimulai', [
@@ -460,13 +485,15 @@ class DatasetController extends Controller
     private function rollbackAndCleanupKpiDataset(Dataset $dataset, string $errorMessage): void
     {
         try {
-            DB::transaction(function () use ($dataset, $errorMessage) {
-                $dataset->observations()->delete();
-                $dataset->metrics()->delete();
-                $dataset->update([
-                    'status' => DatasetStatus::FAILED,
-                    'error_message' => $errorMessage,
-                ]);
+            Dataset::withoutEvents(function () use ($dataset, $errorMessage) {
+                DB::transaction(function () use ($dataset, $errorMessage) {
+                    $dataset->observations()->delete();
+                    $dataset->metrics()->delete();
+                    $dataset->update([
+                        'status' => DatasetStatus::FAILED,
+                        'error_message' => $errorMessage,
+                    ]);
+                });
             });
         } catch (Throwable $dbError) {
             Log::warning('Gagal rollback transaksi DB untuk dataset KPI gagal', [
