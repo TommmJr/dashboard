@@ -36,11 +36,14 @@ class DashboardLayout extends Model
      * Daftar widget di katalog yang dilarang di-mount ke layout mana pun
      * sampai blocker domain terkait dibuka secara resmi.
      *
+     * Kosong sejak 2026-11-11: `aset-upt-chart` dibuka atas instruksi
+     * eksplisit user (developer) khusus demo prototipe layout staf Managemen
+     * Aset. Ini BUKAN sign-off mentor/PIC; mekanisme larangan dipertahankan
+     * agar widget lain dapat dikunci kembali tanpa perubahan struktur.
+     *
      * @var list<string>
      */
-    public const FORBIDDEN_WIDGETS = [
-        'aset-upt-chart',
-    ];
+    public const FORBIDDEN_WIDGETS = [];
 
     protected $casts = [
         'division_id' => 'integer',

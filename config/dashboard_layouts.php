@@ -47,15 +47,17 @@ return [
         // Grafik generik ECharts (Opsi C, Sesi 119): judul/jenis/metrik dari
         // `config` per-instance di layout, divalidasi whitelist di backend.
         'custom-chart' => ['default_cols' => 2, 'label' => 'Grafik Kustom', 'view' => 'widgets.custom-chart', 'permission' => 'dashboard.view'],
-        // Katalog saja, TIDAK dipasang ke layout role mana pun. Data Aset
-        // dimiliki divisi Managemen Aset (MANSET), sedangkan layout
-        // `staff_divisi` di-scope ke divisi staf yang login — memasang widget
-        // Aset di sana membuat staf divisi lain hanya melihat empty state.
-        // (Keputusan 2026-09-30: widget dicabut dari `staff_divisi` agar
-        // dashboard divisi bersih; mounting ulang menunggu pekerjaan MANSET.)
+        // Data Aset dimiliki divisi Managemen Aset (MANSET), sedangkan layout
+        // `staff_divisi` generik di-scope ke divisi staf yang login — memasang
+        // widget Aset di sana membuat staf divisi lain hanya melihat empty
+        // state. (Keputusan 2026-09-30: widget dicabut dari `staff_divisi`.)
+        // REVISI 2026-11-11 (instruksi user, khusus demo prototipe): widget
+        // dipasang HANYA di override `staff_divisi:managemen-aset`, bukan
+        // sign-off mentor/PIC. Lebar 3 kolom lewat `default_cols`, karena
+        // item layout config hanya berupa string widget_key.
         // Daftar series provisional mengikuti data; subset final menunggu
         // keputusan MANSET.
-        'aset-upt-chart' => ['default_cols' => 1, 'label' => 'Stok Aset per UPT', 'view' => 'widgets.aset-upt-chart', 'permission' => 'dashboard.view'],
+        'aset-upt-chart' => ['default_cols' => 3, 'label' => 'Stok Aset per UPT', 'view' => 'widgets.aset-upt-chart', 'permission' => 'dashboard.view'],
         'recent-audit' => ['default_cols' => 2, 'label' => 'Audit Terbaru',      'view' => 'widgets.recent-audit',         'permission' => 'audit.view'],
         'failed-datasets' => ['default_cols' => 1, 'label' => 'Dataset Gagal',      'view' => 'widgets.failed-datasets',      'permission' => 'dataset.view'],
         'admin-summary' => ['default_cols' => 3, 'label' => 'Ringkasan Operasional', 'view' => 'widgets.admin-summary',      'permission' => 'dashboard.view'],
@@ -81,8 +83,10 @@ return [
      * Keputusan user 2026-10-01.
      *
      * staff_divisi = KPI + tren Kinerja + peringkat unit. Widget Aset TIDAK
-     * dipasang di sini (keputusan 2026-09-30): datanya milik divisi Managemen
-     * Aset, jadi untuk staf divisi lain widget hanya menampilkan empty state.
+     * dipasang di layout generik ini (keputusan 2026-09-30): datanya milik
+     * divisi Managemen Aset, jadi untuk staf divisi lain widget hanya
+     * menampilkan empty state. Pengecualian demo prototipe 2026-11-11 hanya
+     * pada override `staff_divisi:managemen-aset` di bawah.
      *
      * KETERBATASAN DIKETAHUI (2026-10-01): resolusi layout HANYA per role,
      * belum per divisi — semua divisi berbagi layout `staff_divisi`. Karena
@@ -117,6 +121,12 @@ return [
             'kinerja-realisasi', 'pencapaian-nko',
             'target-realisasi-per-indikator',
             'kinerja-detail',
+        ],
+        // Demo prototipe 2026-11-11 (instruksi user, bukan sign-off mentor/PIC):
+        // staf Managemen Aset melihat Status Dataset lalu Stok Aset per UPT.
+        'staff_divisi:managemen-aset' => [
+            'dataset-status',
+            'aset-upt-chart',
         ],
     ],
 

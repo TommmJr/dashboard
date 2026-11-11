@@ -143,8 +143,6 @@ class DashboardWidgetLayoutTest extends TestCase
             ->assertSee('Simpan Layout')
             ->assertSee('Reset ke Bawaan')
             ->assertSee('staff_divisi:perencanaan-pengusahaan', false)
-            ->assertDontSee('aset-upt-chart')
-            ->assertDontSee('Stok Aset per UPT')
             ->assertDontSee('Audit Terbaru');
 
         // Pastikan editor tata letak tidak digabungkan pada halaman dashboard utama
@@ -162,7 +160,7 @@ class DashboardWidgetLayoutTest extends TestCase
         $catalogKeys = array_column($payload['catalog'] ?? [], 'key');
         $this->assertContains('kpi-summary', $catalogKeys);
         $this->assertContains('target-realisasi-per-indikator', $catalogKeys);
-        $this->assertNotContains('aset-upt-chart', $catalogKeys);
+        $this->assertContains('aset-upt-chart', $catalogKeys); // demo prototipe MANSET: tidak lagi terlarang
         $this->assertNotContains('target-vs-realisasi', $catalogKeys);
 
         $this->assertSame(
@@ -196,7 +194,8 @@ class DashboardWidgetLayoutTest extends TestCase
             ->assertOk()
             ->assertSee('Status Dataset')
             ->assertSee('Dataset READY (Divisi)')
-            ->assertSee('Baris Data Aktif (TJBT)')
+            ->assertSee('Baris Data Aktif')
+            ->assertDontSee('Baris Data Aktif (TJBT)')
             ->assertDontSee('Baris Aktif')
             ->assertDontSee('Rata-rata NKO')
             ->assertDontSee('Grafik Tren Kinerja')
@@ -308,18 +307,25 @@ class DashboardWidgetLayoutTest extends TestCase
         try {
             DashboardLayout::create([
                 'role_slug' => Role::MANAGEMENT,
-                'widgets' => ['kpi-summary', 'aset-upt-chart'],
+                'widgets' => ['kpi-summary', 'widget-palsu'],
             ]);
-            $this->fail('Seharusnya gagal ketika menyimpan aset-upt-chart.');
+            $this->fail('Seharusnya gagal ketika menyimpan widget yang tidak ada di katalog.');
         } catch (InvalidArgumentException $e) {
-            $this->assertStringContainsString('aset-upt-chart', $e->getMessage());
+            $this->assertStringContainsString('widget-palsu', $e->getMessage());
         }
+
+        // aset-upt-chart sah disimpan sejak pembukaan untuk demo prototipe MANSET.
+        $saved = DashboardLayout::create([
+            'role_slug' => Role::MANAGEMENT,
+            'widgets' => ['kpi-summary', 'aset-upt-chart'],
+        ]);
+        $this->assertSame(['kpi-summary', 'aset-upt-chart'], DashboardLayout::widgetKeys($saved->widgets));
     }
 
     public function test_resolusi_layout_mengutamakan_database_dan_mematuhi_urutan_fallback_staff_divisi(): void
     {
         $pengusahaan = Division::factory()->create(['slug' => 'perencanaan-pengusahaan']);
-        $divisiLain = Division::factory()->create(['slug' => 'managemen-aset']);
+        $divisiLain = Division::factory()->create(['slug' => 'perencanaan-aset']);
 
         $staffPengusahaan = User::factory()->withRole(Role::STAFF_DIVISI)->create([
             'division_id' => $pengusahaan->id,
@@ -368,17 +374,17 @@ class DashboardWidgetLayoutTest extends TestCase
             ->assertDontSee('Status Dataset');
     }
 
-    public function test_resolusi_layout_menyaring_aset_upt_chart_dan_fallback_ke_config_jika_db_kosong(): void
+    public function test_resolusi_layout_menyaring_widget_asing_dan_fallback_ke_config_jika_db_kosong(): void
     {
         $management = User::factory()->withRole(Role::MANAGEMENT)->create();
 
         // Bypass model validation via DB::table untuk menguji defense-in-depth saat baca:
-        // record hanya berisi widget terlarang aset-upt-chart dan widget tak dikenal.
+        // record hanya berisi widget yang sudah tidak ada di katalog dan widget tak dikenal.
         DB::table('dashboard_layouts')->insert([
             'layout_key' => Role::MANAGEMENT,
             'role_slug' => Role::MANAGEMENT,
             'division_id' => null,
-            'widgets' => json_encode(['aset-upt-chart', 'target-vs-realisasi', 'widget-palsu']),
+            'widgets' => json_encode(['target-vs-realisasi', 'widget-palsu']),
             'created_at' => now(),
             'updated_at' => now(),
         ]);
@@ -392,13 +398,13 @@ class DashboardWidgetLayoutTest extends TestCase
             ->assertSee('Peringkat NKO Unit')
             ->assertDontSee('Stok Aset per UPT');
 
-        // Jika DB berisi campuran widget valid + aset-upt-chart + widget ber-permission
+        // Jika DB berisi campuran widget valid + widget asing + widget ber-permission
         // yang tidak dimiliki management (layout-editor-placeholder butuh dashboard.update),
-        // aset-upt-chart dibuang sanitizer dan layout-editor-placeholder disaring Gate.
+        // widget asing dibuang sanitizer dan layout-editor-placeholder disaring Gate.
         DB::table('dashboard_layouts')
             ->where('layout_key', Role::MANAGEMENT)
             ->update([
-                'widgets' => json_encode(['nko-donut', 'aset-upt-chart', 'layout-editor-placeholder']),
+                'widgets' => json_encode(['nko-donut', 'widget-palsu', 'layout-editor-placeholder']),
             ]);
 
         $this->actingAs($management)
@@ -487,7 +493,7 @@ class DashboardWidgetLayoutTest extends TestCase
         ]);
     }
 
-    public function test_endpoint_update_layout_memvalidasi_payload_scoping_dan_menolak_aset_upt_chart(): void
+    public function test_endpoint_update_layout_memvalidasi_payload_scoping_dan_menerima_aset_upt_chart_untuk_demo(): void
     {
         $division = Division::factory()->create(['slug' => 'perencanaan-pengusahaan']);
         $editor = User::factory()->withRole(Role::EDITOR_DASHBOARD)->create();
@@ -501,14 +507,27 @@ class DashboardWidgetLayoutTest extends TestCase
             ])
             ->assertSessionHasErrors('division_id');
 
-        // 2. Tolak widget aset-upt-chart.
+        // 2. Tolak widget yang tidak terdaftar di katalog (aset-upt-chart sah sejak demo prototipe MANSET).
+        $this->actingAs($editor)
+            ->put(route('dashboard.layout.update'), [
+                'role_slug' => Role::STAFF_DIVISI,
+                'division_id' => $division->id,
+                'widgets' => ['kpi-summary', 'widget-palsu'],
+            ])
+            ->assertSessionHasErrors('widgets.1');
+
+        $this->assertDatabaseCount('dashboard_layouts', 0);
+
         $this->actingAs($editor)
             ->put(route('dashboard.layout.update'), [
                 'role_slug' => Role::STAFF_DIVISI,
                 'division_id' => $division->id,
                 'widgets' => ['kpi-summary', 'aset-upt-chart'],
             ])
-            ->assertSessionHasErrors('widgets.1');
+            ->assertSessionHasNoErrors();
+
+        $this->assertDatabaseCount('dashboard_layouts', 1);
+        DashboardLayout::query()->delete();
 
         // 3. Tolak widget yang tidak ada di katalog (mis. R8 target-vs-realisasi).
         $this->actingAs($editor)
@@ -703,7 +722,7 @@ class DashboardWidgetLayoutTest extends TestCase
 
         $this->assertNotNull($targetAset);
         $this->assertFalse($targetAset['is_customized']);
-        $this->assertSame(['dataset-status'], $targetAset['active_widgets']);
+        $this->assertSame(['dataset-status', 'aset-upt-chart'], $targetAset['active_widgets']);
 
         // 5. Editor mereset layout staff_divisi:perencanaan-pengusahaan via JSON.
         $this->actingAs($editor)
@@ -725,7 +744,7 @@ class DashboardWidgetLayoutTest extends TestCase
             ->assertSeeInOrder(['Rata-rata NKO', 'Grafik Tren Kinerja', 'Status RAG Indikator']);
     }
 
-    public function test_endpoint_json_mengembalikan_422_untuk_widget_terlarang_widget_asing_dan_konflik_scoping(): void
+    public function test_endpoint_json_mengembalikan_422_untuk_widget_asing_dan_konflik_scoping(): void
     {
         $division = Division::factory()->create(['slug' => 'perencanaan-pengusahaan']);
         $editor = User::factory()->withRole(Role::EDITOR_DASHBOARD)->create();
@@ -734,7 +753,7 @@ class DashboardWidgetLayoutTest extends TestCase
             ->putJson(route('dashboard.layout.update'), [
                 'role_slug' => Role::STAFF_DIVISI,
                 'division_id' => $division->id,
-                'widgets' => ['kpi-summary', 'aset-upt-chart'],
+                'widgets' => ['kpi-summary', 'widget-palsu'],
             ])
             ->assertStatus(422)
             ->assertJsonValidationErrors(['widgets.1']);
@@ -1371,11 +1390,25 @@ class DashboardWidgetLayoutTest extends TestCase
             ->assertOk()
             ->assertSee('Status Dataset')
             ->assertSee('Dataset READY (Divisi)')
-            ->assertSee('Baris Data Aktif (TJBT)')
+            ->assertSee('Baris Data Aktif')
+            ->assertDontSee('Baris Data Aktif (TJBT)')
             ->assertSee('Kelola Dataset');
     }
 
     public function test_staff_divisi_non_pengusahaan_melihat_kartu_panduan_alur_kerja(): void
+    {
+        $division = Division::factory()->create(['name' => 'Perencanaan Aset', 'slug' => 'perencanaan-aset']);
+        $staff = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $division->id]);
+
+        $this->actingAs($staff)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('Ruang Kerja Divisi')
+            ->assertSee('Perencanaan Aset')
+            ->assertSee('Status Dataset');
+    }
+
+    public function test_staf_managemen_aset_tidak_melihat_kartu_panduan_karena_layout_demo_memuat_dua_widget(): void
     {
         $division = Division::factory()->create(['name' => 'Managemen Aset', 'slug' => 'managemen-aset']);
         $staff = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $division->id]);
@@ -1383,8 +1416,8 @@ class DashboardWidgetLayoutTest extends TestCase
         $this->actingAs($staff)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('Ruang Kerja Divisi')
-            ->assertSee('Managemen Aset')
-            ->assertSee('Status Dataset');
+            ->assertDontSee('Ruang Kerja Divisi')
+            ->assertSee('Status Dataset')
+            ->assertSee('Stok Aset per UPT');
     }
 }

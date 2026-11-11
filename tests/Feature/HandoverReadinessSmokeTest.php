@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\DashboardLayout;
 use App\Models\Division;
 use App\Models\Role;
 use App\Models\User;
@@ -19,19 +20,49 @@ class HandoverReadinessSmokeTest extends TestCase
         $this->seed(RolePermissionSeeder::class);
     }
 
-    public function test_governance_gate_widget_aset_ada_di_katalog_namun_tidak_dipasang_di_layout_produksi(): void
+    public function test_widget_aset_dipasang_hanya_di_layout_staf_managemen_aset_untuk_demo_prototipe(): void
     {
         $config = config('dashboard_layouts');
 
         $this->assertArrayHasKey('aset-upt-chart', $config['widgets']);
+        $this->assertSame(3, $config['widgets']['aset-upt-chart']['default_cols']);
+        $this->assertSame([], DashboardLayout::FORBIDDEN_WIDGETS);
 
-        foreach ($config['layouts'] as $layoutKey => $widgets) {
-            $this->assertNotContains(
-                'aset-upt-chart',
-                $widgets,
-                sprintf('Widget aset-upt-chart tidak boleh dipasang pada layout [%s] sebelum sign-off mentor/PIC.', $layoutKey)
-            );
-        }
+        // Keputusan user untuk prototipe demo: hanya layout default staf
+        // Managemen Aset yang memasang widget, tepat di bawah dataset-status.
+        // Layout lain tetap tanpa widget Aset.
+        $mounted = array_keys(array_filter(
+            $config['layouts'],
+            fn (array $widgets): bool => in_array('aset-upt-chart', $widgets, true),
+        ));
+
+        $this->assertSame(['staff_divisi:managemen-aset'], $mounted);
+        $this->assertSame(
+            ['dataset-status', 'aset-upt-chart'],
+            $config['layouts']['staff_divisi:managemen-aset'],
+        );
+    }
+
+    public function test_staf_managemen_aset_melihat_widget_aset_dengan_badge_prototipe_demo(): void
+    {
+        $manset = Division::create(['name' => 'Managemen Aset', 'slug' => 'managemen-aset']);
+        $pengusahaan = Division::create(['name' => 'Perencanaan Pengusahaan', 'slug' => 'perencanaan-pengusahaan']);
+
+        $stafManset = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $manset->id]);
+        $stafPengusahaan = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $pengusahaan->id]);
+
+        $this->actingAs($stafManset)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSeeInOrder(['Status Dataset', 'Stok Aset per UPT'])
+            ->assertSee('Prototipe Demo (Rekapitulasi UPT)')
+            ->assertDontSee('Ruang Kerja Divisi');
+
+        $this->actingAs($stafPengusahaan)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertDontSee('Stok Aset per UPT')
+            ->assertDontSee('Prototipe Demo (Rekapitulasi UPT)');
     }
 
     public function test_konfigurasi_produksi_kpi_memakai_structured_dan_scope_tjbt(): void
