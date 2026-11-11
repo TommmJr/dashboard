@@ -43,8 +43,13 @@ class DatasetImportService
      *
      * @return array{imported: int, skipped: int, warnings: int, errors: array<int, string>}
      */
-    public function import(UploadedFile $file, User $uploader, Dataset $dataset, bool $recordAudit = true): array
-    {
+    public function import(
+        UploadedFile $file,
+        User $uploader,
+        Dataset $dataset,
+        bool $recordAudit = true,
+        string $successStatus = Dataset::STATUS_READY
+    ): array {
         $rows = $this->parseRows($file);
 
         $imported = 0;
@@ -53,7 +58,7 @@ class DatasetImportService
         $issues = [];
         $inserts = [];
 
-        DB::transaction(function () use ($rows, $uploader, $dataset, &$imported, &$warnings, &$errors, &$issues, &$inserts, $recordAudit) {
+        DB::transaction(function () use ($rows, $uploader, $dataset, &$imported, &$warnings, &$errors, &$issues, &$inserts, $recordAudit, $successStatus) {
             $dataset->update(['status' => Dataset::STATUS_VALIDATING]);
 
             // Pass 1: validasi per-baris + deteksi duplikat kunci.
@@ -151,7 +156,7 @@ class DatasetImportService
                 ]);
             } else {
                 $dataset->update([
-                    'status' => Dataset::STATUS_READY,
+                    'status' => $successStatus,
                     'error_message' => null,
                     'validation_report' => $report,
                 ]);

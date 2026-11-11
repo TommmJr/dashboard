@@ -17,6 +17,7 @@ use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\UnitDivisionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -630,6 +631,67 @@ class DatasetKpiReportImportTest extends TestCase
                 ->where('auditable_id', $failedDataset->id)
                 ->count()
         );
+    }
+
+    public function test_failed_structured_import_cleans_up_stored_file_and_never_leaves_dataset_ready(): void
+    {
+        Storage::fake('local');
+
+        $admin = User::factory()->withRole(Role::ADMIN)->create(['division_id' => null]);
+
+        $mockImporter = $this->mock(StructuredKpiImporter::class);
+        $mockImporter->shouldReceive('import')
+            ->andThrow(new \RuntimeException('Simulasi gagal tulis terstruktur'));
+
+        $this->actingAs($admin)->post(route('datasets.kpi-import'), [
+            'file' => $this->makeKpiReport(),
+            'period' => '2026-08-31',
+        ])->assertRedirect(route('datasets.create'));
+
+        $dataset = Dataset::latest('id')->firstOrFail();
+        $this->assertSame(DatasetStatus::FAILED, $dataset->status);
+        $this->assertSame(0, $dataset->metrics()->count());
+        $this->assertSame(0, $dataset->observations()->count());
+
+        // File fisik di storage/app/private/datasets harus sudah dibersihkan
+        Storage::disk('local')->assertMissing('datasets/'.$dataset->filename);
+    }
+
+    public function test_imported_kpi_periods_detects_ready_dataset_having_only_structured_observations(): void
+    {
+        $owner = Division::where('slug', 'perencanaan-pengusahaan')->sole();
+        $admin = User::factory()->withRole(Role::ADMIN)->create(['division_id' => null]);
+
+        // Buat dataset READY yang hanya memiliki performance_observations (0 performance_metrics)
+        $dataset = Dataset::factory()->create([
+            'division_id' => $owner->id,
+            'status' => DatasetStatus::READY,
+        ]);
+        $unit = OrgUnit::firstOrCreate(['name' => 'TJBT']);
+        $indicator = Indicator::factory()->create(['org_unit_id' => $unit->id]);
+
+        PerformanceObservation::factory()->create([
+            'dataset_id' => $dataset->id,
+            'indicator_id' => $indicator->id,
+            'org_unit_id' => $unit->id,
+            'division_id' => $owner->id,
+            'period' => '2026-08-31',
+        ]);
+
+        $this->assertSame(0, $dataset->metrics()->count());
+        $this->assertSame(1, $dataset->observations()->count());
+
+        // Periode harus terdeteksi di importedKpiPeriods (halaman create)
+        $response = $this->actingAs($admin)->get(route('datasets.create'));
+        $response->assertOk();
+        $response->assertSee('2026-08-31');
+
+        // Dan jika mengimpor periode yang sama tanpa confirm_archive, harus tertolak dengan error periode
+        $postResponse = $this->actingAs($admin)->post(route('datasets.kpi-import'), [
+            'file' => $this->makeKpiReport(),
+            'period' => '2026-08-31',
+        ]);
+        $postResponse->assertSessionHasErrors('period');
     }
 
     private function makeKpiReport(bool $withBrokenSheet = false): UploadedFile

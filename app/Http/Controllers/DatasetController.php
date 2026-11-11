@@ -74,14 +74,22 @@ class DatasetController extends Controller
             return collect();
         }
 
-        return DB::table('performance_metrics')
+        $metricPeriods = DB::table('performance_metrics')
             ->join('datasets', 'datasets.id', '=', 'performance_metrics.dataset_id')
             ->where('datasets.status', Dataset::STATUS_READY)
             ->where('datasets.division_id', $owner->id)
-            ->distinct()
-            ->orderByDesc('performance_metrics.period')
-            ->pluck('performance_metrics.period')
+            ->pluck('performance_metrics.period');
+
+        $observationPeriods = DB::table('performance_observations')
+            ->join('datasets', 'datasets.id', '=', 'performance_observations.dataset_id')
+            ->where('datasets.status', Dataset::STATUS_READY)
+            ->where('datasets.division_id', $owner->id)
+            ->pluck('performance_observations.period');
+
+        return $metricPeriods->concat($observationPeriods)
             ->map(fn ($period) => Carbon::parse($period)->format('Y-m-d'))
+            ->unique()
+            ->sortDesc()
             ->values();
     }
 
@@ -192,7 +200,10 @@ class DatasetController extends Controller
         $willSupersede = Dataset::query()
             ->where('division_id', $owner->id)
             ->where('status', Dataset::STATUS_READY)
-            ->whereHas('metrics', fn ($query) => $query->where('period', $period))
+            ->where(function ($query) use ($period) {
+                $query->whereHas('metrics', fn ($q) => $q->where('period', $period))
+                    ->orWhereHas('observations', fn ($q) => $q->where('period', $period));
+            })
             ->exists();
 
         if ($willSupersede && ! $request->boolean('confirm_archive')) {
@@ -252,11 +263,12 @@ class DatasetController extends Controller
                     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', null, true);
 
                 ['dataset' => $dataset, 'result' => $result] = $this->storeAndImport(
-                    $file, $owner->id, $user, $importService, recordAudit: false,
+                    $file, $owner->id, $user, $importService, recordAudit: false, successStatus: Dataset::STATUS_VALIDATING,
                 );
 
                 if ($result === null || $dataset->status === DatasetStatus::FAILED) {
                     $failed[] = $owner->name.': gagal diproses — '.($dataset->error_message ?? 'coba periksa file.');
+                    $this->cleanupFailedDataset($dataset);
                 } else {
                     $structuredSuccess = false;
                     $structuredCounts = null;
@@ -282,49 +294,48 @@ class DatasetController extends Controller
                     }
 
                     if (! $structuredSuccess) {
-                        // Gagalkan dataset baru dan bersihkan metrik legacy agar tidak menjadi ghost READY
-                        $dataset->metrics()->delete();
-                        $dataset->update([
-                            'status' => DatasetStatus::FAILED,
-                            'error_message' => 'Penulisan tabel terstruktur gagal. Dataset lama tetap dipertahankan aktif.',
-                        ]);
+                        // Gagalkan dataset baru, bersihkan metrik & observasi, dan hapus berkas fisik storage
+                        $this->rollbackAndCleanupKpiDataset(
+                            $dataset,
+                            'Penulisan tabel terstruktur gagal. Dataset lama tetap dipertahankan aktif.',
+                        );
                     } else {
-                        // Hanya mengarsipkan dataset lama jika dataset baru terbukti READY dan lengkap
+                        // Hanya mengarsipkan dataset lama jika dataset baru terbukti lengkap
                         $superseded = Dataset::query()
                             ->where('division_id', $owner->id)
                             ->where('status', Dataset::STATUS_READY)
                             ->whereKeyNot($dataset->id)
-                            ->whereHas('metrics', fn ($query) => $query->where('period', $period))
+                            ->where(function ($query) use ($period) {
+                                $query->whereHas('metrics', fn ($q) => $q->where('period', $period))
+                                    ->orWhereHas('observations', fn ($q) => $q->where('period', $period));
+                            })
                             ->orderBy('id')
                             ->get();
 
                         $archivalSuccess = true;
 
-                        if ($superseded->isNotEmpty()) {
-                            try {
-                                DB::transaction(function () use ($superseded) {
-                                    foreach ($superseded as $previous) {
-                                        $previous->update(['status' => Dataset::STATUS_ARCHIVED]);
-                                    }
-                                });
-                            } catch (Throwable $e) {
-                                $archivalSuccess = false;
-                                Log::warning('Pengarsipan dataset lama gagal; kompensasi membatalkan dataset baru ke FAILED', [
-                                    'user_id' => $user->id,
-                                    'dataset_id' => $dataset->id,
-                                    'error' => $e->getMessage(),
-                                ]);
+                        try {
+                            DB::transaction(function () use ($dataset, $superseded) {
+                                foreach ($superseded as $previous) {
+                                    $previous->update(['status' => Dataset::STATUS_ARCHIVED]);
+                                }
+                                $dataset->update(['status' => Dataset::STATUS_READY]);
+                            });
+                        } catch (Throwable $e) {
+                            $archivalSuccess = false;
+                            Log::warning('Pengarsipan dataset lama atau aktivasi status READY gagal; kompensasi membatalkan dataset baru ke FAILED', [
+                                'user_id' => $user->id,
+                                'dataset_id' => $dataset->id,
+                                'error' => $e->getMessage(),
+                            ]);
 
-                                $dataset->observations()->delete();
-                                $dataset->metrics()->delete();
-                                $dataset->update([
-                                    'status' => DatasetStatus::FAILED,
-                                    'error_message' => 'Gagal mengarsipkan dataset sebelumnya: '.$e->getMessage(),
-                                ]);
+                            $this->rollbackAndCleanupKpiDataset(
+                                $dataset,
+                                'Gagal mengarsipkan dataset sebelumnya atau mengaktifkan status READY: '.$e->getMessage(),
+                            );
 
-                                $failed[] = $owner->name.': gagal mengarsipkan dataset lama — '.$e->getMessage();
-                                $superseded = collect();
-                            }
+                            $failed[] = $owner->name.': gagal mengarsipkan dataset lama — '.$e->getMessage();
+                            $superseded = collect();
                         }
 
                         if ($archivalSuccess) {
@@ -385,6 +396,7 @@ class DatasetController extends Controller
         User $user,
         DatasetImportService $importService,
         bool $recordAudit = true,
+        string $successStatus = Dataset::STATUS_READY,
     ): array {
         // Ekstensi dari whitelist (bukan dari client) + sanitasi nama file asli
         // agar karakter berbahaya tidak tersimpan di DB (MEDIUM-04).
@@ -418,7 +430,7 @@ class DatasetController extends Controller
         ]);
 
         try {
-            $result = $importService->import($file, $user, $dataset, $recordAudit);
+            $result = $importService->import($file, $user, $dataset, $recordAudit, $successStatus);
         } catch (Throwable $e) {
             $dataset->update([
                 'status' => Dataset::STATUS_FAILED,
@@ -440,6 +452,48 @@ class DatasetController extends Controller
         ]);
 
         return ['dataset' => $dataset->fresh(), 'result' => $result];
+    }
+
+    /**
+     * Rollback persistensi DB dan bersihkan file fisik storage saat impor KPI gagal.
+     */
+    private function rollbackAndCleanupKpiDataset(Dataset $dataset, string $errorMessage): void
+    {
+        try {
+            DB::transaction(function () use ($dataset, $errorMessage) {
+                $dataset->observations()->delete();
+                $dataset->metrics()->delete();
+                $dataset->update([
+                    'status' => DatasetStatus::FAILED,
+                    'error_message' => $errorMessage,
+                ]);
+            });
+        } catch (Throwable $dbError) {
+            Log::warning('Gagal rollback transaksi DB untuk dataset KPI gagal', [
+                'dataset_id' => $dataset->id,
+                'error' => $dbError->getMessage(),
+            ]);
+        }
+
+        $this->cleanupFailedDataset($dataset);
+    }
+
+    /**
+     * Hapus berkas fisik dataset dari storage agar tidak meninggalkan file yatim (orphan).
+     */
+    private function cleanupFailedDataset(Dataset $dataset): void
+    {
+        try {
+            if ($dataset->filename) {
+                Storage::disk('local')->delete('datasets/'.$dataset->filename);
+            }
+        } catch (Throwable $fileError) {
+            Log::warning('Gagal menghapus file fisik dataset dari storage', [
+                'dataset_id' => $dataset->id,
+                'filename' => $dataset->filename,
+                'error' => $fileError->getMessage(),
+            ]);
+        }
     }
 
     /**
