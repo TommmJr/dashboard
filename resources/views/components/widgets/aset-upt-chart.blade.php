@@ -42,21 +42,34 @@
             <code>aset:convert</code> lalu unggah berkasnya lewat menu Upload Dataset (divisi Data Aset).
         </p>
     @else
-        <div id="{{ $chartId }}" class="mt-4 h-80 w-full sm:h-96"></div>
+        <div
+            id="{{ $chartId }}"
+            data-chart-id="aset-upt-chart"
+            class="mt-4 h-80 min-h-[360px] w-full sm:h-96"
+            x-data
+            x-init="$nextTick(() => window.__initAsetUptChart && window.__initAsetUptChart($el, @js($labels->all()), @js($chartSeries)))"
+        ></div>
         <script>
-            window.addEventListener('DOMContentLoaded', () => {
-                const el = document.getElementById(@json($chartId));
+            window.__initAsetUptChart = window.__initAsetUptChart || function (el, labels, series) {
                 if (!el || !window.echarts) { return; }
+                const existing = window.echarts.getInstanceByDom(el);
+                if (existing) { existing.dispose(); }
                 const chart = window.echarts.init(el);
                 chart.setOption({
                     tooltip: { trigger: 'axis' },
                     legend: { bottom: 0 },
                     grid: { left: 60, right: 20, top: 20, bottom: 60 },
-                    xAxis: { type: 'category', data: @json($labels->all()) },
+                    xAxis: { type: 'category', data: labels },
                     yAxis: { type: 'value', min: 0 },
-                    series: @json($chartSeries),
+                    series: series,
                 });
                 new ResizeObserver(() => chart.resize()).observe(el);
+            };
+            window.addEventListener('DOMContentLoaded', () => {
+                const el = document.getElementById(@json($chartId));
+                if (el && window.__initAsetUptChart) {
+                    window.__initAsetUptChart(el, @json($labels->all()), @json($chartSeries));
+                }
             });
         </script>
     @endif

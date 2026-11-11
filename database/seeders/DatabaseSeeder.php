@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\DashboardLayout;
 use App\Models\Division;
 use App\Models\Role;
 use App\Models\User;
@@ -114,6 +115,20 @@ class DatabaseSeeder extends Seeder
             if (! $user->hasRole($roleSlug)) {
                 $user->role()->associate(Role::where('slug', $roleSlug)->firstOrFail())->save();
             }
+        }
+
+        if ($dataAset->slug === 'managemen-aset') {
+            DashboardLayout::updateOrCreate(
+                ['layout_key' => 'staff_divisi:managemen-aset'],
+                [
+                    'role_slug' => Role::STAFF_DIVISI,
+                    'division_id' => $dataAset->id,
+                    'widgets' => [
+                        ['key' => 'dataset-status', 'cols' => 3],
+                        ['key' => 'aset-upt-chart', 'cols' => 3],
+                    ],
+                ],
+            );
         }
 
         if ($this->command) {

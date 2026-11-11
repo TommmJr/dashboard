@@ -177,10 +177,11 @@
         @foreach ($widgets as $widget)
             @php
                 $isSingleStaffWidget = $isStaffDashboard && count($widgets) === 1 && ($widget['key'] ?? '') === 'dataset-status';
+                $hasKpiStaffLayout = $isStaffDashboard && collect($widgets)->contains(fn (array $w): bool => in_array($w['key'] ?? '', ['kpi-summary', 'kinerja-detail', 'nko-ranking'], true));
                 $widgetClass = match (true) {
                     $isSingleStaffWidget => 'lg:col-span-1',
                     $isStaffDashboard && ($widget['key'] ?? '') === 'nko-ranking' => 'lg:col-span-2',
-                    $isStaffDashboard && ($widget['key'] ?? '') === 'dataset-status' => 'lg:col-span-1',
+                    $hasKpiStaffLayout && ($widget['key'] ?? '') === 'dataset-status' => 'lg:col-span-1',
                     default => match ((int) ($widget['cols'] ?? 3)) {
                         1 => 'lg:col-span-1',
                         2 => 'lg:col-span-2',
@@ -189,7 +190,11 @@
                 };
             @endphp
             <div class="{{ $widgetClass }} h-full">
-                <x-dynamic-component :component="$widget['view']" :widget="$widget" :data="$widget['data'] ?? null" />
+                @if (($widget['key'] ?? '') === 'aset-upt-chart')
+                    @include('components.widgets.aset-upt-chart', ['widget' => $widget, 'data' => $widget['data'] ?? $widgetData['aset-upt-chart'] ?? null])
+                @else
+                    <x-dynamic-component :component="$widget['view']" :widget="$widget" :data="$widget['data'] ?? null" />
+                @endif
             </div>
         @endforeach
     </div>

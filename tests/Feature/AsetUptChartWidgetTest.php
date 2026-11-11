@@ -52,6 +52,8 @@ class AsetUptChartWidgetTest extends TestCase
             ->assertSee('BEKASI', false)
             ->assertSee('Trafo 500\\/150 KV | Bank', false)
             ->assertSee('asetUptChart-aset-upt-chart-', false)
+            ->assertSee('min-h-[360px]', false)
+            ->assertSee('x-init=', false)
             ->assertSee('"type":"bar"', false);
     }
 

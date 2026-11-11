@@ -424,6 +424,10 @@ class DashboardController extends Controller
             || $user->hasRole(Role::EDITOR_DASHBOARD)
         );
 
+        if (! $isPrivileged && $user?->division_id === null) {
+            return ['period' => null, 'labels' => [], 'series' => []];
+        }
+
         $divisionId = $isPrivileged ? null : $user?->division_id;
 
         $report = app(AssetStockReport::class)->totalsByUpt(divisionId: $divisionId);
