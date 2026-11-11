@@ -102,6 +102,15 @@ class StructuredKpiImporter
     }
 
     /**
+     * Kunci lookup indikator ternormalisasi (case-insensitive & whitespace trimmed)
+     * agar selaras dengan collation utf8mb4_unicode_ci pada skema database.
+     */
+    private function indicatorLookupKey(int|string $orgUnitId, string $name): string
+    {
+        return $orgUnitId."\0".mb_strtolower(trim($name), 'UTF-8');
+    }
+
+    /**
      * Tulis satu dataset KPI ke tabel struktural.
      *
      * Mengembalikan hitungan supaya pemanggil bisa melaporkan apa yang terjadi
@@ -128,7 +137,7 @@ class StructuredKpiImporter
             // Pre-fetch seluruh indikator eksisting ke memori untuk lookup O(1) bebas N+1 query.
             /** @var Collection<string, Indicator> $existingIndicators */
             $existingIndicators = Indicator::all()->keyBy(
-                fn (Indicator $i): string => $i->org_unit_id."\0".$i->name
+                fn (Indicator $i): string => $this->indicatorLookupKey($i->org_unit_id, $i->name)
             );
 
             foreach ($rows as $row) {
@@ -189,13 +198,13 @@ class StructuredKpiImporter
                     'category' => $identity['category'],
                 ];
 
-                $lookupKey = $orgUnitId."\0".$identity['name'];
+                $lookupKey = $this->indicatorLookupKey($orgUnitId, $identity['name']);
                 $indicator = $existingIndicators->get($lookupKey);
 
                 if ($indicator === null) {
                     $indicator = Indicator::create([
                         'org_unit_id' => $orgUnitId,
-                        'name' => $identity['name'],
+                        'name' => trim($identity['name']),
                         ...$indicatorAttributes,
                     ]);
 

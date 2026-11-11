@@ -587,6 +587,35 @@ class StructuredKpiDualWriteTest extends TestCase
         $this->assertTrue($duplicates->isEmpty(), 'Ada observation ganda pada kunci unik.');
     }
 
+    public function test_importer_reuses_existing_indicator_with_case_insensitivity_and_whitespace_tolerance(): void
+    {
+        $tjbt = OrgUnit::firstOrCreate(['name' => 'TJBT']);
+        $preExisting = Indicator::create([
+            'org_unit_id' => $tjbt->id,
+            'name' => '  A. FAKTOR KETERSEDIAAN TRAFO  ',
+            'satuan' => 'Old Satuan',
+        ]);
+
+        $dataset = $this->readyDataset();
+        $importer = app(StructuredKpiImporter::class);
+        $path = $this->makeKpiReport()->getRealPath();
+
+        $result = $importer->import($path, $dataset, self::PERIOD);
+
+        // Pre-existing indicator harus di-reuse dan tidak membuat row baru
+        $matching = Indicator::where('org_unit_id', $tjbt->id)
+            ->whereRaw('LOWER(TRIM(name)) = ?', ['a. faktor ketersediaan trafo'])
+            ->get();
+
+        $this->assertCount(1, $matching);
+        $this->assertSame($preExisting->id, $matching->first()->id);
+
+        $observation = PerformanceObservation::where('dataset_id', $dataset->id)
+            ->where('indicator_id', $preExisting->id)
+            ->first();
+        $this->assertNotNull($observation);
+    }
+
     // ------------------------------------------------------------------
     // Integritas kegagalan: structured failure menggagalkan dataset & membersihkan legacy
     // ------------------------------------------------------------------
