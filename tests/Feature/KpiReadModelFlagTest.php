@@ -1454,7 +1454,7 @@ class KpiReadModelFlagTest extends TestCase
         $status = $this->reader('datasetStatus', [$user]);
 
         $this->assertSame('2026-08-31', $status['latest_period']);
-        $this->assertSame(0, $status['latest_rows']);
+        $this->assertSame(1, $status['latest_rows']);
         $this->assertSame(1, $status['ready']);
         $this->assertSame(0, $status['archived']);
         $this->assertSame(0, $status['failed']);
@@ -1516,12 +1516,12 @@ class KpiReadModelFlagTest extends TestCase
         config(['kpi.visible_units' => ['TJBT']]);
         $statusWithUnits = $this->reader('datasetStatus', [$user]);
         $this->assertSame('2026-08-31', $statusWithUnits['latest_period']);
-        $this->assertSame(0, $statusWithUnits['latest_rows']);
+        $this->assertSame(1, $statusWithUnits['latest_rows']);
 
         config(['kpi.visible_units' => null]);
         $statusNullUnits = $this->reader('datasetStatus', [$user]);
         $this->assertSame('2026-08-31', $statusNullUnits['latest_period']);
-        $this->assertSame(0, $statusNullUnits['latest_rows']);
+        $this->assertSame(1, $statusNullUnits['latest_rows']);
     }
 
     public function test_r5_karakterisasi_privileged_structured_mengunci_periode_observasi_saat_ada_metrics_baru_divisi_lain(): void
@@ -1932,7 +1932,8 @@ class KpiReadModelFlagTest extends TestCase
             ->assertSee('Dataset READY (Divisi)')
             ->assertSee('Dataset ARCHIVED')
             ->assertSee('Dataset GAGAL')
-            ->assertSee('Baris Data Aktif (TJBT)')
+            ->assertSee('Baris Data Aktif')
+            ->assertDontSee('Baris Data Aktif (TJBT)')
             ->assertSee('Periode data terbaru: 2026-08-31')
             ->assertSee('Sudah Lama')
             ->assertDontSee('Belum ada data KPI aktif.')
@@ -1944,8 +1945,8 @@ class KpiReadModelFlagTest extends TestCase
                 '1',
                 'Dataset GAGAL',
                 '0',
-                'Baris Data Aktif (TJBT)',
-                '0',
+                'Baris Data Aktif',
+                '1',
                 'Periode data terbaru: 2026-08-31',
             ]);
 
@@ -1957,7 +1958,7 @@ class KpiReadModelFlagTest extends TestCase
         $this->assertSame(1, $data['ready']);
         $this->assertSame(1, $data['archived']);
         $this->assertSame(0, $data['failed']);
-        $this->assertSame(0, $data['latest_rows']);
+        $this->assertSame(1, $data['latest_rows']);
         $this->assertFalse($data['fresh']);
     }
 
@@ -2539,7 +2540,7 @@ class KpiReadModelFlagTest extends TestCase
         $this->assertSame(1, $genericWidgets->get('dataset-status')['data']['ready']);
         $this->assertSame(0, $genericWidgets->get('dataset-status')['data']['archived']);
         $this->assertSame(0, $genericWidgets->get('dataset-status')['data']['failed']);
-        $this->assertSame(0, $genericWidgets->get('dataset-status')['data']['latest_rows']);
+        $this->assertSame(1, $genericWidgets->get('dataset-status')['data']['latest_rows']);
 
         // 2. Layout bawaan role privileged tidak me-mount dataset-status
         foreach ([$admin, $management, $editor] as $privilegedUser) {

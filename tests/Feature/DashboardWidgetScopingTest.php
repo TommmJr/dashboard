@@ -261,4 +261,46 @@ class DashboardWidgetScopingTest extends TestCase
         $response->assertDontSee('UNIT_ALPHA');
         $response->assertSee('Belum ada data NKO');
     }
+
+    public function test_dataset_status_widget_for_asset_division_counts_active_metrics_and_hides_tjbt_label(): void
+    {
+        config(['kpi.read_model' => 'structured']);
+        config(['kpi.visible_units' => ['TJBT']]);
+
+        $division = Division::factory()->create([
+            'name' => 'Managemen Aset',
+            'slug' => 'managemen-aset',
+        ]);
+
+        $staff = User::factory()->withRole(Role::STAFF_DIVISI)->create([
+            'division_id' => $division->id,
+        ]);
+
+        $dataset = Dataset::factory()->create([
+            'division_id' => $division->id,
+            'status' => Dataset::STATUS_READY,
+        ]);
+
+        for ($i = 1; $i <= 5; $i++) {
+            PerformanceMetric::factory()->create([
+                'dataset_id' => $dataset->id,
+                'division_id' => $division->id,
+                'metric_name' => "Total Aset Trafo {$i}",
+                'value' => 100.0 * $i,
+                'period' => '2026-08-15',
+            ]);
+        }
+
+        $response = $this->actingAs($staff)
+            ->get(route('dashboard'))
+            ->assertOk();
+
+        $response->assertSee('Status Dataset');
+        $response->assertSee('Baris Data Aktif');
+        $response->assertDontSee('Baris Data Aktif (TJBT)');
+        $response->assertSeeInOrder([
+            'Baris Data Aktif',
+            '5',
+        ]);
+    }
 }

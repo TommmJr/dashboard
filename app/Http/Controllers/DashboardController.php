@@ -129,6 +129,10 @@ class DashboardController extends Controller
                 $widget['instance'] = $key;
                 $widget['data'] = $this->dataFor($widget['key'], $user, $filters);
 
+                if ($widget['key'] === 'dataset-status') {
+                    $widget['is_non_kpi'] = (! $this->isPrivileged($user) && $user?->division?->slug !== 'perencanaan-pengusahaan');
+                }
+
                 // Daftar unit lengkap (di luar cap 50) hanya untuk dropdown
                 // kinerja-detail. Ditempel di wrapper widget, BUKAN di payload:
                 // payload reader dikunci karakterisasi (4 key).
@@ -628,21 +632,45 @@ class DashboardController extends Controller
     private function datasetStatusStructured(?User $user, \Closure $scope): array
     {
         $isPrivileged = $this->isPrivileged($user);
-        $max = $this->latestStructuredReadyPeriod($user)
-            ?? (($isPrivileged || $user?->division_id !== null) ? $this->latestLegacyReadyPeriod($user) : null);
+        $structuredPeriod = $this->latestStructuredReadyPeriod($user);
+        $isNonKpiFallback = false;
+
+        if ($structuredPeriod !== null) {
+            $max = $structuredPeriod;
+        } else {
+            $max = ($isPrivileged || $user?->division_id !== null) ? $this->latestLegacyReadyPeriod($user) : null;
+            if ($max !== null) {
+                $isNonKpiFallback = true;
+            }
+        }
+
         $latestPeriod = $max === null ? null : Carbon::parse($max)->endOfMonth()->toDateString();
         $visible = $this->visibleUnits();
         $latestRows = 0;
 
         if ($latestPeriod !== null) {
-            $latestRows = DB::table('performance_observations')
-                ->join('datasets', 'datasets.id', '=', 'performance_observations.dataset_id')
-                ->join('org_units', 'org_units.id', '=', 'performance_observations.org_unit_id')
-                ->where('datasets.status', Dataset::STATUS_READY)
-                ->whereBetween('performance_observations.period', [Carbon::parse($latestPeriod)->startOfMonth()->toDateString(), $latestPeriod])
-                ->when($visible !== null, fn ($q) => $q->whereIn('org_units.name', $visible))
-                ->when(! $isPrivileged, fn ($q) => $q->where('performance_observations.division_id', $user?->division_id))
-                ->count();
+            if (! $isNonKpiFallback) {
+                $latestRows = DB::table('performance_observations')
+                    ->join('datasets', 'datasets.id', '=', 'performance_observations.dataset_id')
+                    ->join('org_units', 'org_units.id', '=', 'performance_observations.org_unit_id')
+                    ->where('datasets.status', Dataset::STATUS_READY)
+                    ->whereBetween('performance_observations.period', [Carbon::parse($latestPeriod)->startOfMonth()->toDateString(), $latestPeriod])
+                    ->when($visible !== null, fn ($q) => $q->whereIn('org_units.name', $visible))
+                    ->when(! $isPrivileged, fn ($q) => $q->where('performance_observations.division_id', $user?->division_id))
+                    ->count();
+            } else {
+                $metricQuery = DB::table('performance_metrics')
+                    ->join('datasets', 'datasets.id', '=', 'performance_metrics.dataset_id')
+                    ->where('datasets.status', Dataset::STATUS_READY)
+                    ->where('performance_metrics.period', $max)
+                    ->when(! $isPrivileged, fn ($q) => $q->where('performance_metrics.division_id', $user?->division_id));
+
+                if (! $isPrivileged && $user?->division?->slug !== 'perencanaan-pengusahaan') {
+                    $latestRows = $metricQuery->count();
+                } else {
+                    $latestRows = $this->countVisibleUnitRows($metricQuery);
+                }
+            }
         }
 
         $ready = $scope(Dataset::query())->where('status', Dataset::STATUS_READY)->count();
@@ -1376,9 +1404,10 @@ class DashboardController extends Controller
                 }
 
                 $v = (float) $row->value;
-                if ($v >= 100) {
+                $tier = KpiScoreNormalizer::ragTier($v);
+                if ($tier === KpiScoreNormalizer::TIER_TERCAPAI) {
                     $counts['Tercapai']++;
-                } elseif ($v >= 95) {
+                } elseif ($tier === KpiScoreNormalizer::TIER_HAMPIR) {
                     $counts['Hampir Tercapai']++;
                 } else {
                     $counts['Perlu Peningkatan']++;
@@ -1468,10 +1497,11 @@ class DashboardController extends Controller
             }
 
             $value = $row['nko'];
+            $tier = KpiScoreNormalizer::ragTier($value);
 
-            if ($value >= 100) {
+            if ($tier === KpiScoreNormalizer::TIER_TERCAPAI) {
                 $counts['Tercapai']++;
-            } elseif ($value >= 95) {
+            } elseif ($tier === KpiScoreNormalizer::TIER_HAMPIR) {
                 $counts['Hampir Tercapai']++;
             } else {
                 $counts['Perlu Peningkatan']++;

@@ -8,9 +8,9 @@
     $rows = collect($data ?? []);
 
     $category = function (float $nko): array {
-        return match (true) {
-            $nko >= 100 => ['Tercapai', 'bg-green-100 text-green-800'],
-            $nko >= 95 => ['Hampir Tercapai', 'bg-yellow-100 text-yellow-800'],
+        return match (\App\Support\KpiScoreNormalizer::ragTier($nko)) {
+            \App\Support\KpiScoreNormalizer::TIER_TERCAPAI => ['Tercapai', 'bg-green-100 text-green-800'],
+            \App\Support\KpiScoreNormalizer::TIER_HAMPIR => ['Hampir Tercapai', 'bg-yellow-100 text-yellow-800'],
             default => ['Perlu Peningkatan', 'bg-red-100 text-red-800'],
         };
     };

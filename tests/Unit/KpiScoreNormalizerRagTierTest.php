@@ -111,4 +111,47 @@ class KpiScoreNormalizerRagTierTest extends TestCase
             ->assertSee('Pencapaian &ge; 90%', false)
             ->assertSee('Tercapai (&ge;90%): 1', false);
     }
+
+    public function test_custom_rag_thresholds_reflect_in_kinerja_realisasi_nko_ranking_and_nko_donut(): void
+    {
+        $this->seed(RolePermissionSeeder::class);
+
+        config([
+            'kpi.rag_thresholds' => [
+                'tercapai_min' => 102.0,
+                'hampir_min' => 97.0,
+            ],
+        ]);
+
+        // 1. Verifikasi nko-ranking component menggunakan threshold kustom
+        $nkoData = [
+            (object) ['unit' => 'TJBT', 'nko' => 101.0],
+        ];
+        $nkoHtml = $this->blade(
+            '<x-widgets.nko-ranking :widget="[\'label\' => \'Peringkat NKO\']" :data="$data" />',
+            ['data' => $nkoData]
+        );
+        $nkoHtml->assertSee('Hampir Tercapai')
+            ->assertSee('bg-yellow-100 text-yellow-800')
+            ->assertDontSee('bg-green-100 text-green-800');
+
+        // 2. Verifikasi kinerja-realisasi component menggunakan threshold kustom
+        $kinerjaRows = [
+            [
+                'unit' => 'TJBT',
+                'achieved' => 1,
+                'total' => 1,
+                'avg' => 101.0,
+                'status' => 'Hampir Tercapai',
+            ],
+        ];
+        $kinerjaHtml = $this->blade(
+            '<x-widgets.kinerja-realisasi :widget="[\'key\' => \'kinerja-realisasi\', \'instance\' => 0]" :data="[\'period\' => \'2026-08-31\', \'rows\' => $rows, \'has_data\' => true]" />',
+            ['rows' => $kinerjaRows]
+        );
+        $kinerjaHtml->assertSee('#eab308')
+            ->assertSee('bg-amber-500')
+            ->assertDontSee('#16a34a')
+            ->assertDontSee('bg-emerald-500');
+    }
 }

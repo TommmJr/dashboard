@@ -50,9 +50,16 @@
                 </div>
                 @php
                     $visibleUnitsLabel = !empty(config('kpi.visible_units')) ? implode(', ', config('kpi.visible_units')) : 'Semua Unit';
+                    $isNonKpi = (bool) ($widget['is_non_kpi'] ?? false);
+                    if (! $isNonKpi && auth()->check()) {
+                        $authUser = auth()->user();
+                        if ($authUser->hasRole(\App\Models\Role::STAFF_DIVISI) && $authUser->division?->slug !== 'perencanaan-pengusahaan') {
+                            $isNonKpi = true;
+                        }
+                    }
                 @endphp
                 <div class="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-2xs transition hover:border-slate-300 hover:bg-slate-50/50">
-                    <p class="text-xs font-medium text-slate-500">Baris Data Aktif ({{ $visibleUnitsLabel }})</p>
+                    <p class="text-xs font-medium text-slate-500">Baris Data Aktif{{ $isNonKpi ? '' : ' ('.$visibleUnitsLabel.')' }}</p>
                     <p class="mt-1.5 text-2xl font-extrabold tracking-tight text-blue-600 leading-none">{{ $latestRows }}</p>
                 </div>
             </div>

@@ -192,9 +192,8 @@
                             $tier = 'all';
                             if ($pencapaianVal !== null) {
                                 $numVal = (float) $pencapaianVal;
-                                $normalizedPencapaian = \App\Support\KpiScoreNormalizer::normalize($numVal);
-                                $barWidth = max(0, min(100, $normalizedPencapaian));
-                                $tier = \App\Support\KpiScoreNormalizer::ragTier($normalizedPencapaian);
+                                $barWidth = max(0, min(100, $numVal));
+                                $tier = \App\Support\KpiScoreNormalizer::ragTier($numVal);
                                 if ($tier === \App\Support\KpiScoreNormalizer::TIER_TERCAPAI) {
                                     $barColor = 'bg-emerald-500';
                                 } elseif ($tier === \App\Support\KpiScoreNormalizer::TIER_HAMPIR) {

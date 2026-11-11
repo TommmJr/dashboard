@@ -22,7 +22,12 @@
 
     $firstRow = $rows[0] ?? null;
     $avgVal = $firstRow ? round((float) ($firstRow['avg'] ?? 0), 1) : 0;
-    $gaugeColor = $avgVal >= 100 ? '#16a34a' : ($avgVal >= 95 ? '#eab308' : '#dc2626');
+    $avgTier = \App\Support\KpiScoreNormalizer::ragTier($avgVal);
+    $gaugeColor = match ($avgTier) {
+        \App\Support\KpiScoreNormalizer::TIER_TERCAPAI => '#16a34a',
+        \App\Support\KpiScoreNormalizer::TIER_HAMPIR => '#eab308',
+        default => '#dc2626',
+    };
     $status = (string) ($firstRow['status'] ?? 'Perlu Peningkatan');
 @endphp
 
@@ -73,7 +78,12 @@
                         @php
                             $rowAvg = (float) ($row['avg'] ?? 0);
                             $rowProgress = max(0, min(100, $rowAvg));
-                            $rowBarColor = $rowAvg >= 100 ? 'bg-emerald-500' : ($rowAvg >= 95 ? 'bg-amber-500' : 'bg-rose-500');
+                            $rowTier = \App\Support\KpiScoreNormalizer::ragTier($rowAvg);
+                            $rowBarColor = match ($rowTier) {
+                                \App\Support\KpiScoreNormalizer::TIER_TERCAPAI => 'bg-emerald-500',
+                                \App\Support\KpiScoreNormalizer::TIER_HAMPIR => 'bg-amber-500',
+                                default => 'bg-rose-500',
+                            };
                         @endphp
                         <tr class="hover:bg-slate-50/60 transition-colors">
                             <td class="py-2.5 px-3 font-semibold text-primary">{{ $row['unit'] ?? '—' }}</td>

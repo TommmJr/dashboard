@@ -386,4 +386,71 @@ class KpiDetailPageTest extends TestCase
             ->assertDontSee('Halaman Rincian KPI')
             ->assertDontSee(route('dashboard.kpi-detail'), false);
     }
+
+    public function test_kinerja_detail_does_not_double_normalize_percentage_scores_below_one_point_one_percent(): void
+    {
+        $role = Role::where('slug', Role::STAFF_DIVISI)->firstOrFail();
+        $user = User::factory()->create([
+            'role_id' => $role->id,
+            'division_id' => $this->pengusahaan->id,
+        ]);
+
+        $dataset = Dataset::factory()->create([
+            'division_id' => $this->pengusahaan->id,
+            'status' => Dataset::STATUS_READY,
+        ]);
+
+        $unit = OrgUnit::create(['name' => 'TJBT']);
+
+        $indicator = Indicator::create([
+            'org_unit_id' => $unit->id,
+            'name' => 'Indikator Kritis',
+            'satuan' => '%',
+            'is_group' => false,
+            'pencapaian_formula_kind' => 'polarity_ratio',
+        ]);
+
+        PerformanceObservation::create([
+            'dataset_id' => $dataset->id,
+            'indicator_id' => $indicator->id,
+            'org_unit_id' => $unit->id,
+            'division_id' => $this->pengusahaan->id,
+            'period' => '2026-08-31',
+            'target_type' => PerformanceObservation::TYPE_NUMERIC,
+            'realisasi_type' => PerformanceObservation::TYPE_NUMERIC,
+            'target_value' => 100.0,
+            'realisasi_value' => 0.8,
+            'pencapaian' => 0.008,
+        ]);
+
+        $response = $this->actingAs($user)->get(route('dashboard.kpi-detail'));
+
+        $response->assertOk()
+            ->assertSee('0,8%')
+            ->assertSee('bg-rose-500')
+            ->assertSee('style="width: 0.8%"', false)
+            ->assertDontSee('style="width: 80%"', false);
+
+        $rows = collect([
+            [
+                'unit' => 'TJBT',
+                'indikator' => 'Indikator Uji Satu Persen',
+                'target' => 100.0,
+                'realisasi' => 1.0,
+                'pencapaian' => 1.0,
+                'satuan' => '%',
+            ],
+        ]);
+        $widget = ['limit' => 10];
+        $data = ['rows' => $rows, 'total_rows' => 1];
+
+        $html = $this->actingAs($user)->blade(
+            '<x-widgets.kinerja-detail :widget="$widget" :data="$data" />',
+            ['widget' => $widget, 'data' => $data]
+        );
+
+        $html->assertSee('1%')
+            ->assertSee('class="h-full rounded-full bg-rose-500" style="width: 1%"', false)
+            ->assertDontSee('style="width: 100%"', false);
+    }
 }

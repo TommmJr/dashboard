@@ -6,6 +6,7 @@ use App\Http\Controllers\Concerns\ScopesKpiUnits;
 use App\Models\Dataset;
 use App\Models\Role;
 use App\Services\StructuredNkoReader;
+use App\Support\KpiScoreNormalizer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -135,8 +136,7 @@ class CustomChartController extends Controller
                         }
 
                         $raw = (float) $row->pencapaian;
-                        $score = $raw > 1.1 ? $raw : $raw * 100.0;
-                        $clamped = max(0.0, min(110.0, $score));
+                        $clamped = KpiScoreNormalizer::normalizeAndClamp($raw);
 
                         $unitGroups[$unit][] = $clamped;
                     }
