@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Division;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
@@ -91,7 +92,11 @@ class DivisionController extends Controller
         }
 
         $name = $division->name;
-        $division->delete();
+
+        DB::transaction(function () use ($division) {
+            $division->dashboardLayouts()->get()->each->delete();
+            $division->delete();
+        });
 
         return redirect()->route('divisions.index')
             ->with('success', "Divisi \"{$name}\" berhasil dihapus.");

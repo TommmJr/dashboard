@@ -22,6 +22,7 @@ class AuditLogFactory extends Factory
             'action' => $this->faker->randomElement([
                 AuditLog::ACTION_LOGIN,
                 AuditLog::ACTION_LOGOUT,
+                AuditLog::ACTION_LOGIN_FAILED,
                 AuditLog::ACTION_CREATE,
                 AuditLog::ACTION_UPDATE,
                 AuditLog::ACTION_DELETE,

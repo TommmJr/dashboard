@@ -22,4 +22,9 @@ class Division extends Model
     {
         return $this->hasMany(Dataset::class);
     }
+
+    public function dashboardLayouts(): HasMany
+    {
+        return $this->hasMany(DashboardLayout::class);
+    }
 }

@@ -55,6 +55,7 @@ class AuditLogFormatter
         'rows_skipped' => 'Baris ditolak',
         'created_at' => 'Waktu dibuat',
         'ip' => 'IP',
+        'user_agent' => 'User Agent',
         'layout_key' => 'Kunci layout',
         'widgets' => 'Daftar widget',
         'role_slug' => 'Peran target',
@@ -71,6 +72,7 @@ class AuditLogFormatter
     private const ACTION_LABELS = [
         AuditLog::ACTION_LOGIN => 'Masuk',
         AuditLog::ACTION_LOGOUT => 'Keluar',
+        AuditLog::ACTION_LOGIN_FAILED => 'Gagal Masuk',
         AuditLog::ACTION_CREATE => 'Tambah',
         AuditLog::ACTION_UPDATE => 'Ubah',
         AuditLog::ACTION_DELETE => 'Hapus',

@@ -36,6 +36,10 @@ class AuditLog extends Model
 
     public const ACTION_LOGOUT = 'LOGOUT';
 
+    public const ACTION_LOGIN_FAILED = 'LOGIN_FAILED';
+
+    public const ACTION_FAILED_LOGIN = self::ACTION_LOGIN_FAILED;
+
     public const ACTION_CREATE = 'CREATE';
 
     public const ACTION_UPDATE = 'UPDATE';

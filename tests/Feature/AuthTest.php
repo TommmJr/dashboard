@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\AuditLog;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -64,6 +65,31 @@ class AuthTest extends TestCase
 
         $response->assertSessionHasErrors('email');
         $this->assertGuest();
+    }
+
+    public function test_failed_login_attempt_is_recorded_in_audit_log_without_password(): void
+    {
+        $user = User::factory()->create();
+
+        $this->post(route('login.store'), [
+            'email' => $user->email,
+            'password' => 'super-secret-wrong-password',
+        ]);
+
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => AuditLog::ACTION_LOGIN_FAILED,
+            'user_id' => $user->id,
+            'auditable_type' => null,
+            'auditable_id' => null,
+        ]);
+
+        $log = AuditLog::where('action', AuditLog::ACTION_LOGIN_FAILED)
+            ->where('user_id', $user->id)
+            ->sole();
+
+        $this->assertSame($user->email, $log->new_values['email']);
+        $this->assertArrayNotHasKey('password', $log->new_values);
+        $this->assertStringNotContainsString('super-secret-wrong-password', json_encode($log->new_values));
     }
 
     // Test that the dashboard requires authentication

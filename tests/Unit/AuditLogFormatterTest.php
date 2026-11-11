@@ -36,6 +36,7 @@ class AuditLogFormatterTest extends TestCase
         $this->assertSame('Unit organisasi', AuditLogFormatter::fieldLabel('org_units_count'));
         $this->assertSame('Indikator terstruktur', AuditLogFormatter::fieldLabel('indicators_count'));
         $this->assertSame('Observasi terstruktur', AuditLogFormatter::fieldLabel('observations_count'));
+        $this->assertSame('User Agent', AuditLogFormatter::fieldLabel('user_agent'));
     }
 
     public function test_label_objek_model_terstruktur_memiliki_nama_baku(): void
@@ -63,6 +64,7 @@ class AuditLogFormatterTest extends TestCase
     {
         $this->assertSame('Impor', AuditLogFormatter::actionLabel(AuditLog::ACTION_IMPORT));
         $this->assertSame('Ubah', AuditLogFormatter::actionLabel(AuditLog::ACTION_UPDATE));
+        $this->assertSame('Gagal Masuk', AuditLogFormatter::actionLabel(AuditLog::ACTION_LOGIN_FAILED));
 
         $dataset = $this->log([
             'auditable_type' => Dataset::class,
@@ -72,6 +74,9 @@ class AuditLogFormatterTest extends TestCase
 
         $login = $this->log(['action' => AuditLog::ACTION_LOGIN]);
         $this->assertSame('Aktivitas akun', AuditLogFormatter::objectLabel($login));
+
+        $loginFailed = $this->log(['action' => AuditLog::ACTION_LOGIN_FAILED]);
+        $this->assertSame('Aktivitas akun', AuditLogFormatter::objectLabel($loginFailed));
     }
 
     public function test_tanggal_diformat_dm_y_dan_ukuran_jadi_kb(): void
@@ -138,5 +143,27 @@ class AuditLogFormatterTest extends TestCase
         ]);
 
         $this->assertSame('10 baris valid, 2 peringatan, 1 ditolak', $summary);
+    }
+
+    public function test_login_failed_menghasilkan_baris_identitas_dan_metadata(): void
+    {
+        $log = $this->log([
+            'action' => AuditLog::ACTION_LOGIN_FAILED,
+            'new_values' => [
+                'email' => 'operator@pln.co.id',
+                'ip' => '10.20.30.40',
+                'user_agent' => 'Mozilla/5.0',
+            ],
+        ]);
+
+        $rows = AuditLogFormatter::rows($log);
+
+        $this->assertCount(3, $rows);
+        $this->assertSame('Email', $rows[0]['label']);
+        $this->assertSame('operator@pln.co.id', $rows[0]['new']);
+        $this->assertSame('IP', $rows[1]['label']);
+        $this->assertSame('10.20.30.40', $rows[1]['new']);
+        $this->assertSame('User Agent', $rows[2]['label']);
+        $this->assertSame('Mozilla/5.0', $rows[2]['new']);
     }
 }

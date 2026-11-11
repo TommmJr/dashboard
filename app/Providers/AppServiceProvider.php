@@ -5,6 +5,7 @@ namespace App\Providers;
 use App\Models\AuditLog;
 use App\Models\Permission;
 use App\Models\User;
+use Illuminate\Auth\Events\Failed;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Auth\Events\Logout;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -64,7 +65,7 @@ class AppServiceProvider extends ServiceProvider
     }
 
     /**
-     * Catat LOGIN/LOGOUT ke audit log (append-only) via auth events.
+     * Catat LOGIN/LOGOUT/LOGIN_FAILED ke audit log (append-only) via auth events.
      */
     private function registerAuditListeners(): void
     {
@@ -80,6 +81,32 @@ class AppServiceProvider extends ServiceProvider
             fn (Logout $event) => AuditLog::record(
                 AuditLog::ACTION_LOGOUT, null, null, null, $event->user?->id,
             ),
+        );
+
+        Event::listen(
+            Failed::class,
+            function (Failed $event) {
+                $credentials = collect($event->credentials ?? [])
+                    ->except(['password', 'password_confirmation', 'remember_token', 'token', 'secret'])
+                    ->all();
+
+                $identity = (string) ($credentials['email'] ?? $credentials['username'] ?? '');
+                $request = request();
+
+                $newValues = array_merge([
+                    'email' => $identity,
+                    'ip' => (string) ($request?->ip() ?? '127.0.0.1'),
+                    'user_agent' => mb_substr((string) ($request?->userAgent() ?? ''), 0, 255),
+                ], $credentials);
+
+                AuditLog::record(
+                    AuditLog::ACTION_LOGIN_FAILED,
+                    null,
+                    null,
+                    $newValues,
+                    $event->user?->id,
+                );
+            },
         );
     }
 

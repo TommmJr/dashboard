@@ -139,6 +139,73 @@ class AuditLogTest extends TestCase
         ]);
     }
 
+    public function test_failed_login_with_existing_user_records_audit_log_without_password(): void
+    {
+        $response = $this->withHeader('User-Agent', 'failed-login-probe')
+            ->from(route('login'))
+            ->post(route('login.store'), [
+                'email' => $this->staff->email,
+                'password' => 'wrong-secret-password',
+            ]);
+
+        $response->assertRedirect(route('login'));
+        $response->assertSessionHasErrors('email');
+
+        $log = AuditLog::where('action', AuditLog::ACTION_LOGIN_FAILED)
+            ->where('user_id', $this->staff->id)
+            ->sole();
+
+        $this->assertNull($log->auditable_type);
+        $this->assertNull($log->auditable_id);
+        $this->assertNull($log->old_values);
+        $this->assertSame('127.0.0.1', $log->ip);
+        $this->assertSame('failed-login-probe', $log->user_agent);
+
+        $this->assertSame($this->staff->email, $log->new_values['email']);
+        $this->assertSame('127.0.0.1', $log->new_values['ip']);
+        $this->assertSame('failed-login-probe', $log->new_values['user_agent']);
+        $this->assertArrayNotHasKey('password', $log->new_values);
+        $this->assertStringNotContainsString('wrong-secret-password', json_encode($log->new_values));
+
+        // Entri harus lolos dari scope cleanAuditTrail
+        $this->assertTrue(
+            AuditLog::cleanAuditTrail()->where('id', $log->id)->exists(),
+            'Audit log login gagal harus lolos query cleanAuditTrail'
+        );
+    }
+
+    public function test_failed_login_with_non_existent_user_records_audit_log_without_password(): void
+    {
+        $response = $this->withHeader('User-Agent', 'failed-nonexistent-probe')
+            ->from(route('login'))
+            ->post(route('login.store'), [
+                'email' => 'ghost.user@pln.co.id',
+                'password' => 'another-wrong-password',
+            ]);
+
+        $response->assertRedirect(route('login'));
+        $response->assertSessionHasErrors('email');
+
+        $log = AuditLog::where('action', AuditLog::ACTION_LOGIN_FAILED)
+            ->whereNull('user_id')
+            ->sole();
+
+        $this->assertNull($log->auditable_type);
+        $this->assertNull($log->auditable_id);
+        $this->assertNull($log->user_id);
+        $this->assertSame('ghost.user@pln.co.id', $log->new_values['email']);
+        $this->assertArrayNotHasKey('password', $log->new_values);
+        $this->assertStringNotContainsString('another-wrong-password', json_encode($log->new_values));
+
+        // Verifikasi bahwa admin dapat melihat dan memfilter entri ini di index audit log
+        $admin = User::factory()->withRole(Role::ADMIN)->create();
+        $this->actingAs($admin)
+            ->get(route('audit-logs.index', ['action' => AuditLog::ACTION_LOGIN_FAILED]))
+            ->assertOk()
+            ->assertSee('Gagal Masuk')
+            ->assertSee('ghost.user@pln.co.id');
+    }
+
     public function test_entri_audit_tidak_bisa_diubah_lewat_instance(): void
     {
         $log = AuditLog::record(AuditLog::ACTION_LOGIN);

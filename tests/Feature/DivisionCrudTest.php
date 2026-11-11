@@ -348,4 +348,44 @@ class DivisionCrudTest extends TestCase
             'user_id' => $this->admin->id,
         ]);
     }
+
+    public function test_deleting_division_records_audit_log_for_cascaded_dashboard_layout(): void
+    {
+        $division = Division::factory()->create(['name' => 'Divisi Berlayout', 'slug' => 'divisi-berlayout']);
+        $layout = DashboardLayout::create([
+            'layout_key' => 'staff_divisi:divisi-berlayout',
+            'role_slug' => Role::STAFF_DIVISI,
+            'division_id' => $division->id,
+            'widgets' => ['dataset-status', 'kinerja-detail'],
+        ]);
+
+        $this->actingAs($this->admin)
+            ->delete(route('divisions.destroy', $division))
+            ->assertRedirect(route('divisions.index'));
+
+        $this->assertDatabaseMissing('divisions', ['id' => $division->id]);
+        $this->assertDatabaseMissing('dashboard_layouts', ['id' => $layout->id]);
+
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => AuditLog::ACTION_DELETE,
+            'auditable_type' => Division::class,
+            'auditable_id' => $division->id,
+            'user_id' => $this->admin->id,
+        ]);
+
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => AuditLog::ACTION_DELETE,
+            'auditable_type' => (new DashboardLayout)->getMorphClass(),
+            'auditable_id' => $layout->id,
+            'user_id' => $this->admin->id,
+        ]);
+
+        $layoutLog = AuditLog::where('action', AuditLog::ACTION_DELETE)
+            ->where('auditable_type', (new DashboardLayout)->getMorphClass())
+            ->where('auditable_id', $layout->id)
+            ->sole();
+
+        $this->assertSame('staff_divisi:divisi-berlayout', $layoutLog->old_values['layout_key']);
+        $this->assertSame(['dataset-status', 'kinerja-detail'], $layoutLog->old_values['widgets']);
+    }
 }

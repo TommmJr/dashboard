@@ -20,6 +20,7 @@ class AuditLogController extends Controller
             'action' => ['nullable', 'string', Rule::in([
                 AuditLog::ACTION_LOGIN,
                 AuditLog::ACTION_LOGOUT,
+                AuditLog::ACTION_LOGIN_FAILED,
                 AuditLog::ACTION_CREATE,
                 AuditLog::ACTION_UPDATE,
                 AuditLog::ACTION_DELETE,
@@ -58,6 +59,7 @@ class AuditLogController extends Controller
             : [
                 AuditLog::ACTION_LOGIN,
                 AuditLog::ACTION_LOGOUT,
+                AuditLog::ACTION_LOGIN_FAILED,
                 AuditLog::ACTION_CREATE,
                 AuditLog::ACTION_UPDATE,
                 AuditLog::ACTION_DELETE,
