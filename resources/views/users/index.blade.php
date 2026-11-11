@@ -68,7 +68,7 @@
                                         <span class="inline-flex items-center rounded border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700">Admin Terakhir</span>
                                     @elseif (! $user->is(auth()->user()))
                                         <form method="POST" action="{{ route('users.destroy', $user) }}"
-                                              onsubmit="return confirm('Hapus permanen user &quot;{{ addslashes($user->name) }}&quot;? Seluruh dataset yang diunggah oleh user ini akan ikut terhapus secara permanen.');">
+                                              onsubmit="return confirm('Hapus permanen user &quot;{{ addslashes($user->name) }}&quot;? Riwayat dataset yang pernah diunggah akan tetap tersimpan.');">
                                             @csrf @method('DELETE')
                                             <button type="submit" class="rounded bg-red-600 px-2 py-1 text-xs font-semibold text-white hover:bg-red-700">
                                                 Hapus

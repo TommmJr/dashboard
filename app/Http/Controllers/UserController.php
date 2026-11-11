@@ -136,8 +136,8 @@ class UserController extends Controller
     }
 
     /**
-     * Hard delete user. Cascade di DB menghapus datasets + metrics miliknya.
-     * audit_logs.user_id di-set NULL via nullOnDelete (append-only terjaga).
+     * Hard delete user. Foreign key datasets.user_id dan audit_logs.user_id
+     * di-set NULL via nullOnDelete sehingga riwayat dataset dan audit tetap terjaga.
      */
     public function destroy(User $user): RedirectResponse
     {

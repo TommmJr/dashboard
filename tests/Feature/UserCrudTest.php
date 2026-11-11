@@ -674,4 +674,18 @@ class UserCrudTest extends TestCase
             ->assertOk()
             ->assertSee('Admin Terakhir');
     }
+
+    public function test_users_index_delete_confirmation_dialog_accurately_reflects_preserved_datasets(): void
+    {
+        $target = User::factory()->withRole(Role::STAFF_DIVISI)->create([
+            'name' => 'Budi Staf',
+            'division_id' => $this->division->id,
+        ]);
+
+        $this->actingAs($this->admin)
+            ->get(route('users.index'))
+            ->assertOk()
+            ->assertSee('Riwayat dataset yang pernah diunggah akan tetap tersimpan')
+            ->assertDontSee('Seluruh dataset yang diunggah oleh user ini akan ikut terhapus secara permanen');
+    }
 }
