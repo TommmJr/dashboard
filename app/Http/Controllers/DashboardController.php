@@ -414,10 +414,28 @@ class DashboardController extends Controller
      * kosong sehingga widget menampilkan empty state, bukan kebocoran data.
      * Pola ini sama dengan nkoRanking() dan PerformanceChartController.
      *
-     * @return array{period: ?string, labels: list<string>, series: list<array{name: string, data: list<float>}>}
+     * @return array{
+     *     period: ?string,
+     *     labels: list<string>,
+     *     series: list<array{name: string, data: list<float>}>,
+     *     summary: array{total_tower: float, total_transmisi: float, total_trafo: float},
+     *     table_rows: list<array{upt: string, tower: float, transmisi: float, trafo: float}>,
+     *     series_by_category: array{tower: list<array{name: string, data: list<float>}>, transmisi: list<array{name: string, data: list<float>}>, trafo: list<array{name: string, data: list<float>}>}
+     * }
      */
     private function asetUptChart(?User $user): array
     {
+        $emptySummary = [
+            'total_tower' => 0.0,
+            'total_transmisi' => 0.0,
+            'total_trafo' => 0.0,
+        ];
+        $emptyCategories = [
+            'tower' => [],
+            'transmisi' => [],
+            'trafo' => [],
+        ];
+
         $isPrivileged = $user && (
             $user->hasRole(Role::ADMIN)
             || $user->hasRole(Role::MANAGEMENT)
@@ -425,7 +443,14 @@ class DashboardController extends Controller
         );
 
         if (! $isPrivileged && $user?->division_id === null) {
-            return ['period' => null, 'labels' => [], 'series' => []];
+            return [
+                'period' => null,
+                'labels' => [],
+                'series' => [],
+                'summary' => $emptySummary,
+                'table_rows' => [],
+                'series_by_category' => $emptyCategories,
+            ];
         }
 
         $divisionId = $isPrivileged ? null : $user?->division_id;
@@ -445,6 +470,17 @@ class DashboardController extends Controller
             fn (string $attr): bool => Str::startsWith($attr, self::ASET_ATTRIBUTE_PREFIXES)
         )->values();
 
+        if ($upts->isEmpty() || $attributes->isEmpty()) {
+            return [
+                'period' => $report['period'],
+                'labels' => [],
+                'series' => [],
+                'summary' => $emptySummary,
+                'table_rows' => [],
+                'series_by_category' => $emptyCategories,
+            ];
+        }
+
         $byKey = $report['totals']->keyBy(fn (object $total): string => $total->upt."\0".$total->attribute);
 
         $series = $attributes->map(fn (string $attribute): array => [
@@ -452,7 +488,59 @@ class DashboardController extends Controller
             'data' => $upts->map(fn (string $upt): float => (float) ($byKey[$upt."\0".$attribute]->total ?? 0))->all(),
         ])->values()->all();
 
-        return ['period' => $report['period'], 'labels' => $upts->all(), 'series' => $series];
+        $seriesByCategory = [
+            'tower' => array_values(array_filter($series, fn (array $s): bool => Str::startsWith($s['name'], 'Tower '))),
+            'transmisi' => array_values(array_filter($series, fn (array $s): bool => Str::startsWith($s['name'], 'Transmisi '))),
+            'trafo' => array_values(array_filter($series, fn (array $s): bool => Str::startsWith($s['name'], 'Trafo '))),
+        ];
+
+        $tableRows = [];
+        $totalTower = 0.0;
+        $totalTransmisi = 0.0;
+        $totalTrafo = 0.0;
+
+        foreach ($upts as $index => $upt) {
+            $uptTower = 0.0;
+            $uptTransmisi = 0.0;
+            $uptTrafo = 0.0;
+
+            foreach ($series as $s) {
+                $val = (float) ($s['data'][$index] ?? 0);
+                if (Str::startsWith($s['name'], 'Tower ')) {
+                    $uptTower += $val;
+                } elseif (Str::startsWith($s['name'], 'Transmisi ')) {
+                    $uptTransmisi += $val;
+                } elseif (Str::startsWith($s['name'], 'Trafo ') && Str::contains($s['name'], 'MVA')) {
+                    $uptTrafo += $val;
+                }
+            }
+
+            $totalTower += $uptTower;
+            $totalTransmisi += $uptTransmisi;
+            $totalTrafo += $uptTrafo;
+
+            $tableRows[] = [
+                'upt' => $upt,
+                'tower' => $uptTower,
+                'transmisi' => round($uptTransmisi, 1),
+                'trafo' => round($uptTrafo, 1),
+            ];
+        }
+
+        $summary = [
+            'total_tower' => $totalTower,
+            'total_transmisi' => round($totalTransmisi, 1),
+            'total_trafo' => round($totalTrafo, 1),
+        ];
+
+        return [
+            'period' => $report['period'],
+            'labels' => $upts->all(),
+            'series' => $series,
+            'summary' => $summary,
+            'table_rows' => $tableRows,
+            'series_by_category' => $seriesByCategory,
+        ];
     }
 
     /**

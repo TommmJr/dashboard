@@ -284,6 +284,123 @@ class AsetUptChartWidgetTest extends TestCase
             ->assertDontSee('asetUptChart', false);
     }
 
+    public function test_aset_upt_chart_mengembalikan_summary_table_rows_dan_series_by_category(): void
+    {
+        $division = Division::factory()->create(['name' => 'Data Aset']);
+        $this->seedAsetRowsFor($division, '2026-08-31', [
+            ['BEKASI', 'BEKASI', 'Tower 150 KV | SU', 10],
+            ['BEKASI', 'BEKASI', 'Transmisi 150 KV | SU | kms', 25.5],
+            ['BEKASI', 'BEKASI', 'Trafo 500/150 KV | MVA', 1000],
+            ['BEKASI', 'BEKASI', 'Trafo 500/150 KV | Bank', 4],
+            ['BOGOR', 'BOGOR', 'Tower 500 KV | SU', 20],
+            ['BOGOR', 'BOGOR', 'Transmisi 500 KV | SU | kms', 50.2],
+            ['BOGOR', 'BOGOR', 'Trafo 150/20 KV | MVA', 500],
+        ]);
+
+        $staf = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $division->id]);
+        $this->mountAsetWidgetForStaffForTest();
+
+        $response = $this->actingAs($staf)->get(route('dashboard'))->assertOk();
+        $widgets = collect($response->viewData('widgets') ?? []);
+        $widget = $widgets->firstWhere('key', 'aset-upt-chart');
+        $this->assertNotNull($widget);
+
+        $data = $widget['data'] ?? [];
+        $this->assertSame(30.0, $data['summary']['total_tower']);
+        $this->assertSame(75.7, $data['summary']['total_transmisi']);
+        $this->assertSame(1500.0, $data['summary']['total_trafo']);
+
+        $this->assertCount(2, $data['table_rows']);
+        $this->assertSame('BEKASI', $data['table_rows'][0]['upt']);
+        $this->assertSame(10.0, $data['table_rows'][0]['tower']);
+        $this->assertSame(25.5, $data['table_rows'][0]['transmisi']);
+        $this->assertSame(1000.0, $data['table_rows'][0]['trafo']);
+
+        $this->assertSame('BOGOR', $data['table_rows'][1]['upt']);
+        $this->assertSame(20.0, $data['table_rows'][1]['tower']);
+        $this->assertSame(50.2, $data['table_rows'][1]['transmisi']);
+        $this->assertSame(500.0, $data['table_rows'][1]['trafo']);
+
+        $this->assertArrayHasKey('tower', $data['series_by_category']);
+        $this->assertArrayHasKey('transmisi', $data['series_by_category']);
+        $this->assertArrayHasKey('trafo', $data['series_by_category']);
+        $this->assertCount(2, $data['series_by_category']['tower']);
+        $this->assertCount(2, $data['series_by_category']['transmisi']);
+        $this->assertCount(3, $data['series_by_category']['trafo']);
+    }
+
+    public function test_blade_merender_scorecard_filter_tab_dan_tabel_matriks(): void
+    {
+        $html = $this->blade(
+            '<x-widgets.aset-upt-chart :widget="$widget" :data="$data" />',
+            [
+                'widget' => ['key' => 'aset-upt-chart', 'label' => 'Stok Aset per UPT'],
+                'data' => [
+                    'period' => '2026-08-31',
+                    'labels' => ['BANDUNG', 'BEKASI'],
+                    'series' => [
+                        ['name' => 'Tower 150 KV | SU', 'data' => [100.0, 200.0]],
+                        ['name' => 'Transmisi 150 KV | SU | kms', 'data' => [50.5, 75.2]],
+                        ['name' => 'Trafo 500/150 KV | MVA', 'data' => [1000.0, 1500.0]],
+                    ],
+                    'summary' => [
+                        'total_tower' => 300.0,
+                        'total_transmisi' => 125.7,
+                        'total_trafo' => 2500.0,
+                    ],
+                    'table_rows' => [
+                        ['upt' => 'BANDUNG', 'tower' => 100.0, 'transmisi' => 50.5, 'trafo' => 1000.0],
+                        ['upt' => 'BEKASI', 'tower' => 200.0, 'transmisi' => 75.2, 'trafo' => 1500.0],
+                    ],
+                    'series_by_category' => [
+                        'tower' => [['name' => 'Tower 150 KV | SU', 'data' => [100.0, 200.0]]],
+                        'transmisi' => [['name' => 'Transmisi 150 KV | SU | kms', 'data' => [50.5, 75.2]]],
+                        'trafo' => [['name' => 'Trafo 500/150 KV | MVA', 'data' => [1000.0, 1500.0]]],
+                    ],
+                ],
+            ]
+        );
+
+        $html->assertSee('Total Tower', false)
+            ->assertSee('Total Jalur Transmisi', false)
+            ->assertSee('Total Kapasitas Trafo', false)
+            ->assertSee('300', false)
+            ->assertSee('125,7', false)
+            ->assertSee('2.500', false)
+            ->assertSee('data-category-filter="all"', false)
+            ->assertSee('data-category-filter="tower"', false)
+            ->assertSee('data-category-filter="transmisi"', false)
+            ->assertSee('data-category-filter="trafo"', false)
+            ->assertSee('Rekapitulasi Matriks Fisik per UPT', false)
+            ->assertSee('BANDUNG', false)
+            ->assertSee('BEKASI', false)
+            ->assertSee('Total Rekapitulasi', false)
+            ->assertSee("type: 'scroll'", false)
+            ->assertSee('containLabel: true', false);
+    }
+
+    public function test_blade_tahan_terhadap_payload_lama_tanpa_summary(): void
+    {
+        $html = $this->blade(
+            '<x-widgets.aset-upt-chart :widget="$widget" :data="$data" />',
+            [
+                'widget' => ['key' => 'aset-upt-chart', 'label' => 'Stok Aset per UPT'],
+                'data' => [
+                    'period' => '2026-08-31',
+                    'labels' => ['BEKASI'],
+                    'series' => [
+                        ['name' => 'Tower 150 KV | SU', 'data' => [50.0]],
+                    ],
+                ],
+            ]
+        );
+
+        $html->assertSee('Stok Aset per UPT', false)
+            ->assertSee('Total Tower', false)
+            ->assertSee('50', false)
+            ->assertSee('data-category-filter="all"', false);
+    }
+
     /**
      * Pasang widget Aset ke layout admin HANYA untuk test ini.
      * Production tetap unmounted (lihat config/dashboard_layouts.php).

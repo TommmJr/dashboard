@@ -1951,7 +1951,7 @@ class KpiReadModelFlagTest extends TestCase
             ]);
 
         $widgets = collect($response->viewData('widgets'));
-        $this->assertSame(['dataset-status'], $widgets->pluck('key')->all());
+        $this->assertSame(['dataset-status', 'aset-upt-chart'], $widgets->pluck('key')->all());
 
         $data = $widgets->first()['data'];
         $this->assertSame('2026-08-31', $data['latest_period']);
