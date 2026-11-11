@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\AuditLog;
 use App\Models\DashboardLayout;
+use App\Models\Division;
 use App\Models\Role;
 use App\Models\User;
 use App\Services\AuditLogFormatter;
@@ -26,10 +27,12 @@ class DashboardLayoutAuditTest extends TestCase
     public function test_updating_dashboard_layout_records_audit_log_entry(): void
     {
         $editor = User::factory()->withRole(Role::EDITOR_DASHBOARD)->create();
+        $division = Division::where('slug', 'perencanaan-pengusahaan')->firstOrFail();
 
         $this->actingAs($editor)->putJson(route('dashboard.layout.update'), [
-            'role_slug' => Role::MANAGEMENT,
-            'layout_key' => Role::MANAGEMENT,
+            'role_slug' => Role::STAFF_DIVISI,
+            'division_id' => $division->id,
+            'layout_key' => 'staff_divisi:perencanaan-pengusahaan',
             'widgets' => ['kpi-summary', 'trend-chart'],
         ])->assertOk();
 
@@ -43,17 +46,20 @@ class DashboardLayoutAuditTest extends TestCase
     public function test_resetting_dashboard_layout_records_delete_audit_log_entry(): void
     {
         $editor = User::factory()->withRole(Role::EDITOR_DASHBOARD)->create();
+        $division = Division::where('slug', 'perencanaan-pengusahaan')->firstOrFail();
 
         DashboardLayout::create([
-            'role_slug' => Role::MANAGEMENT,
-            'layout_key' => Role::MANAGEMENT,
+            'role_slug' => Role::STAFF_DIVISI,
+            'division_id' => $division->id,
+            'layout_key' => 'staff_divisi:perencanaan-pengusahaan',
             'widgets' => ['kpi-summary'],
             'updated_by' => $editor->id,
         ]);
 
         $this->actingAs($editor)->deleteJson(route('dashboard.layout.reset'), [
-            'role_slug' => Role::MANAGEMENT,
-            'layout_key' => Role::MANAGEMENT,
+            'role_slug' => Role::STAFF_DIVISI,
+            'division_id' => $division->id,
+            'layout_key' => 'staff_divisi:perencanaan-pengusahaan',
         ])->assertOk();
 
         $this->assertDatabaseHas('audit_logs', [
@@ -66,10 +72,12 @@ class DashboardLayoutAuditTest extends TestCase
     public function test_audit_log_formatter_formats_dashboard_layout_entries(): void
     {
         $editor = User::factory()->withRole(Role::EDITOR_DASHBOARD)->create();
+        $division = Division::where('slug', 'perencanaan-pengusahaan')->firstOrFail();
 
         $this->actingAs($editor)->putJson(route('dashboard.layout.update'), [
-            'role_slug' => Role::MANAGEMENT,
-            'layout_key' => Role::MANAGEMENT,
+            'role_slug' => Role::STAFF_DIVISI,
+            'division_id' => $division->id,
+            'layout_key' => 'staff_divisi:perencanaan-pengusahaan',
             'widgets' => ['kpi-summary', 'trend-chart'],
         ])->assertOk();
 

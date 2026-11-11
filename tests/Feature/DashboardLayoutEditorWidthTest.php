@@ -327,12 +327,11 @@ class DashboardLayoutEditorWidthTest extends TestCase
         $this->assertSame(['layout-editor-placeholder', 'admin-summary'], $layout->widgets);
     }
 
-    public function test_dashboard_builder_rejects_reordering_that_drops_locked_widget(): void
+    public function test_dashboard_builder_allows_layout_without_layout_editor_placeholder(): void
     {
         $admin = User::factory()->withRole(Role::ADMIN)->create();
 
-        // Reordering attempt that omits layout-editor-placeholder
-        $invalidWidgets = [
+        $validWidgets = [
             ['key' => 'admin-summary', 'cols' => 3],
         ];
 
@@ -340,11 +339,11 @@ class DashboardLayoutEditorWidthTest extends TestCase
             ->putJson(route('dashboard.layout.update'), [
                 'role_slug' => Role::ADMIN,
                 'layout_key' => Role::ADMIN,
-                'widgets' => $invalidWidgets,
+                'widgets' => $validWidgets,
             ]);
 
-        $response->assertStatus(422)
-            ->assertJsonValidationErrors(['widgets']);
+        $response->assertOk();
+        $this->assertSame(['admin-summary'], DashboardLayout::where('role_slug', Role::ADMIN)->first()?->widgets);
     }
 
     public function test_dashboard_builder_resets_customized_layout_to_defaults(): void

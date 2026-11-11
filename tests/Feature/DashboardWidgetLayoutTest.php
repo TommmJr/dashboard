@@ -420,40 +420,41 @@ class DashboardWidgetLayoutTest extends TestCase
 
         // Guest diarahkan ke login.
         $this->put(route('dashboard.layout.update'), [
-            'role_slug' => Role::MANAGEMENT,
-            'widgets' => ['kpi-summary'],
+            'role_slug' => Role::ADMIN,
+            'widgets' => ['admin-summary'],
         ])->assertRedirect(route('login'));
 
         // Management dan Staff Divisi ditolak 403 Forbidden.
         foreach ([$management, $staff] as $unauthorizedUser) {
             $this->actingAs($unauthorizedUser)
                 ->put(route('dashboard.layout.update'), [
-                    'role_slug' => Role::MANAGEMENT,
-                    'widgets' => ['kpi-summary'],
+                    'role_slug' => Role::ADMIN,
+                    'widgets' => ['admin-summary'],
                 ])
                 ->assertForbidden();
 
             $this->actingAs($unauthorizedUser)
                 ->delete(route('dashboard.layout.reset'), [
-                    'role_slug' => Role::MANAGEMENT,
+                    'role_slug' => Role::ADMIN,
                 ])
                 ->assertForbidden();
         }
 
         $this->assertDatabaseCount('dashboard_layouts', 0);
 
-        // Editor Dashboard diizinkan menyimpan layout.
+        // Editor Dashboard diizinkan menyimpan layout staf kanonis.
         $this->actingAs($editor)
             ->put(route('dashboard.layout.update'), [
-                'role_slug' => Role::MANAGEMENT,
+                'role_slug' => Role::STAFF_DIVISI,
+                'division_id' => $division->id,
                 'widgets' => ['nko-donut', 'kpi-summary'],
             ])
             ->assertRedirect(route('dashboard'));
 
         $this->assertDatabaseHas('dashboard_layouts', [
-            'layout_key' => 'management',
-            'role_slug' => 'management',
-            'division_id' => null,
+            'layout_key' => 'staff_divisi:perencanaan-pengusahaan',
+            'role_slug' => 'staff_divisi',
+            'division_id' => $division->id,
             'updated_by' => $editor->id,
         ]);
 
@@ -503,7 +504,8 @@ class DashboardWidgetLayoutTest extends TestCase
         // 2. Tolak widget aset-upt-chart.
         $this->actingAs($editor)
             ->put(route('dashboard.layout.update'), [
-                'role_slug' => Role::MANAGEMENT,
+                'role_slug' => Role::STAFF_DIVISI,
+                'division_id' => $division->id,
                 'widgets' => ['kpi-summary', 'aset-upt-chart'],
             ])
             ->assertSessionHasErrors('widgets.1');
@@ -511,7 +513,8 @@ class DashboardWidgetLayoutTest extends TestCase
         // 3. Tolak widget yang tidak ada di katalog (mis. R8 target-vs-realisasi).
         $this->actingAs($editor)
             ->put(route('dashboard.layout.update'), [
-                'role_slug' => Role::MANAGEMENT,
+                'role_slug' => Role::STAFF_DIVISI,
+                'division_id' => $division->id,
                 'widgets' => ['target-vs-realisasi'],
             ])
             ->assertSessionHasErrors('widgets.0');
@@ -519,7 +522,8 @@ class DashboardWidgetLayoutTest extends TestCase
         // 4. Tolak daftar widget kosong.
         $this->actingAs($editor)
             ->put(route('dashboard.layout.update'), [
-                'role_slug' => Role::MANAGEMENT,
+                'role_slug' => Role::STAFF_DIVISI,
+                'division_id' => $division->id,
                 'widgets' => [],
             ])
             ->assertSessionHasErrors('widgets');
@@ -728,7 +732,8 @@ class DashboardWidgetLayoutTest extends TestCase
 
         $this->actingAs($editor)
             ->putJson(route('dashboard.layout.update'), [
-                'role_slug' => Role::MANAGEMENT,
+                'role_slug' => Role::STAFF_DIVISI,
+                'division_id' => $division->id,
                 'widgets' => ['kpi-summary', 'aset-upt-chart'],
             ])
             ->assertStatus(422)
@@ -736,7 +741,8 @@ class DashboardWidgetLayoutTest extends TestCase
 
         $this->actingAs($editor)
             ->putJson(route('dashboard.layout.update'), [
-                'role_slug' => Role::MANAGEMENT,
+                'role_slug' => Role::STAFF_DIVISI,
+                'division_id' => $division->id,
                 'widgets' => ['widget-tidak-dikenal'],
             ])
             ->assertStatus(422)
@@ -744,7 +750,7 @@ class DashboardWidgetLayoutTest extends TestCase
 
         $this->actingAs($editor)
             ->putJson(route('dashboard.layout.update'), [
-                'role_slug' => Role::MANAGEMENT,
+                'role_slug' => Role::ADMIN,
                 'division_id' => $division->id,
                 'widgets' => ['kpi-summary'],
             ])
@@ -764,8 +770,8 @@ class DashboardWidgetLayoutTest extends TestCase
 
     public function test_penolakan_slug_divisi_tidak_valid_manipulasi_lintas_divisi_dan_spoofing_mass_assignment(): void
     {
-        $divA = Division::factory()->create(['name' => 'Divisi A', 'slug' => 'divisi-a']);
-        $divB = Division::factory()->create(['name' => 'Divisi B', 'slug' => 'divisi-b']);
+        $divA = Division::factory()->create(['name' => 'Perencanaan Pengusahaan', 'slug' => 'perencanaan-pengusahaan']);
+        $divB = Division::factory()->create(['name' => 'Managemen Aset', 'slug' => 'managemen-aset']);
         $divInvalidSlug = Division::factory()->create(['name' => 'Divisi Slug Rusak', 'slug' => 'Slug Tidak Valid!']);
 
         $editor = User::factory()->withRole(Role::EDITOR_DASHBOARD)->create();
@@ -803,19 +809,19 @@ class DashboardWidgetLayoutTest extends TestCase
             ->putJson(route('dashboard.layout.update'), [
                 'role_slug' => Role::STAFF_DIVISI,
                 'division_id' => $divA->id,
-                'division_slug' => 'divisi-b',
+                'division_slug' => 'managemen-aset',
                 'widgets' => ['dataset-status'],
             ])
             ->assertStatus(422)
             ->assertJsonValidationErrors(['division_slug']);
 
-        // 4. Manipulasi division_id vs layout_key (division_id = A tetapi layout_key = staff_divisi:divisi-b) ditolak 422
+        // 4. Manipulasi division_id vs layout_key (division_id = A tetapi layout_key = staff_divisi:managemen-aset) ditolak 422
         // dan tidak mengubah layout Divisi B.
         $this->actingAs($editor)
             ->putJson(route('dashboard.layout.update'), [
                 'role_slug' => Role::STAFF_DIVISI,
                 'division_id' => $divA->id,
-                'layout_key' => 'staff_divisi:divisi-b',
+                'layout_key' => 'staff_divisi:managemen-aset',
                 'widgets' => ['kpi-summary'],
             ])
             ->assertStatus(422)
@@ -823,13 +829,13 @@ class DashboardWidgetLayoutTest extends TestCase
 
         $this->assertSame(
             ['nko-donut'],
-            DashboardLayout::query()->where('layout_key', 'staff_divisi:divisi-b')->value('widgets'),
+            DashboardLayout::query()->where('layout_key', 'staff_divisi:managemen-aset')->value('widgets'),
         );
 
         // 5. Payload widgets berupa associative array (bukan list) ditolak 422.
         $this->actingAs($editor)
             ->putJson(route('dashboard.layout.update'), [
-                'role_slug' => Role::MANAGEMENT,
+                'role_slug' => Role::ADMIN,
                 'widgets' => ['custom_key' => 'kpi-summary'],
             ])
             ->assertStatus(422)
@@ -849,7 +855,7 @@ class DashboardWidgetLayoutTest extends TestCase
             ->get(route('dashboard', [
                 'division_id' => $divB->id,
                 'role_slug' => Role::STAFF_DIVISI,
-                'layout_key' => 'staff_divisi:divisi-b',
+                'layout_key' => 'staff_divisi:managemen-aset',
             ]))
             ->assertOk()
             ->assertSee('Status Dataset')
@@ -866,15 +872,15 @@ class DashboardWidgetLayoutTest extends TestCase
             ])
             ->assertOk();
 
-        $savedA = DashboardLayout::query()->where('layout_key', 'staff_divisi:divisi-a')->firstOrFail();
+        $savedA = DashboardLayout::query()->where('layout_key', 'staff_divisi:perencanaan-pengusahaan')->firstOrFail();
         $this->assertNotSame(99999, $savedA->id);
         $this->assertSame($editor->id, $savedA->updated_by);
     }
 
     public function test_reset_hanya_menghapus_target_yang_diminta_dan_fallback_tahan_terhadap_data_db_inkonsisten(): void
     {
-        $divA = Division::factory()->create(['name' => 'Divisi A', 'slug' => 'divisi-a']);
-        $divB = Division::factory()->create(['name' => 'Divisi B', 'slug' => 'divisi-b']);
+        $divA = Division::factory()->create(['name' => 'Perencanaan Pengusahaan', 'slug' => 'perencanaan-pengusahaan']);
+        $divB = Division::factory()->create(['name' => 'Managemen Aset', 'slug' => 'managemen-aset']);
         $divBad = Division::factory()->create(['name' => 'Divisi Rusak', 'slug' => 'Slug Rusak!']);
 
         $editor = User::factory()->withRole(Role::EDITOR_DASHBOARD)->create();
@@ -886,19 +892,19 @@ class DashboardWidgetLayoutTest extends TestCase
         DashboardLayout::create(['role_slug' => Role::STAFF_DIVISI, 'division_id' => $divA->id, 'widgets' => ['nko-donut']]);
         DashboardLayout::create(['role_slug' => Role::STAFF_DIVISI, 'division_id' => $divB->id, 'widgets' => ['trend-chart']]);
 
-        // 1. Reset pada staff_divisi:divisi-a hanya menghapus record tersebut, tanpa menyentuh
-        // staff_divisi umum, staff_divisi:divisi-b, maupun management.
+        // 1. Reset pada staff_divisi:perencanaan-pengusahaan hanya menghapus record tersebut, tanpa menyentuh
+        // staff_divisi umum, staff_divisi:managemen-aset, maupun management.
         $this->actingAs($editor)
             ->deleteJson(route('dashboard.layout.reset'), [
                 'role_slug' => Role::STAFF_DIVISI,
                 'division_id' => $divA->id,
-                'layout_key' => 'staff_divisi:divisi-a',
+                'layout_key' => 'staff_divisi:perencanaan-pengusahaan',
             ])
             ->assertOk();
 
-        $this->assertDatabaseMissing('dashboard_layouts', ['layout_key' => 'staff_divisi:divisi-a']);
+        $this->assertDatabaseMissing('dashboard_layouts', ['layout_key' => 'staff_divisi:perencanaan-pengusahaan']);
         $this->assertDatabaseHas('dashboard_layouts', ['layout_key' => 'staff_divisi']);
-        $this->assertDatabaseHas('dashboard_layouts', ['layout_key' => 'staff_divisi:divisi-b']);
+        $this->assertDatabaseHas('dashboard_layouts', ['layout_key' => 'staff_divisi:managemen-aset']);
         $this->assertDatabaseHas('dashboard_layouts', ['layout_key' => 'management']);
 
         // 2. Jika baris DB rusak/inkonsisten (mis. layout_key = 'management' tetapi division_id terisi),
@@ -920,67 +926,92 @@ class DashboardWidgetLayoutTest extends TestCase
             ->assertSee('Rata-rata NKO');
     }
 
-    public function test_penyimpanan_layout_editor_dashboard_wajib_menyertakan_layout_editor_placeholder(): void
+    public function test_layout_update_rejects_non_canonical_targets_such_as_management_or_other_divisions(): void
     {
-        $editor = User::factory()->withRole(Role::EDITOR_DASHBOARD)->create();
+        $admin = User::factory()->withRole(Role::ADMIN)->create();
+        $otherDivision = Division::factory()->create(['name' => 'Engineer', 'slug' => 'engineer']);
 
-        // 1. JSON request tanpa 'layout-editor-placeholder' ditolak HTTP 422 dan tidak mengubah DB.
-        $this->actingAs($editor)
+        // 1. Role non-kanonis (mis. management atau editor_dashboard) ditolak 422
+        $this->actingAs($admin)
             ->putJson(route('dashboard.layout.update'), [
-                'role_slug' => Role::EDITOR_DASHBOARD,
-                'layout_key' => Role::EDITOR_DASHBOARD,
+                'role_slug' => Role::MANAGEMENT,
+                'layout_key' => Role::MANAGEMENT,
                 'widgets' => ['kpi-summary', 'trend-chart'],
             ])
             ->assertStatus(422)
-            ->assertJsonValidationErrors([
-                'widgets' => 'Widget Editor Layout (layout-editor-placeholder) wajib dipertahankan pada layout Editor Dashboard agar akses pengelolaan tidak terkunci.',
-            ]);
+            ->assertJsonValidationErrors(['role_slug']);
 
-        $this->assertDatabaseMissing('dashboard_layouts', [
-            'role_slug' => Role::EDITOR_DASHBOARD,
-        ]);
-
-        // 2. Form submission biasa tanpa 'layout-editor-placeholder' ditolak HTTP 302 dengan session errors.
-        $this->actingAs($editor)
-            ->from(route('dashboard'))
-            ->put(route('dashboard.layout.update'), [
-                'role_slug' => Role::EDITOR_DASHBOARD,
-                'layout_key' => Role::EDITOR_DASHBOARD,
-                'widgets' => ['admin-summary'],
+        $this->actingAs($admin)
+            ->deleteJson(route('dashboard.layout.reset'), [
+                'role_slug' => Role::MANAGEMENT,
+                'layout_key' => Role::MANAGEMENT,
             ])
-            ->assertRedirect(route('dashboard'))
-            ->assertSessionHasErrors(['widgets']);
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['role_slug']);
 
-        $this->assertDatabaseMissing('dashboard_layouts', [
-            'role_slug' => Role::EDITOR_DASHBOARD,
-        ]);
+        // 2. Divisi di luar 2 divisi kanonis ditolak 422
+        $this->actingAs($admin)
+            ->putJson(route('dashboard.layout.update'), [
+                'role_slug' => Role::STAFF_DIVISI,
+                'division_id' => $otherDivision->id,
+                'widgets' => ['kpi-summary'],
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['division_id']);
 
-        // 3. Penyimpanan yang tetap menyertakan 'layout-editor-placeholder' berhasil via JSON (HTTP 200).
+        $this->actingAs($admin)
+            ->deleteJson(route('dashboard.layout.reset'), [
+                'role_slug' => Role::STAFF_DIVISI,
+                'division_id' => $otherDivision->id,
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['division_id']);
+    }
+
+    public function test_editor_dashboard_cannot_modify_or_reset_admin_layout(): void
+    {
+        $editor = User::factory()->withRole(Role::EDITOR_DASHBOARD)->create();
+
+        // 1. PUT layout admin oleh editor ditolak 403 Forbidden
         $this->actingAs($editor)
             ->putJson(route('dashboard.layout.update'), [
-                'role_slug' => Role::EDITOR_DASHBOARD,
-                'layout_key' => Role::EDITOR_DASHBOARD,
-                'widgets' => ['layout-editor-placeholder', 'kpi-summary'],
+                'role_slug' => Role::ADMIN,
+                'layout_key' => Role::ADMIN,
+                'widgets' => ['admin-summary'],
             ])
-            ->assertOk()
-            ->assertJsonPath('layout_key', Role::EDITOR_DASHBOARD)
-            ->assertJsonPath('widgets', ['layout-editor-placeholder', 'kpi-summary']);
+            ->assertForbidden();
+
+        // 2. DELETE layout admin oleh editor ditolak 403 Forbidden
+        $this->actingAs($editor)
+            ->deleteJson(route('dashboard.layout.reset'), [
+                'role_slug' => Role::ADMIN,
+                'layout_key' => Role::ADMIN,
+            ])
+            ->assertForbidden();
+    }
+
+    public function test_admin_layout_can_be_saved_without_layout_editor_placeholder_widget(): void
+    {
+        $admin = User::factory()->withRole(Role::ADMIN)->create();
+
+        $response = $this->actingAs($admin)
+            ->putJson(route('dashboard.layout.update'), [
+                'role_slug' => Role::ADMIN,
+                'layout_key' => Role::ADMIN,
+                'widgets' => ['admin-summary', 'recent-audit'],
+            ]);
+
+        $response->assertOk()
+            ->assertJsonPath('layout_key', Role::ADMIN)
+            ->assertJsonPath('widgets', ['admin-summary', 'recent-audit']);
 
         $this->assertDatabaseHas('dashboard_layouts', [
-            'layout_key' => Role::EDITOR_DASHBOARD,
-            'role_slug' => Role::EDITOR_DASHBOARD,
+            'layout_key' => Role::ADMIN,
+            'role_slug' => Role::ADMIN,
         ]);
 
-        // 4. Form submission biasa yang menyertakan 'layout-editor-placeholder' berhasil redirect 302.
-        $this->actingAs($editor)
-            ->from(route('dashboard'))
-            ->put(route('dashboard.layout.update'), [
-                'role_slug' => Role::EDITOR_DASHBOARD,
-                'layout_key' => Role::EDITOR_DASHBOARD,
-                'widgets' => ['layout-editor-placeholder'],
-            ])
-            ->assertRedirect(route('dashboard'))
-            ->assertSessionHasNoErrors();
+        $saved = DashboardLayout::where('layout_key', Role::ADMIN)->firstOrFail();
+        $this->assertSame(['admin-summary', 'recent-audit'], $saved->widgets);
     }
 
     public function test_halaman_admin_merender_state_performance_dashboard_saat_layout_admin_dikustomisasi_widget_kinerja(): void
@@ -1018,29 +1049,26 @@ class DashboardWidgetLayoutTest extends TestCase
             ->assertSee('Grafik Tren Kinerja');
     }
 
-    public function test_penyimpanan_layout_admin_wajib_menyertakan_layout_editor_placeholder_dan_fallback_jalur_baca_aktif(): void
+    public function test_penyimpanan_layout_admin_dapat_menyimpan_dengan_atau_tanpa_placeholder_dan_builder_tetap_aktif(): void
     {
         $admin = User::factory()->withRole(Role::ADMIN)->create();
 
-        // 1. JSON request tanpa 'layout-editor-placeholder' untuk role Admin ditolak HTTP 422.
+        // 1. Penyimpanan tanpa 'layout-editor-placeholder' untuk role Admin berhasil HTTP 200.
         $this->actingAs($admin)
             ->putJson(route('dashboard.layout.update'), [
                 'role_slug' => Role::ADMIN,
                 'layout_key' => Role::ADMIN,
                 'widgets' => ['admin-summary', 'recent-audit'],
             ])
-            ->assertStatus(422)
-            ->assertJsonValidationErrors(['widgets'])
-            ->assertJsonPath(
-                'errors.widgets.0',
-                'Widget Editor Layout (layout-editor-placeholder) wajib dipertahankan pada layout Admin agar akses pengelolaan tidak terkunci.',
-            );
+            ->assertOk()
+            ->assertJsonPath('widgets', ['admin-summary', 'recent-audit']);
 
-        $this->assertDatabaseMissing('dashboard_layouts', [
+        $this->assertDatabaseHas('dashboard_layouts', [
             'layout_key' => Role::ADMIN,
+            'role_slug' => Role::ADMIN,
         ]);
 
-        // 2. Form request tanpa 'layout-editor-placeholder' untuk role Admin ditolak 302 dengan error 'widgets'.
+        // 2. Form request tanpa 'layout-editor-placeholder' berhasil redirect 302.
         $this->actingAs($admin)
             ->from(route('dashboard'))
             ->put(route('dashboard.layout.update'), [
@@ -1049,11 +1077,9 @@ class DashboardWidgetLayoutTest extends TestCase
                 'widgets' => ['admin-summary'],
             ])
             ->assertRedirect(route('dashboard'))
-            ->assertSessionHasErrors([
-                'widgets' => 'Widget Editor Layout (layout-editor-placeholder) wajib dipertahankan pada layout Admin agar akses pengelolaan tidak terkunci.',
-            ]);
+            ->assertSessionHasNoErrors();
 
-        // 3. Penyimpanan yang menyertakan 'layout-editor-placeholder' berhasil.
+        // 3. Penyimpanan yang menyertakan 'layout-editor-placeholder' juga tetap berhasil.
         $this->actingAs($admin)
             ->putJson(route('dashboard.layout.update'), [
                 'role_slug' => Role::ADMIN,
@@ -1063,12 +1089,8 @@ class DashboardWidgetLayoutTest extends TestCase
             ->assertOk()
             ->assertJsonPath('widgets', ['admin-summary', 'layout-editor-placeholder']);
 
-        // 4. Fallback jalur baca: jika baris DB lama tidak memuat 'layout-editor-placeholder',
-        // halaman dashboard tetap merender widget Editor Layout agar tidak self-lockout.
-        DashboardLayout::where('role_slug', Role::ADMIN)->update([
-            'widgets' => ['admin-summary'],
-        ]);
-
+        // 4. Jalur baca builder: halaman builder menyediakan UI layout builder,
+        // sedangkan halaman dashboard utama tidak menampilkan builder placeholder.
         $this->actingAs($admin)
             ->get(route('dashboard.builder'))
             ->assertOk()

@@ -43,6 +43,11 @@ class DashboardController extends Controller
 {
     use ScopesKpiUnits;
 
+    public const CANONICAL_STAFF_DIVISION_SLUGS = [
+        'perencanaan-pengusahaan',
+        'managemen-aset',
+    ];
+
     /**
      * Prefix atribut yang ditampilkan pada grafik Aset per UPT.
      *
@@ -1950,11 +1955,7 @@ class DashboardController extends Controller
             );
 
             $dbWidgets = $dbRecords->has($layoutKey)
-                ? $this->ensureBuilderWidgetForSelfManagedLayout(
-                    $layoutKey,
-                    DashboardLayout::sanitizeWidgets($dbRecords->get($layoutKey)->widgets, $config),
-                    $config,
-                )
+                ? DashboardLayout::sanitizeWidgets($dbRecords->get($layoutKey)->widgets, $config)
                 : [];
 
             $isCustomized = $dbWidgets !== [];
@@ -2119,34 +2120,7 @@ class DashboardController extends Controller
             return [];
         }
 
-        return $this->ensureBuilderWidgetForSelfManagedLayout(
-            $layoutKey,
-            DashboardLayout::sanitizeWidgets($record->widgets, $config),
-            $config,
-        );
-    }
-
-    /**
-     * Fallback jalur baca anti-self-lockout: bila layout DB milik Admin atau
-     * Editor Dashboard tidak memiliki layout-editor-placeholder (mis. baris DB
-     * lama sebelum guard diterapkan), tambahkan secara otomatis agar UI builder
-     * tetap dapat diakses.
-     *
-     * @param  list<string>  $widgets
-     * @param  array<string, mixed>  $config
-     * @return list<string>
-     */
-    private function ensureBuilderWidgetForSelfManagedLayout(string $layoutKey, array $widgets, array $config): array
-    {
-        if ($widgets !== []
-            && in_array($layoutKey, [Role::ADMIN, Role::EDITOR_DASHBOARD], true)
-            && ! in_array('layout-editor-placeholder', $widgets, true)
-            && in_array('layout-editor-placeholder', DashboardLayout::allowedWidgetKeys($config), true)
-        ) {
-            $widgets[] = 'layout-editor-placeholder';
-        }
-
-        return $widgets;
+        return DashboardLayout::sanitizeWidgets($record->widgets, $config);
     }
 
     /**
@@ -2194,14 +2168,14 @@ class DashboardController extends Controller
 
         $roleSlugInput = $request->input('role_slug');
         $divisionRule = $roleSlugInput === Role::STAFF_DIVISI
-            ? ['nullable', 'integer', 'exists:divisions,id']
+            ? ['required', 'integer', 'exists:divisions,id']
             : ['prohibited'];
         $divisionSlugRule = $roleSlugInput === Role::STAFF_DIVISI
             ? ['nullable', 'string']
             : ['prohibited'];
 
         $rules = [
-            'role_slug' => ['required', 'string', Rule::in(DashboardLayout::ALLOWED_ROLES)],
+            'role_slug' => ['required', 'string', Rule::in([Role::ADMIN, Role::STAFF_DIVISI])],
             'division_id' => $divisionRule,
             'division_slug' => $divisionSlugRule,
             'layout_key' => ['nullable', 'string'],
@@ -2227,6 +2201,14 @@ class DashboardController extends Controller
             }
         }
 
+        if ($roleSlug === Role::STAFF_DIVISI) {
+            if ($divisionSlug === null || ! in_array($divisionSlug, self::CANONICAL_STAFF_DIVISION_SLUGS, true)) {
+                throw ValidationException::withMessages([
+                    'division_id' => 'Target divisi yang dipilih bukan merupakan target layout kanonis.',
+                ]);
+            }
+        }
+
         if (array_key_exists('division_slug', $validated) && $validated['division_slug'] !== null && $validated['division_slug'] !== '') {
             $inputDivisionSlug = (string) $validated['division_slug'];
             if (! DashboardLayout::isValidDivisionSlug($inputDivisionSlug) || $divisionSlug === null || $inputDivisionSlug !== $divisionSlug) {
@@ -2242,6 +2224,13 @@ class DashboardController extends Controller
             throw ValidationException::withMessages([
                 'layout_key' => 'Kunci layout tidak sesuai dengan kombinasi role dan divisi.',
             ]);
+        }
+
+        $user = $request->user();
+        if ($user !== null && $user->hasRole(Role::EDITOR_DASHBOARD) && ! $user->hasRole(Role::ADMIN)) {
+            if ($roleSlug === Role::ADMIN || $expectedKey === Role::ADMIN) {
+                abort(403, 'Editor Dashboard tidak memiliki izin untuk mengelola layout Admin.');
+            }
         }
 
         $widgets = [];
@@ -2296,19 +2285,6 @@ class DashboardController extends Controller
 
             if (! empty($widgetErrors)) {
                 throw ValidationException::withMessages($widgetErrors);
-            }
-
-            // Anti-lockout guard: editor_dashboard & admin wajib mempertahankan
-            // widget layout-editor-placeholder agar dapat mengelola layout.
-            if (in_array($roleSlug, [Role::ADMIN, Role::EDITOR_DASHBOARD], true)) {
-                $widgetKeys = DashboardLayout::widgetKeys($rawWidgets);
-                if (! in_array('layout-editor-placeholder', $widgetKeys, true)) {
-                    $roleLabel = $roleSlug === Role::ADMIN ? 'Admin' : 'Editor Dashboard';
-
-                    throw ValidationException::withMessages([
-                        'widgets' => "Widget Editor Layout (layout-editor-placeholder) wajib dipertahankan pada layout {$roleLabel} agar akses pengelolaan tidak terkunci.",
-                    ]);
-                }
             }
 
             $catalog = config('dashboard_layouts.widgets', []);

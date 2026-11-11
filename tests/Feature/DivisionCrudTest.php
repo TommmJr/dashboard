@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\AuditLog;
+use App\Models\DashboardLayout;
 use App\Models\Dataset;
 use App\Models\Division;
 use App\Models\Role;
@@ -135,6 +136,60 @@ class DivisionCrudTest extends TestCase
 
     // --- Update ---
 
+    public function test_updating_division_name_preserves_existing_canonical_slug_and_kpi_import_access(): void
+    {
+        $division = Division::factory()->create([
+            'name' => 'Perencanaan Pengusahaan',
+            'slug' => 'perencanaan-pengusahaan',
+        ]);
+
+        DashboardLayout::create([
+            'role_slug' => Role::STAFF_DIVISI,
+            'division_id' => $division->id,
+            'widgets' => ['kpi-summary', 'dataset-status'],
+            'updated_by' => $this->admin->id,
+        ]);
+
+        $this->actingAs($this->admin)
+            ->patch(route('divisions.update', $division), [
+                'name' => 'Subbidang Perencanaan Pengusahaan',
+                'description' => 'Nama baru tetap menjaga slug kanonis.',
+            ])
+            ->assertRedirect(route('divisions.index'));
+
+        $division->refresh();
+        $this->assertSame('Subbidang Perencanaan Pengusahaan', $division->name);
+        $this->assertSame('perencanaan-pengusahaan', $division->slug, 'Slug divisi wajib immutable saat rename.');
+
+        $this->assertDatabaseHas('dashboard_layouts', [
+            'layout_key' => 'staff_divisi:perencanaan-pengusahaan',
+            'division_id' => $division->id,
+        ]);
+    }
+
+    public function test_updating_division_ignores_attempted_slug_mutation_in_payload(): void
+    {
+        $this->actingAs($this->admin)
+            ->patch(route('divisions.update', $this->division), [
+                'name' => 'Divisi Nama Baru',
+                'slug' => 'slug-baru-yang-dilarang',
+            ])
+            ->assertRedirect(route('divisions.index'));
+
+        $this->assertSame('divisi-awal', $this->division->fresh()->slug);
+    }
+
+    public function test_store_gagal_jika_slug_bertabrakan_dengan_divisi_lain(): void
+    {
+        Division::factory()->create(['name' => 'Divisi Khusus', 'slug' => 'divisi-khusus']);
+
+        $this->actingAs($this->admin)
+            ->post(route('divisions.store'), [
+                'name' => 'Divisi Khusus!',
+            ])
+            ->assertSessionHasErrors('name');
+    }
+
     public function test_update_berhasil(): void
     {
         $this->actingAs($this->admin)
@@ -146,7 +201,7 @@ class DivisionCrudTest extends TestCase
 
         $this->division->refresh();
         $this->assertSame('Divisi Diperbarui', $this->division->name);
-        $this->assertSame('divisi-diperbarui', $this->division->slug);
+        $this->assertSame('divisi-awal', $this->division->slug, 'Slug divisi harus tetap divisi-awal.');
         $this->assertSame('Deskripsi baru.', $this->division->description);
     }
 

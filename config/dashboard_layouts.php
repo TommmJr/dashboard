@@ -95,9 +95,9 @@ return [
      * `staff_divisi:<division.slug>`.
      */
     'layouts' => [
-        'admin' => ['admin-summary', 'recent-audit', 'failed-datasets', 'admin-quick-actions', 'layout-editor-placeholder'],
+        'admin' => ['admin-summary', 'recent-audit', 'failed-datasets', 'admin-quick-actions'],
         'management' => ['kpi-summary', 'trend-chart', 'nko-ranking'],
-        'editor_dashboard' => ['kpi-summary', 'trend-chart', 'nko-ranking', 'layout-editor-placeholder'],
+        'editor_dashboard' => ['kpi-summary', 'trend-chart', 'nko-ranking'],
         // Default staf divisi yang belum punya override: hanya dataset-status.
         'staff_divisi' => ['dataset-status'],
         // Override per-divisi: divisi Perencanaan Pengusahaan mendapat seluruh

@@ -6,6 +6,7 @@ use App\Models\Division;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 /**
@@ -38,9 +39,16 @@ class DivisionController extends Controller
             'description' => 'nullable|string|max:1000',
         ]);
 
+        $slug = Str::slug($validated['name']);
+        if ($slug === '' || Division::where('slug', $slug)->exists()) {
+            throw ValidationException::withMessages([
+                'name' => 'Nama divisi menghasilkan identifier slug yang sudah digunakan atau tidak valid.',
+            ]);
+        }
+
         $division = Division::create([
             'name' => $validated['name'],
-            'slug' => Str::slug($validated['name']),
+            'slug' => $slug,
             'description' => $validated['description'] ?? null,
         ]);
 
@@ -62,7 +70,6 @@ class DivisionController extends Controller
 
         $division->update([
             'name' => $validated['name'],
-            'slug' => Str::slug($validated['name']),
             'description' => $validated['description'] ?? null,
         ]);
 
