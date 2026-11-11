@@ -41,6 +41,13 @@ repomix*
 0*.json
 0*.md
 prompt.md
-/docs
+/docs/*
+!/docs/handover/
+!/docs/handover/**
+!/docs/superpowers/
+/docs/superpowers/*
+!/docs/superpowers/plans/
+/docs/superpowers/plans/*
+!/docs/superpowers/plans/2026-11-10-prehandover-stabilization-roadmap.md
 /figma-plugin
 /graphify-out
