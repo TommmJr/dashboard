@@ -4,8 +4,13 @@
 
 @section('content')
 <div class="mx-auto max-w-7xl px-4 py-8">
-    <a href="{{ route('datasets.index') }}" class="text-sm text-indigo-600 hover:underline">&larr; Kembali ke daftar</a>
-
+<a href="{{ route('datasets.index') }}" 
+   class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-2xs transition-all duration-150 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900">
+    <svg class="h-3.5 w-3.5 stroke-slate-500 transition-transform group-hover:-translate-x-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M19 12H5M12 19l-7-7 7-7"/>
+    </svg>
+    Kembali ke daftar
+</a>
     @if (session('success'))
         <div class="mt-4 rounded-md bg-green-50 p-3 text-sm text-green-700">{{ session('success') }}</div>
     @endif
@@ -92,39 +97,45 @@
                         @endif
                     </div>
                 @endif
-            </div>
-            <div class="flex gap-2">
-                @can('report.export')
-                    <a href="{{ route('datasets.export', $dataset) }}"
-                       class="rounded bg-green-600 px-3 py-2 text-sm font-semibold text-white hover:bg-green-700">
-                        Export Excel
-                    </a>
-                    {{-- Fitur Reports dinonaktifkan sementara (2026-09-15) —
-                         route reports.validation-export di-comment, tombol dihapus. --}}
-                    {{-- @if ($dataset->validation_report)
-                        <a href="{{ route('reports.validation-export', $dataset) }}"
-                           class="rounded bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700">
-                            Export Validasi
-                        </a>
-                    @endif --}}
-                @endcan
-                @can('dataset.update')
-                    @if ($dataset->status !== \App\Enums\DatasetStatus::ARCHIVED)
-                        <form method="POST" action="{{ route('datasets.archive', $dataset) }}"
-                              onsubmit="return confirm('Arsipkan dataset ini? Data keluar dari chart tetapi tetap tersimpan.');">
-                            @csrf @method('PATCH')
-                            <button class="rounded bg-yellow-500 px-3 py-2 text-sm font-semibold text-white hover:bg-yellow-600">Arsipkan</button>
-                        </form>
-                    @endif
-                @endcan
-                @can('dataset.delete')
-                    <form method="POST" action="{{ route('datasets.destroy', $dataset) }}"
-                          onsubmit="return confirm('HAPUS PERMANEN dataset ini beserta seluruh baris datanya?');">
-                        @csrf @method('DELETE')
-                        <button class="rounded bg-red-600 px-3 py-2 text-sm font-semibold text-white hover:bg-red-700">Hapus Permanen</button>
-                    </form>
-                @endcan
-            </div>
+{{-- Ganti blok: <div class="flex gap-2"> ... </div> --}}
+<div class="inline-flex flex-wrap items-center gap-2">
+    
+    @can('dataset.update')
+        @if ($dataset->status !== \App\Enums\DatasetStatus::ARCHIVED)
+            <form method="POST" action="{{ route('datasets.archive', $dataset) }}"
+                  onsubmit="return confirm('Arsipkan dataset ini? Data keluar dari chart tetapi tetap tersimpan.');">
+                @csrf @method('PATCH')
+                <button type="submit" 
+                        class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-2xs transition-all duration-150 hover:border-amber-400 hover:bg-amber-50/50 hover:text-amber-800 active:bg-amber-100/60">
+                    <svg class="h-4 w-4 text-amber-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="21 8 21 21 3 21 3 8"/>
+                        <rect x="1" y="3" width="22" height="5"/>
+                        <line x1="10" y1="12" x2="14" y2="12"/>
+                    </svg>
+                    Arsipkan
+                </button>
+            </form>
+        @endif
+    @endcan
+
+    @can('dataset.delete')
+        <form method="POST" action="{{ route('datasets.destroy', $dataset) }}"
+              onsubmit="return confirm('HAPUS PERMANEN dataset ini beserta seluruh baris datanya?');">
+            @csrf @method('DELETE')
+            <button type="submit" 
+                    class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-rose-600 shadow-2xs transition-all duration-150 hover:border-rose-300 hover:bg-rose-50/60 hover:text-rose-700 active:bg-rose-100/60">
+                <svg class="h-4 w-4 text-rose-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 6h18"/>
+                    <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
+                    <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+                    <line x1="10" y1="11" x2="10" y2="17"/>
+                    <line x1="14" y1="11" x2="14" y2="17"/>
+                </svg>
+                Hapus Permanen
+            </button>
+        </form>
+    @endcan
+</div>
         </div>
     </div>
 

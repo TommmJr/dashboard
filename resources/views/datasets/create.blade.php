@@ -4,39 +4,57 @@
 
 @section('content')
 <div class="mx-auto max-w-2xl px-4 py-8">
-    <a href="{{ route('datasets.index') }}" class="text-sm text-indigo-600 hover:underline">&larr; Kembali ke daftar</a>
+    {{-- Tombol Navigasi Kembali --}}
+    <a href="{{ route('datasets.index') }}" 
+       class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-2xs transition-all duration-150 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900">
+        <svg class="h-3.5 w-3.5 stroke-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M19 12H5M12 19l-7-7 7-7"/>
+        </svg>
+        Kembali ke daftar
+    </a>
 
-    <div class="mt-4 rounded-lg bg-white p-6 shadow">
-        <div class="flex items-center justify-between">
-            <h1 class="text-2xl font-bold text-primary">Upload Dataset Baru</h1>
+    {{-- Pesan Status Flash --}}
+    @if ($errors->any())
+        <div class="mt-4 rounded-lg border border-rose-200/80 border-l-4 border-l-rose-500 bg-rose-50/40 p-3.5 text-sm text-rose-700 shadow-2xs">
+            {{ $errors->first() }}
         </div>
-        <p class="mt-2 text-sm text-gray-600">
-            Gunakan file Excel/CSV dengan kolom <code class="rounded bg-gray-100 px-1">metric_name</code>,
-            <code class="rounded bg-gray-100 px-1">value</code> (numerik),
-            <code class="rounded bg-gray-100 px-1">period</code> (format DD/MM/YYYY atau YYYY-MM-DD).
-        </p>
+    @endif
 
-        @if ($errors->any())
-            <div class="mt-4 rounded-md bg-red-50 p-3 text-sm text-red-700">
-                {{ $errors->first() }}
+    @if (session('success'))
+        <div class="mt-4 rounded-lg border border-emerald-200/80 border-l-4 border-l-emerald-500 bg-emerald-50/40 p-3.5 text-sm text-emerald-800 shadow-2xs">
+            {{ session('success') }}
+        </div>
+    @endif
+
+    @if (session('error'))
+        <div class="mt-4 rounded-lg border border-rose-200/80 border-l-4 border-l-rose-500 bg-rose-50/40 p-3.5 text-sm text-rose-700 shadow-2xs">
+            {{ session('error') }}
+        </div>
+    @endif
+
+    {{-- KARTU 1: UPLOAD DATASET STANDAR --}}
+    <div class="mt-4 rounded-xl border border-slate-200/80 bg-white p-6 sm:p-7 shadow-2xs">
+        <div class="flex items-start justify-between border-b border-slate-100 pb-4">
+            <div>
+                <h1 class="text-lg font-bold tracking-tight text-slate-900">Upload Dataset</h1>
+                <p class="mt-0.5 text-xs text-slate-500">Unggah berkas metrik tabel kinerja divisi.</p>
             </div>
-        @endif
-
-        @if (session('success'))
-            <div class="mt-4 rounded-md bg-green-50 p-3 text-sm text-green-700">{{ session('success') }}</div>
-        @endif
-
-        @if (session('error'))
-            <div class="mt-4 rounded-md bg-red-50 p-3 text-sm text-red-700">{{ session('error') }}</div>
-        @endif
+            <div class="flex items-center gap-1.5">
+                <span class="rounded border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-[10px] font-semibold text-slate-600">.XLSX</span>
+                <span class="rounded border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-[10px] font-semibold text-slate-600">.CSV</span>
+            </div>
+        </div>
 
         <form method="POST" action="{{ route('datasets.store') }}" enctype="multipart/form-data" class="mt-5 flex flex-col gap-4">
             @csrf
+
             @if ($divisions->isNotEmpty())
                 <div>
-                    <label for="division_id" class="block text-sm font-medium text-gray-700">Divisi Pemilik Data</label>
+                    <label for="division_id" class="block text-xs font-semibold uppercase tracking-wider text-slate-500">
+                        Divisi Pemilik Data
+                    </label>
                     <select id="division_id" name="division_id" required
-                            class="mt-1 block w-full rounded-md border-gray-300 text-sm">
+                            class="mt-1.5 block w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 shadow-2xs focus:border-cyan-600 focus:outline-none focus:ring-1 focus:ring-cyan-600">
                         <option value="">-- Pilih divisi --</option>
                         @foreach ($divisions as $division)
                             <option value="{{ $division->id }}" @selected(old('division_id') == $division->id)>
@@ -46,61 +64,94 @@
                     </select>
                 </div>
             @else
-                <p class="text-sm text-gray-600">Dataset akan tertaut ke divisi Anda: <span class="font-semibold">{{ $user->division?->name }}</span></p>
+                <div class="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50/60 px-3.5 py-2.5 text-xs text-slate-600">
+                    <span class="h-2 w-2 rounded-full bg-cyan-600"></span>
+                    <span>Tautan divisi: <strong class="text-slate-800">{{ $user->division?->name ?? 'Pusat' }}</strong></span>
+                </div>
             @endif
-            <x-dropzone name="file" accept=".xlsx,.csv" required />
-            <button type="submit"
-                    class="rounded bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">
-                Upload &amp; Impor
-            </button>
+
+            <div>
+                <x-dropzone name="file" accept=".xlsx,.csv" required />
+            </div>
+
+            <div class="flex justify-end pt-2">
+                <button type="submit"
+                        class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-2xs transition-all duration-150 hover:border-cyan-500 hover:bg-cyan-50/40 hover:text-cyan-800 active:bg-cyan-100/60">
+                    <svg class="h-4 w-4 text-cyan-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="17 8 12 3 7 8"/>
+                        <line x1="12" y1="3" x2="12" y2="15"/>
+                    </svg>
+                    Upload &amp; Impor
+                </button>
+            </div>
         </form>
     </div>
 
+    {{-- KARTU 2: IMPORT LAPORAN KPI OTOMATIS --}}
     @if ($canImportKpi ?? false)
-    <div class="mt-4 rounded-lg bg-white p-6 shadow">
-            <h2 class="text-lg font-bold text-gray-900">Import Laporan KPI dari Mentor (Otomatis)</h2>
-            <p class="mt-2 text-sm text-gray-600">
-                Upload file Excel laporan KPI apa adanya. Semua sheet unit menjadi dimensi pembanding
-                dalam satu dataset milik divisi Perencanaan Pengusahaan. Isi <strong>periode data</strong> karena
-                tulisan periode di dalam file sering tidak akurat.
-            </p>
+    <div class="mt-6 rounded-xl border border-slate-200/80 bg-white p-6 sm:p-7 shadow-2xs">
+        <div class="flex items-start justify-between border-b border-slate-100 pb-4">
+            <div>
+                <h2 class="text-lg font-bold tracking-tight text-slate-900">Import Laporan</h2>
+                <p class="mt-0.5 text-xs text-slate-500">Ekstraksi otomatis seluruh sheet unit laporan .</p>
+            </div>
+            <span class="rounded border border-cyan-200 bg-cyan-50 px-2.5 py-0.5 text-[10px] font-semibold text-cyan-800">
+                Otomatis
+            </span>
+        </div>
 
-            @if (session('kpi_failed') && count(session('kpi_failed')))
-                <div class="mt-3 rounded-md bg-red-50 p-3 text-sm text-red-700">
-                    <p class="font-semibold">Unit gagal diproses:</p>
-                    <ul class="mt-1 list-disc pl-5">
-                        @foreach (session('kpi_failed') as $reason)
-                            <li>{{ $reason }}</li>
-                        @endforeach
-                    </ul>
-                </div>
-            @endif
+        @if (session('kpi_failed') && count(session('kpi_failed')))
+            <div class="mt-4 rounded-lg border border-rose-200/80 bg-rose-50/40 p-3.5 text-xs text-rose-800">
+                <p class="font-semibold text-rose-900">Unit tidak dapat diproses:</p>
+                <ul class="mt-1 list-disc pl-4 space-y-0.5 text-rose-700">
+                    @foreach (session('kpi_failed') as $reason)
+                        <li>{{ $reason }}</li>
+                    @endforeach
+                </ul>
+            </div>
+        @endif
 
-            <form method="POST" action="{{ route('datasets.kpi-import') }}" enctype="multipart/form-data" class="mt-4 flex flex-col gap-4">
-                @csrf
-                <div>
-                    <label for="period" class="block text-sm font-medium text-gray-700">Periode data</label>
-                    <input type="date" id="period" name="period" required value="{{ old('period') }}"
-                           class="mt-1 block rounded-md border-gray-300 text-sm">
-                    @if ($kpiPeriods->isNotEmpty())
-                        <div class="mt-2 rounded-md bg-amber-50 p-3 text-sm text-amber-800">
-                            Periode yang sudah pernah diimpor: <span class="font-semibold">{{ $kpiPeriods->implode(', ') }}</span>.
-                            Memilih periode yang sudah ada berarti merevisi data tersebut: dataset lamanya diarsipkan
-                            otomatis (tetap tersimpan, tidak dihapus).
-                        </div>
-                    @endif
-                </div>
-                <x-dropzone name="file" accept=".xlsx" required />
-                <label class="flex items-start gap-2 text-sm text-gray-700">
-                    <input type="checkbox" name="confirm_archive" value="1" @checked(old('confirm_archive'))
-                           class="mt-1 rounded border-gray-300">
-                    <span>Saya sudah memastikan periodenya benar, dan memahami bahwa import ini merevisi periode tersebut.</span>
+        <form method="POST" action="{{ route('datasets.kpi-import') }}" enctype="multipart/form-data" class="mt-5 flex flex-col gap-4">
+            @csrf
+
+            <div>
+                <label for="period" class="block text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    Periode Data
                 </label>
+                <input type="date" id="period" name="period" required value="{{ old('period') }}"
+                       class="mt-1.5 block w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 shadow-2xs focus:border-cyan-600 focus:outline-none focus:ring-1 focus:ring-cyan-600 sm:w-60">
+
+                @if ($kpiPeriods->isNotEmpty())
+                    <div class="mt-2.5 flex items-start gap-2 rounded-lg border border-amber-200/70 bg-amber-50/40 p-2.5 text-xs text-amber-900">
+                        <svg class="h-4 w-4 shrink-0 text-amber-600 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                        </svg>
+                        <span>Data terdaftar: <strong>{{ $kpiPeriods->implode(', ') }}</strong>. Mengunggah periode yang sama akan merevisi dataset sebelumnya.</span>
+                    </div>
+                @endif
+            </div>
+
+            <div>
+                <x-dropzone name="file" accept=".xlsx" required />
+            </div>
+
+            <label class="flex items-center gap-2.5 text-xs text-slate-600">
+                <input type="checkbox" name="confirm_archive" value="1" @checked(old('confirm_archive'))
+                       class="h-4 w-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500">
+                <span>Konfirmasi revisi periode jika dataset sudah terdaftar sebelumnya.</span>
+            </label>
+
+            <div class="flex justify-end pt-2">
                 <button type="submit"
-                        class="self-start rounded bg-gray-700 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-800">
+                        class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-2xs transition-all duration-150 hover:border-slate-400 hover:bg-slate-50 hover:text-slate-900 active:bg-slate-100">
+                    <svg class="h-4 w-4 text-slate-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                    </svg>
                     Import Otomatis
                 </button>
-            </form>
+            </div>
+        </form>
     </div>
     @endif
 </div>

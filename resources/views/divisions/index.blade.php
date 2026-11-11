@@ -7,74 +7,124 @@
 @section('title', 'Divisi')
 
 @section('content')
-<div class="mx-auto max-w-7xl">
-    <div class="flex items-center justify-between">
+<div class="mx-auto max-w-7xl px-4 py-8">
+    {{-- Header Halaman & Tombol Tambah --}}
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-            <h1 class="text-2xl font-bold text-primary">Divisi</h1>
-            <p class="mt-1 text-sm text-gray-600">Daftar divisi yang terdaftar dalam sistem.</p>
+            <h1 class="text-2xl font-bold tracking-tight text-slate-900">Divisi</h1>
+            <p class="mt-1 text-sm text-slate-500">Daftar divisi yang terdaftar dalam sistem beserta statistik keterkaitannya.</p>
         </div>
         @can('user.create')
             <a href="{{ route('divisions.create') }}"
-               class="rounded bg-indigo-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-indigo-700">
-                + Tambah Divisi
+               class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-2xs transition-all duration-150 hover:border-cyan-500 hover:bg-cyan-50/40 hover:text-cyan-700 active:bg-cyan-100/60">
+                <svg class="h-4 w-4 text-cyan-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 5v14M5 12h14"/>
+                </svg>
+                Tambah Divisi
             </a>
         @endcan
     </div>
 
+    {{-- Notifikasi Pesan Flash --}}
     @if (session('success'))
-        <div class="mt-4 rounded-md bg-green-50 p-3 text-sm text-green-700">{{ session('success') }}</div>
+        <div class="mt-4 rounded-lg border border-emerald-200/80 border-l-4 border-l-emerald-500 bg-emerald-50/40 p-3.5 text-sm text-emerald-800 shadow-2xs">
+            {{ session('success') }}
+        </div>
     @endif
     @if (session('error'))
-        <div class="mt-4 rounded-md bg-red-50 p-3 text-sm text-red-700">{{ session('error') }}</div>
+        <div class="mt-4 rounded-lg border border-rose-200/80 border-l-4 border-l-rose-500 bg-rose-50/40 p-3.5 text-sm text-rose-800 shadow-2xs">
+            {{ session('error') }}
+        </div>
     @endif
 
-    <div class="mt-6 overflow-hidden rounded-lg bg-white shadow">
-        <table class="min-w-full divide-y divide-gray-200 text-sm">
-            <thead class="bg-gray-50">
-                <tr>
-                    <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Nama</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Slug</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Deskripsi</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Users</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Datasets</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Aksi</th>
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-gray-200">
-                @forelse ($divisions as $division)
+    {{-- Card Tabel Divisi --}}
+    <div class="mt-6 overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-2xs">
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-slate-200 text-sm">
+                <thead class="bg-slate-50/80">
                     <tr>
-                        <td class="whitespace-nowrap px-6 py-4 font-medium text-gray-900">{{ $division->name }}</td>
-                        <td class="whitespace-nowrap px-6 py-4 text-gray-500 font-mono text-xs">{{ $division->slug }}</td>
-                        <td class="px-6 py-4 text-gray-600 max-w-xs truncate">{{ $division->description ?? '-' }}</td>
-                        <td class="whitespace-nowrap px-6 py-4 text-gray-600">{{ $division->users_count }}</td>
-                        <td class="whitespace-nowrap px-6 py-4 text-gray-600">{{ $division->datasets_count }}</td>
-                        <td class="whitespace-nowrap px-6 py-4">
-                            <div class="flex gap-2">
-                                @can('user.update')
-                                    <a href="{{ route('divisions.edit', $division) }}"
-                                       class="rounded bg-yellow-500 px-2 py-1 text-xs font-semibold text-white hover:bg-yellow-600">
-                                        Edit
-                                    </a>
-                                @endcan
-                                @can('user.delete')
-                                    <form method="POST" action="{{ route('divisions.destroy', $division) }}"
-                                          onsubmit="return confirm('Hapus divisi \"{{ addslashes($division->name) }}\"?');">
-                                        @csrf @method('DELETE')
-                                        <button class="rounded bg-red-600 px-2 py-1 text-xs font-semibold text-white hover:bg-red-700">
-                                            Hapus
-                                        </button>
-                                    </form>
-                                @endcan
-                            </div>
-                        </td>
+                        <th scope="col" class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Nama</th>
+                        <th scope="col" class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Slug</th>
+                        <th scope="col" class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Deskripsi</th>
+                        <th scope="col" class="px-6 py-3.5 text-center text-xs font-semibold uppercase tracking-wider text-slate-500">Users</th>
+                        <th scope="col" class="px-6 py-3.5 text-center text-xs font-semibold uppercase tracking-wider text-slate-500">Datasets</th>
+                        <th scope="col" class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Aksi</th>
                     </tr>
-                @empty
-                    <tr>
-                        <td colspan="6" class="px-6 py-4 text-center text-sm text-gray-500">Belum ada divisi terdaftar.</td>
-                    </tr>
-                @endforelse
-            </tbody>
-        </table>
+                </thead>
+                <tbody class="divide-y divide-slate-100 bg-white">
+                    @forelse ($divisions as $division)
+                        <tr class="transition-colors hover:bg-slate-50/60">
+                            {{-- Nama Divisi --}}
+                            <td class="whitespace-nowrap px-6 py-4 font-medium text-slate-900">
+                                {{ $division->name }}
+                            </td>
+
+                            {{-- Slug Divisi --}}
+                            <td class="whitespace-nowrap px-6 py-4">
+                                <span class="rounded border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-xs text-slate-600">
+                                    {{ $division->slug }}
+                                </span>
+                            </td>
+
+                            {{-- Deskripsi --}}
+                            <td class="max-w-xs truncate px-6 py-4 text-slate-500">
+                                {{ $division->description ?? '-' }}
+                            </td>
+
+                            {{-- Statistik Users --}}
+                            <td class="whitespace-nowrap px-6 py-4 text-center font-mono text-xs text-slate-700">
+                                {{ $division->users_count }}
+                            </td>
+
+                            {{-- Statistik Datasets --}}
+                            <td class="whitespace-nowrap px-6 py-4 text-center font-mono text-xs text-slate-700">
+                                {{ $division->datasets_count }}
+                            </td>
+
+                            {{-- Tombol Aksi --}}
+                            <td class="whitespace-nowrap px-6 py-4">
+                                <div class="inline-flex items-center gap-1.5">
+                                    @can('user.update')
+                                        <a href="{{ route('divisions.edit', $division) }}"
+                                           class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 shadow-2xs transition-all duration-150 hover:border-amber-300 hover:bg-amber-50/40 hover:text-amber-800 active:bg-amber-100/50">
+                                            <svg class="h-3.5 w-3.5 text-amber-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                                            </svg>
+                                            Edit
+                                        </a>
+                                    @endcan
+
+                                    @can('user.delete')
+                                        <form method="POST" action="{{ route('divisions.destroy', $division) }}"
+                                              onsubmit="return confirm('Hapus divisi &quot;{{ addslashes($division->name) }}&quot;?');">
+                                            @csrf @method('DELETE')
+                                            <button type="submit"
+                                                    class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-rose-600 shadow-2xs transition-all duration-150 hover:border-rose-300 hover:bg-rose-50/60 hover:text-rose-700 active:bg-rose-100/60">
+                                                <svg class="h-3.5 w-3.5 text-rose-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                                    <path d="M3 6h18"/>
+                                                    <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
+                                                    <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+                                                    <line x1="10" y1="11" x2="10" y2="17"/>
+                                                    <line x1="14" y1="11" x2="14" y2="17"/>
+                                                </svg>
+                                                Hapus
+                                            </button>
+                                        </form>
+                                    @endcan
+                                </div>
+                            </td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="6" class="px-6 py-10 text-center text-sm text-slate-500">
+                                Belum ada divisi terdaftar.
+                            </td>
+                        </tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 @endsection
