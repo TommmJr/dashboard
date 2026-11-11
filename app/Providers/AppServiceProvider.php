@@ -86,18 +86,41 @@ class AppServiceProvider extends ServiceProvider
         Event::listen(
             Failed::class,
             function (Failed $event) {
-                $credentials = collect($event->credentials ?? [])
-                    ->except(['password', 'password_confirmation', 'remember_token', 'token', 'secret'])
-                    ->all();
+                $rawCredentials = is_array($event->credentials) ? $event->credentials : [];
 
-                $identity = (string) ($credentials['email'] ?? $credentials['username'] ?? '');
+                $sanitizedCredentials = [];
+                $identity = '';
+
+                foreach ($rawCredentials as $key => $value) {
+                    $lowerKey = strtolower((string) $key);
+
+                    if (in_array($lowerKey, ['email', 'username', 'login', 'identity', 'user'], true)) {
+                        if ($identity === '' && is_scalar($value)) {
+                            $identity = (string) $value;
+                        }
+                    }
+
+                    // Exclude any key that looks like a password, secret, token, key, or pin
+                    if (preg_match('/(pass|secret|token|key|pin|cred)/i', $lowerKey) === 1) {
+                        continue;
+                    }
+
+                    if (is_scalar($value) || is_null($value)) {
+                        $sanitizedCredentials[$key] = $value;
+                    }
+                }
+
+                if ($identity === '' && isset($sanitizedCredentials['email']) && is_scalar($sanitizedCredentials['email'])) {
+                    $identity = (string) $sanitizedCredentials['email'];
+                }
+
                 $request = request();
 
                 $newValues = array_merge([
                     'email' => $identity,
                     'ip' => (string) ($request?->ip() ?? '127.0.0.1'),
                     'user_agent' => mb_substr((string) ($request?->userAgent() ?? ''), 0, 255),
-                ], $credentials);
+                ], $sanitizedCredentials);
 
                 AuditLog::record(
                     AuditLog::ACTION_LOGIN_FAILED,

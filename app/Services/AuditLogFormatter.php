@@ -172,6 +172,36 @@ class AuditLogFormatter
     }
 
     /**
+     * Label nama pengguna yang dapat dibaca di UI tabel dan widget.
+     * Untuk login gagal tanpa user terdaftar, tampilkan identitas email/username percobaan.
+     */
+    public static function userName(AuditLog $log): string
+    {
+        $user = $log->relationLoaded('user')
+            ? $log->getRelation('user')
+            : ($log->user_id !== null ? $log->user : null);
+
+        if ($user?->name) {
+            return $user->name;
+        }
+
+        if ($log->action === AuditLog::ACTION_LOGIN_FAILED) {
+            $identity = $log->new_values['email'] ?? $log->new_values['username'] ?? null;
+            if (is_string($identity) && $identity !== '') {
+                return $identity;
+            }
+
+            return 'Tamu / Anonim';
+        }
+
+        if ($log->user_id !== null) {
+            return 'Pengguna telah dihapus';
+        }
+
+        return '-';
+    }
+
+    /**
      * Ubah satu nilai mentah menjadi teks yang enak dibaca.
      */
     public static function humanize(string $key, mixed $value): string

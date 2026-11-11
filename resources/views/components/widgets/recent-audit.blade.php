@@ -14,7 +14,7 @@
     <div class="mt-5 divide-y divide-slate-200">
         @forelse ($audits as $log)
             @php
-                $name = $log->user?->name ?? 'Pengguna telah dihapus';
+                $name = App\Services\AuditLogFormatter::userName($log);
                 $initials = mb_strtoupper(mb_substr(trim($name), 0, 1));
             @endphp
             <div class="flex items-start gap-3 py-4 first:pt-0 last:pb-0">

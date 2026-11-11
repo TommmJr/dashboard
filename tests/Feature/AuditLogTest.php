@@ -9,6 +9,7 @@ use App\Models\Role;
 use App\Models\User;
 use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\UnitDivisionSeeder;
+use Illuminate\Auth\Events\Failed;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use LogicException;
@@ -204,6 +205,61 @@ class AuditLogTest extends TestCase
             ->assertOk()
             ->assertSee('Gagal Masuk')
             ->assertSee('ghost.user@pln.co.id');
+    }
+
+    public function test_recent_audit_widget_displays_attempted_email_for_failed_login(): void
+    {
+        $admin = User::factory()->withRole(Role::ADMIN)->create();
+
+        // Create a failed login entry with no user
+        event(new Failed('web', null, [
+            'email' => 'unknown.intruder@pln.co.id',
+            'password' => 'secret',
+        ]));
+
+        $response = $this->actingAs($admin)->get(route('dashboard'));
+
+        $response->assertOk();
+        $response->assertSee('unknown.intruder@pln.co.id');
+        $response->assertDontSee('Pengguna telah dihapus');
+    }
+
+    public function test_failed_login_for_nonexistent_user_does_not_attribute_to_ambient_authenticated_user(): void
+    {
+        $admin = User::factory()->withRole(Role::ADMIN)->create();
+
+        // Simulate an ambient session where an admin is logged in
+        $this->actingAs($admin);
+
+        event(new Failed('web', null, [
+            'email' => 'attacker_or_other@pln.co.id',
+            'password' => 'wrong-password',
+        ]));
+
+        $log = AuditLog::where('action', AuditLog::ACTION_LOGIN_FAILED)->latest('id')->firstOrFail();
+
+        $this->assertNull($log->user_id, 'Failed login for non-existent user must not be attributed to logged-in admin');
+        $this->assertSame('attacker_or_other@pln.co.id', $log->new_values['email']);
+    }
+
+    public function test_failed_login_sanitizes_case_insensitive_passwords_and_tokens(): void
+    {
+        event(new Failed('web', null, [
+            'email' => 'leak.test@pln.co.id',
+            'Password' => 'leak-uppercase-password',
+            'passwd' => 'leak-passwd',
+            'pin' => 'secret-pin',
+            'api_token' => 'secret-api-token',
+        ]));
+
+        $log = AuditLog::where('action', AuditLog::ACTION_LOGIN_FAILED)->latest('id')->firstOrFail();
+
+        $this->assertArrayNotHasKey('Password', $log->new_values);
+        $this->assertArrayNotHasKey('passwd', $log->new_values);
+        $this->assertArrayNotHasKey('pin', $log->new_values);
+        $this->assertArrayNotHasKey('api_token', $log->new_values);
+        $this->assertStringNotContainsString('leak-uppercase-password', json_encode($log->new_values));
+        $this->assertStringNotContainsString('secret-pin', json_encode($log->new_values));
     }
 
     public function test_entri_audit_tidak_bisa_diubah_lewat_instance(): void

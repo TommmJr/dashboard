@@ -100,16 +100,17 @@ class AuditLog extends Model
         ?int $userId = null,
     ): static {
         $request = app('request');
+        $resolvedUserId = func_num_args() >= 5 ? $userId : auth()->id();
 
         return static::create([
-            'user_id' => $userId ?? auth()->id(),
+            'user_id' => $resolvedUserId,
             'action' => $action,
             'auditable_type' => $auditable?->getMorphClass(),
             'auditable_id' => $auditable?->getKey(),
             'old_values' => $oldValues,
             'new_values' => $newValues,
-            'ip' => $request->ip(),
-            'user_agent' => mb_substr((string) $request->userAgent(), 0, 255),
+            'ip' => $request?->ip(),
+            'user_agent' => mb_substr((string) ($request?->userAgent() ?? ''), 0, 255),
         ]);
     }
 

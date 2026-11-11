@@ -4,6 +4,7 @@ namespace Tests\Unit;
 
 use App\Models\AuditLog;
 use App\Models\Dataset;
+use App\Models\User;
 use App\Services\AuditLogFormatter;
 use PHPUnit\Framework\TestCase;
 
@@ -17,15 +18,21 @@ use PHPUnit\Framework\TestCase;
  */
 class AuditLogFormatterTest extends TestCase
 {
-    private function log(array $attributes): AuditLog
+    private function log(array $attributes = []): AuditLog
     {
-        return new AuditLog([
+        $log = new AuditLog([
             'action' => $attributes['action'] ?? AuditLog::ACTION_UPDATE,
             'auditable_type' => $attributes['auditable_type'] ?? null,
             'auditable_id' => $attributes['auditable_id'] ?? null,
             'old_values' => $attributes['old_values'] ?? null,
             'new_values' => $attributes['new_values'] ?? null,
         ]);
+
+        if (array_key_exists('user_id', $attributes)) {
+            $log->user_id = $attributes['user_id'];
+        }
+
+        return $log;
     }
 
     public function test_label_field_dikenal_berbahasa_indonesia_dan_tak_dikenal_di_headline(): void
@@ -165,5 +172,40 @@ class AuditLogFormatterTest extends TestCase
         $this->assertSame('10.20.30.40', $rows[1]['new']);
         $this->assertSame('User Agent', $rows[2]['label']);
         $this->assertSame('Mozilla/5.0', $rows[2]['new']);
+    }
+
+    public function test_user_name_returns_expected_identity_per_scenario(): void
+    {
+        $logWithUser = $this->log();
+        $user = new User(['name' => 'Budi Santoso']);
+        $logWithUser->setRelation('user', $user);
+        $this->assertSame('Budi Santoso', AuditLogFormatter::userName($logWithUser));
+
+        $failedLogWithEmail = $this->log([
+            'action' => AuditLog::ACTION_LOGIN_FAILED,
+            'user_id' => null,
+            'new_values' => ['email' => 'intruder@pln.co.id'],
+        ]);
+        $this->assertSame('intruder@pln.co.id', AuditLogFormatter::userName($failedLogWithEmail));
+
+        $failedLogEmpty = $this->log([
+            'action' => AuditLog::ACTION_LOGIN_FAILED,
+            'user_id' => null,
+            'new_values' => [],
+        ]);
+        $this->assertSame('Tamu / Anonim', AuditLogFormatter::userName($failedLogEmpty));
+
+        $deletedUserLog = $this->log([
+            'action' => AuditLog::ACTION_UPDATE,
+            'user_id' => 999,
+        ]);
+        $deletedUserLog->setRelation('user', null);
+        $this->assertSame('Pengguna telah dihapus', AuditLogFormatter::userName($deletedUserLog));
+
+        $systemLog = $this->log([
+            'action' => AuditLog::ACTION_IMPORT,
+            'user_id' => null,
+        ]);
+        $this->assertSame('-', AuditLogFormatter::userName($systemLog));
     }
 }

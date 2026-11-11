@@ -68,7 +68,7 @@
                 @forelse ($logs as $log)
                     <tr>
                         <td class="px-4 py-2 whitespace-nowrap">{{ $log->created_at->format('d M Y H:i:s') }}</td>
-                        <td class="px-4 py-2">{{ $log->user?->name ?? '-' }}</td>
+                        <td class="px-4 py-2">{{ App\Services\AuditLogFormatter::userName($log) }}</td>
                         <td class="px-4 py-2">
                             <span class="rounded-full bg-surface px-2 py-0.5 text-xs font-semibold text-primary" title="{{ $log->action }}">
                                 {{ App\Services\AuditLogFormatter::actionLabel($log->action) }}
