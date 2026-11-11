@@ -190,6 +190,15 @@ class DivisionCrudTest extends TestCase
             ->assertSessionHasErrors('name');
     }
 
+    public function test_store_gagal_jika_nama_divisi_menghasilkan_slug_kosong(): void
+    {
+        $this->actingAs($this->admin)
+            ->post(route('divisions.store'), [
+                'name' => '???',
+            ])
+            ->assertSessionHasErrors('name');
+    }
+
     public function test_update_berhasil(): void
     {
         $this->actingAs($this->admin)

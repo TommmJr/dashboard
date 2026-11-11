@@ -988,6 +988,21 @@ class DashboardWidgetLayoutTest extends TestCase
                 'layout_key' => Role::ADMIN,
             ])
             ->assertForbidden();
+
+        // 3. PUT target admin via parameter tunggal juga ditolak 403 Forbidden
+        $this->actingAs($editor)
+            ->putJson(route('dashboard.layout.update'), [
+                'target' => Role::ADMIN,
+                'widgets' => ['admin-summary'],
+            ])
+            ->assertForbidden();
+
+        // 4. DELETE target admin via parameter tunggal juga ditolak 403 Forbidden
+        $this->actingAs($editor)
+            ->deleteJson(route('dashboard.layout.reset'), [
+                'target' => Role::ADMIN,
+            ])
+            ->assertForbidden();
     }
 
     public function test_admin_layout_can_be_saved_without_layout_editor_placeholder_widget(): void

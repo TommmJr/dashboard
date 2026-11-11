@@ -199,6 +199,7 @@ class DashboardLayoutEditorWidthTest extends TestCase
 
         $this->assertMatchesRegularExpression('/preview-card-item.*canvas-card-toolbar.*setWidgetCols\(w, n\).*removeWidget\(index\)/s', $html);
         $this->assertStringContainsString('isLockedWidget(w.key)', $html);
+        $this->assertStringNotContainsString("widgetKey === 'layout-editor-placeholder'", $html);
         $this->assertSame(1, substr_count($html, '@click="removeWidget(index)"'));
         $this->assertStringNotContainsString('x-model.number="w.cols"', $html);
     }

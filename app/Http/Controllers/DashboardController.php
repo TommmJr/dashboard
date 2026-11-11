@@ -2227,7 +2227,7 @@ class DashboardController extends Controller
         }
 
         $user = $request->user();
-        if ($user !== null && $user->hasRole(Role::EDITOR_DASHBOARD) && ! $user->hasRole(Role::ADMIN)) {
+        if ($user !== null && ! $user->hasRole(Role::ADMIN)) {
             if ($roleSlug === Role::ADMIN || $expectedKey === Role::ADMIN) {
                 abort(403, 'Editor Dashboard tidak memiliki izin untuk mengelola layout Admin.');
             }
