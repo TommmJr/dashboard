@@ -1028,7 +1028,7 @@ class KpiReportConverter
             return null;
         }
 
-        $label = trim(preg_replace('/\s+/', ' ', $value));
+        $label = trim(preg_replace('/[\s\p{Z}]+/u', ' ', $value));
 
         return $label !== '' && preg_match('/\p{L}/u', $label) === 1 ? $label : null;
     }

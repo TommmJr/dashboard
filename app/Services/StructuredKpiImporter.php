@@ -102,12 +102,23 @@ class StructuredKpiImporter
     }
 
     /**
-     * Kunci lookup indikator ternormalisasi (case-insensitive & whitespace trimmed)
+     * Normalisasi nama indikator untuk toleransi unicode whitespace (\p{Z}, non-breaking space)
+     * dan perataan multiple internal spaces.
+     */
+    private function normalizeIndicatorName(string $name): string
+    {
+        $normalized = preg_replace('/[\s\p{Z}]+/u', ' ', $name) ?? $name;
+
+        return trim($normalized);
+    }
+
+    /**
+     * Kunci lookup indikator ternormalisasi (case-insensitive & whitespace trimmed/collapsed)
      * agar selaras dengan collation utf8mb4_unicode_ci pada skema database.
      */
     private function indicatorLookupKey(int|string $orgUnitId, string $name): string
     {
-        return $orgUnitId."\0".mb_strtolower(trim($name), 'UTF-8');
+        return $orgUnitId."\0".mb_strtolower($this->normalizeIndicatorName($name), 'UTF-8');
     }
 
     /**
@@ -204,7 +215,7 @@ class StructuredKpiImporter
                 if ($indicator === null) {
                     $indicator = Indicator::create([
                         'org_unit_id' => $orgUnitId,
-                        'name' => trim($identity['name']),
+                        'name' => $this->normalizeIndicatorName($identity['name']),
                         ...$indicatorAttributes,
                     ]);
 

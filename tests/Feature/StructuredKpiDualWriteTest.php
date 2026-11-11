@@ -616,6 +616,39 @@ class StructuredKpiDualWriteTest extends TestCase
         $this->assertNotNull($observation);
     }
 
+    public function test_importer_reuses_existing_indicator_with_unicode_whitespace_and_internal_spacing_differences(): void
+    {
+        $tjbt = OrgUnit::firstOrCreate(['name' => 'TJBT']);
+        $preExisting = Indicator::create([
+            'org_unit_id' => $tjbt->id,
+            'name' => "\xc2\xa0a.   faktor   ketersediaan   trafo\xc2\xa0",
+            'satuan' => 'Old Satuan',
+        ]);
+
+        $dataset = $this->readyDataset();
+        $importer = app(StructuredKpiImporter::class);
+        $path = $this->makeKpiReport()->getRealPath();
+
+        $result = $importer->import($path, $dataset, self::PERIOD);
+
+        // Pre-existing indicator harus di-reuse dan tidak membuat row leaf baru di database
+        $matching = Indicator::where('org_unit_id', $tjbt->id)
+            ->where('is_group', false)
+            ->where(function ($q) {
+                $q->where('name', 'like', '%FAKTOR KETERSEDIAAN TRAFO%')
+                    ->orWhere('name', 'like', '%faktor%ketersediaan%trafo%');
+            })
+            ->get();
+
+        $this->assertCount(1, $matching);
+        $this->assertSame($preExisting->id, $matching->first()->id);
+
+        $observation = PerformanceObservation::where('dataset_id', $dataset->id)
+            ->where('indicator_id', $preExisting->id)
+            ->first();
+        $this->assertNotNull($observation);
+    }
+
     // ------------------------------------------------------------------
     // Integritas kegagalan: structured failure menggagalkan dataset & membersihkan legacy
     // ------------------------------------------------------------------
