@@ -74,6 +74,7 @@ if (typeof window.targetRealisasiWidget !== 'function') {
         return {
             searchQuery: '',
             activeRag: 'all',
+            viewMode: 'split',
             items: initialItems || [],
             matches(haystack, tier) {
                 return (this.activeRag === 'all' || this.activeRag === tier) &&
@@ -91,8 +92,9 @@ if (typeof window.targetRealisasiWidget !== 'function') {
 </script>
 
 <div
-    class="h-full rounded-xl bg-white border border-slate-200/80 shadow-xs p-3 transition-all duration-200 ease-out hover:shadow-md flex flex-col justify-between"
+    class="h-full rounded-xl bg-white border border-slate-200/80 shadow-xs p-2.5 transition-all duration-200 ease-out hover:shadow-md flex flex-col justify-start"
     x-data="targetRealisasiWidget(JSON.parse(document.getElementById('targetRealisasiItems_{{ $instanceId }}').textContent))"
+    @kpi-view-changed.window="viewMode = $event.detail"
 >
     <div class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <h3 class="text-base font-bold text-primary">{{ $widget['label'] ?? 'Target dan Realisasi per Indikator' }}</h3>
@@ -131,8 +133,8 @@ if (typeof window.targetRealisasiWidget !== 'function') {
         </div>
 
         {{-- Toolbar filter & pencarian Alpine.js instan --}}
-        <div id="target-realisasi-toolbar" class="mt-2 flex flex-col gap-2 rounded-lg border border-slate-200/80 bg-slate-50/70 p-2 sm:flex-row sm:items-center sm:justify-between">
-            <div class="relative flex-1 max-w-xs">
+        <div id="target-realisasi-toolbar" class="mt-1.5 flex flex-col gap-1.5 rounded-lg border border-slate-200/80 bg-slate-50/70 p-1.5">
+            <div class="w-full">
                 <input
                     type="search"
                     x-model="searchQuery"
@@ -141,13 +143,13 @@ if (typeof window.targetRealisasiWidget !== 'function') {
                     class="w-full rounded-md border border-slate-300 bg-white py-1 pl-2.5 pr-2.5 text-xs text-slate-800 placeholder:text-slate-400 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
                 />
             </div>
-            <div class="flex flex-wrap items-center gap-1.5 text-[11px]">
+            <div class="flex flex-wrap items-center gap-1 text-[11px]">
                 <button
                     type="button"
                     data-rag-filter="all"
                     @click="activeRag = 'all'"
                     :class="activeRag === 'all' ? 'border-slate-800 text-slate-900 font-bold ring-1 ring-slate-800/15 shadow-2xs' : 'border-slate-200 text-slate-600 font-medium hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800'"
-                    class="inline-flex items-center gap-1.5 cursor-pointer rounded-md border bg-white px-2.5 py-1 transition"
+                    class="inline-flex items-center gap-1 cursor-pointer rounded-md border bg-white px-2 py-0.5 transition"
                 >
                     <span class="h-1.5 w-1.5 rounded-full bg-slate-400 shrink-0"></span>
                     Semua ({{ $totalCount }})
@@ -157,7 +159,7 @@ if (typeof window.targetRealisasiWidget !== 'function') {
                     data-rag-filter="tercapai"
                     @click="activeRag = 'tercapai'"
                     :class="activeRag === 'tercapai' ? 'border-emerald-600 text-emerald-950 font-bold ring-1 ring-emerald-600/20 shadow-2xs' : 'border-slate-200 text-slate-600 font-medium hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800'"
-                    class="inline-flex items-center gap-1.5 cursor-pointer rounded-md border bg-white px-2.5 py-1 transition"
+                    class="inline-flex items-center gap-1 cursor-pointer rounded-md border bg-white px-2 py-0.5 transition"
                 >
                     <span class="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0"></span>
                     Tercapai ({{ $achievedCount }})
@@ -167,7 +169,7 @@ if (typeof window.targetRealisasiWidget !== 'function') {
                     data-rag-filter="hampir"
                     @click="activeRag = 'hampir'"
                     :class="activeRag === 'hampir' ? 'border-amber-600 text-amber-950 font-bold ring-1 ring-amber-600/20 shadow-2xs' : 'border-slate-200 text-slate-600 font-medium hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800'"
-                    class="inline-flex items-center gap-1.5 cursor-pointer rounded-md border bg-white px-2.5 py-1 transition"
+                    class="inline-flex items-center gap-1 cursor-pointer rounded-md border bg-white px-2 py-0.5 transition"
                 >
                     <span class="h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0"></span>
                     Mendekati ({{ $nearCount }})
@@ -177,7 +179,7 @@ if (typeof window.targetRealisasiWidget !== 'function') {
                     data-rag-filter="perlu"
                     @click="activeRag = 'perlu'"
                     :class="activeRag === 'perlu' ? 'border-rose-600 text-rose-950 font-bold ring-1 ring-rose-600/20 shadow-2xs' : 'border-slate-200 text-slate-600 font-medium hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800'"
-                    class="inline-flex items-center gap-1.5 cursor-pointer rounded-md border bg-white px-2.5 py-1 transition"
+                    class="inline-flex items-center gap-1 cursor-pointer rounded-md border bg-white px-2 py-0.5 transition"
                 >
                     <span class="h-1.5 w-1.5 rounded-full bg-rose-500 shrink-0"></span>
                     Perlu Perhatian ({{ $belowCount }})
@@ -185,7 +187,7 @@ if (typeof window.targetRealisasiWidget !== 'function') {
             </div>
         </div>
 
-        <div class="relative mt-2 space-y-1.5 flex-1 overflow-y-auto max-h-[410px] pr-1">
+        <div class="relative mt-1.5 space-y-1 flex-1 pr-1">
             <div x-show="visibleCount === 0" x-cloak class="rounded-lg border border-dashed border-slate-300 p-6 text-center text-xs text-slate-500">
                 Tidak ada indikator yang sesuai dengan kriteria filter atau pencarian.
             </div>
@@ -220,7 +222,7 @@ if (typeof window.targetRealisasiWidget !== 'function') {
                     @endif
 
                     @if (count($chartable) > 0)
-                        <div id="{{ $chartId }}" class="mt-1.5 space-y-1">
+                        <div id="{{ $chartId }}" class="mt-1.5 grid grid-cols-1 sm:grid-cols-2 gap-1.5" :class="{ 'md:grid-cols-3 lg:grid-cols-4': viewMode === 'cards' }">
                             @foreach ($chartable as $p)
                                 @php
                                     $pct = round((float) $p['score']['percent'], 1);
@@ -244,32 +246,36 @@ if (typeof window.targetRealisasiWidget !== 'function') {
                                 @endphp
                                 <div
                                     x-show="matches('{{ addcslashes($searchHaystack, "'\\") }}', '{{ $tier }}')"
-                                    class="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 rounded px-2 py-1 text-xs hover:bg-slate-50 transition border border-transparent hover:border-slate-100"
+                                    class="flex flex-col justify-between rounded-lg p-2 text-xs hover:bg-slate-50/80 transition border border-slate-200/70 bg-white shadow-2xs"
                                     data-indicator-id="{{ $p['indicator_id'] }}"
                                     data-mode="{{ $p['mode'] }}"
                                     title="{{ $tooltip }}"
                                 >
-                                    <div class="flex items-center gap-1.5 min-w-0 flex-1">
-                                        <span class="truncate font-medium text-slate-700" title="{{ $p['name'] }}">
+                                    <div class="flex items-start justify-between gap-1.5">
+                                        <span class="font-medium text-slate-800 leading-snug line-clamp-2 flex-1" title="{{ $p['name'] }}">
                                             {{ $p['name'] }}
                                         </span>
                                         @if (! empty($p['satuan']))
-                                            <span class="shrink-0 text-[10px] text-slate-400">({{ $p['satuan'] }})</span>
+                                            <span class="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-500">
+                                                {{ $p['satuan'] }}
+                                            </span>
                                         @endif
                                     </div>
-                                    <div class="flex items-center gap-2.5 shrink-0">
+                                    <div class="mt-1 flex flex-col gap-1 border-t border-slate-100 pt-1 text-[11px]">
                                         @if ($p['mode'] === 'numeric')
-                                            <div class="hidden sm:flex items-center gap-1.5 text-[11px] text-slate-500 tabular-nums">
+                                            <div class="flex items-center justify-between text-slate-500 tabular-nums">
                                                 <span>Target: <strong class="font-semibold text-slate-700">{{ $targetStr }}</strong></span>
                                                 <span>Realisasi: <strong class="font-semibold text-slate-700">{{ $realisasiStr }}</strong></span>
                                             </div>
                                         @endif
-                                        <div class="h-2 w-20 sm:w-24 rounded-full bg-slate-100 overflow-hidden">
-                                            <div class="h-full rounded-full {{ $barColor }}" style="width: {{ $barWidth }}%"></div>
+                                        <div class="flex items-center justify-between gap-2">
+                                            <div class="h-1.5 flex-1 rounded-full bg-slate-100 overflow-hidden">
+                                                <div class="h-full rounded-full {{ $barColor }}" style="width: {{ $barWidth }}%"></div>
+                                            </div>
+                                            <span class="text-right font-bold tabular-nums text-xs shrink-0 {{ $textColor }}">
+                                                {{ $fmtPercent($p['score']['percent']) }}
+                                            </span>
                                         </div>
-                                        <span class="w-12 text-right font-bold tabular-nums {{ $textColor }}">
-                                            {{ $fmtPercent($p['score']['percent']) }}
-                                        </span>
                                     </div>
                                 </div>
                             @endforeach

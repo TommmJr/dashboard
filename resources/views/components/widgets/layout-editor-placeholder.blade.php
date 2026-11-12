@@ -17,7 +17,8 @@
         id="dashboard-layout-builder"
         x-data="dashboardLayoutBuilder('{{ $encodedBuilderData }}')"
         @keydown.escape.window="cancelDrag()"
-        class="rounded-lg border border-slate-200 bg-white p-6 shadow"
+        @resize.window="viewportWidth = window.innerWidth; resizePreviewCharts()"
+        class="w-full"
     >
         {{-- Floating Drag Proxy (mengikuti pointer saat Pointer Events drag berlangsung) --}}
         <div
@@ -61,311 +62,147 @@
             </button>
         </div>
 
-        {{-- Split-View Workspace: panel konfigurasi (kiri) dan pratinjau langsung (kanan) --}}
-        <div id="builder-split-view" @resize.window="viewportWidth = window.innerWidth; resizePreviewCharts()" class="mt-4 grid grid-cols-1 items-start gap-6 lg:grid-cols-12">
-            {{-- Panel Konfigurasi, Palet, dan Aksi --}}
-            <div id="builder-config-pane" class="flex min-w-0 flex-col gap-4 lg:col-span-5 xl:col-span-3">
-                <div class="flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3.5 shadow-2xs">
-                    <div>
-                        <div class="flex flex-wrap items-center gap-2">
-                            <h3 class="text-sm font-bold text-primary">{{ $widget['label'] ?? 'Editor Layout' }}</h3>
-                            <span
-                                class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold"
-                                :class="isCustomized() ? 'bg-accent/15 text-primary' : 'bg-slate-100 text-slate-600'"
-                                x-text="isCustomized() ? 'Kustom (Database)' : 'Bawaan (Fallback)'"
-                            >
-                                Bawaan (Konfigurasi Fallback)
-                            </span>
-                            <span
-                                x-show="isDirty()"
-                                x-cloak
-                                class="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800"
-                            >
-                                <span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span>
-                                Belum Disimpan
-                            </span>
-                        </div>
-                    </div>
+        {{-- Status feedback AJAX (sukses / validasi 422 / error server) --}}
+        <div
+            x-show="saving"
+            x-cloak
+            class="mb-4 rounded-lg border border-sky-200 bg-sky-50 px-3.5 py-2.5 text-xs font-medium text-sky-800"
+            role="status"
+        >
+            <span x-text="savingAction === 'reset' ? 'Mereset layout ke konfigurasi bawaan...' : 'Menyimpan perubahan layout...'"></span>
+        </div>
 
-                    <div class="flex flex-col gap-1.5">
-                        <label for="layout-editor-target" class="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                            Target Layout (Role / Divisi)
-                        </label>
-                        <select
-                            id="layout-editor-target"
-                            name="target_key"
-                            x-model="selectedTargetKey"
-                            @change="selectTarget(selectedTargetKey)"
-                            :disabled="saving"
-                            class="h-9.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium text-primary outline-none focus:border-accent focus:ring-2 focus:ring-accent/20 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                            @foreach ($targets as $target)
-                                <option value="{{ $target['layout_key'] }}">
-                                    {{ $target['label'] }} ({{ $target['layout_key'] }})
-                                </option>
-                            @endforeach
-                        </select>
-                    </div>
+        <div
+            x-show="!saving && statusMessage !== ''"
+            x-cloak
+            class="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-xs font-medium text-emerald-800"
+            role="status"
+            x-text="statusMessage"
+        ></div>
+
+        <div
+            x-show="!saving && (errorMessage !== '' || validationErrors.length > 0)"
+            x-cloak
+            class="mb-4 rounded-lg border border-red-200 bg-red-50 px-3.5 py-2.5 text-xs text-red-800"
+            role="alert"
+        >
+            <p x-show="errorMessage !== ''" class="font-semibold" x-text="errorMessage"></p>
+            <ul x-show="validationErrors.length > 0" class="mt-1 list-inside list-disc space-y-0.5">
+                <template x-for="(err, idx) in validationErrors" :key="idx">
+                    <li x-text="err"></li>
+                </template>
+            </ul>
+        </div>
+
+        {{-- Block 1 (Top — #builder-top-bar): Horizontal 1-row bar --}}
+        <div id="builder-top-bar" class="w-full mb-6 flex flex-col gap-4 rounded-xl border border-slate-200 bg-slate-50/80 p-4 shadow-2xs md:flex-row md:items-center md:justify-between">
+            <div class="flex flex-wrap items-center gap-3">
+                <div class="flex items-center gap-2">
+                    <span class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                        <svg class="h-4.5 w-4.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
+                        </svg>
+                    </span>
+                    <h3 class="text-sm font-bold text-primary">{{ $widget['label'] ?? 'Editor Tata Letak' }}</h3>
+                    <span
+                        class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                        :class="isCustomized() ? 'bg-accent/15 text-primary' : 'bg-slate-100 text-slate-600'"
+                        x-text="isCustomized() ? 'Kustom (Database)' : 'Bawaan (Fallback)'"
+                    >
+                         (Konfigurasi Bawaan)
+                    </span>
+                    <span
+                        x-show="isDirty()"
+                        x-cloak
+                        class="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800"
+                    >
+                        <span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span>
+                        Belum Disimpan
+                    </span>
                 </div>
 
-                {{-- Status feedback AJAX (sukses / validasi 422 / error server) --}}
-                <div
-                    x-show="saving"
-                    x-cloak
-                    class="rounded-lg border border-sky-200 bg-sky-50 px-3.5 py-2.5 text-xs font-medium text-sky-800"
-                    role="status"
-                >
-                    <span x-text="savingAction === 'reset' ? 'Mereset layout ke konfigurasi bawaan...' : 'Menyimpan perubahan layout...'"></span>
-                </div>
-
-                <div
-                    x-show="!saving && statusMessage !== ''"
-                    x-cloak
-                    class="rounded-lg border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-xs font-medium text-emerald-800"
-                    role="status"
-                    x-text="statusMessage"
-                ></div>
-
-                <div
-                    x-show="!saving && (errorMessage !== '' || validationErrors.length > 0)"
-                    x-cloak
-                    class="rounded-lg border border-red-200 bg-red-50 px-3.5 py-2.5 text-xs text-red-800"
-                    role="alert"
-                >
-                    <p x-show="errorMessage !== ''" class="font-semibold" x-text="errorMessage"></p>
-                    <ul x-show="validationErrors.length > 0" class="mt-1 list-inside list-disc space-y-0.5">
-                        <template x-for="(err, idx) in validationErrors" :key="idx">
-                            <li x-text="err"></li>
-                        </template>
-                    </ul>
-                </div>
-
-                {{-- Palet Komponen Visual --}}
-                <div class="rounded-xl border border-slate-200 bg-slate-50/70 p-3.5 shadow-2xs">
-                    <div class="flex items-center justify-between border-b border-slate-200 pb-2.5">
-                        <div class="flex items-center gap-2">
-                            <h4 class="text-xs font-bold uppercase tracking-wider text-primary">Komponen</h4>
-                            <span class="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-bold text-primary">
-                                {{ count($catalog) }}
-                            </span>
-                        </div>
-                    </div>
-
-                    {{-- Filter Kategori Domain --}}
-                    <div class="mt-2.5 flex flex-wrap gap-1 border-b border-slate-200/80 pb-2.5 text-xs font-semibold">
-                        <button
-                            type="button"
-                            @click="catalogFilterCategory = 'all'"
-                            :class="catalogFilterCategory === 'all' ? 'bg-primary text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'"
-                            class="rounded px-2 py-1 text-[10px] transition"
-                        >
-                            Semua (<span x-text="catalog.length"></span>)
-                        </button>
-                        <button
-                            type="button"
-                            @click="catalogFilterCategory = 'Kinerja / KPI'"
-                            :class="catalogFilterCategory === 'Kinerja / KPI' ? 'bg-teal-700 text-white shadow-xs' : 'bg-teal-50 text-teal-800 hover:bg-teal-100'"
-                            class="rounded px-2 py-1 text-[10px] transition"
-                        >
-                            Kinerja / KPI
-                        </button>
-                        <button
-                            type="button"
-                            @click="catalogFilterCategory = 'Manajemen Aset'"
-                            :class="catalogFilterCategory === 'Manajemen Aset' ? 'bg-indigo-700 text-white shadow-xs' : 'bg-indigo-50 text-indigo-800 hover:bg-indigo-100'"
-                            class="rounded px-2 py-1 text-[10px] transition"
-                        >
-                            Manajemen Aset
-                        </button>
-                        <button
-                            type="button"
-                            @click="catalogFilterCategory = 'Operasional & Admin'"
-                            :class="catalogFilterCategory === 'Operasional & Admin' ? 'bg-slate-700 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'"
-                            class="rounded px-2 py-1 text-[10px] transition"
-                        >
-                            Operasional & Admin
-                        </button>
-                    </div>
-
-                    <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-1 2xl:grid-cols-2 gap-2.5" aria-label="Palet komponen">
-                        <template x-for="item in filteredCatalog()" :key="item.key">
-                            <div
-                                draggable="true"
-                                @dragstart="startPaletteDrag(item.key)"
-                                @dragend="endPaletteDrag()"
-                                class="group relative flex flex-col justify-between rounded-lg border border-slate-200 bg-white p-2.5 shadow-2xs transition hover:border-accent hover:shadow-xs cursor-grab active:cursor-grabbing"
-                                :class="(item.key !== 'custom-chart' && hasWidget(item.key)) ? 'opacity-60 bg-slate-50' : ''"
-                            >
-                                <div>
-                                    <div class="palette-thumb relative mb-2 flex h-12 w-full items-center justify-center rounded-md bg-slate-50 border border-slate-100 text-primary/80 group-hover:bg-primary/5 group-hover:border-primary/20 transition-colors overflow-hidden">
-                                        @include('components.widgets.partials.widget-sketch', ['keyExpr' => 'item.key', 'sizeClass' => 'h-9 w-full'])
-                                    </div>
-                                    <div class="flex items-center justify-between gap-1 mb-1">
-                                        <span
-                                            class="rounded border px-1.5 py-0.5 text-[9px] font-bold truncate"
-                                            :class="(item.category || getWidgetCategory(item.key)) === 'Kinerja / KPI' ? 'bg-teal-50 text-teal-700 border-teal-200' : ((item.category || getWidgetCategory(item.key)) === 'Manajemen Aset' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-slate-100 text-slate-600 border-slate-200')"
-                                            x-text="item.category || getWidgetCategory(item.key)"
-                                        ></span>
-                                        <span
-                                            class="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-semibold text-slate-600"
-                                            x-text="`${item.default_cols || 3} Kolom`"
-                                        ></span>
-                                    </div>
-                                    <div class="flex items-center justify-between gap-1 mb-1">
-                                        <span
-                                            class="palette-type-label rounded bg-primary/10 px-1.5 py-0.5 text-[9px] font-semibold text-primary truncate"
-                                            x-text="paletteVisual(item.key).label"
-                                        ></span>
-                                    </div>
-                                    <p class="text-xs font-bold text-primary line-clamp-1" x-text="item.label"></p>
-                                    <p class="mt-0.5 text-[10px] leading-snug text-slate-500 line-clamp-2" x-text="item.description || getWidgetDescription(item.key)"></p>
-                                </div>
-
-                                <div class="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between">
-                                    <span class="text-[9px] text-slate-400 group-hover:text-accent font-medium flex items-center gap-1">
-                                        <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
-                                        </svg>
-                                        Tarik ke Kanvas
-                                    </span>
-                                    <button
-                                        type="button"
-                                        @click="addWidget(item.key)"
-                                        :disabled="saving || (item.key !== 'custom-chart' && hasWidget(item.key))"
-                                        class="inline-flex h-5.5 items-center rounded px-2 text-[10px] font-semibold transition disabled:cursor-not-allowed"
-                                        :class="(item.key !== 'custom-chart' && hasWidget(item.key))
-                                            ? 'border border-slate-200 bg-slate-100 text-slate-400'
-                                            : 'bg-primary text-white hover:bg-accent'"
-                                        x-text="(item.key !== 'custom-chart' && hasWidget(item.key)) ? 'Aktif' : '+ Tambah'"
-                                    ></button>
-                                </div>
-                            </div>
-                        </template>
-                    </div>
-                </div>
-
-                {{-- Footer aksi simpan & reset --}}
-                <div class="flex flex-wrap items-center justify-between gap-2.5 border-t border-slate-200 pt-3">
-                    <p class="text-xs text-slate-500">
-                        Target aktif:
-                        <span class="font-semibold text-primary" x-text="currentTarget()?.layout_key ?? '-'"></span>
-                    </p>
-
-                    <div class="flex flex-wrap items-center gap-2">
-                        <a
-                            href="{{ route('dashboard') }}"
-                            class="inline-flex h-9 items-center justify-center rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-primary transition hover:border-accent hover:text-accent"
-                        >
-                            Lihat Dashboard
-                        </a>
-
-                        <button
-                            type="button"
-                            @click="resetLayout()"
-                            :disabled="saving"
-                            class="inline-flex h-9 items-center justify-center rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-primary transition hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                            Reset ke Bawaan
-                        </button>
-
-                        <button
-                            type="button"
-                            @click="saveLayout()"
-                            :disabled="saving || activeWidgets.length === 0"
-                            :class="isDirty() ? 'bg-accent text-white shadow-xs hover:bg-accent/90 ring-2 ring-accent/30 font-bold' : 'bg-primary text-white hover:bg-accent font-semibold'"
-                            class="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg px-3.5 text-xs transition disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
-                            </svg>
-                            <span>Simpan Layout</span>
-                        </button>
-                    </div>
+                <div class="flex items-center gap-2">
+                    <label for="layout-editor-target" class="text-xs font-semibold uppercase tracking-wide text-slate-500 whitespace-nowrap">
+                        Target Layout (Role / Divisi):
+                    </label>
+                    <select
+                        id="layout-editor-target"
+                        name="target_key"
+                        x-model="selectedTargetKey"
+                        @change="selectTarget(selectedTargetKey)"
+                        :disabled="saving"
+                        class="h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium text-primary outline-none focus:border-accent focus:ring-2 focus:ring-accent/20 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                        @foreach ($targets as $target)
+                            <option value="{{ $target['layout_key'] }}">
+                                {{ $target['label'] }} ({{ $target['layout_key'] }})
+                            </option>
+                        @endforeach
+                    </select>
                 </div>
             </div>
 
-            {{-- Panel Pratinjau Langsung (sticky pada layar lebar) --}}
-            <div id="builder-preview-pane" class="min-w-0 lg:sticky lg:top-6 lg:col-span-7 xl:col-span-9">
-                <div class="rounded-xl border border-slate-200 bg-slate-50/60 p-4 shadow-2xs">
-                    {{-- Active Mapping Header Bar --}}
-                    <div class="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-3.5 shadow-2xs sm:flex-row sm:items-center sm:justify-between">
-                        <div class="flex flex-wrap items-center gap-2.5 min-w-0">
-                            <div class="flex items-center gap-2.5">
-                                <span class="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary shrink-0">
-                                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-                                    </svg>
-                                </span>
-                                <div>
-                                    <div class="flex flex-wrap items-center gap-2">
-                                        <h4 class="text-sm font-bold uppercase tracking-wide text-primary">Pratinjau Tata Letak:</h4>
-                                        <span class="text-sm font-extrabold text-primary" x-text="currentTarget()?.label || 'Tata Letak'"></span>
-                                        <span
-                                            class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold"
-                                            :class="isCustomized() ? 'bg-accent/15 text-primary' : 'bg-slate-100 text-slate-600'"
-                                            x-text="isCustomized() ? 'Kustom (Database)' : 'Bawaan (Fallback)'"
-                                        ></span>
-                                        <span
-                                            x-show="isDirty()"
-                                            x-cloak
-                                            class="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800"
-                                        >
-                                            <span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span>
-                                            Belum Disimpan
-                                        </span>
-                                    </div>
-                                    <p class="text-[11px] text-slate-500">
-                                        Target: <span class="font-mono font-semibold text-slate-700" x-text="currentTarget()?.layout_key ?? '-'"></span>
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
+            <div class="flex flex-wrap items-center gap-2 md:justify-end">
+                <div class="flex items-center gap-1.5 mr-1">
+                    <span class="rounded-lg bg-primary/10 px-2.5 py-1 text-xs font-bold text-primary" x-text="`${activeWidgets.length} Widget`"></span>
+                    <span class="rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-700" x-text="`${activeWidgets.reduce((acc, w) => acc + (parseInt(w.cols, 10) || 3), 0)} Kolom Grid`"></span>
+                </div>
 
-                        <div class="flex flex-wrap items-center gap-2 sm:justify-end">
-                            <div class="flex items-center gap-1.5">
-                                <span class="rounded-lg bg-primary/10 px-2.5 py-1 text-xs font-bold text-primary" x-text="`${activeWidgets.length} Widget`"></span>
-                                <span class="rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-700" x-text="`${activeWidgets.reduce((acc, w) => acc + (parseInt(w.cols, 10) || 3), 0)} Kolom Grid`"></span>
-                                <span class="hidden 2xl:inline-flex rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-500" x-text="`Viewport ${viewportWidth}px`"></span>
-                            </div>
+                <button
+                    type="button"
+                    @click="resetLayout()"
+                    :disabled="saving"
+                    title="Reset ke Default"
+                    class="inline-flex h-9 items-center justify-center rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-primary transition hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                    Reset ke Bawaan
+                </button>
 
-                            <div class="flex items-center gap-2 ml-1">
-                                <button
-                                    type="button"
-                                    @click="resetLayout()"
-                                    :disabled="saving"
-                                    title="Reset ke Default"
-                                    class="inline-flex h-8 items-center justify-center rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-primary transition hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
-                                >
-                                    Reset ke Bawaan
-                                </button>
-                                <button
-                                    type="button"
-                                    @click="saveLayout()"
-                                    :disabled="saving || activeWidgets.length === 0"
-                                    title="Simpan Tata Letak"
-                                    :class="isDirty() ? 'bg-accent text-white shadow-xs hover:bg-accent/90 ring-2 ring-accent/30 font-bold' : 'bg-primary text-white hover:bg-accent font-semibold'"
-                                    class="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg px-3.5 text-xs transition disabled:cursor-not-allowed disabled:opacity-50"
-                                >
-                                    <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
-                                    </svg>
-                                    <span>Simpan Tata Letak</span>
-                                    <span class="sr-only">Simpan Layout</span>
-                                </button>
-                            </div>
-                        </div>
+                <button
+                    type="button"
+                    @click="saveLayout()"
+                    :disabled="saving || activeWidgets.length === 0"
+                    title="Simpan Tata Letak"
+                    :class="isDirty() ? 'bg-accent text-white shadow-xs hover:bg-accent/90 ring-2 ring-accent/30 font-bold' : 'bg-primary text-white hover:bg-accent font-semibold'"
+                    class="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg px-3.5 text-xs transition disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                    <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                    </svg>
+                    <span>Simpan Tata Letak</span>
+                    <span class="sr-only">Simpan Layout</span>
+                </button>
+            </div>
+        </div>
+
+        {{-- Block 2 (Middle — #builder-preview-pane): Full-Width 100% Landscape Pratinjau --}}
+        <div id="builder-preview-pane" class="w-full mb-6">
+            <div class="rounded-xl border border-slate-200 bg-slate-50/60 p-4 shadow-2xs">
+                <div class="flex items-center justify-between border-b border-slate-200 pb-3 mb-3">
+                    <div class="flex items-center gap-2">
+                        <span class="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                            </svg>
+                        </span>
+                        <h4 class="text-sm font-bold uppercase tracking-wide text-primary">Pratinjau Tata Letak</h4>
+                        <span class="text-xs text-slate-500">Kanvas Grid 3-Kolom Responsif</span>
                     </div>
+                    <div class="flex items-center gap-2 text-xs text-slate-500">
+                        <span class="hidden sm:inline">Tarik kartu atau tombol panah untuk memindahkan urutan</span>
+                    </div>
+                </div>
 
-                    {{-- Viewport pratinjau ala monitor eksekutif --}}
-                    <div
-                        id="preview-canvas-viewport"
-                        @dragover="autoScrollPreview($event)"
-                        @dragleave="onViewportDragLeave($event)"
-                        @drop.prevent="isDragOverCanvas = false; onCanvasDrop($event)"
-                        :class="isDragOverCanvas ? 'ring-2 ring-accent bg-accent/5' : 'bg-slate-100'"
-                        class="mt-3 min-h-[300px] rounded-xl border border-slate-300 p-3.5 transition lg:max-h-[calc(100vh-13rem)] lg:overflow-y-auto"
-                    >
-                        <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+                {{-- Viewport pratinjau kanvas --}}
+                <div
+                    id="preview-canvas-viewport"
+                    @dragover="autoScrollPreview($event)"
+                    @dragleave="onViewportDragLeave($event)"
+                    @drop.prevent="isDragOverCanvas = false; onCanvasDrop($event)"
+                    :class="isDragOverCanvas ? 'ring-2 ring-accent bg-accent/5' : 'bg-slate-100'"
+                    class="min-h-[300px] rounded-xl border border-slate-300 p-4 transition"
+                >
+                    <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
                             <template x-for="(w, index) in activeWidgets" :key="w._uid || index">
                                 <div
                                     @dragover.prevent="onCardDragOver($event, index)"
@@ -943,13 +780,124 @@
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                             </svg>
                             <p class="text-sm font-bold text-slate-600">Kanvas Presentasi Masih Kosong</p>
-                            <p class="mt-1 text-xs text-slate-400">Tarik komponen dari Palet Komponen dan lepas di sini untuk memulai.</p>
+                            <p class="mt-1 text-xs text-slate-400">Tarik komponen dari Palet Komponen di bawah dan lepas di sini untuk memulai.</p>
                         </div>
                     </div>
                 </div>
             </div>
+
+            {{-- Block 3 (Bottom — #builder-config-pane): Landscape Component Grid --}}
+            <div id="builder-config-pane" class="w-full">
+                <div class="rounded-xl border border-slate-200 bg-slate-50/70 p-4 shadow-2xs">
+                    {{-- Header: Komponen title & badge on left, category filter tabs on right --}}
+                    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-slate-200 pb-3">
+                        <div class="flex items-center gap-2">
+                            <span class="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                </svg>
+                            </span>
+                            <h4 class="text-xs font-bold uppercase tracking-wider text-primary">Tambah Komponen</h4>
+                            <span class="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-bold text-primary">
+                                {{ count($catalog) }}
+                            </span>
+                            <span class="sr-only">Komponen</span>
+                        </div>
+
+                        {{-- Filter Kategori Domain (Tabs on the right of header) --}}
+                        <div class="flex flex-wrap items-center gap-1.5 text-xs font-semibold">
+                            <button
+                                type="button"
+                                @click="catalogFilterCategory = 'all'"
+                                :class="catalogFilterCategory === 'all' ? 'bg-primary text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'"
+                                class="rounded-lg px-2.5 py-1 text-xs transition"
+                            >
+                                Semua (<span x-text="catalog.length"></span>)
+                            </button>
+                            <button
+                                type="button"
+                                @click="catalogFilterCategory = 'Kinerja / KPI'"
+                                :class="catalogFilterCategory === 'Kinerja / KPI' ? 'bg-teal-700 text-white shadow-xs' : 'bg-teal-50 text-teal-800 hover:bg-teal-100'"
+                                class="rounded-lg px-2.5 py-1 text-xs transition"
+                            >
+                                Kinerja / KPI
+                            </button>
+                            <button
+                                type="button"
+                                @click="catalogFilterCategory = 'Manajemen Aset'"
+                                :class="catalogFilterCategory === 'Manajemen Aset' ? 'bg-indigo-700 text-white shadow-xs' : 'bg-indigo-50 text-indigo-800 hover:bg-indigo-100'"
+                                class="rounded-lg px-2.5 py-1 text-xs transition"
+                            >
+                                Manajemen Aset
+                            </button>
+                            <button
+                                type="button"
+                                @click="catalogFilterCategory = 'Operasional & Admin'"
+                                :class="catalogFilterCategory === 'Operasional & Admin' ? 'bg-slate-700 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'"
+                                class="rounded-lg px-2.5 py-1 text-xs transition"
+                            >
+                                Operasional & Admin
+                            </button>
+                        </div>
+                    </div>
+
+                    {{-- Landscape Component Grid: grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 --}}
+                    <div class="mt-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3" aria-label="Palet komponen">
+                        <template x-for="item in filteredCatalog()" :key="item.key">
+                            <div
+                                draggable="true"
+                                @dragstart="startPaletteDrag(item.key)"
+                                @dragend="endPaletteDrag()"
+                                class="group relative flex flex-col justify-between rounded-lg border border-slate-200 bg-white p-2.5 shadow-2xs transition hover:border-accent hover:shadow-xs cursor-grab active:cursor-grabbing"
+                                :class="(item.key !== 'custom-chart' && hasWidget(item.key)) ? 'opacity-60 bg-slate-50' : ''"
+                            >
+                                <div>
+                                    {{-- Miniature Icon / Visual --}}
+                                    <div class="palette-thumb relative mb-2 flex h-11 w-full items-center justify-center rounded-md bg-slate-50 border border-slate-100 text-primary/80 group-hover:bg-primary/5 group-hover:border-primary/20 transition-colors overflow-hidden">
+                                        @include('components.widgets.partials.widget-sketch', ['keyExpr' => 'item.key', 'sizeClass' => 'h-8 w-full'])
+                                    </div>
+
+                                    {{-- Type Label & Default Size Badge --}}
+                                    <div class="flex items-center justify-between gap-1 mb-1">
+                                        <span
+                                            class="palette-type-label rounded bg-primary/10 px-1.5 py-0.5 text-[9px] font-semibold text-primary truncate"
+                                            x-text="paletteVisual(item.key).label"
+                                        ></span>
+                                        <span
+                                            class="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-semibold text-slate-600"
+                                            x-text="`${item.default_cols || 3} Kol`"
+                                        ></span>
+                                    </div>
+
+                                    {{-- Short Component Name --}}
+                                    <p class="text-xs font-bold text-primary line-clamp-1" x-text="item.label"></p>
+                                </div>
+
+                                {{-- Action: Drag hint & + Tambah button (NO long descriptions!) --}}
+                                <div class="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between">
+                                    <span class="text-[9px] text-slate-400 group-hover:text-accent font-medium flex items-center gap-1">
+                                        <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+                                        </svg>
+                                        Tarik
+                                    </span>
+                                    <button
+                                        type="button"
+                                        @click="addWidget(item.key)"
+                                        :disabled="saving || (item.key !== 'custom-chart' && hasWidget(item.key))"
+                                        class="inline-flex h-6 items-center rounded px-2 text-[10px] font-semibold transition disabled:cursor-not-allowed"
+                                        :class="(item.key !== 'custom-chart' && hasWidget(item.key))
+                                            ? 'border border-slate-200 bg-slate-100 text-slate-400'
+                                            : 'bg-primary text-white hover:bg-accent'"
+                                        x-text="(item.key !== 'custom-chart' && hasWidget(item.key)) ? 'Aktif' : '+ Tambah'"
+                                    ></button>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
         </div>
-    </div>
 
     <script>
         if (typeof window.dashboardLayoutBuilder !== 'function') {

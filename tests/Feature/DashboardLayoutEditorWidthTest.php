@@ -122,13 +122,18 @@ class DashboardLayoutEditorWidthTest extends TestCase
         $response = $this->actingAs($admin)->get(route('dashboard.builder'));
 
         $response->assertOk()
-            ->assertSee('id="builder-split-view"', false)
-            ->assertSee('id="builder-config-pane"', false)
+            ->assertSee('id="builder-top-bar"', false)
             ->assertSee('id="builder-preview-pane"', false)
-            ->assertSee('lg:grid-cols-12', false)
-            ->assertSee('lg:col-span-5', false)
-            ->assertSee('lg:col-span-7', false)
+            ->assertSee('id="builder-config-pane"', false)
+            ->assertSee('w-full')
             ->assertSee('Pratinjau');
+
+        $html = $response->getContent();
+        $previewPos = strpos($html, 'id="builder-preview-pane"');
+        $configPos = strpos($html, 'id="builder-config-pane"');
+        $this->assertNotFalse($previewPos);
+        $this->assertNotFalse($configPos);
+        $this->assertLessThan($configPos, $previewPos);
     }
 
     public function test_dashboard_builder_preview_pane_mirrors_active_widgets_in_real_time(): void

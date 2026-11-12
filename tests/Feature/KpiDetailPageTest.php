@@ -92,6 +92,13 @@ class KpiDetailPageTest extends TestCase
             ->assertSee('Indikator Uji 12')
             ->assertSee('Menampilkan 12 dari 12 baris.')
             ->assertSee('id="kinerja-detail-unit"', false)
+            ->assertSee('id="kpi-detail-fullscreen-btn"', false)
+            ->assertSee('id="kpi-detail-download-btn"', false)
+            ->assertSee('id="kpi-detail-print-btn"', false)
+            ->assertSee('Semua Berdampingan Compact')
+            ->assertSee('Fokus Kartu Visual (Grid 4 Kolom)')
+            ->assertSee('Fokus Tabel Matriks Padat')
+            ->assertDontSee('max-h-[410px]')
             ->assertDontSee('Lihat semua (12 baris)');
     }
 

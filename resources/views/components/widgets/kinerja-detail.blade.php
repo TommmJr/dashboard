@@ -54,7 +54,7 @@
 @endphp
 
 <div
-    class="h-full rounded-xl bg-white border border-slate-200/80 shadow-xs p-3 flex flex-col justify-between transition-all duration-200 ease-out hover:shadow-md"
+    class="h-full rounded-xl bg-white border border-slate-200/80 shadow-xs p-2.5 flex flex-col justify-start transition-all duration-200 ease-out hover:shadow-md"
     x-data="{
         tableSearch: '',
         tableRag: 'all',
@@ -172,7 +172,7 @@
             </div>
         @endif
 
-        <div class="relative overflow-x-auto mt-2 rounded-lg border border-slate-200 overflow-y-auto max-h-[410px]">
+        <div class="relative overflow-x-auto mt-2 rounded-lg border border-slate-200">
             <table class="w-full text-sm">
                 <thead class="bg-slate-50/80 text-xs text-slate-600 font-semibold uppercase tracking-wider border-b border-slate-200">
                     <tr>
