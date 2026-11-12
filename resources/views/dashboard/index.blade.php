@@ -34,7 +34,7 @@
                             <path d="m19 9-5 5-4-4-3 3" stroke-linecap="round" stroke-linejoin="round"/>
                         </svg>
                     </div>
-                    <h1 class="text-base font-bold tracking-tight text-primary">Dashboard Kinerja Divisi</h1>
+                    <h1 class="text-base font-bold tracking-tight text-primary">Dashboard Divisi</h1>
                 </div>
                 <div class="flex items-center gap-2 text-xs">
                     <span class="inline-flex items-center rounded border border-teal-200/80 bg-teal-50 px-2 py-0.5 font-semibold text-teal-800">
@@ -42,7 +42,6 @@
                     </span>
                     <span class="text-slate-300" aria-hidden="true">&bull;</span>
                     <span class="inline-flex items-center gap-1 text-slate-500">
-                        <span>Cakupan Unit:</span>
                         <strong class="font-semibold text-slate-800">{{ !empty(config('kpi.visible_units')) ? implode(', ', config('kpi.visible_units')) : 'Semua Unit' }}</strong>
                     </span>
                 </div>
