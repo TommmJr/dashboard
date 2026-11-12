@@ -53,6 +53,7 @@ class AsetUptChartWidgetTest extends TestCase
             ->assertSee('Trafo 500\\/150 KV | Bank', false)
             ->assertSee('asetUptChart-aset-upt-chart-', false)
             ->assertSee('min-h-[360px]', false)
+            ->assertSee('height: 380px', false)
             ->assertSee('x-init=', false)
             ->assertSee('"type":"bar"', false);
     }
@@ -377,6 +378,7 @@ class AsetUptChartWidgetTest extends TestCase
             ->assertDontSee('Total Rekapitulasi', false)
             ->assertSee('TOTAL UIT JBT', false)
             ->assertSee("type: 'scroll'", false)
+            ->assertSee('top: 48', false)
             ->assertSee('containLabel: true', false);
     }
 

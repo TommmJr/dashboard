@@ -139,39 +139,43 @@
         </div>
     </div>
 
-    @php $canEditMetrics = auth()->user()->can('dataset.update') && ! ($hasObservations ?? false); @endphp
-    <div class="mt-6 rounded-lg bg-white shadow">
-        <h2 class="border-b px-6 py-4 text-lg font-semibold text-gray-900">Preview Data ({{ $metrics->total() }} baris)</h2>
-        <table class="min-w-full divide-y divide-gray-200 text-sm">
-            <thead class="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-500">
-                <tr>
-                    <th class="px-4 py-3">Metric</th>
-                    <th class="px-4 py-3">Value</th>
-                    <th class="px-4 py-3">Period</th>
-                    @if ($canEditMetrics)
-                        <th class="px-4 py-3">Aksi</th>
-                    @endif
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-gray-100">
-                @forelse ($metrics as $metric)
+    <div class="mt-6 rounded-lg bg-white border border-slate-200 shadow-sm">
+        <div class="border-b border-slate-100 px-6 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div>
+                <h2 class="text-base font-bold text-slate-900">Rincian Metrik Data ({{ number_format($metrics->total(), 0, ',', '.') }} baris)</h2>
+                <p class="mt-1 text-xs text-slate-500">
+                    Data metrik bersifat baca-saja (Single Source of Truth: "Detektor, Bukan Generator") dan bersumber langsung dari unggahan berkas atau sinkronisasi spreadsheet.
+                </p>
+            </div>
+            <span class="inline-flex items-center rounded-md bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
+                Read-Only
+            </span>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-slate-200 text-sm">
+                <thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
                     <tr>
-                        <td class="px-4 py-2">{{ $metric->metric_name }}</td>
-                        <td class="px-4 py-2">{{ number_format((float) $metric->value, 2) }}</td>
-                        <td class="px-4 py-2">{{ $metric->period }}</td>
-                        @if ($canEditMetrics)
-                            <td class="px-4 py-2">
-                                <a href="{{ route('performance_metrics.edit', $metric) }}"
-                                   class="text-sm text-indigo-600 hover:underline">Edit</a>
-                            </td>
-                        @endif
+                        <th class="px-6 py-3">Nama Metrik / Atribut</th>
+                        <th class="px-6 py-3">Periode</th>
+                        <th class="px-6 py-3 text-right">Nilai</th>
                     </tr>
-                @empty
-                    <tr><td colspan="4" class="px-4 py-6 text-center text-gray-500">Belum ada baris data terimpor.</td></tr>
-                @endforelse
-            </tbody>
-        </table>
-        <div class="px-6 py-4">{{ $metrics->links() }}</div>
+                </thead>
+                <tbody class="divide-y divide-slate-100 bg-white">
+                    @forelse ($metrics as $metric)
+                        <tr class="hover:bg-slate-50/60 transition">
+                            <td class="px-6 py-2.5 font-medium text-slate-800">{{ $metric->metric_name }}</td>
+                            <td class="px-6 py-2.5 text-slate-600 font-mono text-xs">{{ $metric->period }}</td>
+                            <td class="px-6 py-2.5 text-right font-mono font-semibold text-slate-900">{{ number_format((float) $metric->value, 2, ',', '.') }}</td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="3" class="px-6 py-8 text-center text-sm text-slate-400">Belum ada baris data terimpor.</td>
+                        </tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+        <div class="border-t border-slate-100 px-6 py-4">{{ $metrics->links() }}</div>
     </div>
 </div>
 @endsection

@@ -232,8 +232,8 @@
         <div
             id="{{ $chartId }}"
             data-chart-id="aset-upt-chart"
-            class="mt-6 h-80 min-h-[360px] w-full sm:h-96"
-            x-init="$nextTick(() => initChart())"
+            class="mt-6 w-full h-96 min-h-[360px]"
+            style="width: 100%; height: 380px;"
         ></div>
 
         {{-- Bagian Bawah: Tabel Rekapitulasi 8 UPT --}}
@@ -300,10 +300,13 @@
                     ? params
                     : ((window.__asetUptConfigs && window.__asetUptConfigs[chartId]) || {});
 
+                // Simpan chart instance di luar objek reactive Alpine v3 untuk mencegah
+                // Proxy Alpine membekukan atau merusak rendering internal Apache ECharts.
+                let chartInstance = null;
+
                 return {
                     chartId: chartId,
                     activeCategory: 'tower',
-                    chart: null,
 
                     get labels() {
                         return config.labels || [];
@@ -326,24 +329,37 @@
 
                     initChart() {
                         const el = document.getElementById(this.chartId);
-                        if (!el || !window.echarts) { return; }
+                        if (!el) { return; }
 
-                        if (this.chart) {
-                            this.updateChart();
+                        // Retry jika window.echarts belum siap saat Alpine init berjalan
+                        if (!window.echarts) {
+                            setTimeout(() => {
+                                this.initChart();
+                            }, 50);
                             return;
                         }
 
-                        const existing = window.echarts.getInstanceByDom(el);
-                        if (existing) { existing.dispose(); }
+                        if (!chartInstance) {
+                            const existing = window.echarts.getInstanceByDom(el);
+                            chartInstance = existing || window.echarts.init(el);
 
-                        this.chart = window.echarts.init(el);
+                            new ResizeObserver(() => {
+                                if (chartInstance) {
+                                    chartInstance.resize();
+                                }
+                            }).observe(el);
+                        }
+
                         this.updateChart();
-
-                        new ResizeObserver(() => this.chart && this.chart.resize()).observe(el);
                     },
 
                     updateChart() {
-                        if (!this.chart) { return; }
+                        const el = document.getElementById(this.chartId);
+                        if (!el || !window.echarts) { return; }
+
+                        const chart = chartInstance || window.echarts.getInstanceByDom(el) || window.echarts.init(el);
+                        if (!chart) { return; }
+                        chartInstance = chart;
 
                         const currentSeries = this.seriesByCategory[this.activeCategory] || this.seriesByCategory.tower || [];
 
@@ -386,7 +402,7 @@
                                 }
                             },
                             grid: {
-                                top: 45,
+                                top: 48,
                                 bottom: 45,
                                 left: '3%',
                                 right: '4%',
@@ -421,7 +437,7 @@
                             series: currentSeries
                         };
 
-                        this.chart.setOption(option, true);
+                        chart.setOption(option, true);
                     }
                 };
             };

@@ -340,4 +340,17 @@ class PerformanceMetricEditTest extends TestCase
 
         $this->assertSame('Metric Awal', $this->metricA->fresh()->metric_name);
     }
+
+    public function test_detail_dataset_merender_tabel_metrik_read_only_dan_tanpa_tombol_edit(): void
+    {
+        $this->actingAs($this->staffA)
+            ->get(route('datasets.show', $this->datasetA))
+            ->assertOk()
+            ->assertSee('Rincian Metrik Data')
+            ->assertSee('Detektor, Bukan Generator')
+            ->assertSee('Read-Only')
+            ->assertSee('Metric Awal')
+            ->assertDontSee(route('performance_metrics.edit', $this->metricA), false)
+            ->assertDontSee('>Edit<', false);
+    }
 }
