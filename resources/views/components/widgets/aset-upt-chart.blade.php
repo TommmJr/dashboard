@@ -30,6 +30,7 @@
 
     $chartSlug = preg_replace('/[^a-z0-9]+/i', '-', strtolower($widget['key'] ?? 'aset-upt-chart'));
     $chartId = 'asetUptChart-'.$chartSlug.'-'.($widget['instance'] ?? 0);
+    $donutId = 'asetUptDonut-'.$chartSlug.'-'.($widget['instance'] ?? 0);
     $palette = ['#14a2ba', '#125d72', '#efe62f', '#d9d9d9', '#0b7a75', '#f39233', '#7a5195', '#ef5675', '#2f9e44', '#1971c2'];
 
     $formatPeriodLabel = function (?string $rawDate): string {
@@ -168,7 +169,12 @@
                 window.__asetUptConfigs = window.__asetUptConfigs || {};
                 window.__asetUptConfigs[@json($chartId)] = {
                     chartId: @json($chartId),
+                    donutId: @json($donutId),
                     labels: @json($labels->all()),
+                    tableRows: @json($tableRows),
+                    totalTower: @json($totalTower),
+                    totalTransmisi: @json($totalTransmisi),
+                    totalTrafo: @json($totalTrafo),
                     seriesByCategory: {
                         all: @json($chartSeriesAll),
                         tower: @json($chartSeriesTower),
@@ -182,14 +188,12 @@
         {{-- Bagian Atas: 3 Scorecard Fisik Aset Netral --}}
         <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
             {{-- Card 1: Total Tower --}}
-            <div class="relative overflow-hidden rounded-xl border border-slate-200/80 bg-white p-4 sm:p-5 shadow-[0_1px_3px_0_rgba(0,0,0,0.04)]">
+            <div class="relative overflow-hidden rounded-xl border border-slate-200/80 bg-white p-4 sm:p-5 shadow-xs">
                 <div class="flex items-center justify-between">
                     <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Total Tower</p>
-                    <div class="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-600">
-                        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-                            <path d="M12 2v20M6 8l12 0M4 14l16 0M8 22l4-20 4 20" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
-                    </div>
+                    <span class="inline-flex items-center rounded-md bg-teal-50 px-2 py-0.5 text-[11px] font-bold text-teal-700 border border-teal-200/60">
+                        Unit
+                    </span>
                 </div>
                 <div class="mt-2 flex items-baseline gap-1.5">
                     <span class="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 font-sans" x-data="numberTicker('{{ number_format($totalTower, 0, ',', '.') }}')" x-text="display">
@@ -197,18 +201,21 @@
                     </span>
                     <span class="text-xs font-medium text-slate-500">Unit</span>
                 </div>
-                <p class="mt-2 text-[11px] text-slate-500">Total Tower register tingkat UIT JBT (Tab 1a)</p>
+                <div class="mt-3 flex items-center gap-2">
+                    <div class="h-1.5 flex-1 rounded-full bg-slate-100 overflow-hidden">
+                        <div class="h-full rounded-full bg-teal-600" style="width: 100%;"></div>
+                    </div>
+                    <span class="text-[10px] font-semibold text-slate-400">Total Register UIT JBT</span>
+                </div>
             </div>
 
             {{-- Card 2: Total Jalur Transmisi --}}
-            <div class="relative overflow-hidden rounded-xl border border-slate-200/80 bg-white p-4 sm:p-5 shadow-[0_1px_3px_0_rgba(0,0,0,0.04)]">
+            <div class="relative overflow-hidden rounded-xl border border-slate-200/80 bg-white p-4 sm:p-5 shadow-xs">
                 <div class="flex items-center justify-between">
                     <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Total Jalur Transmisi</p>
-                    <div class="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-600">
-                        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-                            <path d="M22 12h-4l-3 9L9 3l-3 9H2" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
-                    </div>
+                    <span class="inline-flex items-center rounded-md bg-sky-50 px-2 py-0.5 text-[11px] font-bold text-sky-700 border border-sky-200/60">
+                        kms
+                    </span>
                 </div>
                 <div class="mt-2 flex items-baseline gap-1.5">
                     <span class="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 font-sans" x-data="numberTicker('{{ number_format($totalTransmisi, 1, ',', '.') }}')" x-text="display">
@@ -216,19 +223,21 @@
                     </span>
                     <span class="text-xs font-medium text-slate-500">kms</span>
                 </div>
-                <p class="mt-2 text-[11px] text-slate-500">Panjang transmisi register tingkat UIT JBT (Tab 1a)</p>
+                <div class="mt-3 flex items-center gap-2">
+                    <div class="h-1.5 flex-1 rounded-full bg-slate-100 overflow-hidden">
+                        <div class="h-full rounded-full bg-sky-600" style="width: 100%;"></div>
+                    </div>
+                    <span class="text-[10px] font-semibold text-slate-400">Total Register UIT JBT</span>
+                </div>
             </div>
 
             {{-- Card 3: Total Kapasitas Trafo --}}
-            <div class="relative overflow-hidden rounded-xl border border-slate-200/80 bg-white p-4 sm:p-5 shadow-[0_1px_3px_0_rgba(0,0,0,0.04)]">
+            <div class="relative overflow-hidden rounded-xl border border-slate-200/80 bg-white p-4 sm:p-5 shadow-xs">
                 <div class="flex items-center justify-between">
                     <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Total Kapasitas Trafo</p>
-                    <div class="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-600">
-                        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-                            <rect x="3" y="6" width="18" height="12" rx="2"/>
-                            <path d="M7 12h2m6 0h2M12 9v6" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
-                    </div>
+                    <span class="inline-flex items-center rounded-md bg-indigo-50 px-2 py-0.5 text-[11px] font-bold text-indigo-700 border border-indigo-200/60">
+                        MVA
+                    </span>
                 </div>
                 <div class="mt-2 flex items-baseline gap-1.5">
                     <span class="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 font-sans" x-data="numberTicker('{{ number_format($totalTrafo, 1, ',', '.') }}')" x-text="display">
@@ -236,17 +245,43 @@
                     </span>
                     <span class="text-xs font-medium text-slate-500">MVA</span>
                 </div>
-                <p class="mt-2 text-[11px] text-slate-500">Kapasitas trafo daya register tingkat UIT JBT (Tab 1a, MVA)</p>
+                <div class="mt-3 flex items-center gap-2">
+                    <div class="h-1.5 flex-1 rounded-full bg-slate-100 overflow-hidden">
+                        <div class="h-full rounded-full bg-indigo-600" style="width: 100%;"></div>
+                    </div>
+                    <span class="text-[10px] font-semibold text-slate-400">Total Register UIT JBT</span>
+                </div>
             </div>
         </div>
 
-        {{-- Kanvas ECharts --}}
-        <div
-            id="{{ $chartId }}"
-            data-chart-id="aset-upt-chart"
-            class="mt-6 w-full h-96 min-h-[360px]"
-            style="width: 100%; height: 380px;"
-        ></div>
+        {{-- Dual-Chart ECharts Layout: Bar Comparison (Left, 2 cols) + Donut Proportion (Right, 1 col) --}}
+        <div class="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
+            <div class="lg:col-span-2 rounded-xl border border-slate-200 bg-white p-4">
+                <div class="flex items-center justify-between mb-3 border-b border-slate-100 pb-2.5">
+                    <h4 class="text-xs font-bold uppercase tracking-wider text-slate-700">Perbandingan 8 UPT</h4>
+                    <span class="text-[11px] text-slate-400 font-mono" x-text="activeCategory.toUpperCase()"></span>
+                </div>
+                <div
+                    id="{{ $chartId }}"
+                    data-chart-id="aset-upt-chart"
+                    class="w-full h-96 min-h-[360px]"
+                    style="width: 100%; height: 380px; min-height: 360px;"
+                ></div>
+            </div>
+
+            <div class="lg:col-span-1 rounded-xl border border-slate-200 bg-white p-4 flex flex-col justify-between">
+                <div class="flex items-center justify-between mb-3 border-b border-slate-100 pb-2.5">
+                    <h4 class="text-xs font-bold uppercase tracking-wider text-slate-700">Proporsi per UPT</h4>
+                    <span class="text-[11px] text-slate-400 font-semibold">% UIT JBT</span>
+                </div>
+                <div
+                    id="{{ $donutId }}"
+                    data-chart-id="aset-upt-donut"
+                    class="w-full h-96 min-h-[360px]"
+                    style="width: 100%; height: 380px; min-height: 360px;"
+                ></div>
+            </div>
+        </div>
 
         {{-- Bagian Bawah: Tabel Rekapitulasi 8 UPT --}}
         @if (!empty($tableRows))
@@ -269,19 +304,35 @@
                         </thead>
                         <tbody class="divide-y divide-slate-100 bg-white">
                             @foreach ($tableRows as $row)
+                                @php
+                                    $towerPct = $totalTower > 0 ? min(100, round((($row['tower'] ?? 0) / $totalTower) * 100, 1)) : 0;
+                                    $transmisiPct = $totalTransmisi > 0 ? min(100, round((($row['transmisi'] ?? 0) / $totalTransmisi) * 100, 1)) : 0;
+                                    $trafoPct = $totalTrafo > 0 ? min(100, round((($row['trafo'] ?? 0) / $totalTrafo) * 100, 1)) : 0;
+                                @endphp
                                 <tr class="hover:bg-slate-50/60 transition">
-                                    <td class="py-2 px-4 font-semibold text-slate-800">
+                                    <td class="py-2.5 px-4 font-semibold text-slate-800">
                                         {{ $row['upt'] }}
                                     </td>
-                                    <td class="py-2 px-4 text-right font-mono text-slate-700">
-                                        {{ number_format($row['tower'] ?? 0, 0, ',', '.') }}
+                                    <td class="py-2.5 px-4 text-right font-mono text-slate-700">
+                                        <div class="flex items-center justify-end gap-2.5">
+                                            <div class="hidden sm:block w-14 h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                                                <div class="h-full rounded-full bg-teal-600/70" style="width: {{ $towerPct }}%;"></div>
+                                            </div>
+                                            <span>{{ number_format($row['tower'] ?? 0, 0, ',', '.') }}</span>
+                                        </div>
                                     </td>
-                                    <td class="py-2 px-4 text-right font-mono text-slate-700">
-                                        {{ number_format($row['transmisi'] ?? 0, 1, ',', '.') }}
-                                    </td>
-                                    <td class="py-2 px-4 text-right font-mono text-slate-700">
-                                        {{ number_format($row['trafo'] ?? 0, 1, ',', '.') }}
-                                    </td>
+                                    <td class="py-2.5 px-4 text-right font-mono text-slate-700">
+                                        <div class="flex items-center justify-end gap-2.5">
+                                            <div class="hidden sm:block w-14 h-1.5 rounded-full bg-sky-600/70" style="width: {{ $transmisiPct }}%;"></div>
+                                        </div>
+                                        <span>{{ number_format($row['transmisi'] ?? 0, 1, ',', '.') }}</span>
+                                    </div>
+                                    <td class="py-2.5 px-4 text-right font-mono text-slate-700">
+                                        <div class="flex items-center justify-end gap-2.5">
+                                            <div class="hidden sm:block w-14 h-1.5 rounded-full bg-indigo-600/70" style="width: {{ $trafoPct }}%;"></div>
+                                        </div>
+                                        <span>{{ number_format($row['trafo'] ?? 0, 1, ',', '.') }}</span>
+                                    </div>
                                 </tr>
                             @endforeach
                         </tbody>
@@ -315,6 +366,7 @@
                 // Simpan chart instance di luar objek reactive Alpine v3 untuk mencegah
                 // Proxy Alpine membekukan atau merusak rendering internal Apache ECharts.
                 let chartInstance = null;
+                let donutInstance = null;
 
                 return {
                     chartId: chartId,
@@ -341,10 +393,11 @@
 
                     initChart() {
                         const el = document.getElementById(this.chartId);
+                        const donutEl = document.getElementById(config.donutId || (this.chartId + '-donut'));
                         if (!el) { return; }
 
                         // Retry jika window.echarts belum siap saat Alpine init berjalan
-                        if (!window.echarts) {
+                        if (!window.echarts && !window.initSafeEChart) {
                             setTimeout(() => {
                                 this.initChart();
                             }, 50);
@@ -352,14 +405,19 @@
                         }
 
                         if (!chartInstance) {
-                            const existing = window.echarts.getInstanceByDom(el);
-                            chartInstance = existing || window.echarts.init(el);
+                            if (window.initSafeEChart) {
+                                chartInstance = window.initSafeEChart(el);
+                            } else if (window.echarts) {
+                                chartInstance = window.echarts.getInstanceByDom(el) || window.echarts.init(el);
+                            }
+                        }
 
-                            new ResizeObserver(() => {
-                                if (chartInstance) {
-                                    chartInstance.resize();
-                                }
-                            }).observe(el);
+                        if (donutEl && !donutInstance) {
+                            if (window.initSafeEChart) {
+                                donutInstance = window.initSafeEChart(donutEl);
+                            } else if (window.echarts) {
+                                donutInstance = window.echarts.getInstanceByDom(donutEl) || window.echarts.init(donutEl);
+                            }
                         }
 
                         this.updateChart();
@@ -367,9 +425,9 @@
 
                     updateChart() {
                         const el = document.getElementById(this.chartId);
-                        if (!el || !window.echarts) { return; }
+                        if (!el) { return; }
 
-                        const chart = chartInstance || window.echarts.getInstanceByDom(el) || window.echarts.init(el);
+                        const chart = chartInstance || (window.initSafeEChart ? window.initSafeEChart(el) : (window.echarts ? (window.echarts.getInstanceByDom(el) || window.echarts.init(el)) : null));
                         if (!chart) { return; }
                         chartInstance = chart;
 
@@ -460,6 +518,75 @@
                         };
 
                         chart.setOption(option, true);
+
+                        // Render Donut Proportion Chart
+                        const donutEl = document.getElementById(config.donutId || (this.chartId + '-donut'));
+                        if (donutEl) {
+                            const donut = donutInstance || (window.initSafeEChart ? window.initSafeEChart(donutEl) : (window.echarts ? (window.echarts.getInstanceByDom(donutEl) || window.echarts.init(donutEl)) : null));
+                            if (donut) {
+                                donutInstance = donut;
+                                const tableRows = config.tableRows || [];
+                                const activeCategory = this.activeCategory;
+                                const unitMap = { tower: 'Unit', transmisi: 'kms', trafo: 'MVA' };
+                                const unit = unitMap[activeCategory] || '';
+
+                                const pieData = tableRows.map(row => {
+                                    let val = 0;
+                                    if (activeCategory === 'tower') val = row.tower || 0;
+                                    else if (activeCategory === 'transmisi') val = row.transmisi || 0;
+                                    else if (activeCategory === 'trafo') val = row.trafo || 0;
+                                    return { name: row.upt, value: val };
+                                });
+
+                                const donutPalette = ['#0f766e', '#0284c7', '#6366f1', '#0d9488', '#38bdf8', '#818cf8', '#475569', '#64748b'];
+
+                                const donutOption = {
+                                    animation: true,
+                                    animationDuration: 650,
+                                    tooltip: {
+                                        trigger: 'item',
+                                        formatter: function (p) {
+                                            const val = Number(p.value).toLocaleString('id-ID');
+                                            return '<div class="p-1 text-xs">'
+                                                + '<span class="font-bold text-slate-800">UPT ' + p.name + '</span><br/>'
+                                                + '<span class="text-slate-600">' + val + ' ' + unit + ' (' + (p.percent || 0) + '%)</span>'
+                                                + '</div>';
+                                        }
+                                    },
+                                    legend: {
+                                        show: false
+                                    },
+                                    color: donutPalette,
+                                    series: [{
+                                        name: 'Pangsa UPT',
+                                        type: 'pie',
+                                        radius: ['44%', '70%'],
+                                        center: ['50%', '50%'],
+                                        avoidLabelOverlap: true,
+                                        itemStyle: {
+                                            borderRadius: 4,
+                                            borderColor: '#ffffff',
+                                            borderWidth: 2
+                                        },
+                                        label: {
+                                            show: true,
+                                            position: 'outside',
+                                            formatter: '{b}\n{d}%',
+                                            fontSize: 10,
+                                            color: '#475569'
+                                        },
+                                        labelLine: {
+                                            show: true,
+                                            length: 8,
+                                            length2: 8
+                                        },
+                                        data: pieData
+                                    }]
+                                };
+
+                                donut.setOption(donutOption, true);
+                            }
+                        }
                     }
                 };
             };

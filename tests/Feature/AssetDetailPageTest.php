@@ -25,15 +25,28 @@ class AssetDetailPageTest extends TestCase
     {
         $this->get(route('dashboard.asset-detail'))
             ->assertRedirect(route('login'));
+
+        $this->get('/dashboard/asset-detail/trafo')
+            ->assertRedirect(route('login'));
+
+        $this->get('/dashboard/asset-detail/mva')
+            ->assertRedirect(route('login'));
+
+        $this->get('/dashboard/asset-detail/transmisi')
+            ->assertRedirect(route('login'));
+
+        $this->get('/dashboard/asset-detail/tower')
+            ->assertRedirect(route('login'));
     }
 
-    public function test_staf_managemen_aset_bisa_mengakses_halaman_detail_aset(): void
+    public function test_staf_managemen_aset_bisa_mengakses_seluruh_sub_halaman_detail_aset(): void
     {
         $division = Division::factory()->create(['name' => 'Managemen Aset', 'slug' => 'managemen-aset']);
         $user = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $division->id]);
 
         $this->seedAsetSampleData($division);
 
+        // 1. Root default (trafo)
         $this->actingAs($user)
             ->get(route('dashboard.asset-detail'))
             ->assertOk()
@@ -45,6 +58,30 @@ class AssetDetailPageTest extends TestCase
             ->assertSee('Total Tower')
             ->assertSee('id="asset-detail-trafo-chart"', false)
             ->assertSee('height: 360px', false);
+
+        // 2. Trafo explicit
+        $this->actingAs($user)
+            ->get('/dashboard/asset-detail/trafo')
+            ->assertOk()
+            ->assertSee('id="asset-detail-trafo-chart"', false);
+
+        // 3. MVA
+        $this->actingAs($user)
+            ->get('/dashboard/asset-detail/mva')
+            ->assertOk()
+            ->assertSee('Distribusi Daya (MVA)', false);
+
+        // 4. Transmisi
+        $this->actingAs($user)
+            ->get('/dashboard/asset-detail/transmisi')
+            ->assertOk()
+            ->assertSee('Jaringan Transmisi (kms)', false);
+
+        // 5. Tower
+        $this->actingAs($user)
+            ->get('/dashboard/asset-detail/tower')
+            ->assertOk()
+            ->assertSee('Sebaran Tower (Unit)', false);
     }
 
     public function test_staf_data_aset_bisa_mengakses_halaman_detail_aset(): void
@@ -60,7 +97,17 @@ class AssetDetailPageTest extends TestCase
             ->assertSee('Rincian Trafo & Stok Aset', false);
     }
 
-    public function test_admin_bisa_mengakses_halaman_detail_aset(): void
+    public function test_sub_halaman_tidak_dikenal_mengembalikan_404(): void
+    {
+        $division = Division::factory()->create(['name' => 'Managemen Aset', 'slug' => 'managemen-aset']);
+        $user = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $division->id]);
+
+        $this->actingAs($user)
+            ->get('/dashboard/asset-detail/unknown-section')
+            ->assertNotFound();
+    }
+
+    public function test_admin_ditolak_403_fail_closed_pada_seluruh_rute_detail_aset(): void
     {
         $admin = User::factory()->withRole(Role::ADMIN)->create(['division_id' => null]);
         $division = Division::factory()->create(['name' => 'Managemen Aset', 'slug' => 'managemen-aset']);
@@ -68,9 +115,23 @@ class AssetDetailPageTest extends TestCase
 
         $this->actingAs($admin)
             ->get(route('dashboard.asset-detail'))
-            ->assertOk()
-            ->assertSee('Rincian Trafo & Stok Aset', false)
-            ->assertSee('TOTAL UIT JBT');
+            ->assertForbidden();
+
+        $this->actingAs($admin)
+            ->get('/dashboard/asset-detail/trafo')
+            ->assertForbidden();
+
+        $this->actingAs($admin)
+            ->get('/dashboard/asset-detail/mva')
+            ->assertForbidden();
+
+        $this->actingAs($admin)
+            ->get('/dashboard/asset-detail/transmisi')
+            ->assertForbidden();
+
+        $this->actingAs($admin)
+            ->get('/dashboard/asset-detail/tower')
+            ->assertForbidden();
     }
 
     public function test_role_lain_ditolak_403_fail_closed(): void
@@ -84,20 +145,30 @@ class AssetDetailPageTest extends TestCase
         ]);
         $stafPengusahaan = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $pengusahaanDiv->id]);
 
-        $this->actingAs($management)
-            ->get(route('dashboard.asset-detail'))
-            ->assertForbidden();
+        foreach ([$management, $editor, $stafPengusahaan] as $otherUser) {
+            $this->actingAs($otherUser)
+                ->get(route('dashboard.asset-detail'))
+                ->assertForbidden();
 
-        $this->actingAs($editor)
-            ->get(route('dashboard.asset-detail'))
-            ->assertForbidden();
+            $this->actingAs($otherUser)
+                ->get('/dashboard/asset-detail/trafo')
+                ->assertForbidden();
 
-        $this->actingAs($stafPengusahaan)
-            ->get(route('dashboard.asset-detail'))
-            ->assertForbidden();
+            $this->actingAs($otherUser)
+                ->get('/dashboard/asset-detail/mva')
+                ->assertForbidden();
+
+            $this->actingAs($otherUser)
+                ->get('/dashboard/asset-detail/transmisi')
+                ->assertForbidden();
+
+            $this->actingAs($otherUser)
+                ->get('/dashboard/asset-detail/tower')
+                ->assertForbidden();
+        }
     }
 
-    public function test_link_sidebar_hanya_tampil_untuk_admin_dan_staf_aset(): void
+    public function test_link_sidebar_hanya_tampil_untuk_staf_aset_dan_tidak_tampil_untuk_admin(): void
     {
         $admin = User::factory()->withRole(Role::ADMIN)->create(['division_id' => null]);
 
@@ -110,19 +181,35 @@ class AssetDetailPageTest extends TestCase
         $management = User::factory()->withRole(Role::MANAGEMENT)->create(['division_id' => null]);
         $editor = User::factory()->withRole(Role::EDITOR_DASHBOARD)->create(['division_id' => null]);
 
-        // Admin melihat link di sidebar
-        $this->actingAs($admin)
-            ->get(route('dashboard'))
-            ->assertOk()
-            ->assertSee('id="sidebar-asset-detail-link"', false)
-            ->assertSee('Rincian Trafo & Aset', false);
-
         // Staf Managemen Aset melihat link di sidebar
         $this->actingAs($stafAset)
             ->get(route('dashboard'))
             ->assertOk()
             ->assertSee('id="sidebar-asset-detail-link"', false)
-            ->assertSee('Rincian Trafo & Aset', false);
+            ->assertSee('id="sidebar-asset-mva-link"', false)
+            ->assertSee('id="sidebar-asset-transmisi-link"', false)
+            ->assertSee('id="sidebar-asset-tower-link"', false);
+
+        // Admin TIDAK melihat link di sidebar dashboard atau builder
+        $this->actingAs($admin)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertDontSee('id="sidebar-asset-detail-link"', false)
+            ->assertDontSee('id="sidebar-asset-mva-link"', false)
+            ->assertDontSee('id="sidebar-asset-transmisi-link"', false)
+            ->assertDontSee('id="sidebar-asset-tower-link"', false)
+            ->assertDontSee('Rincian Trafo & Aset', false)
+            ->assertDontSee('Eksplorasi Aset', false);
+
+        $this->actingAs($admin)
+            ->get(route('dashboard.builder'))
+            ->assertOk()
+            ->assertDontSee('id="sidebar-asset-detail-link"', false)
+            ->assertDontSee('id="sidebar-asset-mva-link"', false)
+            ->assertDontSee('id="sidebar-asset-transmisi-link"', false)
+            ->assertDontSee('id="sidebar-asset-tower-link"', false)
+            ->assertDontSee('Rincian Trafo & Aset', false)
+            ->assertDontSee('Eksplorasi Aset', false);
 
         // Role lain TIDAK melihat link di sidebar
         $this->actingAs($stafPengusahaan)

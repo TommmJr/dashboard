@@ -136,7 +136,22 @@ class KpiAnalyticsPageTest extends TestCase
             ->assertSee('Analitik & Bottleneck KPI', false);
     }
 
-    public function test_admin_dan_management_dapat_mengakses_kpi_analytics(): void
+    public function test_management_dapat_mengakses_kpi_analytics(): void
+    {
+        $managementRole = Role::where('slug', Role::MANAGEMENT)->firstOrFail();
+        $management = User::factory()->create([
+            'role_id' => $managementRole->id,
+            'division_id' => null,
+        ]);
+
+        $this->assertTrue(KpiAnalyticsController::canAccessKpiAnalytics($management));
+
+        $this->actingAs($management)
+            ->get(route('dashboard.kpi-analytics'))
+            ->assertOk();
+    }
+
+    public function test_admin_ditolak_403_fail_closed_pada_kpi_analytics(): void
     {
         $adminRole = Role::where('slug', Role::ADMIN)->firstOrFail();
         $admin = User::factory()->create([
@@ -144,22 +159,15 @@ class KpiAnalyticsPageTest extends TestCase
             'division_id' => null,
         ]);
 
-        $managementRole = Role::where('slug', Role::MANAGEMENT)->firstOrFail();
-        $management = User::factory()->create([
-            'role_id' => $managementRole->id,
-            'division_id' => null,
-        ]);
-
-        $this->assertTrue(KpiAnalyticsController::canAccessKpiAnalytics($admin));
-        $this->assertTrue(KpiAnalyticsController::canAccessKpiAnalytics($management));
+        $this->assertFalse(KpiAnalyticsController::canAccessKpiAnalytics($admin));
 
         $this->actingAs($admin)
             ->get(route('dashboard.kpi-analytics'))
-            ->assertOk();
+            ->assertForbidden();
 
-        $this->actingAs($management)
-            ->get(route('dashboard.kpi-analytics'))
-            ->assertOk();
+        $this->actingAs($admin)
+            ->get(route('dashboard.kpi-matrix'))
+            ->assertForbidden();
     }
 
     public function test_staf_divisi_aset_dan_editor_dashboard_ditolak_403_fail_closed(): void
@@ -199,7 +207,7 @@ class KpiAnalyticsPageTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_sidebar_menampilkan_link_analitik_kpi_untuk_staf_pengusahaan_admin_management_dan_menyembunyikannya_untuk_staf_aset(): void
+    public function test_sidebar_menampilkan_link_analitik_kpi_untuk_staf_pengusahaan_dan_management_dan_menyembunyikannya_untuk_admin_dan_staf_aset(): void
     {
         $staffRole = Role::where('slug', Role::STAFF_DIVISI)->firstOrFail();
         $adminRole = Role::where('slug', Role::ADMIN)->firstOrFail();
@@ -232,17 +240,24 @@ class KpiAnalyticsPageTest extends TestCase
             ->assertSee('id="sidebar-kpi-analytics-link"', false)
             ->assertSee('Analitik & Bottleneck KPI', false);
 
-        // Admin melihat link di dashboard
-        $this->actingAs($admin)
-            ->get(route('dashboard'))
-            ->assertOk()
-            ->assertSee('id="sidebar-kpi-analytics-link"', false);
-
         // Management melihat link di dashboard
         $this->actingAs($management)
             ->get(route('dashboard'))
             ->assertOk()
             ->assertSee('id="sidebar-kpi-analytics-link"', false);
+
+        // Admin TIDAK melihat link di dashboard maupun builder
+        $this->actingAs($admin)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertDontSee('id="sidebar-kpi-analytics-link"', false)
+            ->assertDontSee('Analitik & Bottleneck KPI', false);
+
+        $this->actingAs($admin)
+            ->get(route('dashboard.builder'))
+            ->assertOk()
+            ->assertDontSee('id="sidebar-kpi-analytics-link"', false)
+            ->assertDontSee('Analitik & Bottleneck KPI', false);
 
         // Staf Aset TIDAK melihat link di dashboard
         $this->actingAs($stafAset)

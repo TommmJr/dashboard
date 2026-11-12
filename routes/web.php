@@ -39,7 +39,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/dashboard', DashboardController::class)->name('dashboard');
     Route::get('/dashboard/kpi-detail', [DashboardController::class, 'kpiDetail'])
         ->name('dashboard.kpi-detail');
-    Route::get('/dashboard/asset-detail', [AssetDetailController::class, 'index'])
+    Route::get('/dashboard/asset-detail/{section?}', [AssetDetailController::class, 'index'])
         ->name('dashboard.asset-detail');
     Route::get('/dashboard/kpi-analytics', [KpiAnalyticsController::class, 'index'])
         ->name('dashboard.kpi-analytics');

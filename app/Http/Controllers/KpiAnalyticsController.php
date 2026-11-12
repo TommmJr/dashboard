@@ -35,11 +35,10 @@ class KpiAnalyticsController extends Controller
 
     /**
      * Otorisasi fail-closed untuk analitik KPI:
-     * - Admin
      * - Management
      * - Staf Divisi Perencanaan Pengusahaan
      *
-     * Staf Managemen Aset, Editor Dashboard, dan divisi lain ditolak 403.
+     * Admin, Staf Managemen Aset, Editor Dashboard, dan divisi lain ditolak 403.
      */
     public static function canAccessKpiAnalytics(?User $user): bool
     {
@@ -49,7 +48,7 @@ class KpiAnalyticsController extends Controller
 
         $user->loadMissing('role', 'division');
 
-        if ($user->hasRole(Role::ADMIN) || $user->hasRole(Role::MANAGEMENT)) {
+        if ($user->hasRole(Role::MANAGEMENT)) {
             return true;
         }
 

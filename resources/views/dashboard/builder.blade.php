@@ -7,6 +7,7 @@
     <div class="mb-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
             <h1 class="text-2xl font-bold text-primary">Dashboard Builder</h1>
+            <p class="mt-1 text-xs text-slate-500">Kustomisasi tata letak, lebar kolom, dan susunan widget dashboard BI interaktif.</p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
             <a href="{{ route('dashboard') }}" class="inline-flex items-center gap-2 rounded border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-primary transition hover:border-accent hover:text-accent">

@@ -76,6 +76,14 @@
                             >
                                 Bawaan (Konfigurasi Fallback)
                             </span>
+                            <span
+                                x-show="isDirty()"
+                                x-cloak
+                                class="inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-800"
+                            >
+                                <span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span>
+                                Belum Disimpan
+                            </span>
                         </div>
                     </div>
 
@@ -143,8 +151,44 @@
                         </div>
                     </div>
 
+                    {{-- Filter Kategori Domain --}}
+                    <div class="mt-2.5 flex flex-wrap gap-1.5 border-b border-slate-200/80 pb-2.5 text-xs font-semibold">
+                        <button
+                            type="button"
+                            @click="catalogFilterCategory = 'all'"
+                            :class="catalogFilterCategory === 'all' ? 'bg-primary text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'"
+                            class="rounded px-2.5 py-1 text-[11px] transition"
+                        >
+                            Semua (<span x-text="catalog.length"></span>)
+                        </button>
+                        <button
+                            type="button"
+                            @click="catalogFilterCategory = 'Kinerja / KPI'"
+                            :class="catalogFilterCategory === 'Kinerja / KPI' ? 'bg-teal-700 text-white shadow-xs' : 'bg-teal-50 text-teal-800 hover:bg-teal-100'"
+                            class="rounded px-2.5 py-1 text-[11px] transition"
+                        >
+                            Kinerja / KPI
+                        </button>
+                        <button
+                            type="button"
+                            @click="catalogFilterCategory = 'Manajemen Aset'"
+                            :class="catalogFilterCategory === 'Manajemen Aset' ? 'bg-indigo-700 text-white shadow-xs' : 'bg-indigo-50 text-indigo-800 hover:bg-indigo-100'"
+                            class="rounded px-2.5 py-1 text-[11px] transition"
+                        >
+                            Manajemen Aset
+                        </button>
+                        <button
+                            type="button"
+                            @click="catalogFilterCategory = 'Operasional & Admin'"
+                            :class="catalogFilterCategory === 'Operasional & Admin' ? 'bg-slate-700 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'"
+                            class="rounded px-2.5 py-1 text-[11px] transition"
+                        >
+                            Operasional & Admin
+                        </button>
+                    </div>
+
                     <div class="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3" aria-label="Palet komponen">
-                        <template x-for="item in catalog" :key="item.key">
+                        <template x-for="item in filteredCatalog()" :key="item.key">
                             <div
                                 draggable="true"
                                 @dragstart="startPaletteDrag(item.key)"
@@ -156,17 +200,25 @@
                                     <div class="palette-thumb relative mb-2 flex h-14 w-full items-center justify-center rounded-md bg-slate-50 border border-slate-100 text-primary/80 group-hover:bg-primary/5 group-hover:border-primary/20 transition-colors overflow-hidden">
                                         @include('components.widgets.partials.widget-sketch', ['keyExpr' => 'item.key', 'sizeClass' => 'h-10 w-full'])
                                     </div>
-                                    <div class="flex items-center justify-between gap-1 mb-1.5">
+                                    <div class="flex items-center justify-between gap-1 mb-1">
                                         <span
-                                            class="palette-type-label rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary truncate"
-                                            x-text="paletteVisual(item.key).label"
+                                            class="rounded border px-1.5 py-0.5 text-[9px] font-bold truncate"
+                                            :class="(item.category || getWidgetCategory(item.key)) === 'Kinerja / KPI' ? 'bg-teal-50 text-teal-700 border-teal-200' : ((item.category || getWidgetCategory(item.key)) === 'Manajemen Aset' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-slate-100 text-slate-600 border-slate-200')"
+                                            x-text="item.category || getWidgetCategory(item.key)"
                                         ></span>
                                         <span
                                             class="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600"
                                             x-text="`${item.default_cols || 3} Kolom`"
                                         ></span>
                                     </div>
-                                    <p class="text-xs font-bold text-primary line-clamp-2" x-text="item.label"></p>
+                                    <div class="flex items-center justify-between gap-1 mb-1">
+                                        <span
+                                            class="palette-type-label rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary truncate"
+                                            x-text="paletteVisual(item.key).label"
+                                        ></span>
+                                    </div>
+                                    <p class="text-xs font-bold text-primary line-clamp-1" x-text="item.label"></p>
+                                    <p class="mt-1 text-[11px] leading-relaxed text-slate-500 line-clamp-2" x-text="item.description || getWidgetDescription(item.key)"></p>
                                 </div>
 
                                 <div class="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between">
@@ -220,9 +272,13 @@
                             type="button"
                             @click="saveLayout()"
                             :disabled="saving || activeWidgets.length === 0"
-                            class="inline-flex h-10 items-center justify-center rounded bg-primary px-5 text-sm font-semibold text-white transition hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
+                            :class="isDirty() ? 'bg-accent text-white shadow-md hover:bg-accent/90 ring-2 ring-accent/30 font-bold' : 'bg-primary text-white hover:bg-accent font-semibold'"
+                            class="inline-flex h-10 items-center justify-center gap-2 rounded px-5 text-sm transition disabled:cursor-not-allowed disabled:opacity-50"
                         >
-                            Simpan Layout
+                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                            </svg>
+                            <span>Simpan Layout</span>
                         </button>
                     </div>
                 </div>
@@ -233,8 +289,16 @@
                 <p class="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500">Pratinjau</p>
                 <div class="rounded-lg border border-slate-200 bg-slate-50/50 p-4">
                     <div class="flex flex-col gap-2 border-b border-slate-200 pb-3 sm:flex-row sm:items-center sm:justify-between">
-                        <div>
+                        <div class="flex items-center gap-2">
                             <h4 class="text-sm font-bold uppercase tracking-wide text-primary">Pratinjau</h4>
+                            <span
+                                x-show="isDirty()"
+                                x-cloak
+                                class="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-800"
+                            >
+                                <span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span>
+                                Belum Disimpan
+                            </span>
                         </div>
                         <div class="flex flex-wrap items-center gap-2">
                             <span class="rounded bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary" x-text="`${activeWidgets.length} Widget`"></span>
@@ -288,7 +352,7 @@
                                         <div class="flex flex-wrap items-center gap-1 pointer-events-auto">
                                             {{-- Atur Lebar Selector --}}
                                             <div class="flex items-center rounded-lg border border-slate-200 bg-white p-0.5 text-xs font-medium" title="Atur Lebar Kolom">
-                                                <span class="px-1 text-[10px] font-semibold text-slate-500">Lebar:</span>
+                                                <span class="px-1 text-[10px] font-bold uppercase tracking-wider text-slate-500" title="Lebar Kolom">Atur Lebar:</span>
                                                 <template x-for="n in [1, 2, 3]" :key="n">
                                                     <button
                                                         type="button"
@@ -296,11 +360,13 @@
                                                         @mousedown.stop
                                                         @pointerdown.stop
                                                         @click="setWidgetCols(w, n)"
-                                                        :aria-label="`Lebar ${n} kolom`"
-                                                        :class="(w.cols === n) ? 'bg-primary text-white shadow-xs' : 'text-slate-600 hover:text-primary'"
-                                                        class="rounded px-1.5 py-0.5 text-[11px] font-semibold transition"
-                                                        x-text="n"
-                                                    ></button>
+                                                        :aria-label="`Lebar ${n} kolom (${n === 1 ? '33%' : (n === 2 ? '66%' : '100%')})`"
+                                                        :class="(w.cols === n) ? 'bg-primary text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100 hover:text-primary'"
+                                                        class="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[11px] font-semibold transition"
+                                                    >
+                                                        <span x-text="`${n} Kol`"></span>
+                                                        <span class="text-[9px] opacity-75 font-normal" x-text="n === 1 ? '33%' : (n === 2 ? '66%' : '100%')"></span>
+                                                    </button>
                                                 </template>
                                             </div>
 
@@ -406,7 +472,7 @@
                                         </div>
                                     </template>
 
-                                    {{-- Live In-Canvas WYSIWYG Previews --}}
+                                    {{-- Live In-Canvas WYSIWYG Previews untuk Interactive Charts --}}
                                     <template x-if="w.key === 'custom-chart'">
                                         <div
                                             class="preview-chart-container canvas-chart-container relative mt-2 h-44 w-full rounded border border-slate-100 bg-slate-50/60 p-2"
@@ -425,46 +491,389 @@
                                         </div>
                                     </template>
 
-                                    <template x-if="w.key === 'kpi-summary'">
-                                        <div class="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
-                                            <div class="rounded border border-sky-100 bg-sky-50/80 p-2.5">
-                                                <p class="text-[10px] font-bold uppercase tracking-wide text-sky-700">Rata-rata NKO</p>
-                                                <p class="mt-1 text-base font-bold text-sky-950">105.4%</p>
+                                    {{-- High-Fidelity Representative Visual Mini-Mockups (Tailwind/SVG) --}}
+                                    <div class="preview-sketch mt-2 flex flex-col justify-between rounded-lg border border-slate-100 bg-slate-50/70 p-3 shadow-2xs" data-mini-mockup="true">
+                                        {{-- 1. nko-ranking (Bar Chart Mockup) --}}
+                                        <template x-if="w.key === 'nko-ranking'">
+                                            <div class="space-y-1.5">
+                                                <div class="flex items-center justify-between text-[11px] font-semibold text-slate-700">
+                                                    <span class="flex items-center gap-1.5 truncate">
+                                                        <span class="h-2 w-2 rounded-full bg-teal-500 shrink-0"></span>
+                                                        1. TJBT (Jawa Bagian Tengah)
+                                                    </span>
+                                                    <span class="rounded bg-teal-50 px-1.5 py-0.5 font-bold text-teal-700 shrink-0">105.5</span>
+                                                </div>
+                                                <div class="h-2 w-full overflow-hidden rounded-full bg-slate-200">
+                                                    <div class="h-full rounded-full bg-teal-600" style="width: 100%;"></div>
+                                                </div>
+                                                <div class="flex items-center justify-between text-[11px] font-semibold text-slate-700">
+                                                    <span class="flex items-center gap-1.5 truncate">
+                                                        <span class="h-2 w-2 rounded-full bg-cyan-500 shrink-0"></span>
+                                                        2. TRANS (Transmisi)
+                                                    </span>
+                                                    <span class="rounded bg-cyan-50 px-1.5 py-0.5 font-bold text-cyan-700 shrink-0">100.7</span>
+                                                </div>
+                                                <div class="h-2 w-full overflow-hidden rounded-full bg-slate-200">
+                                                    <div class="h-full rounded-full bg-cyan-600" style="width: 95%;"></div>
+                                                </div>
+                                                <div class="flex items-center justify-between text-[11px] font-semibold text-slate-600">
+                                                    <span class="flex items-center gap-1.5 truncate">
+                                                        <span class="h-2 w-2 rounded-full bg-slate-400 shrink-0"></span>
+                                                        3. UPT Semarang
+                                                    </span>
+                                                    <span class="rounded bg-slate-100 px-1.5 py-0.5 font-bold text-slate-600 shrink-0">99.4</span>
+                                                </div>
+                                                <div class="h-2 w-full overflow-hidden rounded-full bg-slate-200">
+                                                    <div class="h-full rounded-full bg-slate-400" style="width: 88%;"></div>
+                                                </div>
                                             </div>
-                                            <div class="rounded border border-emerald-100 bg-emerald-50/80 p-2.5">
-                                                <p class="text-[10px] font-bold uppercase tracking-wide text-emerald-700">Indikator</p>
-                                                <p class="mt-1 text-base font-bold text-emerald-950">16 Tercapai</p>
-                                            </div>
-                                            <div class="col-span-2 rounded border border-amber-100 bg-amber-50/80 p-2.5 sm:col-span-1">
-                                                <p class="text-[10px] font-bold uppercase tracking-wide text-amber-700">Periode Aktif</p>
-                                                <p class="mt-1 text-xs font-bold text-amber-950">Agustus 2026</p>
-                                            </div>
-                                        </div>
-                                    </template>
+                                        </template>
 
-                                    <template x-if="w.key === 'nko-ranking'">
-                                        <div class="mt-2 space-y-1.5 rounded border border-slate-100 bg-slate-50/60 p-2.5 text-xs">
-                                            <div class="flex items-center justify-between font-medium">
-                                                <span class="text-slate-700">1. TJBT (Jawa Bagian Tengah)</span>
-                                                <span class="font-bold text-emerald-600">105.5</span>
+                                        {{-- 2. aset-upt-chart (Bar Chart Mockup) --}}
+                                        <template x-if="w.key === 'aset-upt-chart'">
+                                            <div class="space-y-2">
+                                                <div class="flex items-center justify-between text-[11px]">
+                                                    <span class="font-bold text-slate-700 truncate">Rekapitulasi 8 UPT</span>
+                                                    <span class="rounded bg-teal-50 px-1.5 py-0.5 text-[9px] font-bold text-teal-700 border border-teal-200 shrink-0">1.824 Trafo &bull; 86.420 MVA</span>
+                                                </div>
+                                                <svg class="h-16 w-full" viewBox="0 0 240 60" fill="none">
+                                                    <line x1="10" y1="52" x2="230" y2="52" stroke="#cbd5e1" stroke-width="1" />
+                                                    <rect x="20" y="16" width="16" height="36" rx="2" fill="#0d9488" />
+                                                    <rect x="38" y="24" width="16" height="28" rx="2" fill="#06b6d4" />
+                                                    <rect x="74" y="10" width="16" height="42" rx="2" fill="#0d9488" />
+                                                    <rect x="92" y="18" width="16" height="34" rx="2" fill="#06b6d4" />
+                                                    <rect x="128" y="22" width="16" height="30" rx="2" fill="#0d9488" />
+                                                    <rect x="146" y="30" width="16" height="22" rx="2" fill="#06b6d4" />
+                                                    <rect x="182" y="14" width="16" height="38" rx="2" fill="#0d9488" />
+                                                    <rect x="200" y="26" width="16" height="26" rx="2" fill="#06b6d4" />
+                                                </svg>
+                                                <div class="flex items-center justify-between text-[10px] text-slate-500 px-2">
+                                                    <span>Smg</span><span>Skr</span><span>Pwt</span><span>Ygy</span>
+                                                </div>
                                             </div>
-                                            <div class="flex items-center justify-between font-medium">
-                                                <span class="text-slate-700">2. TRANS (Transmisi)</span>
-                                                <span class="font-bold text-emerald-600">100.7</span>
-                                            </div>
-                                            <div class="flex items-center justify-between text-[11px] text-slate-400">
-                                                <span>+13 Unit Lainnya</span>
-                                                <span class="font-semibold text-slate-500">100.0</span>
-                                            </div>
-                                        </div>
-                                    </template>
+                                        </template>
 
-                                    <template x-if="!['custom-chart', 'trend-chart', 'kpi-summary', 'nko-ranking'].includes(w.key)">
-                                        <div class="preview-sketch mt-2 flex h-32 flex-col items-center justify-center rounded border border-slate-100 bg-slate-50/60 text-primary/70">
-                                            @include('components.widgets.partials.widget-sketch', ['keyExpr' => 'w.key', 'sizeClass' => 'h-24 w-full'])
-                                            <span class="mt-1 text-[11px] text-slate-500" x-text="paletteVisual(w.key).label"></span>
+                                        {{-- 3. target-realisasi-per-indikator (Bar Chart Mockup) --}}
+                                        <template x-if="w.key === 'target-realisasi-per-indikator'">
+                                            <div class="space-y-2">
+                                                <div class="flex items-center justify-between text-[11px]">
+                                                    <span class="font-bold text-slate-700 truncate">Target vs Realisasi Indikator</span>
+                                                    <span class="rounded bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700 border border-emerald-200 shrink-0">Terstruktur</span>
+                                                </div>
+                                                <div class="space-y-1.5 text-[11px]">
+                                                    <div>
+                                                        <div class="flex justify-between text-slate-600 mb-0.5">
+                                                            <span class="truncate">Kesiapan Pembangkit</span>
+                                                            <span class="font-bold text-teal-700 shrink-0">98.5% / 100%</span>
+                                                        </div>
+                                                        <div class="h-2 w-full rounded-full bg-slate-200 overflow-hidden flex">
+                                                            <div class="bg-teal-600 h-full rounded-full" style="width: 98.5%;"></div>
+                                                        </div>
+                                                    </div>
+                                                    <div>
+                                                        <div class="flex justify-between text-slate-600 mb-0.5">
+                                                            <span class="truncate">Keandalan Transmisi</span>
+                                                            <span class="font-bold text-teal-700 shrink-0">104.2% / 100%</span>
+                                                        </div>
+                                                        <div class="h-2 w-full rounded-full bg-slate-200 overflow-hidden flex">
+                                                            <div class="bg-teal-600 h-full rounded-full" style="width: 100%;"></div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </template>
+
+                                        {{-- 4. nko-donut (Donut Mockup) --}}
+                                        <template x-if="w.key === 'nko-donut'">
+                                            <div class="flex items-center justify-between gap-3">
+                                                <div class="relative flex h-20 w-20 shrink-0 items-center justify-center">
+                                                    <svg class="h-20 w-20 -rotate-90" viewBox="0 0 36 36">
+                                                        <path class="text-slate-100" stroke-width="4.5" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                                        <path class="text-emerald-500" stroke-dasharray="65, 100" stroke-width="4.5" stroke-linecap="round" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                                        <path class="text-amber-500" stroke-dasharray="25, 100" stroke-dashoffset="-65" stroke-width="4.5" stroke-linecap="round" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                                        <path class="text-teal-600" stroke-dasharray="10, 100" stroke-dashoffset="-90" stroke-width="4.5" stroke-linecap="round" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                                    </svg>
+                                                    <div class="absolute inset-0 flex flex-col items-center justify-center text-center">
+                                                        <span class="text-xs font-bold text-primary">105.4</span>
+                                                        <span class="text-[8px] font-semibold text-slate-400">NKO</span>
+                                                    </div>
+                                                </div>
+                                                <div class="flex flex-1 flex-col justify-center space-y-1 text-[11px]">
+                                                    <div class="flex items-center justify-between"><span class="flex items-center gap-1.5 text-slate-600 truncate"><span class="h-2 w-2 rounded-full bg-emerald-500 shrink-0"></span>Tercapai</span><span class="font-bold text-emerald-700 shrink-0">16 Indikator</span></div>
+                                                    <div class="flex items-center justify-between"><span class="flex items-center gap-1.5 text-slate-600 truncate"><span class="h-2 w-2 rounded-full bg-amber-500 shrink-0"></span>Hampir</span><span class="font-bold text-amber-700 shrink-0">3 Indikator</span></div>
+                                                    <div class="flex items-center justify-between"><span class="flex items-center gap-1.5 text-slate-600 truncate"><span class="h-2 w-2 rounded-full bg-teal-600 shrink-0"></span>Perhatian</span><span class="font-bold text-teal-800 shrink-0">2 Indikator</span></div>
+                                                </div>
+                                            </div>
+                                        </template>
+
+                                        {{-- 5. kpi-rag-status (Donut / Tile Status Mockup) --}}
+                                        <template x-if="w.key === 'kpi-rag-status'">
+                                            <div class="grid grid-cols-3 gap-2">
+                                                <div class="rounded-lg border border-emerald-200 bg-emerald-50/80 p-2 text-center">
+                                                    <span class="block text-[10px] font-bold uppercase tracking-wider text-emerald-700">Tercapai</span>
+                                                    <span class="text-base font-extrabold text-emerald-950">16</span>
+                                                    <span class="block text-[9px] text-emerald-600">&ge; 100%</span>
+                                                </div>
+                                                <div class="rounded-lg border border-amber-200 bg-amber-50/80 p-2 text-center">
+                                                    <span class="block text-[10px] font-bold uppercase tracking-wider text-amber-700">Hampir</span>
+                                                    <span class="text-base font-extrabold text-amber-950">3</span>
+                                                    <span class="block text-[9px] text-amber-600">95 - 99%</span>
+                                                </div>
+                                                <div class="rounded-lg border border-teal-200 bg-teal-50/80 p-2 text-center">
+                                                    <span class="block text-[10px] font-bold uppercase tracking-wider text-teal-700">Perhatian</span>
+                                                    <span class="text-base font-extrabold text-teal-950">2</span>
+                                                    <span class="block text-[9px] text-teal-600">&lt; 95%</span>
+                                                </div>
+                                            </div>
+                                        </template>
+
+                                        {{-- 6. kpi-summary (Scorecard Mockup) --}}
+                                        <template x-if="w.key === 'kpi-summary'">
+                                            <div class="grid grid-cols-3 gap-2">
+                                                <div class="rounded-lg border border-sky-100 bg-sky-50/80 p-2">
+                                                    <p class="text-[10px] font-bold uppercase tracking-wide text-sky-700 truncate">Rerata NKO</p>
+                                                    <p class="mt-0.5 text-base font-bold text-sky-950">105.4%</p>
+                                                    <div class="mt-1 h-1 w-full rounded-full bg-sky-200"><div class="h-full rounded-full bg-sky-600" style="width: 100%;"></div></div>
+                                                </div>
+                                                <div class="rounded-lg border border-emerald-100 bg-emerald-50/80 p-2">
+                                                    <p class="text-[10px] font-bold uppercase tracking-wide text-emerald-700 truncate">Indikator</p>
+                                                    <p class="mt-0.5 text-base font-bold text-emerald-950">16 Tercapai</p>
+                                                    <div class="mt-1 h-1 w-full rounded-full bg-emerald-200"><div class="h-full rounded-full bg-emerald-600" style="width: 80%;"></div></div>
+                                                </div>
+                                                <div class="rounded-lg border border-amber-100 bg-amber-50/80 p-2">
+                                                    <p class="text-[10px] font-bold uppercase tracking-wide text-amber-700 truncate">Periode</p>
+                                                    <p class="mt-0.5 text-xs font-bold text-amber-950">Agu 2026</p>
+                                                    <span class="mt-1 inline-block rounded bg-amber-200/60 px-1 text-[9px] font-bold text-amber-800">Final</span>
+                                                </div>
+                                            </div>
+                                        </template>
+
+                                        {{-- 7. dataset-status (Scorecard / Status Mockup) --}}
+                                        <template x-if="w.key === 'dataset-status'">
+                                            <div class="grid grid-cols-3 gap-2 text-center">
+                                                <div class="rounded-lg border border-emerald-200 bg-emerald-50/70 p-2">
+                                                    <span class="block text-[10px] font-bold uppercase tracking-wide text-emerald-700">Status</span>
+                                                    <span class="text-sm font-extrabold text-emerald-900">READY</span>
+                                                    <span class="block text-[9px] text-emerald-600 mt-0.5">12 Dataset</span>
+                                                </div>
+                                                <div class="rounded-lg border border-slate-200 bg-white p-2">
+                                                    <span class="block text-[10px] font-bold uppercase tracking-wide text-slate-500">Baris Data</span>
+                                                    <span class="text-sm font-extrabold text-primary">1.420</span>
+                                                    <span class="block text-[9px] text-slate-400 mt-0.5">Aktif TJBT</span>
+                                                </div>
+                                                <div class="rounded-lg border border-slate-200 bg-white p-2">
+                                                    <span class="block text-[10px] font-bold uppercase tracking-wide text-slate-500">Periode</span>
+                                                    <span class="text-xs font-bold text-primary mt-0.5">Agu 2026</span>
+                                                    <span class="block text-[9px] text-teal-600 font-semibold mt-0.5">Terverifikasi</span>
+                                                </div>
+                                            </div>
+                                        </template>
+
+                                        {{-- 8. pencapaian-nko (Scorecard / Bar Mockup) --}}
+                                        <template x-if="w.key === 'pencapaian-nko'">
+                                            <div class="space-y-1.5">
+                                                <div class="flex items-center justify-between text-[11px]">
+                                                    <span class="font-bold text-slate-700 truncate">Pencapaian % per Unit</span>
+                                                    <span class="text-[10px] font-bold text-teal-700 shrink-0">Rerata 104.2%</span>
+                                                </div>
+                                                <div class="space-y-1">
+                                                    <div class="flex items-center justify-between text-[10px]">
+                                                        <span class="w-16 truncate text-slate-600">TJBT</span>
+                                                        <div class="h-2 flex-1 mx-2 rounded-full bg-slate-200 overflow-hidden"><div class="h-full bg-teal-600 rounded-full" style="width: 100%;"></div></div>
+                                                        <span class="font-bold text-teal-700 shrink-0">105.5%</span>
+                                                    </div>
+                                                    <div class="flex items-center justify-between text-[10px]">
+                                                        <span class="w-16 truncate text-slate-600">TRANS</span>
+                                                        <div class="h-2 flex-1 mx-2 rounded-full bg-slate-200 overflow-hidden"><div class="h-full bg-cyan-600 rounded-full" style="width: 96%;"></div></div>
+                                                        <span class="font-bold text-cyan-700 shrink-0">100.7%</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </template>
+
+                                        {{-- 9. admin-quick-actions (Scorecard / Actions Mockup) --}}
+                                        <template x-if="w.key === 'admin-quick-actions'">
+                                            <div class="grid grid-cols-3 gap-2">
+                                                <div class="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white p-2 text-left">
+                                                    <div class="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-teal-50 text-teal-700">
+                                                        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                                                    </div>
+                                                    <div class="min-w-0"><p class="truncate text-[10px] font-bold text-primary">Upload</p><p class="text-[8px] text-slate-400">Dataset</p></div>
+                                                </div>
+                                                <div class="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white p-2 text-left">
+                                                    <div class="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-indigo-50 text-indigo-700">
+                                                        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                                    </div>
+                                                    <div class="min-w-0"><p class="truncate text-[10px] font-bold text-primary">Audit</p><p class="text-[8px] text-slate-400">Log</p></div>
+                                                </div>
+                                                <div class="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white p-2 text-left">
+                                                    <div class="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-slate-100 text-slate-700">
+                                                        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+                                                    </div>
+                                                    <div class="min-w-0"><p class="truncate text-[10px] font-bold text-primary">User</p><p class="text-[8px] text-slate-400">Kelola</p></div>
+                                                </div>
+                                            </div>
+                                        </template>
+
+                                        {{-- 10. admin-summary (Scorecard Mockup) --}}
+                                        <template x-if="w.key === 'admin-summary'">
+                                            <div class="grid grid-cols-3 gap-2">
+                                                <div class="rounded-lg border border-slate-200 bg-white p-2">
+                                                    <span class="block text-[9px] font-bold uppercase tracking-wider text-slate-500 truncate">Total Dataset</span>
+                                                    <span class="mt-0.5 text-sm font-extrabold text-primary">24</span>
+                                                    <span class="block text-[8px] text-emerald-600 font-semibold mt-0.5">22 Siap</span>
+                                                </div>
+                                                <div class="rounded-lg border border-slate-200 bg-white p-2">
+                                                    <span class="block text-[9px] font-bold uppercase tracking-wider text-slate-500 truncate">Pengguna</span>
+                                                    <span class="mt-0.5 text-sm font-extrabold text-primary">18</span>
+                                                    <span class="block text-[8px] text-sky-600 font-semibold mt-0.5">4 Peran</span>
+                                                </div>
+                                                <div class="rounded-lg border border-slate-200 bg-white p-2">
+                                                    <span class="block text-[9px] font-bold uppercase tracking-wider text-slate-500 truncate">Sistem</span>
+                                                    <span class="mt-0.5 text-sm font-extrabold text-emerald-700">Optimal</span>
+                                                    <span class="block text-[8px] text-slate-400 mt-0.5">Audit Aman</span>
+                                                </div>
+                                            </div>
+                                        </template>
+
+                                        {{-- 11. kinerja-detail (Table Mockup) --}}
+                                        <template x-if="w.key === 'kinerja-detail'">
+                                            <div class="overflow-hidden rounded-md border border-slate-200 text-[10px]">
+                                                <div class="grid grid-cols-12 bg-slate-100 px-2 py-1 font-bold text-slate-600 uppercase tracking-wider">
+                                                    <span class="col-span-6 truncate">Indikator Metrik</span>
+                                                    <span class="col-span-3 text-right">Target</span>
+                                                    <span class="col-span-3 text-right">Realisasi</span>
+                                                </div>
+                                                <div class="divide-y divide-slate-100 bg-white">
+                                                    <div class="grid grid-cols-12 px-2 py-1 items-center">
+                                                        <span class="col-span-6 truncate font-medium text-slate-700">Kesiapan Pembangkit</span>
+                                                        <span class="col-span-3 text-right text-slate-500">100.0</span>
+                                                        <span class="col-span-3 text-right font-bold text-teal-700">98.5</span>
+                                                    </div>
+                                                    <div class="grid grid-cols-12 px-2 py-1 items-center bg-slate-50/50">
+                                                        <span class="col-span-6 truncate font-medium text-slate-700">Keandalan Transmisi</span>
+                                                        <span class="col-span-3 text-right text-slate-500">100.0</span>
+                                                        <span class="col-span-3 text-right font-bold text-emerald-700">104.2</span>
+                                                    </div>
+                                                    <div class="grid grid-cols-12 px-2 py-1 items-center">
+                                                        <span class="col-span-6 truncate font-medium text-slate-700">Efisiensi Operasi</span>
+                                                        <span class="col-span-3 text-right text-slate-500">95.0</span>
+                                                        <span class="col-span-3 text-right font-bold text-teal-700">96.8</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </template>
+
+                                        {{-- 12. kinerja-realisasi (Table / Bar Mockup) --}}
+                                        <template x-if="w.key === 'kinerja-realisasi'">
+                                            <div class="space-y-1.5">
+                                                <div class="flex items-center justify-between text-[11px] font-bold text-slate-700">
+                                                    <span class="truncate">Realisasi vs Target Bulanan</span>
+                                                    <span class="rounded bg-teal-50 px-1.5 py-0.5 text-[9px] text-teal-700 shrink-0">105.4% Rerata</span>
+                                                </div>
+                                                <div class="space-y-1 text-[10px]">
+                                                    <div>
+                                                        <div class="flex justify-between text-slate-600 mb-0.5">
+                                                            <span class="truncate">Realisasi Operasi</span>
+                                                            <span class="font-bold text-teal-700 shrink-0">105.5</span>
+                                                        </div>
+                                                        <div class="h-1.5 w-full rounded-full bg-slate-200 overflow-hidden"><div class="h-full bg-teal-600 rounded-full" style="width: 100%;"></div></div>
+                                                    </div>
+                                                    <div>
+                                                        <div class="flex justify-between text-slate-600 mb-0.5">
+                                                            <span class="truncate">Target Anggaran</span>
+                                                            <span class="font-bold text-cyan-700 shrink-0">100.0</span>
+                                                        </div>
+                                                        <div class="h-1.5 w-full rounded-full bg-slate-200 overflow-hidden"><div class="h-full bg-cyan-600 rounded-full" style="width: 95%;"></div></div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </template>
+
+                                        {{-- 13. recent-audit (Table / Log Mockup) --}}
+                                        <template x-if="w.key === 'recent-audit'">
+                                            <div class="space-y-1 text-[10px]">
+                                                <div class="flex items-center justify-between rounded border border-slate-100 bg-white p-1.5">
+                                                    <div class="flex items-center gap-1.5 truncate">
+                                                        <span class="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0"></span>
+                                                        <span class="font-bold text-primary truncate">admin@dashboard.local</span>
+                                                        <span class="rounded bg-slate-100 px-1 text-[8px] text-slate-600 shrink-0">UPDATE</span>
+                                                    </div>
+                                                    <span class="text-slate-400 shrink-0 text-[9px]">12:30</span>
+                                                </div>
+                                                <div class="flex items-center justify-between rounded border border-slate-100 bg-white p-1.5">
+                                                    <div class="flex items-center gap-1.5 truncate">
+                                                        <span class="h-1.5 w-1.5 rounded-full bg-sky-500 shrink-0"></span>
+                                                        <span class="font-bold text-primary truncate">staf.aset@dashboard.local</span>
+                                                        <span class="rounded bg-sky-50 px-1 text-[8px] text-sky-700 shrink-0">IMPORT</span>
+                                                    </div>
+                                                    <span class="text-slate-400 shrink-0 text-[9px]">11:15</span>
+                                                </div>
+                                                <div class="flex items-center justify-between rounded border border-slate-100 bg-white p-1.5">
+                                                    <div class="flex items-center gap-1.5 truncate">
+                                                        <span class="h-1.5 w-1.5 rounded-full bg-slate-400 shrink-0"></span>
+                                                        <span class="font-bold text-primary truncate">editor@dashboard.local</span>
+                                                        <span class="rounded bg-slate-100 px-1 text-[8px] text-slate-600 shrink-0">LAYOUT</span>
+                                                    </div>
+                                                    <span class="text-slate-400 shrink-0 text-[9px]">10:02</span>
+                                                </div>
+                                            </div>
+                                        </template>
+
+                                        {{-- 14. failed-datasets (Table / Alert Mockup) --}}
+                                        <template x-if="w.key === 'failed-datasets'">
+                                            <div class="space-y-1.5 text-[10px]">
+                                                <div class="flex items-center justify-between rounded border border-red-100 bg-red-50/50 p-2">
+                                                    <div class="flex items-center gap-2 truncate">
+                                                        <span class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-red-100 text-red-600 font-bold text-[10px]">!</span>
+                                                        <div class="min-w-0">
+                                                            <p class="truncate font-bold text-red-900">laporan-kpi-agustus.xlsx</p>
+                                                            <p class="text-[9px] text-red-600 truncate">Header sheet tidak valid</p>
+                                                        </div>
+                                                    </div>
+                                                    <span class="rounded bg-red-100 px-1.5 py-0.5 font-bold text-red-700 text-[8px] shrink-0">FAILED</span>
+                                                </div>
+                                                <div class="flex items-center justify-between text-[10px] text-slate-400 px-1">
+                                                    <span class="truncate">Antrean bersih (1 kendala terarsip)</span>
+                                                    <span class="font-semibold text-teal-600 shrink-0">Aman</span>
+                                                </div>
+                                            </div>
+                                        </template>
+
+                                        {{-- 15. layout-editor-placeholder (Representative Editor Mockup) --}}
+                                        <template x-if="w.key === 'layout-editor-placeholder'">
+                                            <div class="flex items-center justify-between rounded border border-slate-200 bg-white p-2.5 text-[11px]">
+                                                <div class="flex items-center gap-2 truncate">
+                                                    <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-primary/10 text-primary font-bold text-xs">BI</span>
+                                                    <div class="min-w-0">
+                                                        <p class="font-bold text-primary truncate">Editor Tata Letak</p>
+                                                        <p class="text-[9px] text-slate-400 truncate">Drag & drop kanvas</p>
+                                                    </div>
+                                                </div>
+                                                <span class="rounded bg-teal-50 px-2 py-0.5 text-[10px] font-bold text-teal-700 shrink-0">Aktif</span>
+                                            </div>
+                                        </template>
+
+                                        {{-- 16. Fallback untuk custom-chart / trend-chart / generic --}}
+                                        <template x-if="['custom-chart', 'trend-chart'].includes(w.key)">
+                                            <div class="space-y-1">
+                                                <div class="flex items-center justify-between text-[11px] font-semibold text-slate-700">
+                                                    <span class="truncate" x-text="w.config?.title || widgetLabel(w.key)"></span>
+                                                    <span class="rounded bg-primary/10 px-1.5 py-0.5 text-[9px] font-bold text-primary shrink-0" x-text="(w.config?.chart_type || 'chart').toUpperCase()"></span>
+                                                </div>
+                                                <div class="flex items-center justify-between text-[10px] text-slate-400">
+                                                    <span class="truncate">Interaktif ECharts Rendered</span>
+                                                    <span class="font-semibold text-teal-600 shrink-0">Siap</span>
+                                                </div>
+                                            </div>
+                                        </template>
+
+                                        {{-- Footer metadata di dalam preview-sketch --}}
+                                        <div class="mt-2.5 flex items-center justify-between border-t border-slate-200/80 pt-1.5 text-[10px] text-slate-400">
+                                            <span class="font-medium text-slate-600" x-text="paletteVisual(w.key).label"></span>
+                                            <span class="rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-semibold text-slate-500" x-text="`${w.cols} Kolom (${w.cols === 1 ? '33%' : (w.cols === 2 ? '66%' : '100%')})`"></span>
                                         </div>
-                                    </template>
+                                    </div>
                                 </div>
                             </template>
                         </div>
@@ -507,6 +916,7 @@
                 return {
                     catalog,
                     targets,
+                    catalogFilterCategory: 'all',
                     selectedTargetKey: initialTarget ? initialTarget.layout_key : '',
                     activeWidgets: [],
                     saving: false,
@@ -691,9 +1101,66 @@
                             'dataset-status': { type: 'table', label: 'Tabel' },
                             'failed-datasets': { type: 'table', label: 'Tabel' },
                             'recent-audit': { type: 'table', label: 'Tabel' },
+                            'aset-upt-chart': { type: 'bar', label: 'Grafik Batang' },
+                            'admin-quick-actions': { type: 'scorecard', label: 'Aksi Cepat' },
+                            'layout-editor-placeholder': { type: 'generic', label: 'Editor Layout' },
                         };
 
                         return map[key] || { type: 'generic', label: 'Komponen' };
+                    },
+
+                    filteredCatalog() {
+                        if (!this.catalogFilterCategory || this.catalogFilterCategory === 'all') {
+                            return this.catalog;
+                        }
+                        return this.catalog.filter((c) => (c.category || this.getWidgetCategory(c.key)) === this.catalogFilterCategory);
+                    },
+
+                    getWidgetCategory(key) {
+                        if (['kpi-summary', 'trend-chart', 'nko-ranking', 'kinerja-realisasi', 'kinerja-detail', 'target-realisasi-per-indikator', 'pencapaian-nko', 'nko-donut', 'kpi-rag-status', 'custom-chart'].includes(key)) {
+                            return 'Kinerja / KPI';
+                        }
+                        if (['aset-upt-chart'].includes(key)) {
+                            return 'Manajemen Aset';
+                        }
+                        return 'Operasional & Admin';
+                    },
+
+                    getWidgetDescription(key) {
+                        const descMap = {
+                            'kpi-summary': 'Ringkasan skor NKO, total indikator tercapai, dan periode aktif.',
+                            'trend-chart': 'Grafik garis tren historis pergerakan kinerja bulanan unit.',
+                            'nko-ranking': 'Peringkat unit kerja diurutkan dari skor NKO tertinggi.',
+                            'dataset-status': 'Status dataset siap pakai, jumlah baris data, dan divisi pemilik.',
+                            'kinerja-realisasi': 'Grafik komparasi capaian realisasi terhadap target kinerja.',
+                            'kinerja-detail': 'Matriks tabular seluruh indikator kinerja dan satuan pengukuran.',
+                            'target-realisasi-per-indikator': 'Panel terstruktur komparasi target vs realisasi per indikator kinerja.',
+                            'pencapaian-nko': 'Perbandingan persentase pencapaian target seluruh unit kerja.',
+                            'nko-donut': 'Grafik donat proporsi sebaran kategori skor NKO unit.',
+                            'kpi-rag-status': 'Tile status RAG (Tercapai, Hampir Tercapai, Perlu Perhatian).',
+                            'custom-chart': 'Grafik interaktif kustom (bar, line, donut) dengan metrik pilihan.',
+                            'aset-upt-chart': 'Rekapitulasi stok trafo, daya MVA, transmisi, dan tower per UPT.',
+                            'recent-audit': 'Catatan riwayat audit log aktivitas terbaru pada sistem.',
+                            'failed-datasets': 'Monitoring antrean dataset yang mengalami kendala pemrosesan.',
+                            'admin-summary': 'Metrik operasional sistem mencakup total dataset dan pengguna.',
+                            'admin-quick-actions': 'Pintasan navigasi cepat menuju modul utama operasional sistem.',
+                            'layout-editor-placeholder': 'Editor tata letak kanvas dashboard per peran pengguna.',
+                        };
+                        return descMap[key] || '';
+                    },
+
+                    isDirty() {
+                        const target = this.currentTarget();
+                        if (!target) return false;
+                        const current = JSON.stringify(this.serializeWidgets());
+                        const saved = JSON.stringify((target.active_widgets || []).map((w) => {
+                            if (typeof w === 'string') {
+                                const cat = this.catalog.find((c) => c.key === w);
+                                return { key: w, cols: cat?.default_cols || 3, config: {} };
+                            }
+                            return { key: w.key, cols: parseInt(w.cols, 10) || 3, config: w.config || {} };
+                        }));
+                        return current !== saved;
                     },
 
                     startPaletteDrag(key) {

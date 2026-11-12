@@ -2088,6 +2088,8 @@ class DashboardController extends Controller
                     ? $meta['permission']
                     : null,
                 'default_cols' => (int) ($meta['default_cols'] ?? 3),
+                'category' => (string) ($meta['category'] ?? 'Operasional & Admin'),
+                'description' => (string) ($meta['description'] ?? ''),
             ];
         }
 

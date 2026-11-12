@@ -31,22 +31,99 @@ return [
      *                tambahan (tetap tunduk pada layout role-nya).
      */
     'widgets' => [
-        'kpi-summary' => ['default_cols' => 3, 'label' => 'Ringkasan KPI',      'view' => 'widgets.kpi-summary',          'permission' => null],
-        'trend-chart' => ['default_cols' => 2, 'label' => 'Grafik Tren Kinerja', 'view' => 'widgets.trend-chart',         'permission' => null],
-        'nko-ranking' => ['default_cols' => 1, 'label' => 'Peringkat NKO Unit',   'view' => 'widgets.nko-ranking',          'permission' => 'dashboard.view'],
-        'dataset-status' => ['default_cols' => 3, 'label' => 'Status Dataset',   'view' => 'widgets.dataset-status',       'permission' => null],
-        'kinerja-realisasi' => ['default_cols' => 2, 'label' => 'Realisasi vs Target', 'view' => 'widgets.kinerja-realisasi', 'permission' => null],
-        'kinerja-detail' => ['default_cols' => 3, 'label' => 'Detail Metrik KPI', 'view' => 'widgets.kinerja-detail',       'permission' => null],
+        'kpi-summary' => [
+            'default_cols' => 3,
+            'label' => 'Ringkasan KPI',
+            'view' => 'widgets.kpi-summary',
+            'permission' => null,
+            'category' => 'Kinerja / KPI',
+            'description' => 'Ringkasan skor NKO, total indikator tercapai, dan periode aktif.',
+        ],
+        'trend-chart' => [
+            'default_cols' => 2,
+            'label' => 'Grafik Tren Kinerja',
+            'view' => 'widgets.trend-chart',
+            'permission' => null,
+            'category' => 'Kinerja / KPI',
+            'description' => 'Grafik garis tren historis pergerakan kinerja bulanan unit.',
+        ],
+        'nko-ranking' => [
+            'default_cols' => 1,
+            'label' => 'Peringkat NKO Unit',
+            'view' => 'widgets.nko-ranking',
+            'permission' => 'dashboard.view',
+            'category' => 'Kinerja / KPI',
+            'description' => 'Peringkat unit kerja diurutkan dari skor NKO tertinggi.',
+        ],
+        'dataset-status' => [
+            'default_cols' => 3,
+            'label' => 'Status Dataset',
+            'view' => 'widgets.dataset-status',
+            'permission' => null,
+            'category' => 'Operasional & Admin',
+            'description' => 'Status dataset siap pakai, jumlah baris data, dan divisi pemilik.',
+        ],
+        'kinerja-realisasi' => [
+            'default_cols' => 2,
+            'label' => 'Realisasi vs Target',
+            'view' => 'widgets.kinerja-realisasi',
+            'permission' => null,
+            'category' => 'Kinerja / KPI',
+            'description' => 'Grafik komparasi capaian realisasi terhadap target kinerja.',
+        ],
+        'kinerja-detail' => [
+            'default_cols' => 3,
+            'label' => 'Detail Metrik KPI',
+            'view' => 'widgets.kinerja-detail',
+            'permission' => null,
+            'category' => 'Kinerja / KPI',
+            'description' => 'Matriks tabular seluruh indikator kinerja dan satuan pengukuran.',
+        ],
         // Panel per indikator (keputusan Pak Gama 2026-10-19 11:17 & 2026-10-25).
         // Sumber SELALU terstruktur lewat TargetRealisasiPerIndicatorReader;
         // tidak membaca KPI_READ_MODEL dan tidak memakai R8/targetVsRealisasi().
-        'target-realisasi-per-indikator' => ['default_cols' => 3, 'label' => 'Target dan Realisasi per Indikator', 'view' => 'widgets.target-realisasi-per-indikator', 'permission' => 'dashboard.view'],
-        'pencapaian-nko' => ['default_cols' => 1, 'label' => 'Pencapaian % per Unit', 'view' => 'widgets.pencapaian-nko', 'permission' => null],
-        'nko-donut' => ['default_cols' => 1, 'label' => 'Distribusi NKO', 'view' => 'widgets.nko-donut', 'permission' => null],
-        'kpi-rag-status' => ['default_cols' => 1, 'label' => 'Status RAG Indikator', 'view' => 'widgets.kpi-rag-status', 'permission' => 'dashboard.view'],
+        'target-realisasi-per-indikator' => [
+            'default_cols' => 3,
+            'label' => 'Target dan Realisasi per Indikator',
+            'view' => 'widgets.target-realisasi-per-indikator',
+            'permission' => 'dashboard.view',
+            'category' => 'Kinerja / KPI',
+            'description' => 'Panel terstruktur komparasi target vs realisasi per indikator kinerja.',
+        ],
+        'pencapaian-nko' => [
+            'default_cols' => 1,
+            'label' => 'Pencapaian % per Unit',
+            'view' => 'widgets.pencapaian-nko',
+            'permission' => null,
+            'category' => 'Kinerja / KPI',
+            'description' => 'Perbandingan persentase pencapaian target seluruh unit kerja.',
+        ],
+        'nko-donut' => [
+            'default_cols' => 1,
+            'label' => 'Distribusi NKO',
+            'view' => 'widgets.nko-donut',
+            'permission' => null,
+            'category' => 'Kinerja / KPI',
+            'description' => 'Grafik donat proporsi sebaran kategori skor NKO unit.',
+        ],
+        'kpi-rag-status' => [
+            'default_cols' => 1,
+            'label' => 'Status RAG Indikator',
+            'view' => 'widgets.kpi-rag-status',
+            'permission' => 'dashboard.view',
+            'category' => 'Kinerja / KPI',
+            'description' => 'Tile status RAG (Tercapai, Hampir Tercapai, Perlu Perhatian).',
+        ],
         // Grafik generik ECharts (Opsi C, Sesi 119): judul/jenis/metrik dari
         // `config` per-instance di layout, divalidasi whitelist di backend.
-        'custom-chart' => ['default_cols' => 2, 'label' => 'Grafik Kustom', 'view' => 'widgets.custom-chart', 'permission' => 'dashboard.view'],
+        'custom-chart' => [
+            'default_cols' => 2,
+            'label' => 'Grafik Kustom',
+            'view' => 'widgets.custom-chart',
+            'permission' => 'dashboard.view',
+            'category' => 'Kinerja / KPI',
+            'description' => 'Grafik interaktif kustom (bar, line, donut) dengan metrik pilihan.',
+        ],
         // Data Aset dimiliki divisi Managemen Aset (MANSET), sedangkan layout
         // `staff_divisi` generik di-scope ke divisi staf yang login — memasang
         // widget Aset di sana membuat staf divisi lain hanya melihat empty
@@ -57,12 +134,54 @@ return [
         // item layout config hanya berupa string widget_key.
         // Daftar series provisional mengikuti data; subset final menunggu
         // keputusan MANSET.
-        'aset-upt-chart' => ['default_cols' => 3, 'label' => 'Stok Aset per UPT', 'view' => 'widgets.aset-upt-chart', 'permission' => 'dashboard.view'],
-        'recent-audit' => ['default_cols' => 2, 'label' => 'Audit Terbaru',      'view' => 'widgets.recent-audit',         'permission' => 'audit.view'],
-        'failed-datasets' => ['default_cols' => 1, 'label' => 'Dataset Gagal',      'view' => 'widgets.failed-datasets',      'permission' => 'dataset.view'],
-        'admin-summary' => ['default_cols' => 3, 'label' => 'Ringkasan Operasional', 'view' => 'widgets.admin-summary',      'permission' => 'dashboard.view'],
-        'admin-quick-actions' => ['default_cols' => 3, 'label' => 'Aksi Cepat',      'view' => 'widgets.admin-quick-actions',  'permission' => 'dashboard.view'],
-        'layout-editor-placeholder' => ['default_cols' => 3, 'label' => 'Editor Layout',      'view' => 'widgets.layout-editor-placeholder', 'permission' => 'dashboard.update'],
+        'aset-upt-chart' => [
+            'default_cols' => 3,
+            'label' => 'Stok Aset per UPT',
+            'view' => 'widgets.aset-upt-chart',
+            'permission' => 'dashboard.view',
+            'category' => 'Manajemen Aset',
+            'description' => 'Rekapitulasi stok trafo, daya MVA, transmisi, dan tower per UPT.',
+        ],
+        'recent-audit' => [
+            'default_cols' => 2,
+            'label' => 'Audit Terbaru',
+            'view' => 'widgets.recent-audit',
+            'permission' => 'audit.view',
+            'category' => 'Operasional & Admin',
+            'description' => 'Catatan riwayat audit log aktivitas terbaru pada sistem.',
+        ],
+        'failed-datasets' => [
+            'default_cols' => 1,
+            'label' => 'Dataset Gagal',
+            'view' => 'widgets.failed-datasets',
+            'permission' => 'dataset.view',
+            'category' => 'Operasional & Admin',
+            'description' => 'Monitoring antrean dataset yang mengalami kendala pemrosesan.',
+        ],
+        'admin-summary' => [
+            'default_cols' => 3,
+            'label' => 'Ringkasan Operasional',
+            'view' => 'widgets.admin-summary',
+            'permission' => 'dashboard.view',
+            'category' => 'Operasional & Admin',
+            'description' => 'Metrik operasional sistem mencakup total dataset dan pengguna.',
+        ],
+        'admin-quick-actions' => [
+            'default_cols' => 3,
+            'label' => 'Aksi Cepat',
+            'view' => 'widgets.admin-quick-actions',
+            'permission' => 'dashboard.view',
+            'category' => 'Operasional & Admin',
+            'description' => 'Pintasan navigasi cepat menuju modul utama operasional sistem.',
+        ],
+        'layout-editor-placeholder' => [
+            'default_cols' => 3,
+            'label' => 'Editor Layout',
+            'view' => 'widgets.layout-editor-placeholder',
+            'permission' => 'dashboard.update',
+            'category' => 'Operasional & Admin',
+            'description' => 'Editor tata letak kanvas dashboard per peran pengguna.',
+        ],
     ],
 
     /*

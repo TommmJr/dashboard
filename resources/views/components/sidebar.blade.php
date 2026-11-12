@@ -32,7 +32,7 @@
             <span x-show="$store.ui.sidebarExpanded" x-transition.opacity class="sidebar-label whitespace-nowrap">Dashboard</span>
         </a>
 
-        @if (\App\Http\Controllers\DashboardController::canAccessKpiDetail(auth()->user()))
+        @if (!auth()->user()->hasRole(\App\Models\Role::ADMIN) && \App\Http\Controllers\DashboardController::canAccessKpiDetail(auth()->user()))
             <a href="{{ route('dashboard.kpi-detail') }}"
                id="sidebar-kpi-detail-link"
                @if (request()->routeIs('dashboard.kpi-detail')) aria-current="page" @endif
@@ -44,7 +44,7 @@
             </a>
         @endif
 
-        @if (\App\Http\Controllers\KpiAnalyticsController::canAccessKpiAnalytics(auth()->user()))
+        @if (!auth()->user()->hasRole(\App\Models\Role::ADMIN) && \App\Http\Controllers\KpiAnalyticsController::canAccessKpiAnalytics(auth()->user()))
             <a href="{{ route('dashboard.kpi-analytics') }}"
                id="sidebar-kpi-analytics-link"
                @if (request()->routeIs('dashboard.kpi-analytics') || request()->routeIs('dashboard.kpi-matrix')) aria-current="page" @endif
@@ -59,15 +59,49 @@
         @endif
 
         @if (\App\Http\Controllers\AssetDetailController::canAccessAssetDetail(auth()->user()))
-            <a href="{{ route('dashboard.asset-detail') }}"
+            <div x-show="$store.ui.sidebarExpanded" x-transition.opacity class="pt-3 pb-1 px-3 text-[10px] font-bold uppercase tracking-wider text-white/50">
+                Eksplorasi Aset
+            </div>
+
+            <a href="{{ route('dashboard.asset-detail', ['section' => 'trafo']) }}"
                id="sidebar-asset-detail-link"
-               @if (request()->routeIs('dashboard.asset-detail')) aria-current="page" @endif
-               class="flex items-center gap-3 rounded-lg border-l-2 px-3 py-2.5 text-sm font-medium transition {{ request()->routeIs('dashboard.asset-detail') ? 'border-highlight bg-white/15 text-white' : 'border-transparent text-white/70 hover:bg-white/10 hover:text-white' }}">
+               @if (request()->routeIs('dashboard.asset-detail') && (!request()->route('section') || request()->route('section') === 'trafo' || request()->query('section') === 'trafo')) aria-current="page" @endif
+               class="flex items-center gap-3 rounded-lg border-l-2 px-3 py-2.5 text-sm font-medium transition {{ (request()->routeIs('dashboard.asset-detail') && (!request()->route('section') || request()->route('section') === 'trafo' || request()->query('section') === 'trafo')) ? 'border-highlight bg-white/15 text-white' : 'border-transparent text-white/70 hover:bg-white/10 hover:text-white' }}">
                 <svg class="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
                     <rect x="3" y="6" width="18" height="12" rx="2" />
                     <path d="M7 12h2m6 0h2M12 9v6M9 3v3m6-3v3m-6 12v3m6-3v3" stroke-linecap="round" stroke-linejoin="round" />
                 </svg>
-                <span x-show="$store.ui.sidebarExpanded" x-transition.opacity class="sidebar-label whitespace-nowrap">Rincian Trafo & Aset</span>
+                <span x-show="$store.ui.sidebarExpanded" x-transition.opacity class="sidebar-label whitespace-nowrap">Bedah Trafo & Tegangan</span>
+            </a>
+
+            <a href="{{ route('dashboard.asset-detail', ['section' => 'mva']) }}"
+               id="sidebar-asset-mva-link"
+               @if (request()->routeIs('dashboard.asset-detail') && (request()->route('section') === 'mva' || request()->query('section') === 'mva')) aria-current="page" @endif
+               class="flex items-center gap-3 rounded-lg border-l-2 px-3 py-2.5 text-sm font-medium transition {{ (request()->routeIs('dashboard.asset-detail') && (request()->route('section') === 'mva' || request()->query('section') === 'mva')) ? 'border-highlight bg-white/15 text-white' : 'border-transparent text-white/70 hover:bg-white/10 hover:text-white' }}">
+                <svg class="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                    <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                <span x-show="$store.ui.sidebarExpanded" x-transition.opacity class="sidebar-label whitespace-nowrap">Distribusi Daya (MVA)</span>
+            </a>
+
+            <a href="{{ route('dashboard.asset-detail', ['section' => 'transmisi']) }}"
+               id="sidebar-asset-transmisi-link"
+               @if (request()->routeIs('dashboard.asset-detail') && (request()->route('section') === 'transmisi' || request()->query('section') === 'transmisi')) aria-current="page" @endif
+               class="flex items-center gap-3 rounded-lg border-l-2 px-3 py-2.5 text-sm font-medium transition {{ (request()->routeIs('dashboard.asset-detail') && (request()->route('section') === 'transmisi' || request()->query('section') === 'transmisi')) ? 'border-highlight bg-white/15 text-white' : 'border-transparent text-white/70 hover:bg-white/10 hover:text-white' }}">
+                <svg class="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                    <path d="M22 12h-4l-3 9L9 3l-3 9H2" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                <span x-show="$store.ui.sidebarExpanded" x-transition.opacity class="sidebar-label whitespace-nowrap">Jaringan Transmisi (kms)</span>
+            </a>
+
+            <a href="{{ route('dashboard.asset-detail', ['section' => 'tower']) }}"
+               id="sidebar-asset-tower-link"
+               @if (request()->routeIs('dashboard.asset-detail') && (request()->route('section') === 'tower' || request()->query('section') === 'tower')) aria-current="page" @endif
+               class="flex items-center gap-3 rounded-lg border-l-2 px-3 py-2.5 text-sm font-medium transition {{ (request()->routeIs('dashboard.asset-detail') && (request()->route('section') === 'tower' || request()->query('section') === 'tower')) ? 'border-highlight bg-white/15 text-white' : 'border-transparent text-white/70 hover:bg-white/10 hover:text-white' }}">
+                <svg class="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                    <path d="M12 2v20M6 8l12 0M4 14l16 0M8 22l4-20 4 20" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                <span x-show="$store.ui.sidebarExpanded" x-transition.opacity class="sidebar-label whitespace-nowrap">Sebaran Tower (Unit)</span>
             </a>
         @endif
 
