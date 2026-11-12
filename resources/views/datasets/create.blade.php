@@ -66,7 +66,7 @@
             @else
                 <div class="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50/60 px-3.5 py-2.5 text-xs text-slate-600">
                     <span class="h-2 w-2 rounded-full bg-cyan-600"></span>
-                    <span>Tautan divisi: <strong class="text-slate-800">{{ $user->division?->name ?? 'Pusat' }}</strong></span>
+                    <span>Dataset akan tertaut ke divisi Anda: <strong class="text-slate-800">{{ $user->division?->name ?? 'Pusat' }}</strong></span>
                 </div>
             @endif
 
@@ -93,7 +93,7 @@
     <div class="mt-6 rounded-xl border border-slate-200/80 bg-white p-6 sm:p-7 shadow-2xs">
         <div class="flex items-start justify-between border-b border-slate-100 pb-4">
             <div>
-                <h2 class="text-lg font-bold tracking-tight text-slate-900">Import Laporan</h2>
+                <h2 class="text-lg font-bold tracking-tight text-slate-900">Import Laporan KPI dari Mentor (Otomatis)</h2>
                 <p class="mt-0.5 text-xs text-slate-500">Ekstraksi otomatis seluruh sheet unit laporan .</p>
             </div>
             <span class="rounded border border-cyan-200 bg-cyan-50 px-2.5 py-0.5 text-[10px] font-semibold text-cyan-800">
@@ -127,7 +127,7 @@
                         <svg class="h-4 w-4 shrink-0 text-amber-600 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
                         </svg>
-                        <span>Data terdaftar: <strong>{{ $kpiPeriods->implode(', ') }}</strong>. Mengunggah periode yang sama akan merevisi dataset sebelumnya.</span>
+                        <span>Periode yang sudah pernah diimpor: <strong>{{ $kpiPeriods->implode(', ') }}</strong>. Mengunggah periode yang sama akan merevisi dataset sebelumnya.</span>
                     </div>
                 @endif
             </div>
@@ -151,6 +151,103 @@
                     Import Otomatis
                 </button>
             </div>
+        </form>
+    </div>
+    @endif
+
+    {{-- KARTU 3: IMPORT REKAPITULASI DATA ASET (TAB 1B & TAB 1A) --}}
+    @if ($canUploadAsset ?? false)
+    <div class="mt-6 rounded-xl border border-slate-200/80 bg-white p-6 sm:p-7 shadow-2xs">
+        <div class="flex items-start justify-between border-b border-slate-100 pb-4">
+            <div>
+                <h2 class="text-lg font-bold tracking-tight text-slate-900">Upload Rekapitulasi Data Aset</h2>
+                <p class="mt-0.5 text-xs text-slate-500">Unggah berkas rekapitulasi aset: Tab 1b (level UPT) dan Tab 1a (level UIT JBT).</p>
+            </div>
+            <div class="flex items-center gap-1.5">
+                <span class="rounded border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-[10px] font-semibold text-slate-600">.XLSX</span>
+                <span class="rounded border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-[10px] font-semibold text-slate-600">.CSV</span>
+            </div>
+        </div>
+
+        <form method="POST" action="{{ route('datasets.asset-upload') }}" enctype="multipart/form-data" class="mt-5 flex flex-col gap-4">
+            @csrf
+
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                    <label for="file_1b" class="block text-xs font-semibold uppercase tracking-wider text-slate-500">
+                        Berkas Tab 1b (Level UPT)
+                    </label>
+                    <div class="mt-1.5">
+                        <x-dropzone name="file_1b" accept=".xlsx,.csv" required />
+                    </div>
+                </div>
+
+                <div>
+                    <label for="file_1a" class="block text-xs font-semibold uppercase tracking-wider text-slate-500">
+                        Berkas Tab 1a (Level UIT JBT)
+                    </label>
+                    <div class="mt-1.5">
+                        <x-dropzone name="file_1a" accept=".xlsx,.csv" required />
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex justify-end pt-2">
+                <button type="submit"
+                        class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-2xs transition-all duration-150 hover:border-cyan-500 hover:bg-cyan-50/40 hover:text-cyan-800 active:bg-cyan-100/60">
+                    <svg class="h-4 w-4 text-cyan-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="17 8 12 3 7 8"/>
+                        <line x1="12" y1="3" x2="12" y2="15"/>
+                    </svg>
+                    Upload &amp; Impor Aset
+                </button>
+            </div>
+        </form>
+    </div>
+
+    {{-- KARTU 4: SINKRONISASI DATA ASET (GOOGLE SHEETS) --}}
+    <div class="mt-6 rounded-xl border border-slate-200 bg-white p-6 sm:p-7 shadow-2xs">
+        <div class="flex items-start justify-between border-b border-slate-100 pb-4">
+            <div>
+                <div class="flex items-center gap-2">
+                    <h2 class="text-lg font-bold tracking-tight text-slate-900">Sinkronisasi Data Aset (Google Sheets)</h2>
+                    <span class="rounded border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold tracking-wider text-slate-600">
+                        VIEW-ONLY SYNC
+                    </span>
+                </div>
+                <p class="mt-1 text-xs text-slate-500">
+                    Menarik dan memvalidasi otomatis Tab 1b (Level UPT) serta Tab 1a (Level UIT JBT) langsung dari sumber Google Sheets terkonfigurasi dengan pemeriksaan silang (cross-check) dan proteksi retensi baris.
+                </p>
+            </div>
+            @if (config('asset.target_month'))
+                <span class="rounded border border-cyan-200 bg-cyan-50 px-2.5 py-1 text-xs font-semibold text-cyan-800">
+                    {{ config('asset.target_month') }}
+                </span>
+            @endif
+        </div>
+
+        <form method="POST" action="{{ route('datasets.asset-sync') }}" x-data="{ syncing: false }" @submit="syncing = true" class="mt-5 flex items-center justify-between">
+            @csrf
+            <div class="text-xs text-slate-500">
+                <span>Sumber data: Google Sheets internal PLN UIT JBT terkonfigurasi.</span>
+            </div>
+
+            <button type="submit"
+                    :disabled="syncing"
+                    class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-2xs transition-all duration-150 hover:border-cyan-500 hover:bg-cyan-50/40 hover:text-cyan-800 active:bg-cyan-100/60 disabled:cursor-not-allowed disabled:opacity-60">
+                <svg x-show="!syncing" class="h-4 w-4 text-cyan-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/>
+                    <path d="M12 12v9"/>
+                    <path d="m8 17 4 4 4-4"/>
+                </svg>
+                <svg x-show="syncing" x-cloak class="h-4 w-4 animate-spin text-cyan-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span x-show="!syncing">Tarik &amp; Sinkronkan Data</span>
+                <span x-show="syncing" x-cloak>Menarik &amp; Memvalidasi Data...</span>
+            </button>
         </form>
     </div>
     @endif

@@ -19,7 +19,7 @@ class DivisionFactory extends Factory
 
         return [
             'name' => $name,
-            'slug' => Str::slug($name),
+            'slug' => fn (array $attributes) => Str::slug($attributes['name'] ?? $name),
             'description' => fake()->sentence(),
         ];
     }

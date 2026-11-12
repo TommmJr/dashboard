@@ -235,7 +235,11 @@ class DashboardWidgetLayoutTest extends TestCase
             ->assertDontSee('Peringkat NKO Unit')
             ->assertDontSee('Audit Terbaru')
             ->assertDontSee('Dataset Gagal')
-            ->assertDontSee('Editor Layout');
+            ->assertDontSee('Editor Layout')
+            ->assertDontSee('Stok Aset per UPT')
+            ->assertDontSee('Prototipe Demo (Rekapitulasi UPT)')
+            ->assertDontSee('data-category-filter', false)
+            ->assertDontSee('Belum ada data aset.');
     }
 
     /**
@@ -1419,5 +1423,80 @@ class DashboardWidgetLayoutTest extends TestCase
             ->assertDontSee('Ruang Kerja Divisi')
             ->assertSee('Status Dataset')
             ->assertSee('Stok Aset per UPT');
+    }
+
+    public function test_staf_pengusahaan_tidak_melihat_widget_aset_dan_staf_managemen_aset_melihat_lengkap(): void
+    {
+        $pengusahaan = Division::factory()->create([
+            'name' => 'Perencanaan Pengusahaan',
+            'slug' => 'perencanaan-pengusahaan',
+        ]);
+        $manset = Division::factory()->create([
+            'name' => 'Managemen Aset',
+            'slug' => 'managemen-aset',
+        ]);
+
+        $staffPengusahaan = User::factory()->withRole(Role::STAFF_DIVISI)->create([
+            'email' => 'staf.pengusahaan@dashboard.local',
+            'division_id' => $pengusahaan->id,
+        ]);
+        $staffAset = User::factory()->withRole(Role::STAFF_DIVISI)->create([
+            'email' => 'staf.aset@dashboard.local',
+            'division_id' => $manset->id,
+        ]);
+
+        $dataset = Dataset::factory()->create([
+            'division_id' => $manset->id,
+            'status' => Dataset::STATUS_READY,
+        ]);
+
+        PerformanceMetric::factory()->create([
+            'metric_name' => 'ASET | BEKASI | BEKASI | Tower 150 KV | SU',
+            'dataset_id' => $dataset->id,
+            'division_id' => $manset->id,
+            'period' => '2026-08-31',
+            'value' => 10,
+        ]);
+        PerformanceMetric::factory()->create([
+            'metric_name' => 'ASET | BEKASI | BEKASI | Transmisi 150 KV | SU | kms',
+            'dataset_id' => $dataset->id,
+            'division_id' => $manset->id,
+            'period' => '2026-08-31',
+            'value' => 25.5,
+        ]);
+        PerformanceMetric::factory()->create([
+            'metric_name' => 'ASET | BEKASI | BEKASI | Trafo 500/150 KV | MVA',
+            'dataset_id' => $dataset->id,
+            'division_id' => $manset->id,
+            'period' => '2026-08-31',
+            'value' => 1000,
+        ]);
+
+        // 1. Staf Perencanaan Pengusahaan WAJIB bersih murni berisi widget KPI tanpa kotak aset
+        $this->actingAs($staffPengusahaan)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertDontSee('Stok Aset per UPT')
+            ->assertDontSee('Prototipe Demo (Rekapitulasi UPT)')
+            ->assertDontSee('data-category-filter="tower"', false)
+            ->assertDontSee('data-category-filter="transmisi"', false)
+            ->assertDontSee('data-category-filter="trafo"', false)
+            ->assertDontSee('Belum ada data aset.');
+
+        // 2. Staf Manajemen Aset melihat widget aset secara lengkap (3 scorecard, tabel, dan grafik)
+        $this->actingAs($staffAset)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('Stok Aset per UPT')
+            ->assertSee('Prototipe Demo (Rekapitulasi UPT)')
+            ->assertSee('Total Tower')
+            ->assertSee('Total Jalur Transmisi')
+            ->assertSee('Total Kapasitas Trafo')
+            ->assertSee('Rekapitulasi Matriks Fisik per UPT')
+            ->assertSee('TOTAL UIT JBT')
+            ->assertSee('asetUptChart', false)
+            ->assertSee('data-category-filter="tower"', false)
+            ->assertSee('data-category-filter="transmisi"', false)
+            ->assertSee('data-category-filter="trafo"', false);
     }
 }

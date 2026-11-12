@@ -17,6 +17,20 @@ use Illuminate\Support\Facades\DB;
 class AssetStockReport
 {
     /**
+     * Daftar 8 UPT kanonis PLN UIT JBT.
+     */
+    public const CANONICAL_UPTS = [
+        'BANDUNG',
+        'BEKASI',
+        'BOGOR',
+        'CIREBON',
+        'KARAWANG',
+        'PURWOKERTO',
+        'SALATIGA',
+        'SEMARANG',
+    ];
+
+    /**
      * Snapshot ASET pada periode terbaru: baris READY berprefix
      * AssetStockConverter::PREFIX dari dataset terbaru per divisi (lihat
      * latestDatasetIds), dikelompokkan per UPT/ULTG.
@@ -32,7 +46,8 @@ class AssetStockReport
         $base = fn () => DB::table('performance_metrics')
             ->join('datasets', 'datasets.id', '=', 'performance_metrics.dataset_id')
             ->where('datasets.status', Dataset::STATUS_READY)
-            ->where('performance_metrics.metric_name', 'like', AssetStockConverter::PREFIX.'%');
+            ->where('performance_metrics.metric_name', 'like', AssetStockConverter::PREFIX.'%')
+            ->where('performance_metrics.metric_name', 'not like', AssetStockConverter::PREFIX.'UIT |%');
 
         $period = $base()->max('performance_metrics.period');
 
@@ -58,6 +73,7 @@ class AssetStockReport
                     'value' => (float) $row->value,
                 ];
             })
+            ->filter(fn (object $row): bool => in_array($row->upt, self::CANONICAL_UPTS, true))
             ->groupBy(fn (object $row): string => $row->upt.' | '.$row->ultg)
             ->map(fn (Collection $items): object => (object) [
                 'upt' => $items->first()->upt,
@@ -96,6 +112,7 @@ class AssetStockReport
             ->join('datasets', 'datasets.id', '=', 'performance_metrics.dataset_id')
             ->where('datasets.status', Dataset::STATUS_READY)
             ->where('performance_metrics.metric_name', 'like', AssetStockConverter::PREFIX.'%')
+            ->where('performance_metrics.metric_name', 'not like', AssetStockConverter::PREFIX.'UIT |%')
             ->when($divisionId !== null, fn ($query) => $query->where('performance_metrics.division_id', $divisionId));
 
         $period ??= $base()->max('performance_metrics.period');
@@ -121,9 +138,66 @@ class AssetStockReport
                     'value' => (float) $row->value,
                 ];
             })
+            ->filter(fn (object $row): bool => in_array($row->upt, self::CANONICAL_UPTS, true))
             ->groupBy(fn (object $row): string => $row->upt."\0".$row->attribute)
             ->map(fn (Collection $items): object => (object) [
                 'upt' => $items->first()->upt,
+                'attribute' => $items->first()->attribute,
+                'total' => (float) $items->sum(fn (object $item): float => $item->value),
+            ])
+            ->values();
+
+        return ['period' => $period, 'totals' => $totals];
+    }
+
+    /**
+     * Total metrik tingkat UIT JBT untuk periode tertentu (default: terbaru).
+     *
+     * Format metric_name keluaran AssetUitReader:
+     * "ASET | UIT | {kelompok} | {satuan}"
+     *
+     * @param  string|null  $period  Periode Y-m-d; null = periode terbaru.
+     * @param  int|null  $divisionId  Batasi ke divisi pemilik data; null = lintas divisi.
+     * @return array{period: ?string, totals: Collection<int, object{metric_name: string, kelompok: ?string, satuan: ?string, attribute: ?string, total: float}>}
+     */
+    public function totalsByUit(?string $period = null, ?int $divisionId = null): array
+    {
+        $base = fn () => DB::table('performance_metrics')
+            ->join('datasets', 'datasets.id', '=', 'performance_metrics.dataset_id')
+            ->where('datasets.status', Dataset::STATUS_READY)
+            ->where('performance_metrics.metric_name', 'like', AssetStockConverter::PREFIX.'UIT |%')
+            ->when($divisionId !== null, fn ($query) => $query->where('performance_metrics.division_id', $divisionId));
+
+        $period ??= $base()->max('performance_metrics.period');
+
+        if ($period === null) {
+            return ['period' => null, 'totals' => collect()];
+        }
+
+        $period = Carbon::parse($period)->format('Y-m-d');
+
+        $totals = $base()
+            ->where('performance_metrics.period', $period)
+            ->whereIn('performance_metrics.dataset_id', $this->latestDatasetIds($period, $divisionId))
+            ->select('performance_metrics.metric_name', 'performance_metrics.value')
+            ->orderBy('performance_metrics.metric_name')
+            ->get()
+            ->map(function (object $row): object {
+                [$domain, $level, $kelompok, $satuan] = explode(' | ', $row->metric_name, 4) + [null, null, null, null];
+
+                return (object) [
+                    'metric_name' => $row->metric_name,
+                    'kelompok' => $kelompok,
+                    'satuan' => $satuan,
+                    'attribute' => $satuan ? "{$kelompok} | {$satuan}" : $kelompok,
+                    'value' => (float) $row->value,
+                ];
+            })
+            ->groupBy(fn (object $row): string => $row->metric_name)
+            ->map(fn (Collection $items): object => (object) [
+                'metric_name' => $items->first()->metric_name,
+                'kelompok' => $items->first()->kelompok,
+                'satuan' => $items->first()->satuan,
                 'attribute' => $items->first()->attribute,
                 'total' => (float) $items->sum(fn (object $item): float => $item->value),
             ])

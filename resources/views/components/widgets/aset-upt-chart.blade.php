@@ -1,5 +1,18 @@
 @props(['widget' => [], 'data' => null])
 
+@php
+    $currentUser = auth()->user();
+    // Guard otorisasi fail-closed: jika user login dan bukan Admin/Privileged
+    // serta bukan staf divisi Managemen Aset (managemen-aset / data-aset),
+    // kartu tidak dirender sama sekali (return void / empty string).
+    $canViewAsetWidget = $currentUser === null
+        || $currentUser->hasRole(\App\Models\Role::ADMIN)
+        || $currentUser->hasRole(\App\Models\Role::MANAGEMENT)
+        || $currentUser->hasRole(\App\Models\Role::EDITOR_DASHBOARD)
+        || ($currentUser->hasRole(\App\Models\Role::STAFF_DIVISI) && in_array($currentUser->division?->slug, ['managemen-aset', 'data-aset'], true));
+@endphp
+
+@if ($canViewAsetWidget)
 {{-- Widget grafik stok aset per UPT (server-side, snapshot periode).
      Data: DashboardController::asetUptChart() — labels UPT, series bar per atribut,
      scorecard ringkasan (Tower, Transmisi, Trafo), dan tabel rekapitulasi 8 UPT.
@@ -9,6 +22,8 @@
     $labels = collect($data['labels'] ?? []);
     $series = collect($data['series'] ?? []);
     $period = $data['period'] ?? null;
+    $periodUit = $data['period_uit'] ?? $period;
+    $periodUpt = $data['period_upt'] ?? $period;
     $summary = $data['summary'] ?? [];
     $tableRows = $data['table_rows'] ?? [];
     $seriesByCategory = $data['series_by_category'] ?? [];
@@ -16,6 +31,23 @@
     $chartSlug = preg_replace('/[^a-z0-9]+/i', '-', strtolower($widget['key'] ?? 'aset-upt-chart'));
     $chartId = 'asetUptChart-'.$chartSlug.'-'.($widget['instance'] ?? 0);
     $palette = ['#14a2ba', '#125d72', '#efe62f', '#d9d9d9', '#0b7a75', '#f39233', '#7a5195', '#ef5675', '#2f9e44', '#1971c2'];
+
+    $formatPeriodLabel = function (?string $rawDate): string {
+        if (! $rawDate) {
+            return '-';
+        }
+        try {
+            $months = [
+                1 => 'JAN', 2 => 'FEB', 3 => 'MAR', 4 => 'APR', 5 => 'MEI', 6 => 'JUN',
+                7 => 'JUL', 8 => 'AGU', 9 => 'SEP', 10 => 'OKT', 11 => 'NOV', 12 => 'DES',
+            ];
+            $date = \Carbon\Carbon::parse($rawDate);
+            $month = $months[$date->month] ?? strtoupper($date->format('M'));
+            return 's.d. '.$month.' '.$date->year;
+        } catch (\Throwable $e) {
+            return $rawDate;
+        }
+    };
 
     // Map series to format expected by ECharts bar chart with palette colors
     $formatSeries = function (iterable $items) use ($palette): array {
@@ -26,8 +58,6 @@
             'itemStyle' => ['color' => $palette[$index % count($palette)]],
         ])->values()->all();
     };
-
-    $chartSeriesAll = $formatSeries($series);
 
     // Filter categories with fallback to string matching if backend array is not pre-split
     $towerRaw = collect(!empty($seriesByCategory['tower'])
@@ -42,12 +72,13 @@
 
     $chartSeriesTower = $formatSeries($towerRaw);
     $chartSeriesTransmisi = $formatSeries($transmisiRaw);
-    $chartSeriesTrafo = $formatSeries($trafoRaw);
+    $trafoMvaRaw = $trafoRaw->filter(fn ($s) => str_contains($s['name'] ?? '', 'MVA'))->values();
+    $chartSeriesTrafo = $formatSeries($trafoMvaRaw->isNotEmpty() ? $trafoMvaRaw : $trafoRaw);
+    $chartSeriesAll = $formatSeries($series);
 
     // Fallback calculation for summary if not supplied in data
     $totalTower = $summary['total_tower'] ?? $towerRaw->sum(fn ($s) => array_sum($s['data'] ?? []));
     $totalTransmisi = $summary['total_transmisi'] ?? $transmisiRaw->sum(fn ($s) => array_sum($s['data'] ?? []));
-    $trafoMvaRaw = $trafoRaw->filter(fn ($s) => str_contains($s['name'] ?? '', 'MVA'));
     $totalTrafo = $summary['total_trafo'] ?? ($trafoMvaRaw->isNotEmpty() ? $trafoMvaRaw->sum(fn ($s) => array_sum($s['data'] ?? [])) : $trafoRaw->sum(fn ($s) => array_sum($s['data'] ?? [])));
 @endphp
 
@@ -68,24 +99,15 @@
                 </span>
             </div>
             @if ($period !== null)
-                <p class="mt-1 text-xs text-slate-500">Periode {{ $period }} — agregat per UPT dari rekap ULTG.</p>
+                <p class="mt-1 text-xs text-slate-500 font-normal">
+                    Periode {{ $period }} — UIT: {{ $formatPeriodLabel($periodUit) }} (tab 1a) | UPT: {{ $formatPeriodLabel($periodUpt) }} (tab 1b), belum diverifikasi PIC MANSET
+                </p>
             @endif
         </div>
 
         @if (!$labels->isEmpty() && !$series->isEmpty())
             {{-- Tombol Filter Kategori --}}
             <div class="flex flex-wrap items-center gap-1.5 text-xs">
-                <button
-                    type="button"
-                    data-category-filter="all"
-                    @click="setCategory('all')"
-                    :class="activeCategory === 'all'
-                        ? 'border-slate-800 text-slate-900 font-bold ring-1 ring-slate-800/15 shadow-2xs'
-                        : 'border-slate-200 text-slate-600 font-medium hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800'"
-                    class="inline-flex items-center gap-1.5 cursor-pointer rounded-md border bg-white px-2.5 py-1 transition"
-                >
-                    Semua
-                </button>
                 <button
                     type="button"
                     data-category-filter="tower"
@@ -163,7 +185,7 @@
                     </span>
                     <span class="text-xs font-medium text-slate-500">Unit</span>
                 </div>
-                <p class="mt-2 text-[11px] text-slate-500">Akumulasi seluruh UPT (500 kV, 150 kV, 70 kV, 30 kV)</p>
+                <p class="mt-2 text-[11px] text-slate-500">Total Tower register tingkat UIT JBT (Tab 1a)</p>
             </div>
 
             {{-- Card 2: Total Jalur Transmisi --}}
@@ -182,7 +204,7 @@
                     </span>
                     <span class="text-xs font-medium text-slate-500">kms</span>
                 </div>
-                <p class="mt-2 text-[11px] text-slate-500">Panjang jalur transmisi terpasang (SUTET, SUTT, SKTT)</p>
+                <p class="mt-2 text-[11px] text-slate-500">Panjang transmisi register tingkat UIT JBT (Tab 1a)</p>
             </div>
 
             {{-- Card 3: Total Kapasitas Trafo --}}
@@ -202,7 +224,7 @@
                     </span>
                     <span class="text-xs font-medium text-slate-500">MVA</span>
                 </div>
-                <p class="mt-2 text-[11px] text-slate-500">Total daya tampung trafo daya gardu induk</p>
+                <p class="mt-2 text-[11px] text-slate-500">Kapasitas trafo daya register tingkat UIT JBT (Tab 1a, MVA)</p>
             </div>
         </div>
 
@@ -253,14 +275,14 @@
                         </tbody>
                         <tfoot class="border-t-2 border-slate-200 bg-slate-50/70 font-semibold text-slate-900">
                             <tr>
-                                <td class="py-2.5 px-4 text-left">Total Rekapitulasi</td>
-                                <td class="py-2.5 px-4 text-right font-mono text-slate-900">
+                                <td class="py-2.5 px-4 text-left font-bold text-slate-900">TOTAL UIT JBT</td>
+                                <td class="py-2.5 px-4 text-right font-mono font-bold text-slate-900">
                                     {{ number_format($totalTower, 0, ',', '.') }}
                                 </td>
-                                <td class="py-2.5 px-4 text-right font-mono text-slate-900">
+                                <td class="py-2.5 px-4 text-right font-mono font-bold text-slate-900">
                                     {{ number_format($totalTransmisi, 1, ',', '.') }}
                                 </td>
-                                <td class="py-2.5 px-4 text-right font-mono text-slate-900">
+                                <td class="py-2.5 px-4 text-right font-mono font-bold text-slate-900">
                                     {{ number_format($totalTrafo, 1, ',', '.') }}
                                 </td>
                             </tr>
@@ -280,7 +302,7 @@
 
                 return {
                     chartId: chartId,
-                    activeCategory: 'all',
+                    activeCategory: 'tower',
                     chart: null,
 
                     get labels() {
@@ -323,7 +345,7 @@
                     updateChart() {
                         if (!this.chart) { return; }
 
-                        const currentSeries = this.seriesByCategory[this.activeCategory] || this.seriesByCategory.all || [];
+                        const currentSeries = this.seriesByCategory[this.activeCategory] || this.seriesByCategory.tower || [];
 
                         const option = {
                             tooltip: {
@@ -407,3 +429,4 @@
         </script>
     @endif
 </div>
+@endif

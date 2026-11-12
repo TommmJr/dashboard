@@ -416,9 +416,11 @@ class DashboardController extends Controller
      *
      * @return array{
      *     period: ?string,
+     *     period_uit?: ?string,
+     *     period_upt?: ?string,
      *     labels: list<string>,
      *     series: list<array{name: string, data: list<float>}>,
-     *     summary: array{total_tower: float, total_transmisi: float, total_trafo: float},
+     *     summary: array{total_tower: float, total_transmisi: float, total_trafo: float, source?: string},
      *     table_rows: list<array{upt: string, tower: float, transmisi: float, trafo: float}>,
      *     series_by_category: array{tower: list<array{name: string, data: list<float>}>, transmisi: list<array{name: string, data: list<float>}>, trafo: list<array{name: string, data: list<float>}>}
      * }
@@ -442,12 +444,34 @@ class DashboardController extends Controller
             || $user->hasRole(Role::EDITOR_DASHBOARD)
         );
 
-        if (! $isPrivileged && $user?->division_id === null) {
+        $isStaff = $user && $user->hasRole(Role::STAFF_DIVISI);
+        $divisionSlug = $user?->division?->slug;
+
+        // Otorisasi fail-closed: Staf Divisi yang bukan managemen-aset (dan bukan data-aset)
+        // tidak boleh menerima data aset sama sekali.
+        if ($isStaff && ! in_array($divisionSlug, ['managemen-aset', 'data-aset'], true)) {
             return [
                 'period' => null,
+                'period_uit' => null,
+                'period_upt' => null,
                 'labels' => [],
                 'series' => [],
                 'summary' => $emptySummary,
+                'summary_upt' => $emptySummary,
+                'table_rows' => [],
+                'series_by_category' => $emptyCategories,
+            ];
+        }
+
+        if (! $isPrivileged && $user?->division_id === null) {
+            return [
+                'period' => null,
+                'period_uit' => null,
+                'period_upt' => null,
+                'labels' => [],
+                'series' => [],
+                'summary' => $emptySummary,
+                'summary_upt' => $emptySummary,
                 'table_rows' => [],
                 'series_by_category' => $emptyCategories,
             ];
@@ -473,9 +497,12 @@ class DashboardController extends Controller
         if ($upts->isEmpty() || $attributes->isEmpty()) {
             return [
                 'period' => $report['period'],
+                'period_uit' => null,
+                'period_upt' => $report['period'],
                 'labels' => [],
                 'series' => [],
                 'summary' => $emptySummary,
+                'summary_upt' => $emptySummary,
                 'table_rows' => [],
                 'series_by_category' => $emptyCategories,
             ];
@@ -491,33 +518,38 @@ class DashboardController extends Controller
         $seriesByCategory = [
             'tower' => array_values(array_filter($series, fn (array $s): bool => Str::startsWith($s['name'], 'Tower '))),
             'transmisi' => array_values(array_filter($series, fn (array $s): bool => Str::startsWith($s['name'], 'Transmisi '))),
-            'trafo' => array_values(array_filter($series, fn (array $s): bool => Str::startsWith($s['name'], 'Trafo '))),
+            'trafo' => array_values(array_filter($series, fn (array $s): bool => Str::startsWith($s['name'], 'Trafo ') && Str::contains($s['name'], 'MVA'))),
         ];
 
+        // 8 UPT kanonis selalu dirender lengkap di tabel matriks
+        $canonicalUpts = AssetStockReport::CANONICAL_UPTS;
         $tableRows = [];
-        $totalTower = 0.0;
-        $totalTransmisi = 0.0;
-        $totalTrafo = 0.0;
+        $totalTowerUpt = 0.0;
+        $totalTransmisiUpt = 0.0;
+        $totalTrafoUpt = 0.0;
 
-        foreach ($upts as $index => $upt) {
+        foreach ($canonicalUpts as $upt) {
             $uptTower = 0.0;
             $uptTransmisi = 0.0;
             $uptTrafo = 0.0;
 
-            foreach ($series as $s) {
-                $val = (float) ($s['data'][$index] ?? 0);
-                if (Str::startsWith($s['name'], 'Tower ')) {
-                    $uptTower += $val;
-                } elseif (Str::startsWith($s['name'], 'Transmisi ')) {
-                    $uptTransmisi += $val;
-                } elseif (Str::startsWith($s['name'], 'Trafo ') && Str::contains($s['name'], 'MVA')) {
-                    $uptTrafo += $val;
+            $index = $upts->search($upt);
+            if ($index !== false) {
+                foreach ($series as $s) {
+                    $val = (float) ($s['data'][$index] ?? 0);
+                    if (Str::startsWith($s['name'], 'Tower ')) {
+                        $uptTower += $val;
+                    } elseif (Str::startsWith($s['name'], 'Transmisi ')) {
+                        $uptTransmisi += $val;
+                    } elseif (Str::startsWith($s['name'], 'Trafo ') && Str::contains($s['name'], 'MVA')) {
+                        $uptTrafo += $val;
+                    }
                 }
             }
 
-            $totalTower += $uptTower;
-            $totalTransmisi += $uptTransmisi;
-            $totalTrafo += $uptTrafo;
+            $totalTowerUpt += $uptTower;
+            $totalTransmisiUpt += $uptTransmisi;
+            $totalTrafoUpt += $uptTrafo;
 
             $tableRows[] = [
                 'upt' => $upt,
@@ -527,17 +559,43 @@ class DashboardController extends Controller
             ];
         }
 
+        // Ambil data agregat Tab 1a (level UIT) untuk scorecard ringkasan jika tersedia
+        $uitReport = app(AssetStockReport::class)->totalsByUit($report['period'], $divisionId);
+        if ($uitReport['totals']->isEmpty() && $report['period'] !== null) {
+            $uitReport = app(AssetStockReport::class)->totalsByUit(null, $divisionId);
+        }
+        $uitTotals = $uitReport['totals'];
+        $hasUitData = $uitTotals->isNotEmpty();
+
+        $uitTower = $hasUitData
+            ? (float) $uitTotals->filter(fn (object $t): bool => Str::startsWith($t->kelompok ?? '', 'Tower '))->sum('total')
+            : null;
+        $uitTransmisi = $hasUitData
+            ? (float) $uitTotals->filter(fn (object $t): bool => Str::startsWith($t->kelompok ?? '', 'Transmisi ') && (Str::contains($t->satuan ?? '', 'kms') || Str::contains($t->attribute ?? '', 'kms')))->sum('total')
+            : null;
+        $uitTrafo = $hasUitData
+            ? (float) $uitTotals->filter(fn (object $t): bool => Str::startsWith($t->kelompok ?? '', 'Trafo ') && (Str::contains($t->satuan ?? '', 'MVA') || Str::contains($t->attribute ?? '', 'MVA')))->sum('total')
+            : null;
+
         $summary = [
-            'total_tower' => $totalTower,
-            'total_transmisi' => round($totalTransmisi, 1),
-            'total_trafo' => round($totalTrafo, 1),
+            'total_tower' => $uitTower ?? $totalTowerUpt,
+            'total_transmisi' => round($uitTransmisi ?? $totalTransmisiUpt, 1),
+            'total_trafo' => round($uitTrafo ?? $totalTrafoUpt, 1),
+            'source' => $hasUitData ? 'uit' : 'upt',
         ];
 
         return [
             'period' => $report['period'],
+            'period_uit' => $uitReport['period'] ?? $report['period'],
+            'period_upt' => $report['period'],
             'labels' => $upts->all(),
             'series' => $series,
             'summary' => $summary,
+            'summary_upt' => [
+                'total_tower' => $totalTowerUpt,
+                'total_transmisi' => round($totalTransmisiUpt, 1),
+                'total_trafo' => round($totalTrafoUpt, 1),
+            ],
             'table_rows' => $tableRows,
             'series_by_category' => $seriesByCategory,
         ];

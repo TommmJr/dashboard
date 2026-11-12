@@ -412,6 +412,97 @@ class AssetStockReportTest extends TestCase
         $this->assertSame([7.0], $snapshot['groups'][0]->metrics->map(fn ($m) => $m->value)->all());
     }
 
+    public function test_totals_by_upt_mengecualikan_baris_berprefix_uit_dan_upt_non_kanonis(): void
+    {
+        $division = Division::factory()->create();
+        $dataset = Dataset::factory()->create([
+            'division_id' => $division->id,
+            'status' => Dataset::STATUS_READY,
+        ]);
+
+        // Baris UPT kanonis valid
+        PerformanceMetric::factory()->create([
+            'metric_name' => 'ASET | BEKASI | BEKASI | Trafo 500/150 KV | Bank',
+            'dataset_id' => $dataset->id,
+            'division_id' => $division->id,
+            'period' => '2026-10-31',
+            'value' => 5,
+        ]);
+
+        // Baris level UIT (harus dikecualikan dari totalsByUpt)
+        PerformanceMetric::factory()->create([
+            'metric_name' => 'ASET | UIT | Trafo 500/150 KV | Bank',
+            'dataset_id' => $dataset->id,
+            'division_id' => $division->id,
+            'period' => '2026-10-31',
+            'value' => 123,
+        ]);
+
+        // Baris UPT non-kanonis (harus dikecualikan dari totalsByUpt)
+        PerformanceMetric::factory()->create([
+            'metric_name' => 'ASET | JAKARTA | GAMBIR | Trafo 500/150 KV | Bank',
+            'dataset_id' => $dataset->id,
+            'division_id' => $division->id,
+            'period' => '2026-10-31',
+            'value' => 99,
+        ]);
+
+        $report = app(AssetStockReport::class)->totalsByUpt();
+
+        $this->assertSame('2026-10-31', $report['period']);
+        $this->assertCount(1, $report['totals']);
+        $this->assertSame('BEKASI', $report['totals'][0]->upt);
+        $this->assertSame(5.0, $report['totals'][0]->total);
+    }
+
+    public function test_totals_by_uit_mengagregasi_metrik_level_uit(): void
+    {
+        $division = Division::factory()->create();
+        $dataset = Dataset::factory()->create([
+            'division_id' => $division->id,
+            'status' => Dataset::STATUS_READY,
+        ]);
+
+        // Baris UPT kanonis
+        PerformanceMetric::factory()->create([
+            'metric_name' => 'ASET | BEKASI | BEKASI | Trafo 500/150 KV | Bank',
+            'dataset_id' => $dataset->id,
+            'division_id' => $division->id,
+            'period' => '2026-10-31',
+            'value' => 5,
+        ]);
+
+        // Baris level UIT
+        PerformanceMetric::factory()->create([
+            'metric_name' => 'ASET | UIT | Trafo 500/150 KV | MVA',
+            'dataset_id' => $dataset->id,
+            'division_id' => $division->id,
+            'period' => '2026-10-31',
+            'value' => 20500.0,
+        ]);
+        PerformanceMetric::factory()->create([
+            'metric_name' => 'ASET | UIT | Tower 500 KV | SU',
+            'dataset_id' => $dataset->id,
+            'division_id' => $division->id,
+            'period' => '2026-10-31',
+            'value' => 6336.0,
+        ]);
+
+        $report = app(AssetStockReport::class)->totalsByUit();
+
+        $this->assertSame('2026-10-31', $report['period']);
+        $this->assertCount(2, $report['totals']);
+
+        $byName = $report['totals']->keyBy('metric_name');
+        $this->assertTrue($byName->has('ASET | UIT | Trafo 500/150 KV | MVA'));
+        $this->assertSame(20500.0, $byName->get('ASET | UIT | Trafo 500/150 KV | MVA')->total);
+        $this->assertSame('Trafo 500/150 KV', $byName->get('ASET | UIT | Trafo 500/150 KV | MVA')->kelompok);
+        $this->assertSame('MVA', $byName->get('ASET | UIT | Trafo 500/150 KV | MVA')->satuan);
+
+        $this->assertTrue($byName->has('ASET | UIT | Tower 500 KV | SU'));
+        $this->assertSame(6336.0, $byName->get('ASET | UIT | Tower 500 KV | SU')->total);
+    }
+
     private function readyDataset(Division $division, string $createdAt): Dataset
     {
         return Dataset::factory()->create([

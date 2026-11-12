@@ -66,6 +66,12 @@ Route::middleware('auth')->group(function () {
     Route::middleware('can:dataset.import')->group(function () {
         Route::get('/datasets/create', [DatasetController::class, 'create'])->name('datasets.create');
         Route::post('/datasets', [DatasetController::class, 'store'])->name('datasets.store');
+        // Import dual-file rekapitulasi aset (Tab 1b & Tab 1a) untuk Manajemen Aset.
+        Route::post('/datasets/asset-upload', [DatasetController::class, 'uploadAssetDual'])
+            ->name('datasets.asset-upload');
+        // Sinkronisasi data aset dari Google Sheets (Tab 1b & Tab 1a).
+        Route::post('/datasets/asset-sync', [DatasetController::class, 'syncAssetSheets'])
+            ->name('datasets.asset-sync');
         // Import 1-klik laporan KPI mentah dari mentor ke satu dataset owner.
         Route::post('/datasets/import-kpi-report', [DatasetController::class, 'importKpiReport'])
             ->name('datasets.kpi-import');

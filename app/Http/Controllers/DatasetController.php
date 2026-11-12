@@ -3,11 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Enums\DatasetStatus;
+use App\Exceptions\AssetSyncException;
 use App\Models\AuditLog;
 use App\Models\Dataset;
 use App\Models\Division;
 use App\Models\Role;
 use App\Models\User;
+use App\Services\AssetDualUploadService;
+use App\Services\AssetSheetsSyncService;
 use App\Services\DatasetImportService;
 use App\Services\KpiReportConverter;
 use App\Services\StructuredKpiImporter;
@@ -21,6 +24,8 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Throwable;
@@ -38,11 +43,16 @@ class DatasetController extends Controller
             ? Division::query()->orderBy('name')->get(['id', 'name', 'description'])
             : collect();
 
+        $assetDivision = Division::where('slug', 'managemen-aset')->first();
+        $canUploadAsset = $user->hasRole(Role::ADMIN)
+            || ($assetDivision !== null && $user->hasRole(Role::STAFF_DIVISI) && $user->division_id !== null && (int) $user->division_id === (int) $assetDivision->id);
+
         return view('datasets.create', [
             'divisions' => $divisions,
             'user' => $user,
             'canImportKpi' => $this->canImportKpi($user),
             'kpiPeriods' => $this->importedKpiPeriods($user),
+            'canUploadAsset' => $canUploadAsset,
         ]);
     }
 
@@ -96,8 +106,11 @@ class DatasetController extends Controller
     /**
      * Terima file dan simpan sebagai dataset milik divisi yang sesuai.
      */
-    public function store(Request $request, DatasetImportService $importService)
-    {
+    public function store(
+        Request $request,
+        DatasetImportService $importService,
+        AssetDualUploadService $assetDualService,
+    ) {
         $maxKb = config('dataset_import.max_size_kb');
         $extensions = implode(',', config('dataset_import.extensions'));
         $user = Auth::user();
@@ -108,6 +121,36 @@ class DatasetController extends Controller
             abort_if($user->division_id === null, 403, 'Staf tanpa divisi tidak dapat mengunggah dataset.');
         }
 
+        $assetDivisionId = Division::where('slug', 'managemen-aset')->value('id');
+
+        $divisionId = $canSelectDivision
+            ? $request->integer('division_id')
+            : $user->division_id;
+
+        $isAssetTarget = ($assetDivisionId !== null && (int) $divisionId === (int) $assetDivisionId);
+
+        // Fail-closed authorization jika menargetkan divisi Manajemen Aset
+        if ($isAssetTarget || ($request->filled('division_id') && (int) $request->integer('division_id') === (int) $assetDivisionId)) {
+            $canUploadAsset = $user->hasRole(Role::ADMIN)
+                || ($user->hasRole(Role::STAFF_DIVISI) && $user->division_id !== null && (int) $user->division_id === (int) $assetDivisionId);
+
+            abort_unless($canUploadAsset, 403, 'Hanya admin atau staf divisi Manajemen Aset yang dapat mengunggah dataset Manajemen Aset.');
+        }
+
+        // Deteksi apakah ini dual upload aset atau ditargetkan ke Manajemen Aset
+        $hasDualFile = $request->hasFile('file_1b') || $request->hasFile('file_1a') || $request->hasFile('file_uit') || $request->input('upload_type') === 'asset';
+
+        if ($isAssetTarget) {
+            $file = $request->file('file');
+            $hasGenericTemplate = ($file instanceof UploadedFile && $this->isGenericTemplate($file));
+
+            if ($hasDualFile || ! $hasGenericTemplate) {
+                return $this->uploadAssetDual($request, $assetDualService);
+            }
+        } elseif ($hasDualFile) {
+            return $this->uploadAssetDual($request, $assetDualService);
+        }
+
         $divisionRule = $canSelectDivision
             ? 'required|exists:divisions,id'
             : 'prohibited';
@@ -116,10 +159,6 @@ class DatasetController extends Controller
             'file' => "required|file|extensions:{$extensions}|mimetypes:application/zip,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain,text/csv,application/csv|max:{$maxKb}",
             'division_id' => $divisionRule,
         ]);
-
-        $divisionId = $canSelectDivision
-            ? $request->integer('division_id')
-            : $user->division_id;
 
         ['dataset' => $dataset, 'result' => $result] = $this->storeAndImport(
             $request->file('file'), $divisionId, $user, $importService,
@@ -148,6 +187,198 @@ class DatasetController extends Controller
         return redirect()
             ->route('datasets.show', $dataset)
             ->with('success', $message);
+    }
+
+    /**
+     * Upload dan proses dual berkas rekapitulasi aset (Tab 1b & Tab 1a).
+     */
+    public function uploadAssetDual(Request $request, AssetDualUploadService $service)
+    {
+        $user = Auth::user();
+        $assetDivision = Division::where('slug', 'managemen-aset')->firstOrFail();
+        $assetDivisionId = $assetDivision->id;
+
+        $canUploadAsset = $user->hasRole(Role::ADMIN)
+            || ($user->hasRole(Role::STAFF_DIVISI) && $user->division_id !== null && (int) $user->division_id === (int) $assetDivisionId);
+
+        abort_unless($canUploadAsset, 403, 'Hanya admin atau staf divisi Manajemen Aset yang dapat mengunggah dataset Manajemen Aset.');
+
+        $maxKb = config('dataset_import.max_size_kb', 10240);
+        $extensions = implode(',', config('dataset_import.extensions', ['xlsx', 'csv']));
+
+        // Cek kehadiran kedua berkas: file_1b (atau file) dan file_1a (atau file_uit)
+        $has1b = $request->hasFile('file_1b') || $request->hasFile('file');
+        $has1a = $request->hasFile('file_1a') || $request->hasFile('file_uit');
+
+        if (! $has1b || ! $has1a) {
+            $rules = [];
+            if (! $has1b) {
+                $rules[$request->has('file') ? 'file' : 'file_1b'] = 'required';
+            }
+            if (! $has1a) {
+                $rules[$request->has('file_uit') ? 'file_uit' : 'file_1a'] = 'required';
+            }
+
+            $messages = [
+                'file_1b.required' => 'Berkas Tab 1b (level UPT) wajib diunggah untuk divisi Manajemen Aset.',
+                'file.required' => 'Berkas Tab 1b (level UPT) wajib diunggah untuk divisi Manajemen Aset.',
+                'file_1a.required' => 'Berkas Tab 1a (level UIT JBT) wajib diunggah untuk divisi Manajemen Aset.',
+                'file_uit.required' => 'Berkas Tab 1a (level UIT JBT) wajib diunggah untuk divisi Manajemen Aset.',
+            ];
+
+            $request->validate($rules, $messages);
+        }
+
+        $key1b = $request->hasFile('file_1b') ? 'file_1b' : 'file';
+        $key1a = $request->hasFile('file_1a') ? 'file_1a' : 'file_uit';
+
+        $request->validate([
+            $key1b => "required|file|extensions:{$extensions}|mimetypes:application/zip,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain,text/csv,application/csv|max:{$maxKb}",
+            $key1a => "required|file|extensions:{$extensions}|mimetypes:application/zip,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain,text/csv,application/csv|max:{$maxKb}",
+            'period' => 'nullable|date_format:Y-m-d',
+        ]);
+
+        $file1b = $request->file($key1b);
+        $file1a = $request->file($key1a);
+
+        try {
+            $result = $service->upload(
+                $file1b,
+                $file1a,
+                $user,
+                $request->filled('period') ? $request->string('period')->toString() : null
+            );
+
+            $dataset = $result['dataset'];
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => "Berhasil mengimpor {$result['total_rows']} baris metrik aset.",
+                    'dataset' => $dataset,
+                    'result' => $result,
+                ], 200);
+            }
+
+            return redirect()
+                ->route('datasets.show', $dataset)
+                ->with('success', "Berhasil mengimpor {$result['total_rows']} baris metrik aset ({$result['rows_1b']} baris UPT, {$result['rows_1a']} baris UIT).");
+        } catch (ValidationException $e) {
+            throw $e;
+        } catch (Throwable $e) {
+            Log::warning('Dual-file web upload aset gagal', [
+                'user_id' => $user->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => 'Berkas rekap aset tidak dapat diproses: '.$e->getMessage(),
+                    'error' => $e->getMessage(),
+                ], 422);
+            }
+
+            return redirect()
+                ->route('datasets.create')
+                ->with('error', 'Berkas rekap aset tidak dapat diproses: '.$e->getMessage());
+        }
+    }
+
+    /**
+     * Sinkronisasi data aset dari Google Sheets (Tab 1b & Tab 1a).
+     */
+    public function syncAssetSheets(Request $request, AssetSheetsSyncService $syncService)
+    {
+        $user = Auth::user();
+        $assetDivision = Division::where('slug', 'managemen-aset')->first();
+        $assetDivisionId = $assetDivision?->id;
+
+        $canSyncAsset = $user->hasRole(Role::ADMIN)
+            || ($assetDivisionId !== null && $user->hasRole(Role::STAFF_DIVISI) && $user->division_id !== null && (int) $user->division_id === (int) $assetDivisionId);
+
+        abort_unless($canSyncAsset, 403, 'Hanya admin atau staf divisi Manajemen Aset yang dapat menyinkronkan dataset Manajemen Aset.');
+
+        try {
+            $result = $syncService->sync(dryRun: false, period: null, user: $user);
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => "Sinkronisasi data aset dari Google Sheets berhasil (Periode: {$result['period']}).",
+                    'dataset' => $result['dataset'],
+                    'result' => $result,
+                ], 200);
+            }
+
+            return redirect()
+                ->route('datasets.index')
+                ->with('success', "Sinkronisasi data aset dari Google Sheets berhasil (Periode: {$result['period']}).");
+        } catch (AssetSyncException $e) {
+            $errorMessage = AssetSyncException::sanitize($e->getMessage());
+
+            Log::warning('Sinkronisasi data aset dari Google Sheets gagal', [
+                'user_id' => $user->id,
+                'error' => $errorMessage,
+            ]);
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => 'Gagal menyinkronkan data aset: '.$errorMessage,
+                    'error' => $errorMessage,
+                ], 422);
+            }
+
+            return back()
+                ->with('error', 'Gagal menyinkronkan data aset: '.$errorMessage);
+        } catch (Throwable $e) {
+            Log::error('Kesalahan tak terduga saat sinkronisasi data aset', [
+                'user_id' => $user->id,
+                'exception' => get_class($e),
+                'error' => AssetSyncException::sanitize($e->getMessage()),
+            ]);
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => 'Terjadi kesalahan sistem saat sinkronisasi data aset. Hubungi administrator.',
+                ], 500);
+            }
+
+            return back()
+                ->with('error', 'Terjadi kesalahan sistem saat sinkronisasi data aset. Hubungi administrator.');
+        }
+    }
+
+    /**
+     * Cek apakah berkas yang diunggah adalah template generik (header metric_name).
+     */
+    private function isGenericTemplate(UploadedFile $file): bool
+    {
+        $ext = strtolower($file->getClientOriginalExtension());
+
+        if ($ext === 'csv') {
+            $handle = @fopen($file->getRealPath(), 'r');
+            if ($handle === false) {
+                return false;
+            }
+            $firstLine = fgets($handle);
+            fclose($handle);
+
+            if ($firstLine === false) {
+                return false;
+            }
+
+            return str_contains(mb_strtolower($firstLine), 'metric_name');
+        }
+
+        try {
+            $reader = IOFactory::createReaderForFile($file->getRealPath());
+            $reader->setReadDataOnly(true);
+            $spreadsheet = $reader->load($file->getRealPath());
+            $firstVal = (string) $spreadsheet->getActiveSheet()->getCell('A1')->getValue();
+            $spreadsheet->disconnectWorksheets();
+
+            return mb_strtolower(trim($firstVal)) === 'metric_name';
+        } catch (Throwable) {
+            return false;
+        }
     }
 
     /**
