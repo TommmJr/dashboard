@@ -28,17 +28,18 @@
     </div>
 
     <div x-show="!loading && !empty" x-cloak class="mt-4">
-        <div id="{{ $chartId }}" class="custom-chart-container h-64 w-full sm:h-80"></div>
+        <div id="{{ $chartId }}" class="custom-chart-container h-64 w-full sm:h-80" style="width: 100%; height: 320px; min-height: 256px;"></div>
     </div>
 </div>
 
 <script>
 if (typeof window.customChartWidget !== 'function') {
     window.customChartWidget = function(config, chartId) {
+        let chartInstance = null;
+
         return {
             loading: true,
             empty: false,
-            chart: null,
             initChart() {
                 const params = new URLSearchParams(window.location.search);
                 params.set('metric', config.metric || 'nko_score');
@@ -61,11 +62,21 @@ if (typeof window.customChartWidget !== 'function') {
                     this.$nextTick(() => {
                         const el = document.getElementById(chartId);
                         if (!el || !window.echarts) return;
-                        this.chart = window.echarts.init(el);
+                        if (!chartInstance) {
+                            chartInstance = window.echarts.getInstanceByDom(el) || window.echarts.init(el);
+                            new ResizeObserver(() => {
+                                if (chartInstance && !chartInstance.isDisposed()) {
+                                    chartInstance.resize();
+                                }
+                            }).observe(el);
+                        }
 
                         let option = {};
                         if (data.chart_type === 'donut') {
                             option = {
+                                animation: true,
+                                animationDuration: 650,
+                                animationEasing: 'cubicOut',
                                 tooltip: { trigger: 'item', formatter: '{b}: {c}' },
                                 legend: { bottom: 0 },
                                 series: [{
@@ -78,6 +89,9 @@ if (typeof window.customChartWidget !== 'function') {
                             };
                         } else {
                             option = {
+                                animation: true,
+                                animationDuration: 650,
+                                animationEasing: 'cubicOut',
                                 tooltip: { trigger: 'axis' },
                                 grid: { left: '3%', right: '4%', bottom: '10%', containLabel: true },
                                 xAxis: { type: 'category', data: data.categories || [] },
@@ -90,8 +104,7 @@ if (typeof window.customChartWidget !== 'function') {
                                 }]
                             };
                         }
-                        this.chart.setOption(option);
-                        new ResizeObserver(() => this.chart?.resize()).observe(el);
+                        chartInstance.setOption(option);
                     });
                 })
                 .catch(() => {

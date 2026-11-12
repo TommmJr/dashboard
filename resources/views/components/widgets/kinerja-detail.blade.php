@@ -54,7 +54,7 @@
 @endphp
 
 <div
-    class="h-full rounded-lg bg-white border border-slate-200 shadow-sm p-6"
+    class="h-full rounded-xl bg-white border border-slate-200/80 shadow-xs p-5 sm:p-6 transition-all duration-200 ease-out hover:shadow-md"
     x-data="{
         tableSearch: '',
         tableRag: 'all',
@@ -204,7 +204,7 @@
                             }
                         @endphp
                         <tr
-                            x-show="matches({{ Js::from($row['indikator']) }}, {{ Js::from($row['unit']) }}, '{{ $tier }}')"
+                            x-show="matches('{{ addcslashes($row['indikator'], "'\\") }}', '{{ addcslashes($row['unit'], "'\\") }}', '{{ $tier }}')"
                             class="hover:bg-slate-50/60 transition-colors"
                         >
                             <td class="py-2.5 px-3 font-semibold text-primary">{{ $row['unit'] }}</td>
@@ -256,6 +256,11 @@
                         'end_date' => is_string($endDate) ? $endDate : null,
                     ])) }}" class="font-semibold text-teal-700 hover:underline inline-flex items-center gap-1">
                         Halaman Rincian KPI &rarr;
+                    </a>
+                @endif
+                @if (\App\Http\Controllers\KpiAnalyticsController::canAccessKpiAnalytics(auth()->user()))
+                    <a href="{{ route('dashboard.kpi-analytics') }}" class="font-semibold text-teal-700 hover:underline inline-flex items-center gap-1">
+                        Analitik & Bottleneck &rarr;
                     </a>
                 @endif
             </div>

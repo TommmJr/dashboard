@@ -85,7 +85,7 @@
 <div
     class="mt-8 rounded-lg bg-white border border-slate-200 p-6 shadow-sm"
     @if (!$labels->isEmpty() && !$series->isEmpty())
-        x-data="asetUptChartWidget(@json($chartId))"
+        x-data='asetUptChartWidget(@json($chartId))'
         x-init="init()"
     @endif
 >
@@ -94,9 +94,21 @@
         <div>
             <div class="flex flex-wrap items-center gap-2">
                 <h3 class="text-lg font-bold text-primary">{{ $widget['label'] ?? 'Stok Aset per UPT' }}</h3>
-                <span class="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-800">
+                <span class="inline-flex items-center rounded-full bg-slate-100 border border-slate-200 px-2.5 py-0.5 text-xs font-semibold text-slate-700">
                     Prototipe Demo (Rekapitulasi UPT)
                 </span>
+                @if (\App\Http\Controllers\AssetDetailController::canAccessAssetDetail(auth()->user()))
+                    <a
+                        href="{{ route('dashboard.asset-detail') }}"
+                        class="inline-flex items-center gap-1.5 rounded-md border border-primary/20 bg-primary/5 px-2.5 py-1 text-xs font-semibold text-primary hover:bg-primary/10 transition"
+                    >
+                        <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                            <rect x="3" y="6" width="18" height="12" rx="2" />
+                            <path d="M7 12h2m6 0h2M12 9v6" stroke-linecap="round" stroke-linejoin="round" />
+                        </svg>
+                        Buka Rincian Trafo & Aset
+                    </a>
+                @endif
             </div>
             @if ($period !== null)
                 <p class="mt-1 text-xs text-slate-500 font-normal">
@@ -174,13 +186,13 @@
                 <div class="flex items-center justify-between">
                     <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Total Tower</p>
                     <div class="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-600">
-                        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
                             <path d="M12 2v20M6 8l12 0M4 14l16 0M8 22l4-20 4 20" stroke-linecap="round" stroke-linejoin="round"/>
                         </svg>
                     </div>
                 </div>
                 <div class="mt-2 flex items-baseline gap-1.5">
-                    <span class="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 font-sans">
+                    <span class="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 font-sans" x-data="numberTicker('{{ number_format($totalTower, 0, ',', '.') }}')" x-text="display">
                         {{ number_format($totalTower, 0, ',', '.') }}
                     </span>
                     <span class="text-xs font-medium text-slate-500">Unit</span>
@@ -193,13 +205,13 @@
                 <div class="flex items-center justify-between">
                     <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Total Jalur Transmisi</p>
                     <div class="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-600">
-                        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
                             <path d="M22 12h-4l-3 9L9 3l-3 9H2" stroke-linecap="round" stroke-linejoin="round"/>
                         </svg>
                     </div>
                 </div>
                 <div class="mt-2 flex items-baseline gap-1.5">
-                    <span class="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 font-sans">
+                    <span class="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 font-sans" x-data="numberTicker('{{ number_format($totalTransmisi, 1, ',', '.') }}')" x-text="display">
                         {{ number_format($totalTransmisi, 1, ',', '.') }}
                     </span>
                     <span class="text-xs font-medium text-slate-500">kms</span>
@@ -212,14 +224,14 @@
                 <div class="flex items-center justify-between">
                     <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Total Kapasitas Trafo</p>
                     <div class="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-600">
-                        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
                             <rect x="3" y="6" width="18" height="12" rx="2"/>
                             <path d="M7 12h2m6 0h2M12 9v6" stroke-linecap="round" stroke-linejoin="round"/>
                         </svg>
                     </div>
                 </div>
                 <div class="mt-2 flex items-baseline gap-1.5">
-                    <span class="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 font-sans">
+                    <span class="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 font-sans" x-data="numberTicker('{{ number_format($totalTrafo, 1, ',', '.') }}')" x-text="display">
                         {{ number_format($totalTrafo, 1, ',', '.') }}
                     </span>
                     <span class="text-xs font-medium text-slate-500">MVA</span>
@@ -423,6 +435,12 @@
                             yAxis: {
                                 type: 'value',
                                 min: 0,
+                                name: this.activeCategory === 'tower' ? 'Unit' : (this.activeCategory === 'transmisi' ? 'kms' : 'MVA'),
+                                nameTextStyle: {
+                                    color: '#64748b',
+                                    fontSize: 11,
+                                    padding: [0, 0, 4, 0]
+                                },
                                 axisLabel: {
                                     color: '#64748b',
                                     fontSize: 11
@@ -434,6 +452,10 @@
                                     }
                                 }
                             },
+                            animation: true,
+                            animationDuration: 650,
+                            animationEasing: 'cubicOut',
+                            animationDurationUpdate: 400,
                             series: currentSeries
                         };
 

@@ -1,7 +1,7 @@
 @props(['widget' => [], 'data' => null])
 
 {{-- Area chart ECharts --}}
-<div class="h-full rounded-lg bg-white p-4 sm:p-5 shadow-sm border border-slate-200">
+<div class="h-full rounded-xl bg-white p-4 sm:p-5 shadow-xs border border-slate-200/80 transition-all duration-200 ease-out hover:shadow-md">
     <div class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <h3 class="text-base font-bold text-primary">{{ $widget['label'] ?? 'Grafik Tren Kinerja' }}</h3>
         {{-- Subjudul dinamis: jujur soal jumlah periode yang tersedia. --}}
@@ -35,9 +35,8 @@
 
     {{-- Chart selalu tampil. Bentuknya menyesuaikan jumlah periode: 1 periode =
          bar per unit (Y dari 0, satu warna, urut tertinggi) supaya snapshot
-         terbaca jujur; >1 periode = garis tren per unit. Logika bentuk ada di
-         renderChart(), bukan di sini. --}}
+         terbaca jujur; >1 periode = garis tren per unit. --}}
     <div x-show="!loading && !empty" x-cloak class="mt-2">
-        <div id="performanceChart" class="h-56 w-full sm:h-64 lg:h-72"></div>
+        <div id="performanceChart" class="h-56 w-full sm:h-64 lg:h-72" style="width: 100%; height: 288px; min-height: 224px;"></div>
     </div>
 </div>

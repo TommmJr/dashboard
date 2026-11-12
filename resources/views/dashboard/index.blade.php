@@ -59,12 +59,53 @@
             @endcan
         </div>
     @else
-        <div id="dashboard-header" class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div id="dashboard-header" class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between animate-entrance">
             <div>
-                <h1 class="text-2xl font-bold text-primary">
-                    {{ $isAdminDashboard ? 'Dashboard Admin' : 'Dashboard' }}
-                </h1>
+                <div class="flex items-center gap-2.5">
+                    <h1 class="text-2xl font-extrabold tracking-tight text-primary">
+                        {{ $isAdminDashboard ? 'Dashboard Admin' : 'Dashboard' }}
+                    </h1>
+                    @if ($isAdminDashboard)
+                        <span class="inline-flex items-center gap-1.5 rounded-full border border-teal-200/80 bg-teal-50 px-2.5 py-0.5 text-xs font-semibold text-teal-800">
+                            <span class="h-1.5 w-1.5 rounded-full bg-teal-600"></span>
+                            Pusat Kendali Operasional
+                        </span>
+                    @endif
+                </div>
+                @if ($isAdminDashboard)
+                    <p class="mt-1 text-xs text-slate-500">
+                        Monitoring kesehatan dataset terpusat, audit aktivitas lintas divisi, dan administrasi sistem PLN UIT JBT.
+                    </p>
+                @endif
             </div>
+
+            @if ($isAdminDashboard)
+                <div class="flex flex-wrap items-center gap-2">
+                    <a href="{{ route('datasets.index') }}" class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200/80 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs transition hover:border-slate-300 hover:bg-slate-50">
+                        <svg class="h-3.5 w-3.5 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                            <path d="M4 7c0-1.1 3.6-2 8-2s8 .9 8 2-3.6 2-8 2-8-.9-8-2Z"/>
+                            <path d="M4 7v10c0 1.1 3.6 2 8 2s8-.9 8-2V7"/>
+                            <path d="M4 12c0 1.1 3.6 2 8 2s8-.9 8-2"/>
+                        </svg>
+                        Dataset
+                    </a>
+                    <a href="{{ route('audit-logs.index') }}" class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200/80 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs transition hover:border-slate-300 hover:bg-slate-50">
+                        <svg class="h-3.5 w-3.5 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                            <path d="M4 12a8 8 0 1 0 2.3-5.7M4 4v5h5"/>
+                            <path d="M12 8v4l2.5 1.5"/>
+                        </svg>
+                        Audit Log
+                    </a>
+                    @can('dashboard.update')
+                        <a href="{{ route('dashboard.builder') }}" class="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white shadow-2xs transition hover:bg-primary/90">
+                            <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                                <path d="M11 5H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-5m-1.4-9.4a2 2 0 1 1 2.8 2.8L11.8 15H9v-2.8l8.6-8.6Z"/>
+                            </svg>
+                            Atur Layout
+                        </a>
+                    @endcan
+                </div>
+            @endif
 
             @if (! $isAdminDashboard)
                 {{-- Form GET (bukan fetch): halaman dimuat ulang sehingga widget
@@ -187,8 +228,9 @@
                         default => 'lg:col-span-3',
                     },
                 };
+                $staggerIndex = (($loop->iteration - 1) % 6) + 1;
             @endphp
-            <div class="{{ $widgetClass }} h-full">
+            <div class="{{ $widgetClass }} h-full animate-entrance stagger-{{ $staggerIndex }}">
                 @if (($widget['key'] ?? '') === 'aset-upt-chart')
                     @include('components.widgets.aset-upt-chart', ['widget' => $widget, 'data' => $widget['data'] ?? $widgetData['aset-upt-chart'] ?? null])
                 @else
@@ -200,12 +242,13 @@
 </div>
 
 <script>
+    let performanceChartInstance = null;
+
     function performanceDashboard(initial = {}) {
         return {
             loading: true,
             empty: false,
             kpi: null,
-            chart: null,
             error: '',
             units: [],
             periodLabels: [],
@@ -320,8 +363,8 @@
             renderChart(payload) {
                 const el = document.getElementById('performanceChart');
                 if (!el) return;
-                if (this.chart) { this.chart.dispose(); }
-                this.chart = window.echarts.init(el);
+                if (performanceChartInstance) { performanceChartInstance.dispose(); }
+                performanceChartInstance = window.echarts.init(el);
 
                 // Dua bentuk, dipilih oleh jumlah periode:
                 // - 1 periode  = bar per unit, SATU warna, diurutkan tertinggi,
@@ -334,7 +377,11 @@
                         .map((s) => ({ name: s.name, value: Number(s.data[0]) }))
                         .sort((a, b) => b.value - a.value);
 
-                    this.chart.setOption({
+                    performanceChartInstance.setOption({
+                        animation: true,
+                        animationDuration: 650,
+                        animationEasing: 'cubicOut',
+                        animationDurationUpdate: 400,
                         tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
                         grid: { left: 70, right: 20, top: 20, bottom: 40 },
                         xAxis: {
@@ -366,7 +413,11 @@
                         itemStyle: { color: palette[i % palette.length] },
                     }));
 
-                    this.chart.setOption({
+                    performanceChartInstance.setOption({
+                        animation: true,
+                        animationDuration: 650,
+                        animationEasing: 'cubicOut',
+                        animationDurationUpdate: 400,
                         tooltip: { trigger: 'axis' },
                         legend: { bottom: 0, type: 'scroll' },
                         grid: { left: 60, right: 20, top: 20, bottom: 40 },
@@ -381,7 +432,7 @@
                     this.resizeObserver.disconnect();
                 }
                 this.resizeObserver = new ResizeObserver(() => {
-                    this.chart && this.chart.resize();
+                    performanceChartInstance && performanceChartInstance.resize();
                 });
                 this.resizeObserver.observe(el);
             },

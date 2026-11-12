@@ -6,14 +6,19 @@
     $rows = $data['rows'] ?? collect();
 @endphp
 
-<div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+<div class="card-interactive rounded-xl border border-slate-200/80 bg-white p-6 shadow-[0_1px_3px_0_rgba(0,0,0,0.04)]">
     <div class="flex items-center justify-between gap-4">
         <h3 class="text-lg font-bold text-primary">Dataset Gagal</h3>
-        <a href="{{ route('datasets.index') }}" class="text-sm font-semibold text-accent hover:underline">Kelola Dataset</a>
+        <a href="{{ route('datasets.index') }}" class="text-xs font-semibold text-accent hover:underline">Kelola Dataset</a>
     </div>
 
+    @php
+        $countFormatted = number_format($count, 0, ',', '.');
+    @endphp
     <div class="mt-5 flex items-center gap-3">
-        <p class="text-4xl font-bold text-red-600">{{ number_format($count, 0, ',', '.') }}</p>
+        <p class="text-4xl font-extrabold tracking-tight text-red-600">
+            <span x-data="numberTicker('{{ $countFormatted }}')" x-text="display">{{ $countFormatted }}</span>
+        </p>
         @if ($count > 0)
             <span class="rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-red-700">Perlu Tindak Lanjut</span>
         @else

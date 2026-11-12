@@ -49,58 +49,83 @@
                 Belum ada data NKO pada periode ini.
             </p>
         @else
-            <div id="{{ $chartId }}" class="mt-3 h-52 w-full sm:h-60"></div>
-            <script>
-                window.addEventListener('DOMContentLoaded', () => {
-                    const el = document.getElementById(@json($chartId));
-                    if (!el || !window.echarts) { return; }
-                    const chart = window.echarts.init(el);
-                    const categoryColors = {
-                        'Tercapai': '#10b981',
-                        'Hampir Tercapai': '#f59e0b',
-                        'Perlu Peningkatan': '#ef4444'
-                    };
-                    const rawData = @json($chartData);
-                    const seriesData = rawData.map(item => ({
-                        name: item.name,
-                        value: item.value,
-                        itemStyle: {
-                            color: categoryColors[item.name] || '#64748b',
-                            borderRadius: 6
-                        }
-                    }));
-
-                    chart.setOption({
-                        tooltip: {
-                            trigger: 'item',
-                            formatter: '{b}: {c} unit ({d}%)'
-                        },
-                        legend: {
-                            show: false
-                        },
-                        series: [{
-                            type: 'pie',
-                            radius: ['45%', '70%'],
-                            center: ['50%', '50%'],
-                            data: seriesData,
-                            label: {
-                                show: true,
-                                formatter: '{b}\n{c} unit ({d}%)',
-                                fontSize: 11,
-                                color: '#334155',
-                                lineHeight: 14
-                            },
-                            labelLine: {
-                                show: true,
-                                length: 8,
-                                length2: 10,
-                                smooth: true
+            <div
+                x-data='{
+                    init() {
+                        let chartInstance = null;
+                        const initChart = () => {
+                            const el = document.getElementById(@json($chartId));
+                            if (!el || !window.echarts) {
+                                setTimeout(initChart, 40);
+                                return;
                             }
-                        }],
-                    });
-                    new ResizeObserver(() => chart.resize()).observe(el);
-                });
-            </script>
+                            const existing = window.echarts.getInstanceByDom(el);
+                            chartInstance = existing || window.echarts.init(el);
+
+                            const categoryColors = {
+                                Tercapai: "#10b981",
+                                "Hampir Tercapai": "#f59e0b",
+                                "Perlu Peningkatan": "#ef4444"
+                            };
+                            const rawData = @json($chartData);
+                            const seriesData = rawData.map(item => ({
+                                name: item.name,
+                                value: item.value,
+                                itemStyle: {
+                                    color: categoryColors[item.name] || "#64748b",
+                                    borderRadius: 6
+                                }
+                            }));
+
+                            chartInstance.setOption({
+                                animation: true,
+                                animationDuration: 650,
+                                animationEasing: "cubicOut",
+                                tooltip: {
+                                    trigger: "item",
+                                    formatter: "{b}: {c} unit ({d}%)"
+                                },
+                                legend: {
+                                    show: false
+                                },
+                                series: [{
+                                    type: "pie",
+                                    radius: ["45%", "70%"],
+                                    center: ["50%", "50%"],
+                                    data: seriesData,
+                                    label: {
+                                        show: true,
+                                        formatter: "{b}\n{c} unit ({d}%)",
+                                        fontSize: 11,
+                                        color: "#334155",
+                                        lineHeight: 14
+                                    },
+                                    labelLine: {
+                                        show: true,
+                                        length: 8,
+                                        length2: 10,
+                                        smooth: true
+                                    }
+                                }]
+                            });
+
+                            if (!el.__resizeObserverAttached) {
+                                const ro = new ResizeObserver(() => {
+                                    if (chartInstance && !chartInstance.isDisposed()) {
+                                        chartInstance.resize();
+                                    }
+                                });
+                                ro.observe(el);
+                                el.__resizeObserverAttached = true;
+                            }
+                        };
+                        this.$nextTick(() => initChart());
+                    }
+                }'
+                class="mt-3 w-full"
+            >
+                <div id="{{ $chartId }}" class="w-full" style="width: 100%; height: 240px; min-height: 240px;"></div>
+            </div>
         @endif
     </div>
 

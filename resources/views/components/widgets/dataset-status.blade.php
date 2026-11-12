@@ -38,15 +38,15 @@
             <div class="mt-4 grid grid-cols-2 {{ $cols >= 2 ? 'sm:grid-cols-4' : '' }} gap-3">
                 <div class="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-2xs transition hover:border-slate-300 hover:bg-slate-50/50">
                     <p class="text-xs font-medium text-slate-500">Dataset READY (Divisi)</p>
-                    <p class="mt-1.5 text-2xl font-extrabold tracking-tight text-emerald-600 leading-none">{{ $ready }}</p>
+                    <p class="mt-1.5 text-2xl font-extrabold tracking-tight text-emerald-600 leading-none"><span x-data="numberTicker('{{ $ready }}')" x-text="display">{{ $ready }}</span></p>
                 </div>
                 <div class="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-2xs transition hover:border-slate-300 hover:bg-slate-50/50">
                     <p class="text-xs font-medium text-slate-500">Dataset ARCHIVED</p>
-                    <p class="mt-1.5 text-2xl font-extrabold tracking-tight text-slate-700 leading-none">{{ $archived }}</p>
+                    <p class="mt-1.5 text-2xl font-extrabold tracking-tight text-slate-700 leading-none"><span x-data="numberTicker('{{ $archived }}')" x-text="display">{{ $archived }}</span></p>
                 </div>
                 <div class="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-2xs transition hover:border-slate-300 hover:bg-slate-50/50">
                     <p class="text-xs font-medium text-slate-500">Dataset GAGAL</p>
-                    <p class="mt-1.5 text-2xl font-extrabold tracking-tight text-rose-600 leading-none">{{ $failed }}</p>
+                    <p class="mt-1.5 text-2xl font-extrabold tracking-tight text-rose-600 leading-none"><span x-data="numberTicker('{{ $failed }}')" x-text="display">{{ $failed }}</span></p>
                 </div>
                 @php
                     $visibleUnitsLabel = !empty(config('kpi.visible_units')) ? implode(', ', config('kpi.visible_units')) : 'Semua Unit';
@@ -60,7 +60,7 @@
                 @endphp
                 <div class="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-2xs transition hover:border-slate-300 hover:bg-slate-50/50">
                     <p class="text-xs font-medium text-slate-500">Baris Data Aktif{{ $isNonKpi ? '' : ' ('.$visibleUnitsLabel.')' }}</p>
-                    <p class="mt-1.5 text-2xl font-extrabold tracking-tight text-blue-600 leading-none">{{ $latestRows }}</p>
+                    <p class="mt-1.5 text-2xl font-extrabold tracking-tight text-blue-600 leading-none"><span x-data="numberTicker('{{ $latestRows }}')" x-text="display">{{ $latestRows }}</span></p>
                 </div>
             </div>
         @endif

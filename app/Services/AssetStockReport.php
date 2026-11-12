@@ -207,6 +207,402 @@ class AssetStockReport
     }
 
     /**
+     * Rincian mendalam data stok aset untuk halaman /dashboard/asset-detail.
+     *
+     * Menyediakan breakdown Trafo per level tegangan (500/150 kV, 150/70 kV, 150/20 kV)
+     * dengan pemisahan tegas antara Kapasitas MVA dan Jumlah Fisik (Bank / Unit),
+     * saluran transmisi (SU vs SK kms), tower per tegangan, bay gardu,
+     * serta matriks interaktif untuk filter Alpine.
+     *
+     * @param  string|null  $period  Periode Y-m-d; null = periode terbaru.
+     * @param  int|null  $divisionId  Batasi ke divisi pemilik data; null = lintas divisi.
+     * @return array<string, mixed>
+     */
+    public function detailedBreakdown(?string $period = null, ?int $divisionId = null): array
+    {
+        $uptReport = $this->totalsByUpt($period, $divisionId);
+        $periodResolved = $uptReport['period'];
+
+        $uitReport = $this->totalsByUit($periodResolved, $divisionId);
+        if ($uitReport['totals']->isEmpty() && $periodResolved !== null) {
+            $uitReport = $this->totalsByUit(null, $divisionId);
+        }
+
+        $canonicalUpts = self::CANONICAL_UPTS;
+        $totals = $uptReport['totals'];
+        $uitTotals = $uitReport['totals'];
+
+        // Map data UPT: [upt][attribute] => float
+        $byUptAttr = [];
+        foreach ($canonicalUpts as $upt) {
+            $byUptAttr[$upt] = [];
+        }
+        foreach ($totals as $row) {
+            if (isset($byUptAttr[$row->upt])) {
+                $byUptAttr[$row->upt][$row->attribute] = (float) $row->total;
+            }
+        }
+
+        // Helper cari nilai dari UPT & pola nama atribut
+        $getUptVal = function (string $upt, string $prefix, ?string $contains = null, ?string $notContains = null) use ($byUptAttr): float {
+            $val = 0.0;
+            foreach ($byUptAttr[$upt] ?? [] as $attr => $amount) {
+                if (! str_starts_with($attr, $prefix)) {
+                    continue;
+                }
+                if ($contains !== null && ! str_contains($attr, $contains)) {
+                    continue;
+                }
+                if ($notContains !== null && str_contains($attr, $notContains)) {
+                    continue;
+                }
+                $val += $amount;
+            }
+
+            return $val;
+        };
+
+        // Helper cari nilai UIT
+        $getUitVal = function (string $prefix, ?string $contains = null, ?string $notContains = null) use ($uitTotals): ?float {
+            $matched = $uitTotals->filter(function (object $t) use ($prefix, $contains, $notContains) {
+                $name = ($t->kelompok ?? '').' | '.($t->satuan ?? '').' | '.($t->attribute ?? '');
+                if (! str_starts_with($t->kelompok ?? '', $prefix) && ! str_starts_with($name, $prefix)) {
+                    return false;
+                }
+                if ($contains !== null && ! str_contains($name, $contains)) {
+                    return false;
+                }
+                if ($notContains !== null && str_contains($name, $notContains)) {
+                    return false;
+                }
+
+                return true;
+            });
+
+            if ($matched->isEmpty()) {
+                return null;
+            }
+
+            return (float) $matched->sum('total');
+        };
+
+        // 1. Bedah Trafo per Level Tegangan
+        // Tegangan kanonis Trafo
+        $trafoVoltages = [
+            '500/150 kV' => 'Trafo 500/150 KV',
+            '150/70 kV' => 'Trafo 150/70 KV',
+            '150/20 kV' => 'Trafo 150/20 KV',
+        ];
+
+        // Deteksi level tegangan tambahan di dataset yang belum masuk daftar kanonis
+        foreach ($totals as $row) {
+            if (str_starts_with($row->attribute, 'Trafo ')) {
+                $parts = explode('|', $row->attribute);
+                $name = trim($parts[0]);
+                if (preg_match('/Trafo\s+([0-9\/]+\s*k?V?)/i', $name, $matches)) {
+                    $key = trim($matches[1]);
+                    if (! isset($trafoVoltages[$key])) {
+                        $trafoVoltages[$key] = $name;
+                    }
+                }
+            }
+        }
+
+        $trafoGroups = [];
+        $totalTrafoMvaUpt = 0.0;
+        $totalTrafoBankUpt = 0.0;
+        $totalTrafoUnitUpt = 0.0;
+
+        foreach ($trafoVoltages as $voltageKey => $prefix) {
+            $byUpt = [];
+            $sumMva = 0.0;
+            $sumBank = 0.0;
+            $sumUnit = 0.0;
+
+            foreach ($canonicalUpts as $upt) {
+                $mva = $getUptVal($upt, $prefix, 'MVA');
+                $bank = $getUptVal($upt, $prefix, 'Bank');
+                // Unit / Set (bukan MVA dan bukan Bank)
+                $unit = $getUptVal($upt, $prefix, 'Unit', 'MVA');
+                if ($unit === 0.0) {
+                    $unit = $getUptVal($upt, $prefix, 'Set', 'MVA');
+                }
+
+                $byUpt[$upt] = [
+                    'mva' => round($mva, 1),
+                    'bank' => round($bank, 0),
+                    'unit' => round($unit, 0),
+                ];
+
+                $sumMva += $mva;
+                $sumBank += $bank;
+                $sumUnit += $unit;
+            }
+
+            $uitMva = $getUitVal($prefix, 'MVA');
+            $uitBank = $getUitVal($prefix, 'Bank');
+            $uitUnit = $getUitVal($prefix, 'Unit', 'MVA');
+            if ($uitUnit === null) {
+                $uitUnit = $getUitVal($prefix, 'Set', 'MVA');
+            }
+
+            $totalTrafoMvaUpt += $sumMva;
+            $totalTrafoBankUpt += $sumBank;
+            $totalTrafoUnitUpt += $sumUnit;
+
+            $trafoGroups[] = [
+                'voltage' => $voltageKey,
+                'label' => $prefix,
+                'by_upt' => $byUpt,
+                'total_upt' => [
+                    'mva' => round($sumMva, 1),
+                    'bank' => round($sumBank, 0),
+                    'unit' => round($sumUnit, 0),
+                ],
+                'uit_total' => [
+                    'mva' => $uitMva !== null ? round($uitMva, 1) : null,
+                    'bank' => $uitBank !== null ? round($uitBank, 0) : null,
+                    'unit' => $uitUnit !== null ? round($uitUnit, 0) : null,
+                ],
+            ];
+        }
+
+        // 2. Breakdown Saluran Transmisi (SU vs SK kms)
+        $transmisiVoltages = [
+            '500 kV' => 'Transmisi 500 KV',
+            '150 kV' => 'Transmisi 150 KV',
+            '70 kV' => 'Transmisi 70 KV',
+        ];
+
+        $transmisiGroups = [];
+        $totalTransmisiKmsUpt = 0.0;
+
+        foreach ($transmisiVoltages as $voltageKey => $prefix) {
+            $byUpt = [];
+            $sumSu = 0.0;
+            $sumSk = 0.0;
+
+            foreach ($canonicalUpts as $upt) {
+                $su = $getUptVal($upt, $prefix, 'SU');
+                $sk = $getUptVal($upt, $prefix, 'SK');
+                $tot = $su + $sk;
+
+                $byUpt[$upt] = [
+                    'su_kms' => round($su, 1),
+                    'sk_kms' => round($sk, 1),
+                    'total_kms' => round($tot, 1),
+                ];
+
+                $sumSu += $su;
+                $sumSk += $sk;
+            }
+
+            $uitSu = $getUitVal($prefix, 'SU');
+            $uitSk = $getUitVal($prefix, 'SK');
+            $uitTot = ($uitSu !== null || $uitSk !== null) ? (($uitSu ?? 0.0) + ($uitSk ?? 0.0)) : null;
+
+            $totalTransmisiKmsUpt += ($sumSu + $sumSk);
+
+            $transmisiGroups[] = [
+                'voltage' => $voltageKey,
+                'label' => $prefix,
+                'by_upt' => $byUpt,
+                'total_upt' => [
+                    'su_kms' => round($sumSu, 1),
+                    'sk_kms' => round($sumSk, 1),
+                    'total_kms' => round($sumSu + $sumSk, 1),
+                ],
+                'uit_total' => [
+                    'su_kms' => $uitSu !== null ? round($uitSu, 1) : null,
+                    'sk_kms' => $uitSk !== null ? round($uitSk, 1) : null,
+                    'total_kms' => $uitTot !== null ? round($uitTot, 1) : null,
+                ],
+            ];
+        }
+
+        // 3. Breakdown Tower per Tegangan (SU vs SK unit)
+        $towerVoltages = [
+            '500 kV' => 'Tower 500 KV',
+            '150 kV' => 'Tower 150 KV',
+            '70 kV' => 'Tower 70 KV',
+        ];
+
+        $towerGroups = [];
+        $totalTowerUnitUpt = 0.0;
+
+        foreach ($towerVoltages as $voltageKey => $prefix) {
+            $byUpt = [];
+            $sumSu = 0.0;
+            $sumSk = 0.0;
+
+            foreach ($canonicalUpts as $upt) {
+                $su = $getUptVal($upt, $prefix, 'SU');
+                $sk = $getUptVal($upt, $prefix, 'SK');
+                $tot = $su + $sk;
+
+                $byUpt[$upt] = [
+                    'su_unit' => round($su, 0),
+                    'sk_unit' => round($sk, 0),
+                    'total_unit' => round($tot, 0),
+                ];
+
+                $sumSu += $su;
+                $sumSk += $sk;
+            }
+
+            $uitSu = $getUitVal($prefix, 'SU');
+            $uitSk = $getUitVal($prefix, 'SK');
+            $uitTot = ($uitSu !== null || $uitSk !== null) ? (($uitSu ?? 0.0) + ($uitSk ?? 0.0)) : null;
+
+            $totalTowerUnitUpt += ($sumSu + $sumSk);
+
+            $towerGroups[] = [
+                'voltage' => $voltageKey,
+                'label' => $prefix,
+                'by_upt' => $byUpt,
+                'total_upt' => [
+                    'su_unit' => round($sumSu, 0),
+                    'sk_unit' => round($sumSk, 0),
+                    'total_unit' => round($sumSu + $sumSk, 0),
+                ],
+                'uit_total' => [
+                    'su_unit' => $uitSu !== null ? round($uitSu, 0) : null,
+                    'sk_unit' => $uitSk !== null ? round($uitSk, 0) : null,
+                    'total_unit' => $uitTot !== null ? round($uitTot, 0) : null,
+                ],
+            ];
+        }
+
+        // 4. Breakdown Bay & Gardu Induk
+        $bayPrefixes = [
+            'BAY 500 KV' => 'Bay 500 kV',
+            'BAY 150 KV' => 'Bay 150 kV',
+            'Gardu Induk' => 'Gardu Induk (GI/GITET)',
+        ];
+
+        $bayGroups = [];
+        foreach ($bayPrefixes as $prefix => $label) {
+            $byUpt = [];
+            $sum = 0.0;
+
+            foreach ($canonicalUpts as $upt) {
+                $val = $getUptVal($upt, $prefix);
+                $byUpt[$upt] = round($val, 0);
+                $sum += $val;
+            }
+
+            $uitVal = $getUitVal($prefix);
+
+            $bayGroups[] = [
+                'label' => $label,
+                'prefix' => $prefix,
+                'by_upt' => $byUpt,
+                'total_upt' => round($sum, 0),
+                'uit_total' => $uitVal !== null ? round($uitVal, 0) : null,
+            ];
+        }
+
+        // 5. Matriks Lengkap untuk Filter Interaktif Alpine.js
+        $rawAttributes = $totals->pluck('attribute')->unique()->sort()->values();
+        $interactiveMatrix = [];
+
+        foreach ($rawAttributes as $attr) {
+            $group = 'lainnya';
+            $groupLabel = 'Lainnya';
+            $unit = 'Unit';
+
+            if (str_starts_with($attr, 'Trafo ')) {
+                $group = 'trafo';
+                $groupLabel = 'Trafo & Gardu';
+                $unit = str_contains($attr, 'MVA') ? 'MVA' : (str_contains($attr, 'Bank') ? 'Bank' : 'Unit');
+            } elseif (str_starts_with($attr, 'Transmisi ')) {
+                $group = 'transmisi';
+                $groupLabel = 'Transmisi SU/SK';
+                $unit = 'kms';
+            } elseif (str_starts_with($attr, 'Tower ')) {
+                $group = 'tower';
+                $groupLabel = 'Tower';
+                $unit = 'Unit';
+            } elseif (str_contains($attr, 'BAY') || str_contains($attr, 'Gardu') || str_contains($attr, 'GI/GITET')) {
+                $group = 'trafo';
+                $groupLabel = 'Trafo & Gardu';
+                $unit = 'Bay/Unit';
+            }
+
+            $uptValues = [];
+            $attrTotal = 0.0;
+            foreach ($canonicalUpts as $upt) {
+                $val = (float) ($byUptAttr[$upt][$attr] ?? 0.0);
+                $uptValues[$upt] = $val;
+                $attrTotal += $val;
+            }
+
+            $interactiveMatrix[] = [
+                'attribute' => $attr,
+                'group' => $group,
+                'group_label' => $groupLabel,
+                'unit' => $unit,
+                'values' => $uptValues,
+                'total' => round($attrTotal, 1),
+            ];
+        }
+
+        // 6. UIT Summary Totals
+        $uitTowerTotal = $getUitVal('Tower ');
+        $uitTransmisiTotal = $getUitVal('Transmisi ', 'kms');
+        $uitTrafoMvaTotal = $getUitVal('Trafo ', 'MVA');
+
+        $summaryTotals = [
+            'total_tower' => $uitTowerTotal ?? $totalTowerUnitUpt,
+            'total_transmisi' => round($uitTransmisiTotal ?? $totalTransmisiKmsUpt, 1),
+            'total_trafo_mva' => round($uitTrafoMvaTotal ?? $totalTrafoMvaUpt, 1),
+            'total_trafo_bank' => round($totalTrafoBankUpt, 0),
+            'total_trafo_unit' => round($totalTrafoUnitUpt, 0),
+        ];
+
+        // 7. Series untuk Visual ECharts
+        // MVA Series per UPT
+        $mvaSeriesData = [];
+        $unitSeriesData = [];
+        foreach ($canonicalUpts as $upt) {
+            $uptMva = 0.0;
+            $uptUnit = 0.0;
+            foreach ($trafoGroups as $g) {
+                $uptMva += $g['by_upt'][$upt]['mva'] ?? 0.0;
+                $uptUnit += ($g['by_upt'][$upt]['bank'] ?? 0.0) + ($g['by_upt'][$upt]['unit'] ?? 0.0);
+            }
+            $mvaSeriesData[] = round($uptMva, 1);
+            $unitSeriesData[] = round($uptUnit, 0);
+        }
+
+        $chartConfig = [
+            'upts' => $canonicalUpts,
+            'mva_series' => $mvaSeriesData,
+            'unit_series' => $unitSeriesData,
+            'voltage_breakdown' => array_map(function ($g) use ($canonicalUpts) {
+                return [
+                    'name' => $g['label'].' (MVA)',
+                    'data' => array_map(fn ($upt) => $g['by_upt'][$upt]['mva'] ?? 0.0, $canonicalUpts),
+                ];
+            }, $trafoGroups),
+        ];
+
+        return [
+            'period' => $periodResolved,
+            'period_uit' => $uitReport['period'] ?? $periodResolved,
+            'period_upt' => $periodResolved,
+            'canonical_upts' => $canonicalUpts,
+            'trafo_groups' => $trafoGroups,
+            'transmisi_groups' => $transmisiGroups,
+            'tower_groups' => $towerGroups,
+            'bay_groups' => $bayGroups,
+            'summary_totals' => $summaryTotals,
+            'interactive_matrix' => $interactiveMatrix,
+            'chart_config' => $chartConfig,
+        ];
+    }
+
+    /**
      * ID dataset READY TERBARU per divisi untuk satu periode, dihitung hanya
      * dari dataset yang punya baris ASET pada periode itu.
      *

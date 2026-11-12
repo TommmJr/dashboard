@@ -68,20 +68,31 @@
     }
 @endphp
 
+<script>
+if (typeof window.targetRealisasiWidget !== 'function') {
+    window.targetRealisasiWidget = function(initialItems) {
+        return {
+            searchQuery: '',
+            activeRag: 'all',
+            items: initialItems || [],
+            matches(haystack, tier) {
+                return (this.activeRag === 'all' || this.activeRag === tier) &&
+                    (this.searchQuery.trim() === '' || (haystack || '').includes(this.searchQuery.trim().toLowerCase()));
+            },
+            get visibleCount() {
+                return this.items.filter(item => this.matches(item.haystack, item.tier)).length;
+            }
+        };
+    };
+}
+</script>
+<script type="application/json" id="targetRealisasiItems_{{ $instanceId }}">
+{!! json_encode($allItems) !!}
+</script>
+
 <div
-    class="h-full rounded-lg bg-white border border-slate-200 shadow-sm p-4 sm:p-5"
-    x-data="{
-        searchQuery: '',
-        activeRag: 'all',
-        items: {{ Js::from($allItems) }},
-        matches(haystack, tier) {
-            return (this.activeRag === 'all' || this.activeRag === tier) &&
-                (this.searchQuery.trim() === '' || haystack.includes(this.searchQuery.trim().toLowerCase()));
-        },
-        get visibleCount() {
-            return this.items.filter(item => this.matches(item.haystack, item.tier)).length;
-        }
-    }"
+    class="h-full rounded-xl bg-white border border-slate-200/80 shadow-xs p-4 sm:p-5 transition-all duration-200 ease-out hover:shadow-md"
+    x-data="targetRealisasiWidget(JSON.parse(document.getElementById('targetRealisasiItems_{{ $instanceId }}').textContent))"
 >
     <div class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <h3 class="text-base font-bold text-primary">{{ $widget['label'] ?? 'Target dan Realisasi per Indikator' }}</h3>
@@ -201,7 +212,7 @@
                 @endphp
 
                 <section
-                    x-show="items.some(item => {{ Js::from($sectionIndicatorIds) }}.includes(item.id) && matches(item.haystack, item.tier))"
+                    x-show="items.some(item => [{!! implode(',', array_map('intval', $sectionIndicatorIds)) !!}].includes(item.id) && matches(item.haystack, item.tier))"
                     class="border-t border-slate-100 pt-3 first:border-0 first:pt-0"
                 >
                     @if (! empty($section['name']))
@@ -232,7 +243,7 @@
                                     $tooltip = $p['name'].' | Target: '.($targetStr ?? '—').$satuanStr.' | Realisasi: '.($realisasiStr ?? '—').$satuanStr.' | Pencapaian: '.$fmtPercent($p['score']['percent']);
                                 @endphp
                                 <div
-                                    x-show="matches({{ Js::from($searchHaystack) }}, '{{ $tier }}')"
+                                    x-show="matches('{{ addcslashes($searchHaystack, "'\\") }}', '{{ $tier }}')"
                                     class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded px-2.5 py-1.5 text-xs hover:bg-slate-50 transition border border-transparent hover:border-slate-100"
                                     data-indicator-id="{{ $p['indicator_id'] }}"
                                     data-mode="{{ $p['mode'] }}"
@@ -285,7 +296,7 @@
                                     $dateHaystack = strtolower($panel['name']);
                                 @endphp
                                 <div
-                                    x-show="matches({{ Js::from($dateHaystack) }}, '{{ $dateTier }}')"
+                                    x-show="matches('{{ addcslashes($dateHaystack, "'\\") }}', '{{ $dateTier }}')"
                                     class="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-medium {{ $chipBorder }} cursor-help"
                                     data-indicator-id="{{ $panel['indicator_id'] }}"
                                     data-mode="{{ $panel['mode'] }}"
@@ -309,7 +320,7 @@
                                     $unvHaystack = strtolower($panel['name'].' '.($panel['satuan'] ?? ''));
                                 @endphp
                                 <div
-                                    x-show="(activeRag === 'all') && (searchQuery.trim() === '' || {{ Js::from($unvHaystack) }}.includes(searchQuery.trim().toLowerCase()))"
+                                    x-show="(activeRag === 'all') && (searchQuery.trim() === '' || '{{ addcslashes($unvHaystack, "'\\") }}'.includes(searchQuery.trim().toLowerCase()))"
                                     class="inline-flex items-center gap-1.5 rounded border border-amber-200 bg-amber-50/80 px-2 py-0.5 text-[11px] text-amber-900"
                                     data-indicator-id="{{ $panel['indicator_id'] }}"
                                     data-mode="{{ $panel['mode'] }}"

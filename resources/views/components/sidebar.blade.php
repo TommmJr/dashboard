@@ -44,6 +44,33 @@
             </a>
         @endif
 
+        @if (\App\Http\Controllers\KpiAnalyticsController::canAccessKpiAnalytics(auth()->user()))
+            <a href="{{ route('dashboard.kpi-analytics') }}"
+               id="sidebar-kpi-analytics-link"
+               @if (request()->routeIs('dashboard.kpi-analytics') || request()->routeIs('dashboard.kpi-matrix')) aria-current="page" @endif
+               class="flex items-center gap-3 rounded-lg border-l-2 px-3 py-2.5 text-sm font-medium transition {{ (request()->routeIs('dashboard.kpi-analytics') || request()->routeIs('dashboard.kpi-matrix')) ? 'border-highlight bg-white/15 text-white' : 'border-transparent text-white/70 hover:bg-white/10 hover:text-white' }}">
+                <svg class="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                    <path d="M3 3v18h18" stroke-linecap="round" stroke-linejoin="round" />
+                    <path d="m19 9-5 5-4-4-3 3" stroke-linecap="round" stroke-linejoin="round" />
+                    <circle cx="19" cy="9" r="1.5" fill="currentColor" stroke="none" />
+                </svg>
+                <span x-show="$store.ui.sidebarExpanded" x-transition.opacity class="sidebar-label whitespace-nowrap">Analitik & Bottleneck KPI</span>
+            </a>
+        @endif
+
+        @if (\App\Http\Controllers\AssetDetailController::canAccessAssetDetail(auth()->user()))
+            <a href="{{ route('dashboard.asset-detail') }}"
+               id="sidebar-asset-detail-link"
+               @if (request()->routeIs('dashboard.asset-detail')) aria-current="page" @endif
+               class="flex items-center gap-3 rounded-lg border-l-2 px-3 py-2.5 text-sm font-medium transition {{ request()->routeIs('dashboard.asset-detail') ? 'border-highlight bg-white/15 text-white' : 'border-transparent text-white/70 hover:bg-white/10 hover:text-white' }}">
+                <svg class="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                    <rect x="3" y="6" width="18" height="12" rx="2" />
+                    <path d="M7 12h2m6 0h2M12 9v6M9 3v3m6-3v3m-6 12v3m6-3v3" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                <span x-show="$store.ui.sidebarExpanded" x-transition.opacity class="sidebar-label whitespace-nowrap">Rincian Trafo & Aset</span>
+            </a>
+        @endif
+
         @can('dataset.view')
             <a href="{{ route('datasets.index') }}"
                @if ((request()->routeIs('datasets.index') || request()->routeIs('datasets.show'))) aria-current="page" @endif

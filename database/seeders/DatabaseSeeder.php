@@ -101,6 +101,7 @@ class DatabaseSeeder extends Seeder
 
         $demoUsers = [
             ['staf@dashboard.local', 'Staf Perencanaan Pengusahaan', Role::STAFF_DIVISI, $pengusahaan->id],
+            ['staf.pengusahaan@dashboard.local', 'Staf Perencanaan Pengusahaan', Role::STAFF_DIVISI, $pengusahaan->id],
             ['staf.aset@dashboard.local', 'Staf Managemen Aset', Role::STAFF_DIVISI, $dataAset->id],
             ['editor@dashboard.local', 'Editor Dashboard', Role::EDITOR_DASHBOARD, null],
             ['management@dashboard.local', 'Management', Role::MANAGEMENT, null],
