@@ -103,7 +103,7 @@
                         <path d="M3 3v18h18" stroke-linecap="round" stroke-linejoin="round" />
                         <path d="m19 9-5 5-4-4-3 3" stroke-linecap="round" stroke-linejoin="round" />
                     </svg>
-                    Buka Analitik & Bottleneck KPI &rarr;
+                    Buka Analitik KPI &rarr;
                 </a>
             </div>
         @endif

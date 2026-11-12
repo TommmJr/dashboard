@@ -93,8 +93,8 @@
     <div class="mt-6 rounded-xl border border-slate-200/80 bg-white p-6 sm:p-7 shadow-2xs">
         <div class="flex items-start justify-between border-b border-slate-100 pb-4">
             <div>
-                <h2 class="text-lg font-bold tracking-tight text-slate-900">Import Laporan KPI dari Mentor (Otomatis)</h2>
-                <p class="mt-0.5 text-xs text-slate-500">Ekstraksi otomatis seluruh sheet unit laporan .</p>
+                <h2 class="text-lg font-bold tracking-tight text-slate-900">Import Laporan KPI (Otomatis)</h2>
+                <p class="mt-0.5 text-xs text-slate-500">Ekstraksi otomatis seluruh sheet unit laporan.</p>
             </div>
             <span class="rounded border border-cyan-200 bg-cyan-50 px-2.5 py-0.5 text-[10px] font-semibold text-cyan-800">
                 Otomatis
@@ -127,7 +127,7 @@
                         <svg class="h-4 w-4 shrink-0 text-amber-600 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
                         </svg>
-                        <span>Periode yang sudah pernah diimpor: <strong>{{ $kpiPeriods->implode(', ') }}</strong>. Mengunggah periode yang sama akan merevisi dataset sebelumnya.</span>
+                        <span>Periode terdaftar: <strong>{{ $kpiPeriods->implode(', ') }}</strong>. Unggah ulang akan merevisi dataset.</span>
                     </div>
                 @endif
             </div>
@@ -139,7 +139,7 @@
             <label class="flex items-center gap-2.5 text-xs text-slate-600">
                 <input type="checkbox" name="confirm_archive" value="1" @checked(old('confirm_archive'))
                        class="h-4 w-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500">
-                <span>Konfirmasi revisi periode jika dataset sudah terdaftar sebelumnya.</span>
+                <span>Konfirmasi revisi jika periode sudah terdaftar sebelumnya.</span>
             </label>
 
             <div class="flex justify-end pt-2">
@@ -161,7 +161,7 @@
         <div class="flex items-start justify-between border-b border-slate-100 pb-4">
             <div>
                 <h2 class="text-lg font-bold tracking-tight text-slate-900">Upload Rekapitulasi Data Aset</h2>
-                <p class="mt-0.5 text-xs text-slate-500">Unggah berkas rekapitulasi aset: Tab 1b (level UPT) dan Tab 1a (level UIT JBT).</p>
+                <p class="mt-0.5 text-xs text-slate-500">Unggah berkas rekapitulasi aset: Tab 1b (UPT) dan Tab 1a (UIT JBT).</p>
             </div>
             <div class="flex items-center gap-1.5">
                 <span class="rounded border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-[10px] font-semibold text-slate-600">.XLSX</span>
@@ -217,7 +217,7 @@
                     </span>
                 </div>
                 <p class="mt-1 text-xs text-slate-500">
-                    Menarik dan memvalidasi otomatis Tab 1b (Level UPT) serta Tab 1a (Level UIT JBT) langsung dari sumber Google Sheets terkonfigurasi dengan pemeriksaan silang (cross-check) dan proteksi retensi baris.
+                    Tarik dan validasi otomatis Tab 1b (UPT) serta Tab 1a (UIT) langsung dari Google Sheets terkonfigurasi.
                 </p>
             </div>
             @if (config('asset.target_month'))
@@ -230,7 +230,7 @@
         <form method="POST" action="{{ route('datasets.asset-sync') }}" x-data="{ syncing: false }" @submit="syncing = true" class="mt-5 flex items-center justify-between">
             @csrf
             <div class="text-xs text-slate-500">
-                <span>Sumber data: Google Sheets internal PLN UIT JBT terkonfigurasi.</span>
+                <span>Sumber: Google Sheets internal PLN UIT JBT terkonfigurasi.</span>
             </div>
 
             <button type="submit"

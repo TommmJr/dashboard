@@ -74,7 +74,7 @@
                 </div>
                 @if ($isAdminDashboard)
                     <p class="mt-1 text-xs text-slate-500">
-                        Monitoring kesehatan dataset terpusat, audit aktivitas lintas divisi, dan administrasi sistem PLN UIT JBT.
+                        Monitoring dataset, audit aktivitas, dan administrasi sistem.
                     </p>
                 @endif
             </div>

@@ -91,7 +91,7 @@ if (typeof window.targetRealisasiWidget !== 'function') {
 </script>
 
 <div
-    class="h-full rounded-xl bg-white border border-slate-200/80 shadow-xs p-4 sm:p-5 transition-all duration-200 ease-out hover:shadow-md"
+    class="h-full rounded-xl bg-white border border-slate-200/80 shadow-xs p-3 transition-all duration-200 ease-out hover:shadow-md flex flex-col justify-between"
     x-data="targetRealisasiWidget(JSON.parse(document.getElementById('targetRealisasiItems_{{ $instanceId }}').textContent))"
 >
     <div class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
@@ -109,21 +109,21 @@ if (typeof window.targetRealisasiWidget !== 'function') {
         </p>
     @else
         {{-- Ringkasan status pill badges --}}
-        <div class="mt-2.5 flex flex-wrap items-center gap-2 text-xs">
+        <div class="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs">
             @if ($achievedCount > 0)
-                <span class="inline-flex items-center gap-1.5 rounded-full border border-slate-200/80 bg-white px-2.5 py-0.5 font-medium text-slate-600 shadow-2xs">
+                <span class="inline-flex items-center gap-1.5 rounded-full border border-slate-200/80 bg-white px-2 py-0.5 font-medium text-slate-600 shadow-2xs">
                     <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
                     Tercapai (&ge;{{ $tercapaiMinLabel }}%): {{ $achievedCount }}
                 </span>
             @endif
             @if ($nearCount > 0)
-                <span class="inline-flex items-center gap-1.5 rounded-full border border-slate-200/80 bg-white px-2.5 py-0.5 font-medium text-slate-600 shadow-2xs">
+                <span class="inline-flex items-center gap-1.5 rounded-full border border-slate-200/80 bg-white px-2 py-0.5 font-medium text-slate-600 shadow-2xs">
                     <span class="h-2 w-2 rounded-full bg-amber-500"></span>
                     Mendekati ({{ $hampirMinLabel }}–{{ $hampirMaxLabel }}%): {{ $nearCount }}
                 </span>
             @endif
             @if ($belowCount > 0)
-                <span class="inline-flex items-center gap-1.5 rounded-full border border-slate-200/80 bg-white px-2.5 py-0.5 font-medium text-slate-600 shadow-2xs">
+                <span class="inline-flex items-center gap-1.5 rounded-full border border-slate-200/80 bg-white px-2 py-0.5 font-medium text-slate-600 shadow-2xs">
                     <span class="h-2 w-2 rounded-full bg-rose-500"></span>
                     Perlu Perhatian (&lt;{{ $hampirMinLabel }}%): {{ $belowCount }}
                 </span>
@@ -131,14 +131,14 @@ if (typeof window.targetRealisasiWidget !== 'function') {
         </div>
 
         {{-- Toolbar filter & pencarian Alpine.js instan --}}
-        <div id="target-realisasi-toolbar" class="mt-3 flex flex-col gap-2.5 rounded-lg border border-slate-200/80 bg-slate-50/70 p-2.5 sm:flex-row sm:items-center sm:justify-between">
+        <div id="target-realisasi-toolbar" class="mt-2 flex flex-col gap-2 rounded-lg border border-slate-200/80 bg-slate-50/70 p-2 sm:flex-row sm:items-center sm:justify-between">
             <div class="relative flex-1 max-w-xs">
                 <input
                     type="search"
                     x-model="searchQuery"
                     placeholder="Cari nama indikator..."
                     aria-label="Cari nama indikator"
-                    class="w-full rounded-md border border-slate-300 bg-white py-1.5 pl-3 pr-3 text-xs text-slate-800 placeholder:text-slate-400 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                    class="w-full rounded-md border border-slate-300 bg-white py-1 pl-2.5 pr-2.5 text-xs text-slate-800 placeholder:text-slate-400 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
                 />
             </div>
             <div class="flex flex-wrap items-center gap-1.5 text-[11px]">
@@ -185,7 +185,7 @@ if (typeof window.targetRealisasiWidget !== 'function') {
             </div>
         </div>
 
-        <div class="mt-4 space-y-4">
+        <div class="relative mt-2 space-y-1.5 flex-1 overflow-y-auto max-h-[410px] pr-1">
             <div x-show="visibleCount === 0" x-cloak class="rounded-lg border border-dashed border-slate-300 p-6 text-center text-xs text-slate-500">
                 Tidak ada indikator yang sesuai dengan kriteria filter atau pencarian.
             </div>
@@ -213,14 +213,14 @@ if (typeof window.targetRealisasiWidget !== 'function') {
 
                 <section
                     x-show="items.some(item => [{!! implode(',', array_map('intval', $sectionIndicatorIds)) !!}].includes(item.id) && matches(item.haystack, item.tier))"
-                    class="border-t border-slate-100 pt-3 first:border-0 first:pt-0"
+                    class="relative border-t border-slate-100 pt-2.5 first:border-0 first:pt-0"
                 >
                     @if (! empty($section['name']))
                         <h4 class="text-xs font-semibold uppercase tracking-wider text-primary pb-1">{{ $section['name'] }}</h4>
                     @endif
 
                     @if (count($chartable) > 0)
-                        <div id="{{ $chartId }}" class="mt-2 space-y-1">
+                        <div id="{{ $chartId }}" class="mt-1.5 space-y-1">
                             @foreach ($chartable as $p)
                                 @php
                                     $pct = round((float) $p['score']['percent'], 1);
@@ -244,7 +244,7 @@ if (typeof window.targetRealisasiWidget !== 'function') {
                                 @endphp
                                 <div
                                     x-show="matches('{{ addcslashes($searchHaystack, "'\\") }}', '{{ $tier }}')"
-                                    class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded px-2.5 py-1.5 text-xs hover:bg-slate-50 transition border border-transparent hover:border-slate-100"
+                                    class="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 rounded px-2 py-1 text-xs hover:bg-slate-50 transition border border-transparent hover:border-slate-100"
                                     data-indicator-id="{{ $p['indicator_id'] }}"
                                     data-mode="{{ $p['mode'] }}"
                                     title="{{ $tooltip }}"
@@ -257,17 +257,17 @@ if (typeof window.targetRealisasiWidget !== 'function') {
                                             <span class="shrink-0 text-[10px] text-slate-400">({{ $p['satuan'] }})</span>
                                         @endif
                                     </div>
-                                    <div class="flex items-center gap-3 shrink-0">
+                                    <div class="flex items-center gap-2.5 shrink-0">
                                         @if ($p['mode'] === 'numeric')
-                                            <div class="hidden sm:flex items-center gap-2 text-[11px] text-slate-500 tabular-nums">
+                                            <div class="hidden sm:flex items-center gap-1.5 text-[11px] text-slate-500 tabular-nums">
                                                 <span>Target: <strong class="font-semibold text-slate-700">{{ $targetStr }}</strong></span>
                                                 <span>Realisasi: <strong class="font-semibold text-slate-700">{{ $realisasiStr }}</strong></span>
                                             </div>
                                         @endif
-                                        <div class="h-2 w-24 sm:w-28 rounded-full bg-slate-100 overflow-hidden">
+                                        <div class="h-2 w-20 sm:w-24 rounded-full bg-slate-100 overflow-hidden">
                                             <div class="h-full rounded-full {{ $barColor }}" style="width: {{ $barWidth }}%"></div>
                                         </div>
-                                        <span class="w-14 text-right font-bold tabular-nums {{ $textColor }}">
+                                        <span class="w-12 text-right font-bold tabular-nums {{ $textColor }}">
                                             {{ $fmtPercent($p['score']['percent']) }}
                                         </span>
                                     </div>

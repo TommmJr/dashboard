@@ -64,22 +64,22 @@
         {{-- Split-View Workspace: panel konfigurasi (kiri) dan pratinjau langsung (kanan) --}}
         <div id="builder-split-view" @resize.window="viewportWidth = window.innerWidth; resizePreviewCharts()" class="mt-4 grid grid-cols-1 items-start gap-6 lg:grid-cols-12">
             {{-- Panel Konfigurasi, Palet, dan Aksi --}}
-            <div id="builder-config-pane" class="flex min-w-0 flex-col gap-5 lg:col-span-5">
-                <div class="flex flex-col gap-4 border-b border-slate-200 pb-4">
+            <div id="builder-config-pane" class="flex min-w-0 flex-col gap-4 lg:col-span-5 xl:col-span-3">
+                <div class="flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3.5 shadow-2xs">
                     <div>
-                        <div class="flex items-center gap-2.5">
-                            <h3 class="text-lg font-bold text-primary">{{ $widget['label'] ?? 'Editor Layout' }}</h3>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <h3 class="text-sm font-bold text-primary">{{ $widget['label'] ?? 'Editor Layout' }}</h3>
                             <span
-                                class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold"
+                                class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold"
                                 :class="isCustomized() ? 'bg-accent/15 text-primary' : 'bg-slate-100 text-slate-600'"
-                                x-text="isCustomized() ? 'Kustom (Database)' : 'Bawaan (Konfigurasi Fallback)'"
+                                x-text="isCustomized() ? 'Kustom (Database)' : 'Bawaan (Fallback)'"
                             >
                                 Bawaan (Konfigurasi Fallback)
                             </span>
                             <span
                                 x-show="isDirty()"
                                 x-cloak
-                                class="inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-800"
+                                class="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800"
                             >
                                 <span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span>
                                 Belum Disimpan
@@ -97,7 +97,7 @@
                             x-model="selectedTargetKey"
                             @change="selectTarget(selectedTargetKey)"
                             :disabled="saving"
-                            class="h-10 rounded border border-slate-200 bg-white px-3 text-sm font-medium text-primary outline-none focus:border-accent focus:ring-2 focus:ring-accent/20 disabled:cursor-not-allowed disabled:opacity-60"
+                            class="h-9.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium text-primary outline-none focus:border-accent focus:ring-2 focus:ring-accent/20 disabled:cursor-not-allowed disabled:opacity-60"
                         >
                             @foreach ($targets as $target)
                                 <option value="{{ $target['layout_key'] }}">
@@ -112,7 +112,7 @@
                 <div
                     x-show="saving"
                     x-cloak
-                    class="rounded border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-medium text-sky-800"
+                    class="rounded-lg border border-sky-200 bg-sky-50 px-3.5 py-2.5 text-xs font-medium text-sky-800"
                     role="status"
                 >
                     <span x-text="savingAction === 'reset' ? 'Mereset layout ke konfigurasi bawaan...' : 'Menyimpan perubahan layout...'"></span>
@@ -121,7 +121,7 @@
                 <div
                     x-show="!saving && statusMessage !== ''"
                     x-cloak
-                    class="rounded border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800"
+                    class="rounded-lg border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-xs font-medium text-emerald-800"
                     role="status"
                     x-text="statusMessage"
                 ></div>
@@ -129,7 +129,7 @@
                 <div
                     x-show="!saving && (errorMessage !== '' || validationErrors.length > 0)"
                     x-cloak
-                    class="rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
+                    class="rounded-lg border border-red-200 bg-red-50 px-3.5 py-2.5 text-xs text-red-800"
                     role="alert"
                 >
                     <p x-show="errorMessage !== ''" class="font-semibold" x-text="errorMessage"></p>
@@ -140,24 +140,24 @@
                     </ul>
                 </div>
 
-                {{-- Palet Komponen Visual (Top Toolbar Looker Studio Style) --}}
-                <div class="rounded-lg border border-slate-200 bg-slate-50/70 p-4">
-                    <div class="flex items-center justify-between border-b border-slate-200 pb-3">
+                {{-- Palet Komponen Visual --}}
+                <div class="rounded-xl border border-slate-200 bg-slate-50/70 p-3.5 shadow-2xs">
+                    <div class="flex items-center justify-between border-b border-slate-200 pb-2.5">
                         <div class="flex items-center gap-2">
-                            <h4 class="text-sm font-bold uppercase tracking-wide text-primary">Komponen</h4>
-                            <span class="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">
+                            <h4 class="text-xs font-bold uppercase tracking-wider text-primary">Komponen</h4>
+                            <span class="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-bold text-primary">
                                 {{ count($catalog) }}
                             </span>
                         </div>
                     </div>
 
                     {{-- Filter Kategori Domain --}}
-                    <div class="mt-2.5 flex flex-wrap gap-1.5 border-b border-slate-200/80 pb-2.5 text-xs font-semibold">
+                    <div class="mt-2.5 flex flex-wrap gap-1 border-b border-slate-200/80 pb-2.5 text-xs font-semibold">
                         <button
                             type="button"
                             @click="catalogFilterCategory = 'all'"
                             :class="catalogFilterCategory === 'all' ? 'bg-primary text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'"
-                            class="rounded px-2.5 py-1 text-[11px] transition"
+                            class="rounded px-2 py-1 text-[10px] transition"
                         >
                             Semua (<span x-text="catalog.length"></span>)
                         </button>
@@ -165,7 +165,7 @@
                             type="button"
                             @click="catalogFilterCategory = 'Kinerja / KPI'"
                             :class="catalogFilterCategory === 'Kinerja / KPI' ? 'bg-teal-700 text-white shadow-xs' : 'bg-teal-50 text-teal-800 hover:bg-teal-100'"
-                            class="rounded px-2.5 py-1 text-[11px] transition"
+                            class="rounded px-2 py-1 text-[10px] transition"
                         >
                             Kinerja / KPI
                         </button>
@@ -173,7 +173,7 @@
                             type="button"
                             @click="catalogFilterCategory = 'Manajemen Aset'"
                             :class="catalogFilterCategory === 'Manajemen Aset' ? 'bg-indigo-700 text-white shadow-xs' : 'bg-indigo-50 text-indigo-800 hover:bg-indigo-100'"
-                            class="rounded px-2.5 py-1 text-[11px] transition"
+                            class="rounded px-2 py-1 text-[10px] transition"
                         >
                             Manajemen Aset
                         </button>
@@ -181,24 +181,24 @@
                             type="button"
                             @click="catalogFilterCategory = 'Operasional & Admin'"
                             :class="catalogFilterCategory === 'Operasional & Admin' ? 'bg-slate-700 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'"
-                            class="rounded px-2.5 py-1 text-[11px] transition"
+                            class="rounded px-2 py-1 text-[10px] transition"
                         >
                             Operasional & Admin
                         </button>
                     </div>
 
-                    <div class="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3" aria-label="Palet komponen">
+                    <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-1 2xl:grid-cols-2 gap-2.5" aria-label="Palet komponen">
                         <template x-for="item in filteredCatalog()" :key="item.key">
                             <div
                                 draggable="true"
                                 @dragstart="startPaletteDrag(item.key)"
                                 @dragend="endPaletteDrag()"
-                                class="group relative flex flex-col justify-between rounded-lg border border-slate-200 bg-white p-3 shadow-xs transition hover:border-accent hover:shadow-md cursor-grab active:cursor-grabbing"
+                                class="group relative flex flex-col justify-between rounded-lg border border-slate-200 bg-white p-2.5 shadow-2xs transition hover:border-accent hover:shadow-xs cursor-grab active:cursor-grabbing"
                                 :class="(item.key !== 'custom-chart' && hasWidget(item.key)) ? 'opacity-60 bg-slate-50' : ''"
                             >
                                 <div>
-                                    <div class="palette-thumb relative mb-2 flex h-14 w-full items-center justify-center rounded-md bg-slate-50 border border-slate-100 text-primary/80 group-hover:bg-primary/5 group-hover:border-primary/20 transition-colors overflow-hidden">
-                                        @include('components.widgets.partials.widget-sketch', ['keyExpr' => 'item.key', 'sizeClass' => 'h-10 w-full'])
+                                    <div class="palette-thumb relative mb-2 flex h-12 w-full items-center justify-center rounded-md bg-slate-50 border border-slate-100 text-primary/80 group-hover:bg-primary/5 group-hover:border-primary/20 transition-colors overflow-hidden">
+                                        @include('components.widgets.partials.widget-sketch', ['keyExpr' => 'item.key', 'sizeClass' => 'h-9 w-full'])
                                     </div>
                                     <div class="flex items-center justify-between gap-1 mb-1">
                                         <span
@@ -207,22 +207,22 @@
                                             x-text="item.category || getWidgetCategory(item.key)"
                                         ></span>
                                         <span
-                                            class="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600"
+                                            class="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-semibold text-slate-600"
                                             x-text="`${item.default_cols || 3} Kolom`"
                                         ></span>
                                     </div>
                                     <div class="flex items-center justify-between gap-1 mb-1">
                                         <span
-                                            class="palette-type-label rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary truncate"
+                                            class="palette-type-label rounded bg-primary/10 px-1.5 py-0.5 text-[9px] font-semibold text-primary truncate"
                                             x-text="paletteVisual(item.key).label"
                                         ></span>
                                     </div>
                                     <p class="text-xs font-bold text-primary line-clamp-1" x-text="item.label"></p>
-                                    <p class="mt-1 text-[11px] leading-relaxed text-slate-500 line-clamp-2" x-text="item.description || getWidgetDescription(item.key)"></p>
+                                    <p class="mt-0.5 text-[10px] leading-snug text-slate-500 line-clamp-2" x-text="item.description || getWidgetDescription(item.key)"></p>
                                 </div>
 
-                                <div class="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between">
-                                    <span class="text-[10px] text-slate-400 group-hover:text-accent font-medium flex items-center gap-1">
+                                <div class="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between">
+                                    <span class="text-[9px] text-slate-400 group-hover:text-accent font-medium flex items-center gap-1">
                                         <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
                                         </svg>
@@ -232,7 +232,7 @@
                                         type="button"
                                         @click="addWidget(item.key)"
                                         :disabled="saving || (item.key !== 'custom-chart' && hasWidget(item.key))"
-                                        class="inline-flex h-6 items-center rounded px-2 text-[10px] font-semibold transition disabled:cursor-not-allowed"
+                                        class="inline-flex h-5.5 items-center rounded px-2 text-[10px] font-semibold transition disabled:cursor-not-allowed"
                                         :class="(item.key !== 'custom-chart' && hasWidget(item.key))
                                             ? 'border border-slate-200 bg-slate-100 text-slate-400'
                                             : 'bg-primary text-white hover:bg-accent'"
@@ -245,16 +245,16 @@
                 </div>
 
                 {{-- Footer aksi simpan & reset --}}
-                <div class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4">
+                <div class="flex flex-wrap items-center justify-between gap-2.5 border-t border-slate-200 pt-3">
                     <p class="text-xs text-slate-500">
                         Target aktif:
                         <span class="font-semibold text-primary" x-text="currentTarget()?.layout_key ?? '-'"></span>
                     </p>
 
-                    <div class="flex flex-wrap items-center gap-3">
+                    <div class="flex flex-wrap items-center gap-2">
                         <a
                             href="{{ route('dashboard') }}"
-                            class="inline-flex h-10 items-center justify-center rounded border border-slate-300 bg-white px-4 text-sm font-semibold text-primary transition hover:border-accent hover:text-accent"
+                            class="inline-flex h-9 items-center justify-center rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-primary transition hover:border-accent hover:text-accent"
                         >
                             Lihat Dashboard
                         </a>
@@ -263,7 +263,7 @@
                             type="button"
                             @click="resetLayout()"
                             :disabled="saving"
-                            class="inline-flex h-10 items-center justify-center rounded border border-slate-300 bg-white px-4 text-sm font-semibold text-primary transition hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
+                            class="inline-flex h-9 items-center justify-center rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-primary transition hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
                         >
                             Reset ke Bawaan
                         </button>
@@ -272,10 +272,10 @@
                             type="button"
                             @click="saveLayout()"
                             :disabled="saving || activeWidgets.length === 0"
-                            :class="isDirty() ? 'bg-accent text-white shadow-md hover:bg-accent/90 ring-2 ring-accent/30 font-bold' : 'bg-primary text-white hover:bg-accent font-semibold'"
-                            class="inline-flex h-10 items-center justify-center gap-2 rounded px-5 text-sm transition disabled:cursor-not-allowed disabled:opacity-50"
+                            :class="isDirty() ? 'bg-accent text-white shadow-xs hover:bg-accent/90 ring-2 ring-accent/30 font-bold' : 'bg-primary text-white hover:bg-accent font-semibold'"
+                            class="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg px-3.5 text-xs transition disabled:cursor-not-allowed disabled:opacity-50"
                         >
-                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
                             </svg>
                             <span>Simpan Layout</span>
@@ -285,24 +285,74 @@
             </div>
 
             {{-- Panel Pratinjau Langsung (sticky pada layar lebar) --}}
-            <div id="builder-preview-pane" class="min-w-0 lg:sticky lg:top-6 lg:col-span-7">
-                <p class="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500">Pratinjau</p>
-                <div class="rounded-lg border border-slate-200 bg-slate-50/50 p-4">
-                    <div class="flex flex-col gap-2 border-b border-slate-200 pb-3 sm:flex-row sm:items-center sm:justify-between">
-                        <div class="flex items-center gap-2">
-                            <h4 class="text-sm font-bold uppercase tracking-wide text-primary">Pratinjau</h4>
-                            <span
-                                x-show="isDirty()"
-                                x-cloak
-                                class="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-800"
-                            >
-                                <span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span>
-                                Belum Disimpan
-                            </span>
+            <div id="builder-preview-pane" class="min-w-0 lg:sticky lg:top-6 lg:col-span-7 xl:col-span-9">
+                <div class="rounded-xl border border-slate-200 bg-slate-50/60 p-4 shadow-2xs">
+                    {{-- Active Mapping Header Bar --}}
+                    <div class="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-3.5 shadow-2xs sm:flex-row sm:items-center sm:justify-between">
+                        <div class="flex flex-wrap items-center gap-2.5 min-w-0">
+                            <div class="flex items-center gap-2.5">
+                                <span class="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary shrink-0">
+                                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                                    </svg>
+                                </span>
+                                <div>
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <h4 class="text-sm font-bold uppercase tracking-wide text-primary">Pratinjau Tata Letak:</h4>
+                                        <span class="text-sm font-extrabold text-primary" x-text="currentTarget()?.label || 'Tata Letak'"></span>
+                                        <span
+                                            class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                                            :class="isCustomized() ? 'bg-accent/15 text-primary' : 'bg-slate-100 text-slate-600'"
+                                            x-text="isCustomized() ? 'Kustom (Database)' : 'Bawaan (Fallback)'"
+                                        ></span>
+                                        <span
+                                            x-show="isDirty()"
+                                            x-cloak
+                                            class="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800"
+                                        >
+                                            <span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span>
+                                            Belum Disimpan
+                                        </span>
+                                    </div>
+                                    <p class="text-[11px] text-slate-500">
+                                        Target: <span class="font-mono font-semibold text-slate-700" x-text="currentTarget()?.layout_key ?? '-'"></span>
+                                    </p>
+                                </div>
+                            </div>
                         </div>
-                        <div class="flex flex-wrap items-center gap-2">
-                            <span class="rounded bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary" x-text="`${activeWidgets.length} Widget`"></span>
-                            <span class="rounded bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600" x-text="`Viewport ${viewportWidth}px`"></span>
+
+                        <div class="flex flex-wrap items-center gap-2 sm:justify-end">
+                            <div class="flex items-center gap-1.5">
+                                <span class="rounded-lg bg-primary/10 px-2.5 py-1 text-xs font-bold text-primary" x-text="`${activeWidgets.length} Widget`"></span>
+                                <span class="rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-700" x-text="`${activeWidgets.reduce((acc, w) => acc + (parseInt(w.cols, 10) || 3), 0)} Kolom Grid`"></span>
+                                <span class="hidden 2xl:inline-flex rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-500" x-text="`Viewport ${viewportWidth}px`"></span>
+                            </div>
+
+                            <div class="flex items-center gap-2 ml-1">
+                                <button
+                                    type="button"
+                                    @click="resetLayout()"
+                                    :disabled="saving"
+                                    title="Reset ke Default"
+                                    class="inline-flex h-8 items-center justify-center rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-primary transition hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                    Reset ke Bawaan
+                                </button>
+                                <button
+                                    type="button"
+                                    @click="saveLayout()"
+                                    :disabled="saving || activeWidgets.length === 0"
+                                    title="Simpan Tata Letak"
+                                    :class="isDirty() ? 'bg-accent text-white shadow-xs hover:bg-accent/90 ring-2 ring-accent/30 font-bold' : 'bg-primary text-white hover:bg-accent font-semibold'"
+                                    class="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg px-3.5 text-xs transition disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                    <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                                    </svg>
+                                    <span>Simpan Tata Letak</span>
+                                    <span class="sr-only">Simpan Layout</span>
+                                </button>
+                            </div>
                         </div>
                     </div>
 
@@ -313,7 +363,7 @@
                         @dragleave="onViewportDragLeave($event)"
                         @drop.prevent="isDragOverCanvas = false; onCanvasDrop($event)"
                         :class="isDragOverCanvas ? 'ring-2 ring-accent bg-accent/5' : 'bg-slate-100'"
-                        class="mt-4 min-h-[260px] rounded-lg border border-slate-300 p-3 transition lg:max-h-[calc(100vh-14rem)] lg:overflow-y-auto"
+                        class="mt-3 min-h-[300px] rounded-xl border border-slate-300 p-3.5 transition lg:max-h-[calc(100vh-13rem)] lg:overflow-y-auto"
                     >
                         <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
                             <template x-for="(w, index) in activeWidgets" :key="w._uid || index">
@@ -326,7 +376,7 @@
                                         canvasDragIndex === index ? 'opacity-40 border-dashed border-accent' : 'border-slate-200',
                                         (dropTargetIndex === index && (canvasDragIndex !== index || paletteDragKey)) ? 'ring-2 ring-accent ring-offset-1' : ''
                                     ]"
-                                    class="preview-card-item relative flex min-w-0 flex-col rounded-lg border bg-white p-3 shadow-sm transition hover:shadow-md"
+                                    class="preview-card-item relative flex min-w-0 min-h-[175px] flex-col justify-between rounded-xl border bg-white p-4 shadow-xs transition hover:shadow-md"
                                 >
                                     {{-- Indikator garis posisi drop (sebelum / sesudah) --}}
                                     <div
@@ -336,23 +386,24 @@
                                         class="pointer-events-none absolute z-30 rounded-full bg-accent shadow"
                                     ></div>
                                     <div class="canvas-card-toolbar flex flex-wrap items-center justify-between gap-1.5 border-b border-slate-100 pb-2" :class="(canvasDragIndex !== null || paletteDragKey) ? 'pointer-events-none' : ''">
-                                        <div class="flex min-w-0 items-center gap-1.5 pointer-events-auto">
+                                        <div class="flex min-w-0 items-center gap-1.5 pointer-events-auto max-w-full">
                                             <span
                                                 @pointerdown="onCardPointerDown($event, index)"
-                                                class="canvas-drag-handle inline-flex h-6 w-6 shrink-0 cursor-grab items-center justify-center rounded bg-slate-100 text-slate-600 transition hover:bg-slate-200 active:cursor-grabbing select-none touch-none"
+                                                class="canvas-drag-handle inline-flex h-7 w-7 shrink-0 cursor-grab items-center justify-center rounded-lg bg-slate-100 text-slate-600 transition hover:bg-slate-200 active:cursor-grabbing select-none touch-none"
                                                 title="Tarik untuk memindahkan urutan widget"
                                             >
-                                                <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16" />
                                                 </svg>
                                             </span>
+                                            <span class="inline-flex h-6 min-w-6 items-center justify-center rounded-md bg-primary/10 px-1.5 text-[11px] font-bold text-primary select-none" x-text="`#${index + 1}`" title="Posisi widget"></span>
                                             <p class="truncate text-xs font-bold text-primary select-none" x-text="w.key === 'custom-chart' ? (w.config?.title || widgetLabel(w.key)) : widgetLabel(w.key)"></p>
                                         </div>
 
                                         <div class="flex flex-wrap items-center gap-1 pointer-events-auto">
                                             {{-- Atur Lebar Selector --}}
-                                            <div class="flex items-center rounded-lg border border-slate-200 bg-white p-0.5 text-xs font-medium" title="Atur Lebar Kolom">
-                                                <span class="px-1 text-[10px] font-bold uppercase tracking-wider text-slate-500" title="Lebar Kolom">Atur Lebar:</span>
+                                            <div class="flex items-center rounded-lg border border-slate-200 bg-slate-50/80 p-0.5 text-xs font-medium shadow-2xs shrink-0 flex-nowrap" title="Atur Lebar Kolom">
+                                                <span class="px-1 text-[10px] font-bold uppercase tracking-wider text-slate-500 shrink-0" title="Lebar Kolom">Atur Lebar:</span>
                                                 <template x-for="n in [1, 2, 3]" :key="n">
                                                     <button
                                                         type="button"
@@ -362,10 +413,10 @@
                                                         @click="setWidgetCols(w, n)"
                                                         :aria-label="`Lebar ${n} kolom (${n === 1 ? '33%' : (n === 2 ? '66%' : '100%')})`"
                                                         :class="(w.cols === n) ? 'bg-primary text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100 hover:text-primary'"
-                                                        class="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[11px] font-semibold transition"
+                                                        class="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[11px] font-semibold transition shrink-0"
                                                     >
                                                         <span x-text="`${n} Kol`"></span>
-                                                        <span class="text-[9px] opacity-75 font-normal" x-text="n === 1 ? '33%' : (n === 2 ? '66%' : '100%')"></span>
+                                                        <span class="text-[9px] opacity-75 font-normal" :class="w.cols === 1 ? 'hidden' : 'inline'" x-text="n === 1 ? '(33%)' : (n === 2 ? '(66%)' : '(100%)')"></span>
                                                     </button>
                                                 </template>
                                             </div>
@@ -377,11 +428,13 @@
                                                 @pointerdown.stop
                                                 @click="moveUp(index)"
                                                 :disabled="saving || index === 0"
-                                                class="inline-flex h-6 w-6 items-center justify-center rounded border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
-                                                :aria-label="`Naikkan ${widgetLabel(w.key)}`"
-                                                title="Geser ke atas / kiri"
+                                                class="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-40 transition"
+                                                :aria-label="`Geser ke kiri atau atas ${widgetLabel(w.key)}`"
+                                                title="Geser ke kiri / atas"
                                             >
-                                                &uarr;
+                                                <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                                                </svg>
                                             </button>
                                             <button
                                                 type="button"
@@ -390,11 +443,13 @@
                                                 @pointerdown.stop
                                                 @click="moveDown(index)"
                                                 :disabled="saving || index === activeWidgets.length - 1"
-                                                class="inline-flex h-6 w-6 items-center justify-center rounded border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
-                                                :aria-label="`Turunkan ${widgetLabel(w.key)}`"
-                                                title="Geser ke bawah / kanan"
+                                                class="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-40 transition"
+                                                :aria-label="`Geser ke kanan atau bawah ${widgetLabel(w.key)}`"
+                                                title="Geser ke kanan / bawah"
                                             >
-                                                &darr;
+                                                <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                                                </svg>
                                             </button>
 
                                             <template x-if="w.key === 'custom-chart'">
@@ -404,7 +459,7 @@
                                                     @mousedown.stop
                                                     @pointerdown.stop
                                                     @click="w._openConfig = !w._openConfig"
-                                                    class="inline-flex h-6 w-6 items-center justify-center rounded border border-slate-200 bg-white text-slate-600 hover:text-primary hover:border-accent"
+                                                    class="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-primary hover:border-accent transition"
                                                     :title="w._openConfig ? 'Tutup Pengaturan' : 'Atur Grafik'"
                                                     :aria-label="`Atur grafik ${widgetLabel(w.key)}`"
                                                 >
@@ -422,7 +477,7 @@
                                                 @pointerdown.stop
                                                 @click="removeWidget(index)"
                                                 :disabled="saving || activeWidgets.length <= 1 || isLockedWidget(w.key)"
-                                                class="inline-flex h-6 w-6 items-center justify-center rounded border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-40"
+                                                class="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-40 transition"
                                                 :aria-label="`Hapus ${widgetLabel(w.key)}`"
                                                 :title="isLockedWidget(w.key) ? 'Widget wajib ada untuk peran ini' : 'Hapus widget dari dashboard'"
                                             >

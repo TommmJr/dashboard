@@ -84,8 +84,8 @@
                     Prototipe Demo (Rekapitulasi UPT)
                 </span>
             </div>
-            <p class="mt-1 text-sm text-slate-500">
-                Eksplorasi visual dan analisis granular inventaris aset transmisi dan gardu induk se-Jawa Bagian Tengah.
+            <p class="mt-1 text-xs text-slate-500">
+                Inventaris dan visualisasi aset transmisi serta gardu induk se-JBT.
                 @if (!empty($data['period']))
                     <span class="font-medium text-slate-700">— Periode {{ $data['period'] }}</span>
                 @endif

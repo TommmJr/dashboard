@@ -3,7 +3,7 @@
 @section('title', 'Dashboard Builder')
 
 @section('content')
-<div class="mx-auto max-w-7xl 2xl:max-w-screen-2xl">
+<div class="mx-auto max-w-[1600px] w-full px-4 sm:px-6 lg:px-8">
     <div class="mb-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
             <h1 class="text-2xl font-bold text-primary">Dashboard Builder</h1>

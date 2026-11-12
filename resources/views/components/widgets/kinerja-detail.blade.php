@@ -54,7 +54,7 @@
 @endphp
 
 <div
-    class="h-full rounded-xl bg-white border border-slate-200/80 shadow-xs p-5 sm:p-6 transition-all duration-200 ease-out hover:shadow-md"
+    class="h-full rounded-xl bg-white border border-slate-200/80 shadow-xs p-3 flex flex-col justify-between transition-all duration-200 ease-out hover:shadow-md"
     x-data="{
         tableSearch: '',
         tableRag: 'all',
@@ -64,10 +64,10 @@
         }
     }"
 >
-    <div class="flex flex-wrap items-start justify-between gap-3">
+    <div class="flex flex-wrap items-center justify-between gap-2">
         <div>
-            <h3 class="text-lg font-bold text-primary">{{ $widget['label'] ?? 'Detail Metrik KPI' }}</h3>
-            <p class="mt-1 text-xs text-gray-500">Periode {{ $period ?? '—' }}</p>
+            <h3 class="text-base font-bold text-primary">{{ $widget['label'] ?? 'Detail Metrik KPI' }}</h3>
+            <p class="mt-0.5 text-xs text-gray-500">Periode {{ $period ?? '—' }}</p>
         </div>
 
         @if (! empty($unitOptions))
@@ -115,7 +115,7 @@
         </p>
     @else
         {{-- Toolbar pencarian cepat & filter RAG --}}
-        <div class="mt-4 flex flex-col gap-2.5 rounded-lg border border-slate-200/80 bg-slate-50/70 p-2.5 sm:flex-row sm:items-center sm:justify-between">
+        <div class="mt-2 flex flex-col gap-1.5 rounded-lg border border-slate-200/80 bg-slate-50/70 p-1.5 sm:flex-row sm:items-center sm:justify-between">
             <div class="relative flex-1 max-w-xs">
                 <input
                     id="kinerja-detail-search"
@@ -123,7 +123,7 @@
                     x-model="tableSearch"
                     placeholder="Cari indikator atau unit..."
                     aria-label="Cari indikator atau unit"
-                    class="w-full rounded-md border border-slate-300 bg-white py-1.5 pl-3 pr-3 text-xs text-slate-800 placeholder:text-slate-400 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                    class="w-full rounded-md border border-slate-300 bg-white py-1 pl-2.5 pr-2.5 text-xs text-slate-800 placeholder:text-slate-400 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
                 />
             </div>
             <div class="flex flex-wrap items-center gap-1.5 text-[11px]">
@@ -172,7 +172,7 @@
             </div>
         @endif
 
-        <div class="overflow-x-auto mt-3 rounded-lg border border-slate-200">
+        <div class="relative overflow-x-auto mt-2 rounded-lg border border-slate-200 overflow-y-auto max-h-[410px]">
             <table class="w-full text-sm">
                 <thead class="bg-slate-50/80 text-xs text-slate-600 font-semibold uppercase tracking-wider border-b border-slate-200">
                     <tr>
@@ -235,7 +235,7 @@
                 'all' => $showAll ? null : 1,
             ]);
         @endphp
-        <div class="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-gray-500">
+        <div class="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-gray-500">
             <span>
                 Menampilkan {{ $displayRows->count() }} dari {{ $totalRows > 0 ? $totalRows : $rows->count() }} baris.
             </span>
@@ -260,7 +260,7 @@
                 @endif
                 @if (\App\Http\Controllers\KpiAnalyticsController::canAccessKpiAnalytics(auth()->user()))
                     <a href="{{ route('dashboard.kpi-analytics') }}" class="font-semibold text-teal-700 hover:underline inline-flex items-center gap-1">
-                        Analitik & Bottleneck &rarr;
+                        Analitik &rarr;
                     </a>
                 @endif
             </div>

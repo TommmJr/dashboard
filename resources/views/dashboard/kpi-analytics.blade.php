@@ -37,7 +37,7 @@
                     @endif
                 </div>
                 <p class="text-xs text-slate-500 mt-0.5">
-                    Evaluasi komprehensif deviasi realisasi target, identifikasi indikator penghambat skor NKO, dan prioritas tindakan perbaikan unit {{ $visibleUnitsLabel }}.
+                    Evaluasi deviasi target, identifikasi indikator bottleneck skor NKO, dan prioritas perbaikan {{ $visibleUnitsLabel }}.
                 </p>
             </div>
         </div>
@@ -311,7 +311,7 @@
                     </span>
                 </div>
                 <p class="text-xs text-slate-500 mt-0.5">
-                    Daftar indikator kinerja yang berada di bawah target 100%, diurutkan dari deviasi terbesar sebagai fokus intervensi manajemen.
+                    Daftar indikator di bawah 100%, diurutkan dari deviasi terbesar untuk prioritas intervensi.
                 </p>
             </div>
 
