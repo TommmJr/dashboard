@@ -587,10 +587,19 @@ class AssetStockReport
             }, $trafoGroups),
         ];
 
+        $uitHasAuthoritativeTotals = $uitTowerTotal !== null || $uitTransmisiTotal !== null || $uitTrafoMvaTotal !== null;
+
         return [
             'period' => $periodResolved,
             'period_uit' => $uitReport['period'] ?? $periodResolved,
             'period_upt' => $periodResolved,
+            'ownership' => [
+                'parent_code' => 'UIT JBT',
+                'parent_name' => 'Unit Induk Transmisi Jawa Bagian Tengah (UIT JBT)',
+                'parent_source' => $uitHasAuthoritativeTotals ? 'Rekap Induk UIT (Tab 1a)' : 'Agregasi 8 UPT (Tab 1b)',
+                'distribution_scope' => 'Distribusi Wilayah 8 UPT Kanonis (Tab 1b)',
+                'has_uit_totals' => $uitHasAuthoritativeTotals,
+            ],
             'canonical_upts' => $canonicalUpts,
             'trafo_groups' => $trafoGroups,
             'transmisi_groups' => $transmisiGroups,

@@ -12,6 +12,7 @@ use App\Models\Role;
 use App\Models\User;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Route;
 use Tests\TestCase;
 
 class UiSimplificationTest extends TestCase
@@ -221,5 +222,147 @@ class UiSimplificationTest extends TestCase
         $response->assertSee("tableRag === 'tercapai' ? 'border-emerald-600", false);
         $response->assertSee("tableRag === 'hampir' ? 'border-amber-600", false);
         $response->assertSee("tableRag === 'perlu' ? 'border-rose-600", false);
+    }
+
+    public function test_admin_dashboard_omits_marketing_filler_and_kpi_analytics_uses_outline_tabs(): void
+    {
+        $this->actingAs($this->adminUser)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertDontSee('Pusat Kendali Operasional')
+            ->assertDontSee('Monitoring dataset, audit aktivitas, dan administrasi sistem.');
+
+        $analyticsResponse = $this->actingAs($this->staffUser)
+            ->get(route('dashboard.kpi-analytics'));
+
+        $analyticsResponse->assertOk()
+            ->assertDontSee('bg-gradient-to-r', false)
+            ->assertDontSee("activeTab === 'kritis' ? 'bg-rose-600", false)
+            ->assertDontSee("activeTab === 'tercapai' ? 'bg-emerald-600", false)
+            ->assertSee("activeTab === 'kritis' ? 'border-rose-600", false)
+            ->assertSee("activeTab === 'tercapai' ? 'border-emerald-600", false);
+    }
+
+    public function test_kpi_summary_avoids_decorative_gradients(): void
+    {
+        $managementRole = Role::where('slug', Role::MANAGEMENT)->firstOrFail();
+        $management = User::factory()->create([
+            'role_id' => $managementRole->id,
+            'division_id' => null,
+        ]);
+
+        $dataset = Dataset::factory()->create([
+            'division_id' => $this->pengusahaan->id,
+            'user_id' => $this->staffUser->id,
+            'status' => DatasetStatus::READY,
+        ]);
+
+        $unit = OrgUnit::create(['name' => 'TJBT']);
+        $nkoIndicator = Indicator::create([
+            'org_unit_id' => $unit->id,
+            'name' => 'NKO',
+            'satuan' => 'Skor',
+            'category' => 'nko',
+            'is_group' => false,
+        ]);
+
+        PerformanceObservation::create([
+            'dataset_id' => $dataset->id,
+            'indicator_id' => $nkoIndicator->id,
+            'org_unit_id' => $unit->id,
+            'division_id' => $this->pengusahaan->id,
+            'period' => '2026-08-31',
+            'target_value' => 100,
+            'target_type' => 'numeric',
+            'realisasi_value' => 101.5,
+            'realisasi_type' => 'numeric',
+            'pencapaian' => 101.5,
+            'nilai' => 101.5,
+            'source_sheet' => 'TJBT',
+            'source_row' => 5,
+        ]);
+
+        $this->actingAs($management)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertDontSee('bg-gradient-to-r', false);
+    }
+
+    public function test_admin_and_governance_pages_use_ibs_card_without_font_mono_or_dash_placeholders(): void
+    {
+        $divisionWithoutDescription = Division::factory()->create([
+            'name' => 'Divisi Tanpa Deskripsi',
+            'slug' => 'divisi-tanpa-deskripsi',
+            'description' => null,
+        ]);
+
+        $datasetWithoutDivision = Dataset::factory()->create([
+            'division_id' => $this->pengusahaan->id,
+            'user_id' => $this->adminUser->id,
+            'status' => DatasetStatus::READY,
+        ]);
+        $datasetWithoutDivision->setRelation('division', null);
+
+        $routes = [
+            route('dashboard'),
+            route('dashboard.builder'),
+            route('users.index'),
+            route('users.create'),
+            route('users.edit', $this->staffUser),
+            route('divisions.index'),
+            route('divisions.create'),
+            route('divisions.edit', $divisionWithoutDescription),
+            route('audit-logs.index'),
+        ];
+
+        foreach ($routes as $url) {
+            $response = $this->actingAs($this->adminUser)->get($url);
+
+            $response->assertOk()
+                ->assertSee('ibs-card', false)
+                ->assertDontSee('font-mono', false);
+
+            $visibleHtml = preg_replace('/<script\b[^>]*>.*?<\/script>/is', '', $response->getContent());
+            $this->assertStringNotContainsString('—', $visibleHtml, "Em-dash ditemukan di {$url}");
+            $this->assertStringNotContainsString('&mdash;', $visibleHtml, "Entity &mdash; ditemukan di {$url}");
+            $this->assertStringNotContainsString('-- ', $visibleHtml, "Double-dash placeholder ditemukan di {$url}");
+        }
+
+        $this->actingAs($this->adminUser)
+            ->get(route('users.index'))
+            ->assertOk()
+            ->assertSee('Tanpa divisi')
+            ->assertSee('Akun Anda');
+
+        $this->actingAs($this->adminUser)
+            ->get(route('divisions.index'))
+            ->assertOk()
+            ->assertSee('Belum ada deskripsi');
+
+        if (Route::has('reports.index')) {
+            $reportsHtml = (string) $this->actingAs($this->adminUser)
+                ->view('reports.index', [
+                    'datasets' => collect([$datasetWithoutDivision]),
+                ]);
+
+            $this->assertStringContainsString('ibs-card', $reportsHtml);
+            $this->assertStringContainsString('ibs-section-title', $reportsHtml);
+            $this->assertStringContainsString('Tanpa divisi', $reportsHtml);
+            $this->assertStringNotContainsString('font-mono', $reportsHtml);
+            $this->assertStringNotContainsString('—', $reportsHtml);
+            $this->assertStringNotContainsString('&mdash;', $reportsHtml);
+            $this->assertStringNotContainsString('-- ', $reportsHtml);
+        } else {
+            $reportsSource = file_get_contents(resource_path('views/reports/index.blade.php'));
+            $this->assertNotFalse($reportsSource);
+            $reportsVisibleSource = preg_replace('/\{\{--.*?--\}\}/s', '', $reportsSource);
+            $this->assertStringContainsString('ibs-card', $reportsVisibleSource);
+            $this->assertStringContainsString('ibs-section-title', $reportsVisibleSource);
+            $this->assertStringContainsString('Tanpa divisi', $reportsVisibleSource);
+            $this->assertStringNotContainsString('font-mono', $reportsVisibleSource);
+            $this->assertStringNotContainsString('—', $reportsVisibleSource);
+            $this->assertStringNotContainsString('&mdash;', $reportsVisibleSource);
+            $this->assertStringNotContainsString('-- ', $reportsVisibleSource);
+        }
     }
 }

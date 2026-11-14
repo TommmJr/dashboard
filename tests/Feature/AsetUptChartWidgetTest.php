@@ -191,9 +191,9 @@ class AsetUptChartWidgetTest extends TestCase
             ]
         );
 
-        // Series ke-6 memakai warna ke-6 (melewati batas palet lama isi 4).
-        $html->assertSee('"color":"#14a2ba"', false)
-            ->assertSee('"color":"#f39233"', false);
+        // Series ke-6 memakai warna ke-6 dari palet monokromatik Teal/Slate.
+        $html->assertSee('"color":"#0b6175"', false)
+            ->assertSee('"color":"#cbd5e1"', false);
     }
 
     public function test_menampilkan_status_kosong_tanpa_data(): void
@@ -551,6 +551,45 @@ class AsetUptChartWidgetTest extends TestCase
             ->assertSee('680', false)
             ->assertSee('340', false)
             ->assertSee('6.800', false);
+    }
+
+    public function test_blade_menampilkan_hirarki_kepemilikan_uit_jbt_dan_provenance_tab_tanpa_double_counting(): void
+    {
+        $html = $this->blade(
+            '<x-widgets.aset-upt-chart :widget="$widget" :data="$data" />',
+            [
+                'widget' => ['key' => 'aset-upt-chart', 'label' => 'Stok Aset per UPT'],
+                'data' => [
+                    'period' => '2026-08-31',
+                    'period_uit' => '2026-08-31',
+                    'period_upt' => '2026-08-31',
+                    'labels' => ['BANDUNG', 'BEKASI'],
+                    'series' => [
+                        ['name' => 'Tower 150 KV | SU', 'data' => [100.0, 200.0]],
+                    ],
+                    'summary' => [
+                        'total_tower' => 6336.0,
+                        'total_transmisi' => 2850.5,
+                        'total_trafo' => 20500.0,
+                    ],
+                    'table_rows' => [
+                        ['upt' => 'BANDUNG', 'tower' => 100.0, 'transmisi' => 50.0, 'trafo' => 1000.0],
+                        ['upt' => 'BEKASI', 'tower' => 200.0, 'transmisi' => 75.0, 'trafo' => 1500.0],
+                    ],
+                    'series_by_category' => [
+                        'tower' => [['name' => 'Tower 150 KV | SU', 'data' => [100.0, 200.0]]],
+                        'transmisi' => [],
+                        'trafo' => [],
+                    ],
+                ],
+            ]
+        );
+
+        $html->assertSee('Kepemilikan Aset Induk UIT JBT (Unit Induk Transmisi Jawa Bagian Tengah)', false)
+            ->assertSee('Rekapitulasi Kepemilikan Induk UIT JBT - Tab 1a', false)
+            ->assertSee('Distribusi / Sebaran Wilayah Aset UIT pada 8 UPT (Tab 1b)', false)
+            ->assertSee('Sumber: Rekap Induk UIT (Tab 1a) & Distribusi 8 UPT (Tab 1b)', false)
+            ->assertDontSee('belum diverifikasi PIC MANSET', false);
     }
 
     /**

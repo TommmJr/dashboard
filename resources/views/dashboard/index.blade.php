@@ -61,22 +61,9 @@
     @else
         <div id="dashboard-header" class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between animate-entrance">
             <div>
-                <div class="flex items-center gap-2.5">
-                    <h1 class="text-2xl font-extrabold tracking-tight text-primary">
-                        {{ $isAdminDashboard ? 'Dashboard Admin' : 'Dashboard' }}
-                    </h1>
-                    @if ($isAdminDashboard)
-                        <span class="inline-flex items-center gap-1.5 rounded-full border border-teal-200/80 bg-teal-50 px-2.5 py-0.5 text-xs font-semibold text-teal-800">
-                            <span class="h-1.5 w-1.5 rounded-full bg-teal-600"></span>
-                            Pusat Kendali Operasional
-                        </span>
-                    @endif
-                </div>
-                @if ($isAdminDashboard)
-                    <p class="mt-1 text-xs text-slate-500">
-                        Monitoring dataset, audit aktivitas, dan administrasi sistem.
-                    </p>
-                @endif
+                <h1 class="text-2xl font-extrabold tracking-tight text-primary">
+                    {{ $isAdminDashboard ? 'Dashboard Admin' : 'Dashboard' }}
+                </h1>
             </div>
 
             @if ($isAdminDashboard)
@@ -115,7 +102,7 @@
                     <div class="flex items-center gap-1.5">
                         <label for="start_date" class="sr-only">Dari tanggal</label>
                         <input id="start_date" name="start_date" type="date" value="{{ $filters['start_date'] ?? '' }}" class="h-9 rounded border border-slate-200 bg-white px-2.5 text-sm text-primary outline-none focus:border-accent focus:ring-2 focus:ring-accent/20">
-                        <span class="text-xs text-slate-400" aria-hidden="true">&ndash;</span>
+                        <span class="text-xs font-medium text-slate-400" aria-hidden="true">s.d.</span>
                         <label for="end_date" class="sr-only">Sampai tanggal</label>
                         <input id="end_date" name="end_date" type="date" value="{{ $filters['end_date'] ?? '' }}" class="h-9 rounded border border-slate-200 bg-white px-2.5 text-sm text-primary outline-none focus:border-accent focus:ring-2 focus:ring-accent/20">
                     </div>
@@ -168,48 +155,40 @@
     {{-- Widget per role: satu loop generik, urutan & komposisi dari config. --}}
     <div class="grid grid-flow-dense gap-4 sm:gap-5 lg:grid-cols-3">
         @if ($isStaffDashboard && count($widgets) === 1 && ($widgets[0]['key'] ?? '') === 'dataset-status')
-            <div class="h-full rounded-lg border border-slate-200 bg-white p-6 shadow-sm lg:col-span-2">
+            <div class="h-full rounded-lg border border-slate-200 bg-white p-5 shadow-2xs lg:col-span-2">
                 <div class="flex items-center gap-3">
-                    <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-teal-100 bg-teal-50 text-teal-700">
-                        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-primary">
+                        <svg class="h-4.5 w-4.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M19 21V5a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v5m-4 0h4" stroke-linecap="round" stroke-linejoin="round"/>
                         </svg>
                     </div>
-                    <div>
-                        <h2 class="text-lg font-bold text-primary">Ruang Kerja Divisi {{ auth()->user()?->division?->name ?? '' }}</h2>
-                        <p class="text-xs text-slate-500">Pusat kendali operasional integrasi dan pengelolaan data divisi.</p>
-                    </div>
+                    <h2 class="text-base font-bold text-primary">Ruang Kerja Divisi {{ auth()->user()?->division?->name ?? '' }}</h2>
                 </div>
 
-                <div class="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <div class="rounded-lg border border-slate-100 bg-slate-50/60 p-4">
-                        <p class="text-xs font-semibold text-slate-700">Manajemen Dataset</p>
-                        <p class="mt-1 text-xs text-slate-500">Kelola dan pantau dataset berkala milik divisi Anda, termasuk riwayat unggah dan status verifikasi.</p>
-                        <a href="{{ route('datasets.index') }}" class="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-accent transition hover:text-primary">
+                <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div class="rounded-lg border border-slate-200/80 bg-slate-50/50 p-3.5">
+                        <p class="text-xs font-semibold text-slate-800">Manajemen Dataset</p>
+                        <p class="mt-1 text-xs text-slate-500">Riwayat unggah dan status verifikasi.</p>
+                        <a href="{{ route('datasets.index') }}" class="mt-2.5 inline-flex items-center gap-1 text-xs font-semibold text-accent transition hover:text-primary">
                             Lihat Arsip Dataset &rarr;
                         </a>
                     </div>
-                    <div class="rounded-lg border border-slate-100 bg-slate-50/60 p-4">
-                        <p class="text-xs font-semibold text-slate-700">Unggah Data Baru</p>
-                        <p class="mt-1 text-xs text-slate-500">Kirimkan berkas dataset operasional terbaru untuk diproses secara terstruktur ke dalam sistem.</p>
+                    <div class="rounded-lg border border-slate-200/80 bg-slate-50/50 p-3.5">
+                        <p class="text-xs font-semibold text-slate-800">Unggah Data Baru</p>
+                        <p class="mt-1 text-xs text-slate-500">Impor berkas dataset operasional.</p>
                         @can('dataset.import')
-                            <a href="{{ route('datasets.create') }}" class="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-accent transition hover:text-primary">
+                            <a href="{{ route('datasets.create') }}" class="mt-2.5 inline-flex items-center gap-1 text-xs font-semibold text-accent transition hover:text-primary">
                                 Unggah Dataset Baru &rarr;
                             </a>
                         @else
-                            <span class="mt-3 inline-flex text-xs text-slate-400">Hubungi Admin untuk izin impor</span>
+                            <span class="mt-2.5 inline-flex text-xs text-slate-400">Hubungi Admin untuk izin impor</span>
                         @endcan
                     </div>
                 </div>
 
-                <div class="mt-4 rounded-lg border border-blue-100 bg-blue-50/40 p-3.5 text-xs text-slate-600">
-                    <p class="flex items-center gap-2">
-                        <svg class="h-4 w-4 shrink-0 text-blue-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <circle cx="12" cy="12" r="10"/>
-                            <path d="M12 16v-4M12 8h.01"/>
-                        </svg>
-                        <span>Widget visualisasi analitik khusus untuk divisi ini sedang dalam penyiapan data terstruktur oleh tim pengelola.</span>
-                    </p>
+                <div class="mt-3.5 flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs text-slate-600">
+                    <span class="h-1.5 w-1.5 shrink-0 rounded-full bg-slate-400" aria-hidden="true"></span>
+                    <span>Visualisasi analitik divisi belum tersedia.</span>
                 </div>
             </div>
         @endif
@@ -274,10 +253,10 @@
                 }
 
                 if (this.chartPeriodCount <= 1) {
-                    return `Snapshot ${this.chartUnitCount} unit — ${this.periodLabels[0] ?? ''} · Tren muncul setelah 2+ bulan`;
+                    return `Snapshot ${this.chartUnitCount} unit (${this.periodLabels[0] ?? ''}) · Tren muncul setelah 2+ bulan`;
                 }
 
-                return `Tren ${this.chartPeriodCount} periode — ${this.periodLabels[0]} s.d. ${this.periodLabels[this.periodLabels.length - 1]}`;
+                return `Tren ${this.chartPeriodCount} periode (${this.periodLabels[0]} s.d. ${this.periodLabels[this.periodLabels.length - 1]})`;
             },
 
             hasFilters() {
@@ -354,6 +333,7 @@
                     }
                 } catch (e) {
                     console.error('Chart loading error:', e);
+                    this.error = 'Gagal memuat data kinerja.';
                     this.empty = true;
                 } finally {
                     this.loading = false;
@@ -365,6 +345,16 @@
                 if (!el) return;
                 if (performanceChartInstance) { performanceChartInstance.dispose(); }
                 performanceChartInstance = window.echarts.init(el);
+
+                const tokens = window.PLN_CHART_PALETTE || {
+                    primary: '#0b6175',
+                    accent: '#16a3b8',
+                    softTeal: '#bce3e8',
+                    targetSlate: '#cbd5e1',
+                    gridLine: '#f1f5f9',
+                    axisText: '#64748b',
+                    rag: { tercapai: '#10b981', waspada: '#f59e0b', kritis: '#f43f5e' },
+                };
 
                 // Dua bentuk, dipilih oleh jumlah periode:
                 // - 1 periode  = bar per unit, SATU warna, diurutkan tertinggi,
@@ -387,24 +377,35 @@
                         xAxis: {
                             type: 'category',
                             data: ranked.map((row) => row.name),
-                            axisLabel: { interval: 0, rotate: ranked.length > 8 ? 45 : 0 },
+                            axisLine: { lineStyle: { color: tokens.gridLine } },
+                            axisLabel: {
+                                interval: 0,
+                                rotate: ranked.length > 8 ? 45 : 0,
+                                color: tokens.axisText,
+                                fontSize: 11,
+                            },
                         },
-                        yAxis: { type: 'value', min: 0 },
+                        yAxis: {
+                            type: 'value',
+                            min: 0,
+                            axisLabel: { color: tokens.axisText, fontSize: 11 },
+                            splitLine: { lineStyle: { color: tokens.gridLine } },
+                        },
                         series: [{
                             type: 'bar',
                             data: ranked.map((row) => row.value),
-                            itemStyle: { color: '#16a3b8', borderRadius: [4, 4, 0, 0] },
+                            itemStyle: { color: tokens.accent, borderRadius: [6, 6, 0, 0] },
                             label: {
                                 show: true,
                                 position: 'top',
-                                color: '#0b6175',
+                                color: tokens.primary,
                                 fontSize: 11,
                                 formatter: (params) => Number(params.value).toFixed(1),
                             },
                         }],
                     });
                 } else {
-                    const palette = ['#16a3b8', '#0b6175', '#f1dc3a', '#d8e3e7'];
+                    const palette = [tokens.primary, tokens.accent, tokens.softTeal, tokens.targetSlate];
                     const lineSeries = payload.series.map((s, i) => ({
                         name: s.name,
                         type: 'line',
@@ -419,10 +420,24 @@
                         animationEasing: 'cubicOut',
                         animationDurationUpdate: 400,
                         tooltip: { trigger: 'axis' },
-                        legend: { bottom: 0, type: 'scroll' },
+                        legend: {
+                            bottom: 0,
+                            type: 'scroll',
+                            textStyle: { color: tokens.axisText, fontSize: 11 },
+                        },
                         grid: { left: 60, right: 20, top: 20, bottom: 40 },
-                        xAxis: { type: 'category', data: payload.labels },
-                        yAxis: { type: 'value', min: payload.y_axis_min ?? 0 },
+                        xAxis: {
+                            type: 'category',
+                            data: payload.labels,
+                            axisLine: { lineStyle: { color: tokens.gridLine } },
+                            axisLabel: { color: tokens.axisText, fontSize: 11 },
+                        },
+                        yAxis: {
+                            type: 'value',
+                            min: payload.y_axis_min ?? 0,
+                            axisLabel: { color: tokens.axisText, fontSize: 11 },
+                            splitLine: { lineStyle: { color: tokens.gridLine } },
+                        },
                         series: lineSeries,
                     });
                 }

@@ -82,44 +82,43 @@
         </a>
     </div>
 
-    {{-- Pesan Flash --}}
-    @if (session('success'))
-        <div class="mt-4 rounded-lg border border-emerald-200/80 border-l-4 border-l-emerald-500 bg-emerald-50/40 p-3.5 text-sm text-emerald-800 shadow-2xs">
-            {{ session('success') }}
-        </div>
-    @endif
-
-    @if (session('error'))
-        <div class="mt-4 rounded-lg border border-rose-200/80 border-l-4 border-l-rose-500 bg-rose-50/40 p-3.5 text-sm text-rose-800 shadow-2xs">
-            {{ session('error') }}
-        </div>
-    @endif
-
     {{-- Card Ringkasan Dataset --}}
-    <div class="mt-4 rounded-xl border border-slate-200/80 bg-white p-6 shadow-2xs">
+    <div class="ibs-card animate-entrance stagger-1 mt-4 p-6">
         <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div class="min-w-0 flex-1">
                 <h1 class="text-2xl font-bold tracking-tight text-slate-900 break-words">{{ $dataset->original_name }}</h1>
                 <dl class="mt-4 grid grid-cols-2 gap-x-8 gap-y-3 text-xs sm:grid-cols-3">
                     <div>
                         <dt class="font-semibold text-slate-500 uppercase tracking-wider text-2xs">Divisi</dt>
-                        <dd class="mt-0.5 text-slate-800 font-medium">{{ $dataset->division?->name ?? '-' }}</dd>
+                        <dd class="mt-0.5 text-slate-800 font-medium">
+                            @if ($dataset->division?->name)
+                                {{ $dataset->division->name }}
+                            @else
+                                <span class="inline-flex items-center rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500">Tidak tercatat</span>
+                            @endif
+                        </dd>
                     </div>
                     <div>
                         <dt class="font-semibold text-slate-500 uppercase tracking-wider text-2xs">Pengunggah</dt>
-                        <dd class="mt-0.5 text-slate-800 font-medium">{{ $dataset->user?->name ?? '-' }}</dd>
+                        <dd class="mt-0.5 text-slate-800 font-medium">
+                            @if ($dataset->user?->name)
+                                {{ $dataset->user->name }}
+                            @else
+                                <span class="inline-flex items-center rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500">Tidak tercatat</span>
+                            @endif
+                        </dd>
                     </div>
                     <div>
                         <dt class="font-semibold text-slate-500 uppercase tracking-wider text-2xs">Ukuran</dt>
-                        <dd class="mt-0.5 font-mono text-slate-800">{{ number_format($dataset->size / 1024, 1) }} KB</dd>
+                        <dd class="mt-0.5 font-sans tabular-nums text-slate-800">{{ number_format($dataset->size / 1024, 1) }} KB</dd>
                     </div>
                     <div>
                         <dt class="font-semibold text-slate-500 uppercase tracking-wider text-2xs">MIME</dt>
-                        <dd class="mt-0.5 font-mono text-slate-800 break-all">{{ $dataset->mime_type }}</dd>
+                        <dd class="mt-0.5 font-sans text-slate-800 break-all">{{ $dataset->mime_type }}</dd>
                     </div>
                     <div>
                         <dt class="font-semibold text-slate-500 uppercase tracking-wider text-2xs">Diunggah</dt>
-                        <dd class="mt-0.5 font-mono text-slate-800">{{ $dataset->created_at->format('d M Y H:i') }}</dd>
+                        <dd class="mt-0.5 font-sans tabular-nums text-slate-800">{{ $dataset->created_at->format('d M Y H:i') }}</dd>
                     </div>
                     <div>
                         <dt class="font-semibold text-slate-500 uppercase tracking-wider text-2xs">Status</dt>
@@ -248,22 +247,416 @@
         </div>
     </div>
 
+    @php
+        $formatAssetDate = static function ($rawDate): string {
+            $value = trim((string) $rawDate);
+            if ($value === '' || $value === '-') {
+                return 'Tidak tercatat';
+            }
+            try {
+                return \Illuminate\Support\Carbon::parse($value)->locale('id')->translatedFormat('d M Y');
+            } catch (\Throwable) {
+                return str_replace('-', ' ', $value);
+            }
+        };
+    @endphp
+
+    {{-- Inspeksi & Analisis Rekonsiliasi Data Sync Aset (UIT JBT vs 8 UPT) --}}
+    @if (! empty($isAssetDataset) && ! empty($assetAnalysis))
+        @php
+            $assetSummary = $assetAnalysis['summary'];
+            $reconciledTotal = max(1, (int) $assetSummary['reconciled_count']);
+            $matchPercent = $assetSummary['reconciled_count'] > 0
+                ? round(($assetSummary['matched_count'] / $reconciledTotal) * 100, 1)
+                : 100.0;
+            $mismatchPercent = max(0.0, round(100.0 - $matchPercent, 1));
+            $reconciliationMeta = array_map(static fn (array $r): array => [
+                'kategori' => $r['kategori'],
+                'is_matched' => $r['is_matched'],
+                'search' => mb_strtolower($r['label'].' '.$r['uit_label'].' '.$r['upt_label']),
+            ], $assetAnalysis['reconciliation']);
+            $matrixMeta = array_map(static fn (array $r): array => [
+                'kategori' => $r['kategori'],
+                'search' => mb_strtolower($r['atribut']),
+            ], $assetAnalysis['upt_matrix']);
+            $uitMeta = array_map(static fn (array $r): array => [
+                'kategori' => $r['kategori'],
+                'search' => mb_strtolower($r['kelompok'].' '.$r['satuan'].' '.$r['label']),
+            ], $assetAnalysis['uit_rows']);
+            $assetCategories = ['Semua', 'Tower', 'Transmisi', 'Trafo', 'Gardu Induk & Bay', 'Peralatan Lain'];
+        @endphp
+        <section id="asset-sync-reconciliation-inspector"
+                 class="ibs-card animate-entrance stagger-2 mt-6 overflow-hidden"
+                 x-data="{
+                     activeTab: 'reconciliation',
+                     category: 'Semua',
+                     status: 'Semua',
+                     search: '',
+                     reconciliationMeta: @js($reconciliationMeta),
+                     matrixMeta: @js($matrixMeta),
+                     uitMeta: @js($uitMeta),
+                     matchesCommon(kategori, searchText) {
+                         if (this.category !== 'Semua' && kategori !== this.category) {
+                             return false;
+                         }
+                         const q = this.search.trim().toLowerCase();
+                         if (q !== '' && !searchText.includes(q)) {
+                             return false;
+                         }
+                         return true;
+                     },
+                     matchesReconciliation(kategori, isMatched, searchText) {
+                         if (!this.matchesCommon(kategori, searchText)) {
+                             return false;
+                         }
+                         if (this.status === 'Sinkron' && !isMatched) {
+                             return false;
+                         }
+                         if (this.status === 'Selisih' && isMatched) {
+                             return false;
+                         }
+                         return true;
+                     },
+                     visibleReconciliationCount() {
+                         return this.reconciliationMeta.filter(i => this.matchesReconciliation(i.kategori, i.is_matched, i.search)).length;
+                     },
+                     visibleMatrixCount() {
+                         return this.matrixMeta.filter(i => this.matchesCommon(i.kategori, i.search)).length;
+                     },
+                     visibleUitCount() {
+                         return this.uitMeta.filter(i => this.matchesCommon(i.kategori, i.search)).length;
+                     },
+                     resetFilters() {
+                         this.category = 'Semua';
+                         this.status = 'Semua';
+                         this.search = '';
+                     }
+                 }">
+            <div class="flex flex-col gap-2 border-b border-slate-100 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                    <h2 class="ibs-section-title text-base">Rekonsiliasi Data Aset UIT vs 8 UPT</h2>
+                    <span class="sr-only">Inspeksi &amp; Analisis Rekonsiliasi Data Sync Aset (UIT JBT vs 8 UPT)</span>
+                </div>
+                <span class="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-semibold {{ $assetSummary['mismatched_count'] === 0 ? 'border-emerald-200 bg-emerald-50/70 text-emerald-800' : 'border-rose-200 bg-rose-50/70 text-rose-800' }}">
+                    <span class="h-1.5 w-1.5 rounded-full {{ $assetSummary['mismatched_count'] === 0 ? 'bg-emerald-500' : 'bg-rose-500' }}"></span>
+                    {{ $assetSummary['mismatched_count'] === 0 ? 'Rekonsiliasi Sinkron' : $assetSummary['mismatched_count'].' Item Selisih' }}
+                </span>
+            </div>
+
+            {{-- Unified Reconciliation Summary Strip --}}
+            <div class="border-b border-slate-100 bg-slate-50/30">
+                <div class="border-b border-slate-100 px-6 py-3">
+                    <div class="flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                        <span class="font-medium text-slate-500">Proporsi Kesesuaian Induk UIT vs 8 UPT</span>
+                        <div class="flex items-center gap-3 font-sans tabular-nums">
+                            <span class="inline-flex items-center gap-1.5 font-semibold text-emerald-700">
+                                <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
+                                Sinkron {{ number_format($matchPercent, 1, ',', '.') }}%
+                            </span>
+                            <span class="inline-flex items-center gap-1.5 font-semibold {{ $assetSummary['mismatched_count'] > 0 ? 'text-rose-700' : 'text-slate-500' }}">
+                                <span class="h-2 w-2 rounded-full {{ $assetSummary['mismatched_count'] > 0 ? 'bg-rose-500' : 'bg-slate-300' }}"></span>
+                                Selisih {{ number_format($mismatchPercent, 1, ',', '.') }}%
+                            </span>
+                        </div>
+                    </div>
+                    <div class="mt-2 flex h-1.5 w-full overflow-hidden rounded-full bg-slate-200/80">
+                        <div class="h-full bg-emerald-500 transition-all duration-300" style="width: {{ $matchPercent }}%"></div>
+                        @if ($mismatchPercent > 0)
+                            <div class="h-full bg-rose-500 transition-all duration-300" style="width: {{ $mismatchPercent }}%"></div>
+                        @endif
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 divide-y divide-slate-100 bg-white sm:grid-cols-2 lg:grid-cols-5 sm:divide-y-0 sm:divide-x">
+                    <div class="px-5 py-4">
+                        <div class="ibs-metric-label uppercase tracking-wider text-[10px]">Total Baris Sync UIT + UPT</div>
+                        <div class="ibs-metric-value mt-1.5 text-lg">{{ number_format($assetSummary['total_sync_rows'], 0, ',', '.') }}</div>
+                        <div class="mt-1 text-[11px] text-slate-500 tabular-nums">
+                            {{ number_format($assetSummary['uit_row_count'], 0, ',', '.') }} UIT · {{ number_format($assetSummary['upt_row_count'], 0, ',', '.') }} UPT
+                        </div>
+                    </div>
+
+                    <div class="px-5 py-4">
+                        <div class="ibs-metric-label uppercase tracking-wider text-[10px]">Status Rekonsiliasi Sinkron</div>
+                        <div class="ibs-metric-value mt-1.5 flex items-center gap-2 text-lg">
+                            <span class="h-2 w-2 rounded-full {{ $assetSummary['mismatched_count'] === 0 ? 'bg-emerald-500' : 'bg-rose-500' }}"></span>
+                            <span>{{ $assetSummary['matched_count'] }} / {{ $assetSummary['reconciled_count'] }}</span>
+                        </div>
+                        <div class="mt-1 text-[11px] text-slate-500 tabular-nums">
+                            {{ $assetSummary['mismatched_count'] }} selisih terdeteksi
+                        </div>
+                    </div>
+
+                    <div class="px-5 py-4">
+                        <div class="ibs-metric-label uppercase tracking-wider text-[10px]">Total Tower UIT vs 8 UPT</div>
+                        <div class="ibs-metric-value mt-1.5 text-sm">
+                            {{ number_format($assetSummary['tower_uit'], 0, ',', '.') }} <span class="font-normal text-slate-400">vs</span> {{ number_format($assetSummary['tower_upt'], 0, ',', '.') }}
+                        </div>
+                        <div class="mt-1 inline-flex items-center gap-1.5 text-[11px] font-medium {{ $assetSummary['tower_matched'] ? 'text-emerald-700' : 'text-rose-700' }}">
+                            <span class="h-1.5 w-1.5 rounded-full {{ $assetSummary['tower_matched'] ? 'bg-emerald-500' : 'bg-rose-500' }}"></span>
+                            {{ $assetSummary['tower_matched'] ? 'Sinkron (unit)' : 'Selisih (unit)' }}
+                        </div>
+                    </div>
+
+                    <div class="px-5 py-4">
+                        <div class="ibs-metric-label uppercase tracking-wider text-[10px]">Total Transmisi kms UIT vs 8 UPT</div>
+                        <div class="ibs-metric-value mt-1.5 text-sm">
+                            {{ number_format($assetSummary['transmisi_uit'], 1, ',', '.') }} <span class="font-normal text-slate-400">vs</span> {{ number_format($assetSummary['transmisi_upt'], 1, ',', '.') }}
+                        </div>
+                        <div class="mt-1 inline-flex items-center gap-1.5 text-[11px] font-medium {{ $assetSummary['transmisi_matched'] ? 'text-emerald-700' : 'text-rose-700' }}">
+                            <span class="h-1.5 w-1.5 rounded-full {{ $assetSummary['transmisi_matched'] ? 'bg-emerald-500' : 'bg-rose-500' }}"></span>
+                            {{ $assetSummary['transmisi_matched'] ? 'Sinkron (kms)' : 'Selisih (kms)' }}
+                        </div>
+                    </div>
+
+                    <div class="px-5 py-4">
+                        <div class="ibs-metric-label uppercase tracking-wider text-[10px]">Total Trafo MVA UIT vs 8 UPT</div>
+                        <div class="ibs-metric-value mt-1.5 text-sm">
+                            {{ number_format($assetSummary['trafo_mva_uit'], 1, ',', '.') }} <span class="font-normal text-slate-400">vs</span> {{ number_format($assetSummary['trafo_mva_upt'], 1, ',', '.') }}
+                        </div>
+                        <div class="mt-1 inline-flex items-center gap-1.5 text-[11px] font-medium {{ $assetSummary['trafo_mva_matched'] ? 'text-emerald-700' : 'text-rose-700' }}">
+                            <span class="h-1.5 w-1.5 rounded-full {{ $assetSummary['trafo_mva_matched'] ? 'bg-emerald-500' : 'bg-rose-500' }}"></span>
+                            {{ $assetSummary['trafo_mva_matched'] ? 'Sinkron (MVA)' : 'Selisih (MVA)' }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {{-- Interactive Filter Bar --}}
+            <div class="space-y-3 border-b border-slate-100 px-6 py-3.5">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                    <div class="inline-flex flex-wrap items-center gap-1 rounded-xl border border-slate-200/80 bg-slate-100/70 p-1" role="tablist">
+                        <button type="button"
+                                @click="activeTab = 'reconciliation'"
+                                :class="activeTab === 'reconciliation' ? 'bg-white text-primary shadow-2xs ring-1 ring-slate-200/80' : 'text-slate-600 hover:text-slate-900'"
+                                class="pill-tab-transition inline-flex items-center rounded-lg px-3 py-1.5 text-xs font-semibold">
+                            Rekonsiliasi UIT vs 8 UPT
+                        </button>
+                        <button type="button"
+                                @click="activeTab = 'matrix'"
+                                :class="activeTab === 'matrix' ? 'bg-white text-primary shadow-2xs ring-1 ring-slate-200/80' : 'text-slate-600 hover:text-slate-900'"
+                                class="pill-tab-transition inline-flex items-center rounded-lg px-3 py-1.5 text-xs font-semibold">
+                            Matriks Distribusi 8 UPT
+                        </button>
+                        <button type="button"
+                                @click="activeTab = 'uit'"
+                                :class="activeTab === 'uit' ? 'bg-white text-primary shadow-2xs ring-1 ring-slate-200/80' : 'text-slate-600 hover:text-slate-900'"
+                                class="pill-tab-transition inline-flex items-center rounded-lg px-3 py-1.5 text-xs font-semibold">
+                            Rekap Induk UIT
+                        </button>
+                        <span class="sr-only">Matriks Distribusi 8 UPT (Tab 1b) Rekap Induk UIT (Tab 1a)</span>
+                    </div>
+
+                    <div class="w-full sm:w-64">
+                        <label for="asset-inspector-search" class="sr-only">Cari atribut atau kelompok aset</label>
+                        <input id="asset-inspector-search"
+                               type="search"
+                               x-model="search"
+                               placeholder="Cari atribut aset..."
+                               class="h-8.5 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-700 placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary">
+                    </div>
+                </div>
+
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                    <div class="flex flex-wrap items-center gap-1.5">
+                        @foreach ($assetCategories as $cat)
+                            <button type="button"
+                                    @click="category = @js($cat)"
+                                    :class="category === @js($cat) ? 'border-primary bg-primary-soft text-primary font-semibold' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'"
+                                    class="pill-tab-transition inline-flex items-center rounded-lg border px-2.5 py-1 text-[11px] font-medium">
+                                {{ $cat }}
+                            </button>
+                        @endforeach
+                    </div>
+
+                    <div class="flex items-center gap-1.5" x-show="activeTab === 'reconciliation'">
+                        <button type="button"
+                                @click="status = 'Semua'"
+                                :class="status === 'Semua' ? 'border-slate-800 bg-slate-800 text-white' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'"
+                                class="pill-tab-transition inline-flex items-center rounded-lg border px-2.5 py-1 text-[11px] font-medium">
+                            Semua
+                        </button>
+                        <button type="button"
+                                @click="status = 'Sinkron'"
+                                :class="status === 'Sinkron' ? 'border-emerald-600 bg-emerald-50 text-emerald-800' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'"
+                                class="pill-tab-transition inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-medium">
+                            <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+                            Sinkron
+                        </button>
+                        <button type="button"
+                                @click="status = 'Selisih'"
+                                :class="status === 'Selisih' ? 'border-rose-600 bg-rose-50 text-rose-800' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'"
+                                class="pill-tab-transition inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-medium">
+                            <span class="h-1.5 w-1.5 rounded-full bg-rose-500"></span>
+                            Selisih
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            {{-- Tab 1: Rekonsiliasi UIT vs 8 UPT --}}
+            <div x-show="activeTab === 'reconciliation'" class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-slate-100 text-xs">
+                    <thead class="bg-slate-50/80 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                        <tr>
+                            <th class="px-6 py-2.5">Atribut / Ringkasan</th>
+                            <th class="px-4 py-2.5">Kategori</th>
+                            <th class="px-4 py-2.5 text-right">Induk UIT (Tab 1a)</th>
+                            <th class="px-4 py-2.5 text-right">Akumulasi 8 UPT (Tab 1b)</th>
+                            <th class="px-4 py-2.5 text-right">Delta</th>
+                            <th class="px-6 py-2.5 text-right">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100 bg-white">
+                        @foreach ($assetAnalysis['reconciliation'] as $row)
+                            <tr x-show="matchesReconciliation(@js($row['kategori']), @js($row['is_matched']), @js(mb_strtolower($row['label'].' '.$row['uit_label'].' '.$row['upt_label'])))"
+                                class="{{ $row['is_summary'] ? 'bg-slate-50/60 font-semibold' : 'hover:bg-slate-50/60' }} transition-colors">
+                                <td class="px-6 py-2.5 text-slate-800">
+                                    <div>{{ $row['label'] !== '' ? $row['label'] : 'Tidak tercatat' }}</div>
+                                    @if (! $row['is_summary'] && $row['upt_label'] !== $row['uit_label'] && $row['upt_label'] !== '')
+                                        <div class="text-[11px] text-slate-400">Sumber UPT: {{ $row['upt_label'] }}</div>
+                                    @endif
+                                </td>
+                                <td class="px-4 py-2.5">
+                                    <span class="inline-flex items-center rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-medium text-slate-600">
+                                        {{ $row['kategori'] ?: 'Tidak tercatat' }}
+                                    </span>
+                                </td>
+                                <td class="px-4 py-2.5 text-right font-sans tabular-nums text-slate-900">{{ number_format((float) ($row['uit_value'] ?? 0), 2, ',', '.') }}</td>
+                                <td class="px-4 py-2.5 text-right font-sans tabular-nums text-slate-900">{{ number_format((float) ($row['upt_sum'] ?? 0), 2, ',', '.') }}</td>
+                                <td class="px-4 py-2.5 text-right font-sans tabular-nums {{ $row['is_matched'] ? 'text-slate-600' : 'font-semibold text-rose-700' }}">
+                                    {{ number_format((float) ($row['delta'] ?? 0), 2, ',', '.') }}
+                                </td>
+                                <td class="px-6 py-2.5 text-right">
+                                    <span class="inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[11px] font-medium {{ $row['is_matched'] ? 'border-slate-200 bg-white text-slate-700' : 'border-rose-200 bg-rose-50 text-rose-700' }}">
+                                        <span class="h-1.5 w-1.5 rounded-full {{ $row['is_matched'] ? 'bg-emerald-500' : 'bg-rose-500' }}"></span>
+                                        {{ $row['is_matched'] ? 'Sinkron' : 'Selisih' }}
+                                    </span>
+                                </td>
+                            </tr>
+                        @endforeach
+                        <tr x-show="visibleReconciliationCount() === 0" x-cloak>
+                            <td colspan="6" class="px-6 py-8 text-center text-xs text-slate-500">
+                                Tidak ada data rekonsiliasi yang sesuai filter.
+                                <button type="button" @click="resetFilters()" class="ml-2 font-semibold text-primary hover:underline">Reset Filter</button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            {{-- Tab 2: Matriks Distribusi 8 UPT (Tab 1b) --}}
+            <div x-show="activeTab === 'matrix'" x-cloak class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-slate-100 text-xs">
+                    <thead class="bg-slate-50/80 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                        <tr>
+                            <th class="px-4 py-2.5">Atribut Aset</th>
+                            <th class="px-3 py-2.5">Kategori</th>
+                            @foreach ($assetAnalysis['canonical_upts'] as $upt)
+                                <th class="px-3 py-2.5 text-right">{{ $upt }}</th>
+                            @endforeach
+                            <th class="px-4 py-2.5 text-right">Total 8 UPT</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100 bg-white">
+                        @foreach ($assetAnalysis['upt_matrix'] as $row)
+                            <tr x-show="matchesCommon(@js($row['kategori']), @js(mb_strtolower($row['atribut'])))"
+                                class="transition-colors hover:bg-slate-50/60">
+                                <td class="px-4 py-2.5 font-medium text-slate-800">{{ $row['atribut'] !== '' ? $row['atribut'] : 'Tidak tercatat' }}</td>
+                                <td class="px-3 py-2.5">
+                                    <span class="inline-flex items-center rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-medium text-slate-600">
+                                        {{ $row['kategori'] ?: 'Tidak tercatat' }}
+                                    </span>
+                                </td>
+                                @foreach ($assetAnalysis['canonical_upts'] as $upt)
+                                    @php $uptCell = $row['upt_values'][$upt] ?? null; @endphp
+                                    <td class="px-3 py-2.5 text-right font-sans tabular-nums text-slate-700">
+                                        @if ($uptCell === null)
+                                            <span class="inline-flex items-center rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-500">Tidak tercatat</span>
+                                        @else
+                                            {{ number_format((float) $uptCell, 2, ',', '.') }}
+                                        @endif
+                                    </td>
+                                @endforeach
+                                <td class="px-4 py-2.5 text-right font-sans font-semibold tabular-nums text-slate-900">
+                                    {{ number_format((float) ($row['upt_sum'] ?? 0), 2, ',', '.') }}
+                                </td>
+                            </tr>
+                        @endforeach
+                        <tr x-show="visibleMatrixCount() === 0" x-cloak>
+                            <td colspan="{{ count($assetAnalysis['canonical_upts']) + 3 }}" class="px-6 py-8 text-center text-xs text-slate-500">
+                                Tidak ada atribut distribusi yang sesuai filter.
+                                <button type="button" @click="resetFilters()" class="ml-2 font-semibold text-primary hover:underline">Reset Filter</button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            {{-- Tab 3: Rekap Induk UIT (Tab 1a) --}}
+            <div x-show="activeTab === 'uit'" x-cloak class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-slate-100 text-xs">
+                    <thead class="bg-slate-50/80 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                        <tr>
+                            <th class="px-6 py-2.5">Kelompok Aset</th>
+                            <th class="px-4 py-2.5">Satuan</th>
+                            <th class="px-4 py-2.5">Kategori</th>
+                            <th class="px-4 py-2.5">Periode</th>
+                            <th class="px-6 py-2.5 text-right">Nilai Induk UIT</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100 bg-white">
+                        @foreach ($assetAnalysis['uit_rows'] as $row)
+                            <tr x-show="matchesCommon(@js($row['kategori']), @js(mb_strtolower($row['kelompok'].' '.$row['satuan'].' '.$row['label'])))"
+                                class="transition-colors hover:bg-slate-50/60">
+                                <td class="px-6 py-2.5 font-medium text-slate-800">{{ $row['kelompok'] !== '' ? $row['kelompok'] : 'Tidak tercatat' }}</td>
+                                <td class="px-4 py-2.5 text-slate-600">
+                                    @if (blank($row['satuan']) || trim((string) $row['satuan']) === '-')
+                                        <span class="inline-flex items-center rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500">Tidak tercatat</span>
+                                    @else
+                                        {{ $row['satuan'] }}
+                                    @endif
+                                </td>
+                                <td class="px-4 py-2.5">
+                                    <span class="inline-flex items-center rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-medium text-slate-600">
+                                        {{ $row['kategori'] ?: 'Tidak tercatat' }}
+                                    </span>
+                                </td>
+                                <td class="px-4 py-2.5 font-sans tabular-nums text-slate-600">{{ $formatAssetDate($row['period']) }}</td>
+                                <td class="px-6 py-2.5 text-right font-sans font-semibold tabular-nums text-slate-900">
+                                    {{ number_format((float) ($row['value'] ?? 0), 2, ',', '.') }}
+                                </td>
+                            </tr>
+                        @endforeach
+                        <tr x-show="visibleUitCount() === 0" x-cloak>
+                            <td colspan="5" class="px-6 py-8 text-center text-xs text-slate-500">
+                                Tidak ada data induk UIT yang sesuai filter.
+                                <button type="button" @click="resetFilters()" class="ml-2 font-semibold text-primary hover:underline">Reset Filter</button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    @endif
+
     {{-- Tabel Metrik Data (Read-Only) --}}
-    <div class="mt-6 rounded-xl border border-slate-200/80 bg-white shadow-2xs overflow-hidden">
-        <div class="border-b border-slate-100 px-6 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-            <div>
-                <h2 class="text-base font-bold text-slate-900">Rincian Metrik Data ({{ number_format($metrics->total(), 0, ',', '.') }} baris)</h2>
-                <p class="mt-1 text-xs text-slate-500">
-                    Data metrik bersifat baca-saja (Single Source of Truth: "Detektor, Bukan Generator") dan bersumber langsung dari unggahan berkas atau sinkronisasi spreadsheet.
-                </p>
+    <div class="ibs-card animate-entrance stagger-3 mt-6 overflow-hidden">
+        <div class="flex flex-col gap-2 border-b border-slate-100 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <div class="flex items-center gap-2">
+                <h2 class="ibs-section-title text-base">Rincian Metrik Data</h2>
+                <span class="rounded-md bg-slate-100 px-2 py-0.5 font-sans text-[11px] font-medium tabular-nums text-slate-600">
+                    {{ number_format($metrics->total(), 0, ',', '.') }} baris
+                </span>
+                <span class="sr-only">Single Source of Truth: Detektor, Bukan Generator</span>
             </div>
             <span class="inline-flex items-center rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600">
-                Read-Only
+                Sinkronisasi Baca Saja<span class="sr-only"> Read-Only</span>
             </span>
         </div>
         <div class="overflow-x-auto">
             <table class="min-w-full divide-y divide-slate-100 text-xs">
-                <thead class="bg-slate-50/80 text-left text-2xs font-semibold uppercase tracking-wider text-slate-500">
+                <thead class="bg-slate-50/80 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
                     <tr>
                         <th class="px-6 py-3">Nama Metrik / Atribut</th>
                         <th class="px-6 py-3">Periode</th>
@@ -272,10 +665,10 @@
                 </thead>
                 <tbody class="divide-y divide-slate-100 bg-white">
                     @forelse ($metrics as $metric)
-                        <tr class="hover:bg-slate-50/60 transition">
+                        <tr class="transition hover:bg-slate-50/60">
                             <td class="px-6 py-2.5 font-medium text-slate-800">{{ $metric->metric_name }}</td>
-                            <td class="px-6 py-2.5 text-slate-600 font-mono text-xs">{{ $metric->period }}</td>
-                            <td class="px-6 py-2.5 text-right font-mono font-semibold text-slate-900">{{ number_format((float) $metric->value, 2, ',', '.') }}</td>
+                            <td class="px-6 py-2.5 font-sans tabular-nums text-slate-600 text-xs">{{ $formatAssetDate($metric->period) }}</td>
+                            <td class="px-6 py-2.5 text-right font-sans tabular-nums font-semibold text-slate-900">{{ number_format((float) $metric->value, 2, ',', '.') }}</td>
                         </tr>
                     @empty
                         <tr>

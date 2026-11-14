@@ -98,6 +98,12 @@ class KpiDetailPageTest extends TestCase
             ->assertSee('Semua Berdampingan Compact')
             ->assertSee('Fokus Kartu Visual (Grid 4 Kolom)')
             ->assertSee('Fokus Tabel Matriks Padat')
+            ->assertSee('ibs-card')
+            ->assertSee('PLN_CHART_PALETTE')
+            ->assertDontSee('font-mono')
+            ->assertDontSee('—')
+            ->assertDontSee('&mdash;', false)
+            ->assertDontSee('&ndash;', false)
             ->assertDontSee('max-h-[410px]')
             ->assertDontSee('Lihat semua (12 baris)');
     }
@@ -459,5 +465,203 @@ class KpiDetailPageTest extends TestCase
         $html->assertSee('1%')
             ->assertSee('class="h-full rounded-full bg-rose-500" style="width: 1%"', false)
             ->assertDontSee('style="width: 100%"', false);
+    }
+
+    public function test_halaman_kpi_detail_menyediakan_workspace_grafik_layar_penuh_interaktif_dan_unduhan_png(): void
+    {
+        $role = Role::where('slug', Role::STAFF_DIVISI)->firstOrFail();
+        $user = User::factory()->create([
+            'role_id' => $role->id,
+            'division_id' => $this->pengusahaan->id,
+        ]);
+
+        $dataset = Dataset::factory()->create([
+            'division_id' => $this->pengusahaan->id,
+            'status' => Dataset::STATUS_READY,
+        ]);
+
+        $unit = OrgUnit::create(['name' => 'TJBT']);
+
+        $indTercapai = Indicator::create([
+            'org_unit_id' => $unit->id,
+            'name' => 'Keandalan Jaringan Utama',
+            'satuan' => '%',
+            'polarity' => 'higher_is_better',
+            'bobot' => '15',
+            'is_group' => false,
+            'pencapaian_formula_kind' => 'polarity_ratio',
+        ]);
+        $indHampir = Indicator::create([
+            'org_unit_id' => $unit->id,
+            'name' => 'Susut Transmisi Regional',
+            'satuan' => '%',
+            'polarity' => 'lower_is_better',
+            'bobot' => '10',
+            'is_group' => false,
+            'pencapaian_formula_kind' => 'polarity_ratio',
+        ]);
+        $indPerlu = Indicator::create([
+            'org_unit_id' => $unit->id,
+            'name' => 'Penyelesaian Proyek Strategis',
+            'satuan' => 'Proyek',
+            'polarity' => 'higher_is_better',
+            'bobot' => '12',
+            'is_group' => false,
+            'pencapaian_formula_kind' => 'polarity_ratio',
+        ]);
+
+        PerformanceObservation::create([
+            'dataset_id' => $dataset->id,
+            'indicator_id' => $indTercapai->id,
+            'org_unit_id' => $unit->id,
+            'division_id' => $this->pengusahaan->id,
+            'period' => '2026-08-31',
+            'target_type' => PerformanceObservation::TYPE_NUMERIC,
+            'realisasi_type' => PerformanceObservation::TYPE_NUMERIC,
+            'target_value' => 100.0,
+            'realisasi_value' => 106.0,
+            'pencapaian' => 1.06,
+        ]);
+        PerformanceObservation::create([
+            'dataset_id' => $dataset->id,
+            'indicator_id' => $indHampir->id,
+            'org_unit_id' => $unit->id,
+            'division_id' => $this->pengusahaan->id,
+            'period' => '2026-08-31',
+            'target_type' => PerformanceObservation::TYPE_NUMERIC,
+            'realisasi_type' => PerformanceObservation::TYPE_NUMERIC,
+            'target_value' => 2.0,
+            'realisasi_value' => 2.04,
+            'pencapaian' => 0.98,
+        ]);
+        PerformanceObservation::create([
+            'dataset_id' => $dataset->id,
+            'indicator_id' => $indPerlu->id,
+            'org_unit_id' => $unit->id,
+            'division_id' => $this->pengusahaan->id,
+            'period' => '2026-08-31',
+            'target_type' => PerformanceObservation::TYPE_NUMERIC,
+            'realisasi_type' => PerformanceObservation::TYPE_NUMERIC,
+            'target_value' => 10.0,
+            'realisasi_value' => 8.0,
+            'pencapaian' => 0.80,
+        ]);
+
+        $response = $this->actingAs($user)->get(route('dashboard.kpi-detail'));
+
+        $response->assertOk()
+            ->assertSee('id="kpi-fullscreen-workspace"', false)
+            ->assertSee('Visualisasi Grafik Capaian Indikator Kinerja')
+            ->assertSee('id="kpi-fullscreen-echart-canvas"', false)
+            ->assertSee('style="width: 100%; height: 500px; min-height: 440px;"', false)
+            ->assertSee('id="kpi-fullscreen-download-chart-btn"', false)
+            ->assertSee('id="kpi-fullscreen-close-btn"', false)
+            ->assertSee('id="kpi-fullscreen-search"', false)
+            ->assertSee('id="kpi-fullscreen-mode-achievement"', false)
+            ->assertSee('id="kpi-fullscreen-mode-comparison"', false)
+            ->assertSee('Perbandingan Target vs Realisasi')
+            ->assertSee('data-fullscreen-rag="all"', false)
+            ->assertSee('data-fullscreen-rag="tercapai"', false)
+            ->assertSee('data-fullscreen-rag="hampir"', false)
+            ->assertSee('data-fullscreen-rag="perlu"', false)
+            ->assertSee('id="kpiFullscreenChartData"', false);
+
+        $html = $response->getContent();
+        $this->assertSame(
+            1,
+            preg_match('/<script type="application\/json" id="kpiFullscreenChartData">\s*(.*?)\s*<\/script>/s', $html, $matches),
+        );
+
+        $payload = json_decode($matches[1], true);
+        $this->assertIsArray($payload);
+        $this->assertSame('2026-08-31', $payload['period']);
+        $this->assertCount(3, $payload['indicators']);
+
+        $byName = collect($payload['indicators'])->keyBy('indikator');
+        $this->assertSame('tercapai', $byName['Keandalan Jaringan Utama']['tier']);
+        $this->assertSame('Positif', $byName['Keandalan Jaringan Utama']['polaritas']);
+        $this->assertEqualsWithDelta(106.0, $byName['Keandalan Jaringan Utama']['pencapaian'], 0.1);
+
+        $this->assertSame('hampir', $byName['Susut Transmisi Regional']['tier']);
+        $this->assertSame('Negatif', $byName['Susut Transmisi Regional']['polaritas']);
+        $this->assertEqualsWithDelta(98.0, $byName['Susut Transmisi Regional']['pencapaian'], 0.1);
+
+        $this->assertSame('perlu', $byName['Penyelesaian Proyek Strategis']['tier']);
+        $this->assertEqualsWithDelta(80.0, $byName['Penyelesaian Proyek Strategis']['pencapaian'], 0.1);
+    }
+
+    public function test_payload_grafik_layar_penuh_menjaga_indikator_tanggal_bebas_serial_excel_dan_mendukung_filter_unit(): void
+    {
+        config(['kpi.visible_units' => ['TJBT', 'UPT BANDUNG']]);
+
+        $role = Role::where('slug', Role::MANAGEMENT)->firstOrFail();
+        $user = User::factory()->create([
+            'role_id' => $role->id,
+            'division_id' => null,
+        ]);
+
+        $dataset = Dataset::factory()->create([
+            'division_id' => $this->pengusahaan->id,
+            'status' => Dataset::STATUS_READY,
+        ]);
+
+        $tjbt = OrgUnit::create(['name' => 'TJBT']);
+        $bandung = OrgUnit::create(['name' => 'UPT BANDUNG']);
+
+        $dateInd = Indicator::create([
+            'org_unit_id' => $tjbt->id,
+            'name' => 'Kualitas Data Material',
+            'is_group' => false,
+            'pencapaian_formula_kind' => 'date_delta',
+        ]);
+        $bandungInd = Indicator::create([
+            'org_unit_id' => $bandung->id,
+            'name' => 'Kinerja Pemeliharaan Bandung',
+            'satuan' => '%',
+            'is_group' => false,
+            'pencapaian_formula_kind' => 'polarity_ratio',
+        ]);
+
+        PerformanceObservation::create([
+            'dataset_id' => $dataset->id,
+            'indicator_id' => $dateInd->id,
+            'org_unit_id' => $tjbt->id,
+            'division_id' => $this->pengusahaan->id,
+            'period' => '2026-08-31',
+            'target_type' => PerformanceObservation::TYPE_DATE,
+            'realisasi_type' => PerformanceObservation::TYPE_DATE,
+            'target_value' => 46173,
+            'realisasi_value' => 46163,
+            'target_date' => '2026-05-31',
+            'realisasi_date' => '2026-05-21',
+            'pencapaian' => 1.0143,
+        ]);
+        PerformanceObservation::create([
+            'dataset_id' => $dataset->id,
+            'indicator_id' => $bandungInd->id,
+            'org_unit_id' => $bandung->id,
+            'division_id' => $this->pengusahaan->id,
+            'period' => '2026-08-31',
+            'target_type' => PerformanceObservation::TYPE_NUMERIC,
+            'realisasi_type' => PerformanceObservation::TYPE_NUMERIC,
+            'target_value' => 100.0,
+            'realisasi_value' => 102.0,
+            'pencapaian' => 1.02,
+        ]);
+
+        $response = $this->actingAs($user)->get(route('dashboard.kpi-detail', ['unit' => 'TJBT']));
+        $response->assertOk();
+
+        preg_match('/<script type="application\/json" id="kpiFullscreenChartData">\s*(.*?)\s*<\/script>/s', $response->getContent(), $matches);
+        $payload = json_decode($matches[1], true);
+
+        $this->assertSame('TJBT', $payload['unitLabel']);
+        $this->assertCount(1, $payload['indicators']);
+        $this->assertSame('Kualitas Data Material', $payload['indicators'][0]['indikator']);
+        $this->assertSame('date', $payload['indicators'][0]['mode']);
+        $this->assertNull($payload['indicators'][0]['target_num']);
+        $this->assertNull($payload['indicators'][0]['realisasi_num']);
+        $this->assertSame('2026-05-31', $payload['indicators'][0]['target_display']);
+        $this->assertSame('2026-05-21', $payload['indicators'][0]['realisasi_display']);
     }
 }

@@ -497,4 +497,155 @@ class AssetSheetsSyncTest extends TestCase
             ->assertDontSee('VIEW-ONLY SYNC')
             ->assertDontSee(route('datasets.asset-sync'));
     }
+
+    public function test_dataset_show_renders_asset_sync_reconciliation_and_8_upt_matrix_with_zero_delta(): void
+    {
+        $this->fakeGoogleSheetsResponses();
+
+        $this->artisan('aset:sync')->assertExitCode(0);
+
+        $dataset = Dataset::where('division_id', $this->assetDivision->id)
+            ->where('status', Dataset::STATUS_READY)
+            ->sole();
+
+        $response = $this->actingAs($this->admin)
+            ->get(route('datasets.show', $dataset));
+
+        $response->assertOk()
+            ->assertSee('Inspeksi & Analisis Rekonsiliasi Data Sync Aset (UIT JBT vs 8 UPT)')
+            ->assertSee('Total Baris Sync UIT + UPT')
+            ->assertSee('Status Rekonsiliasi Sinkron')
+            ->assertSee('Total Tower UIT vs 8 UPT')
+            ->assertSee('Total Transmisi kms UIT vs 8 UPT')
+            ->assertSee('Total Trafo MVA UIT vs 8 UPT')
+            ->assertSee('Rekonsiliasi UIT vs 8 UPT')
+            ->assertSee('Matriks Distribusi 8 UPT (Tab 1b)')
+            ->assertSee('Rekap Induk UIT (Tab 1a)')
+            ->assertSee('Rekonsiliasi Sinkron')
+            ->assertSee('BANDUNG')
+            ->assertSee('BEKASI')
+            ->assertSee('BOGOR')
+            ->assertSee('CIREBON')
+            ->assertSee('KARAWANG')
+            ->assertSee('PURWOKERTO')
+            ->assertSee('SALATIGA')
+            ->assertSee('SEMARANG')
+            ->assertSee('Total 8 UPT')
+            ->assertSee('Total Tower SU')
+            ->assertSee('Total Transmisi SU kms')
+            ->assertSee('Total Kapasitas Trafo MVA')
+            ->assertSee('20.500,00')
+            ->assertSee('Rincian Metrik Data')
+            ->assertSee('Detektor, Bukan Generator')
+            ->assertSee('Read-Only')
+            ->assertDontSee('>Edit<', false);
+
+        $this->assertTrue($response->viewData('isAssetDataset'));
+
+        $analysis = $response->viewData('assetAnalysis');
+        $this->assertIsArray($analysis);
+        $this->assertGreaterThan(0, $analysis['summary']['reconciled_count']);
+        $this->assertSame(0, $analysis['summary']['mismatched_count']);
+        $this->assertSame(
+            $analysis['summary']['reconciled_count'],
+            $analysis['summary']['matched_count'],
+        );
+
+        foreach ($analysis['reconciliation'] as $row) {
+            $this->assertTrue($row['is_matched'], "Expected zero delta for {$row['label']}, got {$row['delta']}");
+            $this->assertSame(0.0, $row['delta']);
+        }
+
+        // Index page marks synced asset dataset with inspection indicator
+        $this->actingAs($this->admin)
+            ->get(route('datasets.index'))
+            ->assertOk()
+            ->assertSee('Inspeksi Aset');
+    }
+
+    public function test_dataset_show_detects_nonzero_delta_in_asset_reconciliation_and_enforces_403_division_isolation(): void
+    {
+        $dataset = Dataset::factory()->create([
+            'division_id' => $this->assetDivision->id,
+            'user_id' => $this->admin->id,
+            'status' => Dataset::STATUS_READY,
+            'original_name' => 'asset_mismatch_check.csv',
+        ]);
+
+        PerformanceMetric::create([
+            'dataset_id' => $dataset->id,
+            'division_id' => $this->assetDivision->id,
+            'unit_id' => $this->admin->id,
+            'metric_name' => 'ASET | UIT | Trafo 500/150 KV | MVA',
+            'value' => 20500.00,
+            'period' => '2026-10-31',
+        ]);
+        PerformanceMetric::create([
+            'dataset_id' => $dataset->id,
+            'division_id' => $this->assetDivision->id,
+            'unit_id' => $this->admin->id,
+            'metric_name' => 'ASET | BANDUNG | BANDUNG BARAT | Trafo 500/150 KV | MVA',
+            'value' => 19000.00,
+            'period' => '2026-10-31',
+        ]);
+        PerformanceMetric::create([
+            'dataset_id' => $dataset->id,
+            'division_id' => $this->assetDivision->id,
+            'unit_id' => $this->admin->id,
+            'metric_name' => 'ASET | UIT | Trafo 150/70 KV | BANK',
+            'value' => 10.00,
+            'period' => '2026-10-31',
+        ]);
+        PerformanceMetric::create([
+            'dataset_id' => $dataset->id,
+            'division_id' => $this->assetDivision->id,
+            'unit_id' => $this->admin->id,
+            'metric_name' => 'ASET | BEKASI | BEKASI | Trafo Tenaga 150 kV | Trafo 150/70 KV | Bank',
+            'value' => 8.00,
+            'period' => '2026-10-31',
+        ]);
+
+        $response = $this->actingAs($this->admin)
+            ->get(route('datasets.show', $dataset));
+
+        $response->assertOk()
+            ->assertSee('Inspeksi & Analisis Rekonsiliasi Data Sync Aset (UIT JBT vs 8 UPT)')
+            ->assertSee('Selisih')
+            ->assertSee('1.500,00')
+            ->assertSee('2,00');
+
+        $analysis = $response->viewData('assetAnalysis');
+        $this->assertSame(3, $analysis['summary']['mismatched_count']);
+        $this->assertSame(0, $analysis['summary']['matched_count']);
+
+        $byLabel = collect($analysis['reconciliation'])->keyBy('label');
+        $this->assertSame(1500.0, $byLabel['Total Kapasitas Trafo MVA']['delta']);
+        $this->assertFalse($byLabel['Total Kapasitas Trafo MVA']['is_matched']);
+        $this->assertSame(1500.0, $byLabel['Trafo 500/150 KV | MVA']['delta']);
+        $this->assertSame(2.0, $byLabel['Trafo 150/70 KV | BANK']['delta']);
+
+        // Staf Manajemen Aset diizinkan melihat
+        $staffManset = User::factory()->withRole(Role::STAFF_DIVISI)->create([
+            'division_id' => $this->assetDivision->id,
+        ]);
+        $this->actingAs($staffManset)
+            ->get(route('datasets.show', $dataset))
+            ->assertOk();
+
+        // Staf divisi lain dan staf tanpa divisi ditolak 403
+        $otherDivision = Division::where('slug', 'perencanaan-pengusahaan')->sole();
+        $staffOther = User::factory()->withRole(Role::STAFF_DIVISI)->create([
+            'division_id' => $otherDivision->id,
+        ]);
+        $this->actingAs($staffOther)
+            ->get(route('datasets.show', $dataset))
+            ->assertForbidden();
+
+        $staffNoDiv = User::factory()->withRole(Role::STAFF_DIVISI)->create([
+            'division_id' => null,
+        ]);
+        $this->actingAs($staffNoDiv)
+            ->get(route('datasets.show', $dataset))
+            ->assertForbidden();
+    }
 }

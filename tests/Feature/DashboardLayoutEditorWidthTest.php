@@ -379,4 +379,28 @@ class DashboardLayoutEditorWidthTest extends TestCase
             'role_slug' => Role::ADMIN,
         ]);
     }
+
+    public function test_dashboard_builder_provides_quick_add_drawer_and_card_action_menu(): void
+    {
+        $admin = User::factory()->withRole(Role::ADMIN)->create();
+
+        $response = $this->actingAs($admin)->get(route('dashboard.builder'));
+
+        $response->assertOk()
+            ->assertSee('id="builder-quick-add-trigger"', false)
+            ->assertSee('id="builder-quick-add-drawer"', false)
+            ->assertSee('quickAddWidget', false)
+            ->assertSee('card-action-menu-btn', false)
+            ->assertSee('activeCardMenu', false)
+            ->assertSee('sticky top-2', false);
+
+        $html = $response->getContent();
+        $drawerPos = strpos($html, 'id="builder-quick-add-drawer"');
+        $viewportPos = strpos($html, 'id="preview-canvas-viewport"');
+
+        $this->assertNotFalse($drawerPos);
+        $this->assertNotFalse($viewportPos);
+        $this->assertLessThan($viewportPos, $drawerPos);
+        $this->assertSame(1, substr_count($html, '@click="removeWidget(index)"'));
+    }
 }

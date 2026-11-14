@@ -14,7 +14,7 @@
 
     $fmt = function (?float $value): string {
         if ($value === null) {
-            return '—';
+            return 'Tidak tercatat';
         }
 
         $text = number_format($value, 4, ',', '.');
@@ -22,7 +22,7 @@
         return str_contains($text, ',') ? rtrim(rtrim($text, '0'), ',') : $text;
     };
 
-    $fmtPercent = fn (?float $value): string => $value === null ? '—' : $fmt(round($value, 1)).'%';
+    $fmtPercent = fn (?float $value): string => $value === null ? 'Tidak tercatat' : $fmt(round($value, 1)).'%';
 
     $instanceId = $widget['instance'] ?? 0;
 
@@ -92,55 +92,55 @@ if (typeof window.targetRealisasiWidget !== 'function') {
 </script>
 
 <div
-    class="h-full rounded-xl bg-white border border-slate-200/80 shadow-xs p-2.5 transition-all duration-200 ease-out hover:shadow-md flex flex-col justify-start"
+    class="ibs-card h-full p-5 flex flex-col justify-start"
     x-data="targetRealisasiWidget(JSON.parse(document.getElementById('targetRealisasiItems_{{ $instanceId }}').textContent))"
     @kpi-view-changed.window="viewMode = $event.detail"
 >
-    <div class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-        <h3 class="text-base font-bold text-primary">{{ $widget['label'] ?? 'Target dan Realisasi per Indikator' }}</h3>
+    <div class="flex flex-wrap items-center justify-between gap-2">
+        <h3 class="ibs-section-title text-base font-bold text-slate-900">{{ $widget['label'] ?? 'Target dan Realisasi per Indikator' }}</h3>
         @if ($period !== null)
-            <span class="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
+            <span class="inline-flex items-center rounded-full bg-[#e6f4f6] px-2.5 py-0.5 text-[11px] font-semibold text-[#0b6175]">
                 Periode {{ $period }}@if (count($units) > 0) · {{ implode(', ', $units) }}@endif
             </span>
         @endif
     </div>
 
     @if (empty($sections))
-        <p class="mt-4 rounded-lg bg-slate-50 p-5 text-sm text-gray-600">
+        <p class="mt-4 rounded-xl border border-slate-200/70 bg-slate-50 p-5 text-sm text-slate-600">
             Belum ada data target/realisasi terstruktur pada periode ini.
         </p>
     @else
         {{-- Ringkasan status pill badges --}}
-        <div class="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs">
+        <div class="mt-3 flex flex-wrap items-center gap-1.5 text-xs tabular-nums">
             @if ($achievedCount > 0)
-                <span class="inline-flex items-center gap-1.5 rounded-full border border-slate-200/80 bg-white px-2 py-0.5 font-medium text-slate-600 shadow-2xs">
-                    <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
+                <span class="inline-flex items-center gap-1.5 rounded-full border border-slate-200/80 bg-white px-2.5 py-0.5 font-medium text-slate-600 shadow-2xs">
+                    <span class="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0"></span>
                     Tercapai (&ge;{{ $tercapaiMinLabel }}%): {{ $achievedCount }}
                 </span>
             @endif
             @if ($nearCount > 0)
-                <span class="inline-flex items-center gap-1.5 rounded-full border border-slate-200/80 bg-white px-2 py-0.5 font-medium text-slate-600 shadow-2xs">
-                    <span class="h-2 w-2 rounded-full bg-amber-500"></span>
-                    Mendekati ({{ $hampirMinLabel }}–{{ $hampirMaxLabel }}%): {{ $nearCount }}
+                <span class="inline-flex items-center gap-1.5 rounded-full border border-slate-200/80 bg-white px-2.5 py-0.5 font-medium text-slate-600 shadow-2xs">
+                    <span class="h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0"></span>
+                    Mendekati ({{ $hampirMinLabel }}% s.d. {{ $hampirMaxLabel }}%): {{ $nearCount }}
                 </span>
             @endif
             @if ($belowCount > 0)
-                <span class="inline-flex items-center gap-1.5 rounded-full border border-slate-200/80 bg-white px-2 py-0.5 font-medium text-slate-600 shadow-2xs">
-                    <span class="h-2 w-2 rounded-full bg-rose-500"></span>
+                <span class="inline-flex items-center gap-1.5 rounded-full border border-slate-200/80 bg-white px-2.5 py-0.5 font-medium text-slate-600 shadow-2xs">
+                    <span class="h-1.5 w-1.5 rounded-full bg-rose-500 shrink-0"></span>
                     Perlu Perhatian (&lt;{{ $hampirMinLabel }}%): {{ $belowCount }}
                 </span>
             @endif
         </div>
 
         {{-- Toolbar filter & pencarian Alpine.js instan --}}
-        <div id="target-realisasi-toolbar" class="mt-1.5 flex flex-col gap-1.5 rounded-lg border border-slate-200/80 bg-slate-50/70 p-1.5">
+        <div id="target-realisasi-toolbar" class="mt-3 flex flex-col gap-2 rounded-xl border border-slate-200/80 bg-slate-50/70 p-2">
             <div class="w-full">
                 <input
                     type="search"
                     x-model="searchQuery"
                     placeholder="Cari nama indikator..."
                     aria-label="Cari nama indikator"
-                    class="w-full rounded-md border border-slate-300 bg-white py-1 pl-2.5 pr-2.5 text-xs text-slate-800 placeholder:text-slate-400 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                    class="w-full rounded-lg border border-slate-300 bg-white py-1.5 pl-3 pr-3 text-xs text-slate-800 placeholder:text-slate-400 focus:border-[#16a3b8] focus:outline-none focus:ring-1 focus:ring-[#16a3b8]"
                 />
             </div>
             <div class="flex flex-wrap items-center gap-1 text-[11px]">
@@ -218,11 +218,11 @@ if (typeof window.targetRealisasiWidget !== 'function') {
                     class="relative border-t border-slate-100 pt-2.5 first:border-0 first:pt-0"
                 >
                     @if (! empty($section['name']))
-                        <h4 class="text-xs font-semibold uppercase tracking-wider text-primary pb-1">{{ $section['name'] }}</h4>
+                        <h4 class="text-xs font-semibold uppercase tracking-wider text-[#0b6175] pb-1">{{ $section['name'] }}</h4>
                     @endif
 
                     @if (count($chartable) > 0)
-                        <div id="{{ $chartId }}" class="mt-1.5 grid grid-cols-1 sm:grid-cols-2 gap-1.5" :class="{ 'md:grid-cols-3 lg:grid-cols-4': viewMode === 'cards' }">
+                        <div id="{{ $chartId }}" class="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2" :class="{ 'md:grid-cols-3 lg:grid-cols-4': viewMode === 'cards' }">
                             @foreach ($chartable as $p)
                                 @php
                                     $pct = round((float) $p['score']['percent'], 1);
@@ -242,11 +242,11 @@ if (typeof window.targetRealisasiWidget !== 'function') {
                                     $realisasiStr = $p['numeric'] ? $fmt((float) $p['numeric']['realisasi']) : null;
                                     $satuanStr = $p['satuan'] ? ' '.$p['satuan'] : '';
                                     $searchHaystack = strtolower($p['name'].' '.($p['satuan'] ?? ''));
-                                    $tooltip = $p['name'].' | Target: '.($targetStr ?? '—').$satuanStr.' | Realisasi: '.($realisasiStr ?? '—').$satuanStr.' | Pencapaian: '.$fmtPercent($p['score']['percent']);
+                                    $tooltip = $p['name'].' | Target: '.($targetStr ?? 'Tidak tercatat').$satuanStr.' | Realisasi: '.($realisasiStr ?? 'Tidak tercatat').$satuanStr.' | Pencapaian: '.$fmtPercent($p['score']['percent']);
                                 @endphp
                                 <div
                                     x-show="matches('{{ addcslashes($searchHaystack, "'\\") }}', '{{ $tier }}')"
-                                    class="flex flex-col justify-between rounded-lg p-2 text-xs hover:bg-slate-50/80 transition border border-slate-200/70 bg-white shadow-2xs"
+                                    class="flex flex-col justify-between rounded-xl p-2.5 text-xs hover:bg-slate-50/80 transition border border-slate-200/70 bg-white shadow-2xs"
                                     data-indicator-id="{{ $p['indicator_id'] }}"
                                     data-mode="{{ $p['mode'] }}"
                                     title="{{ $tooltip }}"
@@ -288,14 +288,14 @@ if (typeof window.targetRealisasiWidget !== 'function') {
                             <span class="text-[11px] font-semibold text-slate-500">Milestone:</span>
                             @foreach ($datePanels as $panel)
                                 @php
-                                    $targetDate = $panel['date']['target'] ?? '—';
-                                    $realisasiDate = $panel['date']['realisasi'] ?? '—';
+                                    $targetDate = $panel['date']['target'] ?? 'Tidak tercatat';
+                                    $realisasiDate = $panel['date']['realisasi'] ?? 'Tidak tercatat';
                                     $deltaDays = $panel['date']['delta_days'] ?? null;
-                                    $deltaText = $deltaDays === null ? '—' : ($deltaDays <= 0 ? abs($deltaDays).' hari lebih cepat' : $deltaDays.' hari lebih lambat');
+                                    $deltaText = $deltaDays === null ? 'Tidak tercatat' : ($deltaDays <= 0 ? abs($deltaDays).' hari lebih cepat' : $deltaDays.' hari lebih lambat');
                                     $chipTooltip = $panel['name'].' | Target: '.$targetDate.' | Realisasi: '.$realisasiDate.' | Selisih: '.$deltaText;
-                                    $chipBorder = ($deltaDays !== null && $deltaDays <= 0)
-                                        ? 'border-emerald-200 bg-emerald-50/70 text-emerald-800'
-                                        : 'border-rose-200 bg-rose-50/70 text-rose-800';
+                                    $chipDot = ($deltaDays !== null && $deltaDays <= 0)
+                                        ? 'bg-emerald-500'
+                                        : 'bg-rose-500';
                                     $dateTier = ($panel['score'] !== null && $panel['score']['percent'] !== null)
                                         ? \App\Support\KpiScoreNormalizer::ragTier((float) $panel['score']['percent'])
                                         : 'all';
@@ -303,16 +303,17 @@ if (typeof window.targetRealisasiWidget !== 'function') {
                                 @endphp
                                 <div
                                     x-show="matches('{{ addcslashes($dateHaystack, "'\\") }}', '{{ $dateTier }}')"
-                                    class="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-medium {{ $chipBorder }} cursor-help"
+                                    class="inline-flex items-center gap-1.5 rounded-full border border-slate-200/90 bg-white px-2.5 py-0.5 text-[11px] font-medium text-slate-700 cursor-help tabular-nums"
                                     data-indicator-id="{{ $panel['indicator_id'] }}"
                                     data-mode="{{ $panel['mode'] }}"
                                     title="{{ $chipTooltip }}"
                                 >
+                                    <span class="h-1.5 w-1.5 rounded-full shrink-0 {{ $chipDot }}"></span>
                                     <span class="truncate max-w-[160px]">{{ $panel['name'] }}</span>
                                     @if ($panel['score'] !== null && $panel['score']['percent'] !== null)
                                         <span class="font-bold">{{ $fmtPercent($panel['score']['percent']) }}</span>
                                     @endif
-                                    <span class="text-[10px] opacity-75">({{ $realisasiDate }})</span>
+                                    <span class="text-[10px] text-slate-500">({{ $realisasiDate }})</span>
                                 </div>
                             @endforeach
                         </div>

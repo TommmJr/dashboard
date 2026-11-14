@@ -7,20 +7,48 @@ import Alpine from 'alpinejs';
 import * as echarts from 'echarts/core';
 import { BarChart, GaugeChart, LineChart, PieChart } from 'echarts/charts';
 import {
+    DataZoomComponent,
     GridComponent,
     LegendComponent,
     MarkLineComponent,
+    ToolboxComponent,
     TooltipComponent,
 } from 'echarts/components';
 import { CanvasRenderer } from 'echarts/renderers';
 
-echarts.use([BarChart, GaugeChart, LineChart, PieChart, GridComponent, LegendComponent, MarkLineComponent, TooltipComponent, CanvasRenderer]);
+echarts.use([
+    BarChart,
+    GaugeChart,
+    LineChart,
+    PieChart,
+    DataZoomComponent,
+    GridComponent,
+    LegendComponent,
+    MarkLineComponent,
+    ToolboxComponent,
+    TooltipComponent,
+    CanvasRenderer,
+]);
 
 // Design token warna — selaraskan dengan @theme di resources/css/app.css.
-// Satu sumber untuk semua series chart di aplikasi.
-export const CHART_COLORS = {
+// Single Source of Truth untuk seluruh warna ECharts di aplikasi.
+window.PLN_CHART_PALETTE = {
     primary: '#0b6175',
     accent: '#16a3b8',
+    softTeal: '#bce3e8',
+    targetSlate: '#cbd5e1',
+    gridLine: '#f1f5f9',
+    axisText: '#64748b',
+    rag: {
+        tercapai: '#10b981',
+        waspada: '#f59e0b',
+        kritis: '#f43f5e',
+    },
+};
+
+export const CHART_COLORS = {
+    primary: window.PLN_CHART_PALETTE.primary,
+    accent: window.PLN_CHART_PALETTE.accent,
     highlight: '#f1dc3a',
     muted: '#d8e3e7',
 };

@@ -18,21 +18,15 @@
             <h1 class="text-2xl font-bold tracking-tight text-slate-900">
                 Edit Divisi: {{ $division->name }}
             </h1>
-            <p class="mt-1 text-sm text-slate-500">
-                Perbarui nama dan informasi operasional unit divisi.
-            </p>
         </div>
     </div>
 
-    <div class="overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-2xs">
+    <div class="ibs-card animate-entrance overflow-hidden">
 
-        <div class="border-b border-slate-200/80 px-6 py-5">
-            <h2 class="text-base font-semibold text-slate-900">
+        <div class="border-b border-slate-100 px-6 py-4">
+            <h2 class="ibs-section-title">
                 Informasi Divisi
             </h2>
-            <p class="mt-1 text-xs text-slate-500">
-                Perbarui nama atau keterangan deskripsi divisi ini.
-            </p>
         </div>
 
         <div class="p-6">
@@ -56,14 +50,14 @@
                         Slug Divisi (Permanen / Immutable)
                     </label>
                     <div class="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-600 select-none">
-                        <svg class="h-4 w-4 shrink-0 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <svg class="h-4 w-4 shrink-0 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                             <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
                             <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
                         </svg>
-                        <span class="font-mono text-xs text-slate-700">{{ $division->slug }}</span>
+                        <span class="font-sans tabular-nums text-xs font-medium text-slate-700">{{ $division->slug }}</span>
                     </div>
                     <p class="mt-1.5 text-xs text-slate-500">
-                        Slug divisi bersifat permanen (immutable) untuk melindungi integritas mapping dataset dan tata letak dashboard.
+                        Slug bersifat permanen untuk menjaga integritas mapping dataset.
                     </p>
                 </div>
 
@@ -110,7 +104,7 @@
 
                     <button
                         type="submit"
-                        class="inline-flex items-center justify-center rounded-lg bg-teal-600 px-5 py-2 text-xs font-semibold text-white shadow-2xs transition hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-600 focus:ring-offset-2 active:bg-teal-800"
+                        class="inline-flex items-center justify-center rounded-lg bg-primary px-5 py-2 text-xs font-semibold text-white shadow-2xs transition hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
                     >
                         Perbarui Divisi
                     </button>

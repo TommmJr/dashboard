@@ -18,21 +18,15 @@
             <h1 class="text-2xl font-bold tracking-tight text-slate-900">
                 Tambah Divisi Baru
             </h1>
-            <p class="mt-1 text-sm text-slate-500">
-                Tambahkan unit divisi organisasi baru ke dalam sistem.
-            </p>
         </div>
     </div>
 
-    <div class="overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-2xs">
+    <div class="ibs-card animate-entrance overflow-hidden">
 
-        <div class="border-b border-slate-200/80 px-6 py-5">
-            <h2 class="text-base font-semibold text-slate-900">
+        <div class="border-b border-slate-100 px-6 py-4">
+            <h2 class="ibs-section-title">
                 Informasi Divisi
             </h2>
-            <p class="mt-1 text-xs text-slate-500">
-                Lengkapi nama dan keterangan operasional divisi di bawah ini.
-            </p>
         </div>
 
         <div class="p-6">
@@ -50,14 +44,14 @@
                 @csrf
 
                 {{-- Ketentuan Identifier Slug --}}
-                <div class="rounded-lg border border-teal-200/80 bg-teal-50/50 p-3.5 text-xs text-teal-800">
+                <div class="rounded-lg border border-[#0b6175]/15 bg-[#e6f4f6]/60 p-3.5 text-xs text-[#0b6175]">
                     <div class="flex items-start gap-2.5">
-                        <svg class="mt-0.5 h-4 w-4 shrink-0 text-teal-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <svg class="mt-0.5 h-4 w-4 shrink-0 text-[#0b6175]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                             <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
                             <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
                         </svg>
                         <span>
-                            <strong>Ketentuan Identifier Slug:</strong> Slug divisi dibuat otomatis dari nama divisi dan bersifat permanen (immutable) setelah disimpan untuk melindungi integritas mapping dataset dan tata letak dashboard.
+                            <strong>Slug permanen:</strong> dibuat otomatis dari nama divisi untuk menjaga integritas mapping dataset.
                         </span>
                     </div>
                 </div>
@@ -105,7 +99,7 @@
 
                     <button
                         type="submit"
-                        class="inline-flex items-center justify-center rounded-lg bg-teal-600 px-5 py-2 text-xs font-semibold text-white shadow-2xs transition hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-600 focus:ring-offset-2 active:bg-teal-800"
+                        class="inline-flex items-center justify-center rounded-lg bg-primary px-5 py-2 text-xs font-semibold text-white shadow-2xs transition hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
                     >
                         Simpan Divisi
                     </button>

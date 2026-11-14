@@ -4,25 +4,60 @@
 @source '../../storage/framework/views/*.php';
 
 @theme {
-    --font-sans: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
-        'Segoe UI Symbol', 'Noto Color Emoji';
+    --font-sans: 'Plus Jakarta Sans', 'Inter', ui-sans-serif, system-ui, sans-serif;
 
     /* Design token warna (single source of truth; dipakai ulang untuk
        konfigurasi warna ECharts di resources/js/app.js). */
-    --color-primary: #0b6175;   /* sidebar, header, judul */
-    --color-accent: #16a3b8;    /* link, hover, chart series utama, focus */
-    --color-surface: #f4f8fa;   /* background halaman */
-    --color-highlight: #f1dc3a; /* active indicator dan highlight */
-    --color-muted: #d8e3e7;     /* border, divider, disabled */
+    --color-primary: #0b6175;       /* sidebar, header, judul */
+    --color-primary-soft: #e6f4f6;  /* surface lembut untuk pill/badge/avatar aktif */
+    --color-accent: #16a3b8;        /* link, hover, chart series utama, focus */
+    --color-chart-muted: #bce3e8;   /* soft teal untuk chart bar sekunder */
+    --color-surface: #f4f8fa;       /* background halaman */
+    --color-surface-card: #ffffff;  /* background kartu laporan */
+    /* Catatan keterbacaan: --color-highlight (#f1dc3a) TIDAK BOLEH dipakai
+       sebagai warna teks atau garis di atas background putih. */
+    --color-highlight: #f1dc3a;     /* active indicator dan highlight di permukaan gelap */
+    --color-muted: #d8e3e7;         /* border, divider, disabled */
+}
+
+@layer base {
+    html,
+    body {
+        font-family: var(--font-sans);
+    }
+
+    td,
+    .tabular-nums {
+        font-family: var(--font-sans);
+        font-variant-numeric: tabular-nums;
+    }
+}
+
+@layer components {
+    .ibs-card {
+        @apply rounded-2xl border border-slate-200/80 bg-white shadow-2xs;
+    }
+
+    .ibs-metric-value {
+        @apply font-sans font-bold tracking-tight text-slate-900 tabular-nums;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .ibs-metric-label {
+        @apply font-sans text-xs font-medium text-slate-500;
+    }
+
+    .ibs-section-title {
+        @apply font-sans text-[15px] font-semibold tracking-tight text-slate-800;
+    }
 }
 
 [x-cloak] {
     display: none !important;
 }
 
-/* ==========================================================================
-   Global Expensive Minimalist Micro-Animations & Utilities
-   ========================================================================== */
+/*
+   Global Expensive Minimalist Micro-Animations & Utilities */
 
 @keyframes fadeInSlideUp {
     from {

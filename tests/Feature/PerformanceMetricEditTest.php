@@ -343,7 +343,7 @@ class PerformanceMetricEditTest extends TestCase
 
     public function test_detail_dataset_merender_tabel_metrik_read_only_dan_tanpa_tombol_edit(): void
     {
-        $this->actingAs($this->staffA)
+        $response = $this->actingAs($this->staffA)
             ->get(route('datasets.show', $this->datasetA))
             ->assertOk()
             ->assertSee('Rincian Metrik Data')
@@ -351,6 +351,11 @@ class PerformanceMetricEditTest extends TestCase
             ->assertSee('Read-Only')
             ->assertSee('Metric Awal')
             ->assertDontSee(route('performance_metrics.edit', $this->metricA), false)
-            ->assertDontSee('>Edit<', false);
+            ->assertDontSee('>Edit<', false)
+            ->assertDontSee('id="asset-sync-reconciliation-inspector"', false)
+            ->assertDontSee('Inspeksi & Analisis Rekonsiliasi Data Sync Aset');
+
+        $this->assertFalse($response->viewData('isAssetDataset'));
+        $this->assertNull($response->viewData('assetAnalysis'));
     }
 }

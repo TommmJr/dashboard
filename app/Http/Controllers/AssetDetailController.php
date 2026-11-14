@@ -50,10 +50,18 @@ class AssetDetailController extends Controller
 
         $divisionId = $user->division_id;
         $data = $assetStockReport->detailedBreakdown(divisionId: $divisionId);
+        $ownership = $data['ownership'] ?? [
+            'parent_code' => 'UIT JBT',
+            'parent_name' => 'Unit Induk Transmisi Jawa Bagian Tengah (UIT JBT)',
+            'parent_source' => 'Rekap Induk UIT (Tab 1a)',
+            'distribution_scope' => 'Distribusi Wilayah 8 UPT Kanonis (Tab 1b)',
+            'has_uit_totals' => false,
+        ];
 
         return view('dashboard.asset-detail', [
             'data' => $data,
             'section' => $section,
+            'ownership' => $ownership,
         ]);
     }
 }

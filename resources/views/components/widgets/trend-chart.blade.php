@@ -1,9 +1,9 @@
 @props(['widget' => [], 'data' => null])
 
 {{-- Area chart ECharts --}}
-<div class="h-full rounded-xl bg-white p-4 sm:p-5 shadow-xs border border-slate-200/80 transition-all duration-200 ease-out hover:shadow-md">
-    <div class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-        <h3 class="text-base font-bold text-primary">{{ $widget['label'] ?? 'Grafik Tren Kinerja' }}</h3>
+<div class="ibs-card h-full p-5">
+    <div class="flex flex-wrap items-center justify-between gap-2">
+        <h3 class="ibs-section-title text-base font-bold text-slate-900">{{ $widget['label'] ?? 'Grafik Tren Kinerja' }}</h3>
         {{-- Subjudul dinamis: jujur soal jumlah periode yang tersedia. --}}
         <p class="text-xs text-slate-500" x-text="chartSubtitle()" x-cloak></p>
     </div>
@@ -26,17 +26,24 @@
         </div>
     </div>
 
-    <div x-show="!loading && empty" x-cloak class="mt-3 flex h-56 flex-col items-center justify-center gap-2 text-sm text-gray-500 sm:h-64 lg:h-72">
+    <div x-show="!loading && error !== ''" x-cloak class="mt-3 flex h-56 flex-col items-center justify-center gap-2 text-sm text-rose-700 sm:h-64 lg:h-72" role="alert">
+        <p x-text="error"></p>
+        <button type="button" @click="load()" class="inline-flex items-center rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 shadow-2xs">
+            Muat Ulang
+        </button>
+    </div>
+
+    <div x-show="!loading && empty && error === ''" x-cloak class="mt-3 flex h-56 flex-col items-center justify-center gap-2 text-sm text-slate-500 sm:h-64 lg:h-72">
         <p>Belum ada data kinerja yang aktif.</p>
         @can('dataset.import')
-            <a href="{{ route('datasets.create') }}" class="text-accent hover:underline">Upload dataset pertama</a>
+            <a href="{{ route('datasets.create') }}" class="text-xs font-semibold text-[#0b6175] hover:underline">Upload dataset pertama</a>
         @endcan
     </div>
 
     {{-- Chart selalu tampil. Bentuknya menyesuaikan jumlah periode: 1 periode =
          bar per unit (Y dari 0, satu warna, urut tertinggi) supaya snapshot
          terbaca jujur; >1 periode = garis tren per unit. --}}
-    <div x-show="!loading && !empty" x-cloak class="mt-2">
+    <div x-show="!loading && !empty && error === ''" x-cloak class="mt-3">
         <div id="performanceChart" class="h-56 w-full sm:h-64 lg:h-72" style="width: 100%; height: 288px; min-height: 224px;"></div>
     </div>
 </div>

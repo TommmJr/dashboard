@@ -215,6 +215,12 @@ class DashboardController extends Controller
             $filters['units'],
         );
 
+        $fullscreenChartData = $this->kpiFullscreenChartData(
+            $targetRealisasiData,
+            $kinerjaDetailData,
+            $filters['units'],
+        );
+
         return view('dashboard.kpi-detail', [
             'filters' => $filters,
             'availableUnits' => $this->availableUnits($user),
@@ -232,7 +238,201 @@ class DashboardController extends Controller
                 'instance' => 1,
             ],
             'kinerjaDetailData' => $kinerjaDetailData,
+            'fullscreenChartData' => $fullscreenChartData,
         ]);
+    }
+
+    /**
+     * Susun payload terstruktur untuk mode Visualisasi Grafik Layar Penuh di halaman Rincian KPI.
+     *
+     * @param  array<string, mixed>  $targetRealisasiData
+     * @param  array<string, mixed>  $kinerjaDetailData
+     * @param  list<string>  $selectedUnits
+     * @return array{
+     *     period: string|null,
+     *     unitLabel: string,
+     *     ragThresholds: array{tercapai_min: float, hampir_min: float},
+     *     indicators: list<array<string, mixed>>
+     * }
+     */
+    private function kpiFullscreenChartData(array $targetRealisasiData, array $kinerjaDetailData, array $selectedUnits): array
+    {
+        $rag = KpiScoreNormalizer::ragThresholds();
+        $period = $kinerjaDetailData['period'] ?? ($targetRealisasiData['period'] ?? null);
+
+        $fmtNum = static function (?float $value, int $decimals = 2): string {
+            if ($value === null) {
+                return '—';
+            }
+
+            $formatted = number_format($value, $decimals, ',', '.');
+
+            return str_contains($formatted, ',') ? rtrim(rtrim($formatted, '0'), ',') : $formatted;
+        };
+
+        $sections = $targetRealisasiData['sections'] ?? [];
+        $availableSectionUnits = array_values(array_unique(array_filter(
+            array_map(static fn (array $s): string => (string) ($s['unit'] ?? ''), $sections),
+            static fn (string $u): bool => $u !== '',
+        )));
+
+        $activeUnits = $selectedUnits !== []
+            ? array_values(array_intersect($selectedUnits, $availableSectionUnits))
+            : [];
+
+        $panelRows = [];
+        $indicatorIds = [];
+
+        foreach ($sections as $section) {
+            $unit = (string) ($section['unit'] ?? '');
+            if ($activeUnits !== [] && ! in_array($unit, $activeUnits, true)) {
+                continue;
+            }
+
+            foreach ($section['panels'] ?? [] as $panel) {
+                $panelRows[] = [
+                    'unit' => $unit,
+                    'group' => (string) ($section['name'] ?? 'Umum'),
+                    'panel' => $panel,
+                ];
+                if (isset($panel['indicator_id'])) {
+                    $indicatorIds[] = (int) $panel['indicator_id'];
+                }
+            }
+        }
+
+        $indicatorMeta = $indicatorIds !== []
+            ? DB::table('indicators')
+                ->whereIn('id', array_values(array_unique($indicatorIds)))
+                ->select('id', 'polarity', 'bobot')
+                ->get()
+                ->keyBy('id')
+            : collect();
+
+        $tierToStatus = static function (string $tier): string {
+            return match ($tier) {
+                KpiScoreNormalizer::TIER_TERCAPAI => 'Tercapai',
+                KpiScoreNormalizer::TIER_HAMPIR => 'Hampir Tercapai',
+                KpiScoreNormalizer::TIER_PERLU => 'Perlu Peningkatan',
+                default => 'Belum Terverifikasi',
+            };
+        };
+
+        $indicators = [];
+
+        foreach ($panelRows as $idx => $entry) {
+            $panel = $entry['panel'];
+            $unit = $entry['unit'];
+            $id = $panel['indicator_id'] ?? $idx;
+            $meta = isset($panel['indicator_id']) ? $indicatorMeta->get((int) $panel['indicator_id']) : null;
+
+            $polaritas = match ($meta?->polarity) {
+                KpiReportConverter::POLARITY_LOWER_IS_BETTER => 'Negatif',
+                KpiReportConverter::POLARITY_HIGHER_IS_BETTER => 'Positif',
+                default => 'Positif',
+            };
+
+            $bobot = ($meta?->bobot !== null && (string) $meta->bobot !== '')
+                ? (string) $meta->bobot
+                : '—';
+
+            $mode = (string) ($panel['mode'] ?? 'numeric');
+            $targetNum = $mode === 'numeric' && isset($panel['numeric']['target'])
+                ? (float) $panel['numeric']['target']
+                : null;
+            $realisasiNum = $mode === 'numeric' && isset($panel['numeric']['realisasi'])
+                ? (float) $panel['numeric']['realisasi']
+                : null;
+
+            if ($mode === 'numeric') {
+                $targetDisplay = $fmtNum($targetNum, 4);
+                $realisasiDisplay = $fmtNum($realisasiNum, 4);
+            } elseif ($mode === 'date') {
+                $targetDisplay = (string) ($panel['date']['target'] ?? '—');
+                $realisasiDisplay = (string) ($panel['date']['realisasi'] ?? '—');
+            } else {
+                $targetDisplay = '—';
+                $realisasiDisplay = '—';
+            }
+
+            $rawPct = $panel['score']['percent'] ?? null;
+            $scale = $panel['score']['scale'] ?? null;
+            $pct = ($rawPct !== null && $scale !== 'unverified') ? round((float) $rawPct, 1) : null;
+
+            $tier = $pct === null ? 'unverified' : KpiScoreNormalizer::ragTier($pct);
+            $satuan = isset($panel['satuan']) && trim((string) $panel['satuan']) !== ''
+                ? (string) $panel['satuan']
+                : '—';
+
+            $indicators[] = [
+                'key' => $unit.'|'.$id.'|'.$idx,
+                'indicator_id' => $panel['indicator_id'] ?? null,
+                'unit' => $unit,
+                'group' => $entry['group'],
+                'indikator' => (string) ($panel['name'] ?? ''),
+                'satuan' => $satuan,
+                'polaritas' => $polaritas,
+                'bobot' => $bobot,
+                'mode' => $mode,
+                'target_num' => $targetNum,
+                'realisasi_num' => $realisasiNum,
+                'target_display' => $targetDisplay,
+                'realisasi_display' => $realisasiDisplay,
+                'pencapaian' => $pct,
+                'pencapaian_display' => $pct !== null ? $fmtNum($pct, 1).'%' : '—',
+                'tier' => $tier,
+                'status' => $tierToStatus($tier),
+            ];
+        }
+
+        if ($indicators === [] && ! empty($kinerjaDetailData['rows'])) {
+            foreach ($kinerjaDetailData['rows'] as $idx => $row) {
+                $pct = isset($row['pencapaian']) && $row['pencapaian'] !== null
+                    ? round((float) $row['pencapaian'], 1)
+                    : null;
+                $tier = $pct === null ? 'unverified' : KpiScoreNormalizer::ragTier($pct);
+                $isDate = ($row['target_display'] ?? null) !== null || ($row['realisasi_display'] ?? null) !== null;
+                $targetNum = (! $isDate && isset($row['target']) && $row['target'] !== null) ? (float) $row['target'] : null;
+                $realisasiNum = (! $isDate && isset($row['realisasi']) && $row['realisasi'] !== null) ? (float) $row['realisasi'] : null;
+
+                $indicators[] = [
+                    'key' => ($row['unit'] ?? '').'|'.$idx,
+                    'indicator_id' => null,
+                    'unit' => (string) ($row['unit'] ?? ''),
+                    'group' => 'Umum',
+                    'indikator' => (string) ($row['indikator'] ?? ''),
+                    'satuan' => '—',
+                    'polaritas' => 'Positif',
+                    'bobot' => '—',
+                    'mode' => $isDate ? 'date' : 'numeric',
+                    'target_num' => $targetNum,
+                    'realisasi_num' => $realisasiNum,
+                    'target_display' => (string) ($row['target_display'] ?? $fmtNum($targetNum, 2)),
+                    'realisasi_display' => (string) ($row['realisasi_display'] ?? $fmtNum($realisasiNum, 2)),
+                    'pencapaian' => $pct,
+                    'pencapaian_display' => $pct !== null ? $fmtNum($pct, 1).'%' : '—',
+                    'tier' => $tier,
+                    'status' => $tierToStatus($tier),
+                ];
+            }
+        }
+
+        if ($activeUnits !== []) {
+            $unitLabel = implode(', ', $activeUnits);
+        } elseif (! empty($this->visibleUnits())) {
+            $unitLabel = implode(', ', $this->visibleUnits());
+        } elseif (! empty($targetRealisasiData['units'])) {
+            $unitLabel = implode(', ', $targetRealisasiData['units']);
+        } else {
+            $unitLabel = 'Semua Unit';
+        }
+
+        return [
+            'period' => $period,
+            'unitLabel' => $unitLabel,
+            'ragThresholds' => $rag,
+            'indicators' => $indicators,
+        ];
     }
 
     /**

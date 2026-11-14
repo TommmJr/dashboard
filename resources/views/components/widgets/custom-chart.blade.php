@@ -9,21 +9,21 @@
     $chartId = 'customChart-' . $instance . '-' . substr(md5(json_encode($config)), 0, 6);
 @endphp
 
-<div class="rounded-lg bg-white border border-slate-200 shadow-sm p-6"
+<div class="ibs-card p-5"
      x-data="customChartWidget(@js($config), @js($chartId))"
      x-init="initChart()">
-    <div class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-        <h3 class="text-lg font-bold text-primary">{{ $title }}</h3>
-        <span class="text-xs font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-600">
+    <div class="flex flex-wrap items-center justify-between gap-2">
+        <h3 class="ibs-section-title text-base font-bold text-slate-900">{{ $title }}</h3>
+        <span class="inline-flex items-center rounded-full bg-[#e6f4f6] px-2.5 py-0.5 text-[11px] font-semibold text-[#0b6175]">
             {{ $metric === 'nko_score' ? 'Skor NKO' : 'Rasio Pencapaian' }} ({{ ucfirst($chartType) }})
         </span>
     </div>
 
-    <div x-show="loading" class="mt-4 flex h-64 w-full items-center justify-center text-sm text-gray-500 sm:h-80">
+    <div x-show="loading" class="mt-4 flex h-64 w-full items-center justify-center text-xs font-medium text-slate-500 sm:h-80">
         Memuat data grafik...
     </div>
 
-    <div x-show="!loading && empty" x-cloak class="mt-4 flex h-64 w-full items-center justify-center text-sm text-gray-500 sm:h-80">
+    <div x-show="!loading && empty" x-cloak class="mt-4 flex h-64 w-full items-center justify-center text-xs font-medium text-slate-500 sm:h-80">
         Belum ada data untuk metrik ini.
     </div>
 
@@ -71,14 +71,29 @@ if (typeof window.customChartWidget !== 'function') {
                             }).observe(el);
                         }
 
+                        const palette = window.PLN_CHART_PALETTE || {
+                            primary: '#0b6175',
+                            accent: '#16a3b8',
+                            softTeal: '#bce3e8',
+                            targetSlate: '#cbd5e1',
+                            gridLine: '#f1f5f9',
+                            axisText: '#64748b',
+                            rag: {
+                                tercapai: '#10b981',
+                                waspada: '#f59e0b',
+                                kritis: '#f43f5e'
+                            }
+                        };
+
                         let option = {};
                         if (data.chart_type === 'donut') {
                             option = {
                                 animation: true,
                                 animationDuration: 650,
                                 animationEasing: 'cubicOut',
+                                color: [palette.primary, palette.accent, palette.softTeal, palette.rag.tercapai, palette.rag.waspada, palette.targetSlate],
                                 tooltip: { trigger: 'item', formatter: '{b}: {c}' },
-                                legend: { bottom: 0 },
+                                legend: { bottom: 0, textStyle: { color: palette.axisText, fontSize: 11 } },
                                 series: [{
                                     name: data.series[0].name || 'Metrik',
                                     type: 'pie',
@@ -88,19 +103,33 @@ if (typeof window.customChartWidget !== 'function') {
                                 }]
                             };
                         } else {
+                            const isLine = data.chart_type === 'line';
                             option = {
                                 animation: true,
                                 animationDuration: 650,
                                 animationEasing: 'cubicOut',
                                 tooltip: { trigger: 'axis' },
                                 grid: { left: '3%', right: '4%', bottom: '10%', containLabel: true },
-                                xAxis: { type: 'category', data: data.categories || [] },
-                                yAxis: { type: 'value' },
+                                xAxis: {
+                                    type: 'category',
+                                    data: data.categories || [],
+                                    axisLabel: { color: palette.axisText, fontSize: 11 }
+                                },
+                                yAxis: {
+                                    type: 'value',
+                                    axisLabel: { color: palette.axisText, fontSize: 11 },
+                                    splitLine: { lineStyle: { color: palette.gridLine } }
+                                },
                                 series: [{
                                     name: data.series[0].name || 'Metrik',
-                                    type: data.chart_type === 'line' ? 'line' : 'bar',
+                                    type: isLine ? 'line' : 'bar',
                                     data: seriesData,
-                                    smooth: data.chart_type === 'line'
+                                    smooth: isLine,
+                                    itemStyle: {
+                                        color: palette.primary,
+                                        borderRadius: isLine ? 0 : [6, 6, 0, 0]
+                                    },
+                                    lineStyle: isLine ? { color: palette.primary, width: 2.5 } : undefined
                                 }]
                             };
                         }

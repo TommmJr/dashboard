@@ -11,7 +11,7 @@
 @endphp
 
 @if ($rows === [])
-    <span class="text-gray-400">-</span>
+    <span class="text-xs text-slate-400">Tidak tercatat</span>
 @else
     <ul class="space-y-1">
         @foreach ($rows as $row)

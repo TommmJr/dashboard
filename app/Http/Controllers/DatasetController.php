@@ -11,6 +11,7 @@ use App\Models\Role;
 use App\Models\User;
 use App\Services\AssetDualUploadService;
 use App\Services\AssetSheetsSyncService;
+use App\Services\AssetStockReport;
 use App\Services\DatasetImportService;
 use App\Services\KpiReportConverter;
 use App\Services\StructuredKpiImporter;
@@ -765,6 +766,9 @@ class DatasetController extends Controller
 
         $query = Dataset::query()
             ->with(['division:id,name', 'user:id,name'])
+            ->withExists([
+                'metrics as is_asset_dataset' => fn ($q) => $q->where('metric_name', 'like', 'ASET | %'),
+            ])
             ->latest();
 
         if (! $this->seesAllDivisions($user)) {
@@ -806,7 +810,313 @@ class DatasetController extends Controller
         $metrics = $dataset->metrics()->orderBy('period')->paginate(20);
         $hasObservations = $dataset->observations()->exists();
 
-        return view('datasets.show', compact('dataset', 'metrics', 'hasObservations'));
+        $isAssetDataset = $dataset->metrics()->where('metric_name', 'like', 'ASET | %')->exists();
+        $assetAnalysis = $isAssetDataset ? $this->buildAssetAnalysis($dataset) : null;
+
+        return view('datasets.show', compact('dataset', 'metrics', 'hasObservations', 'isAssetDataset', 'assetAnalysis'));
+    }
+
+    /**
+     * Susun analisis inspeksi & rekonsiliasi data sync Aset (Tab 1a UIT vs Tab 1b 8 UPT).
+     *
+     * @return array<string, mixed>
+     */
+    private function buildAssetAnalysis(Dataset $dataset): array
+    {
+        $canonicalUpts = AssetStockReport::CANONICAL_UPTS;
+        $metrics = $dataset->metrics()
+            ->where('metric_name', 'like', 'ASET | %')
+            ->orderBy('metric_name')
+            ->get(['metric_name', 'value', 'period']);
+
+        $uitRows = [];
+        $uitByNormalized = [];
+        $uptMatrixMap = [];
+        $uptRowCount = 0;
+
+        foreach ($metrics as $metric) {
+            $name = (string) $metric->metric_name;
+            $value = (float) $metric->value;
+            $period = $metric->period instanceof \DateTimeInterface
+                ? $metric->period->format('Y-m-d')
+                : substr((string) $metric->period, 0, 10);
+
+            if (str_starts_with($name, 'ASET | UIT | ')) {
+                $parts = explode(' | ', $name, 3);
+                $remainder = trim((string) ($parts[2] ?? ''));
+                if ($remainder === '') {
+                    continue;
+                }
+
+                $subParts = explode(' | ', $remainder, 2);
+                $kelompok = trim($subParts[0]);
+                $satuan = trim((string) ($subParts[1] ?? ''));
+                $kategori = $this->classifyAssetCategory($remainder);
+
+                $uitRows[] = [
+                    'metric_name' => $name,
+                    'kelompok' => $kelompok,
+                    'satuan' => $satuan !== '' ? $satuan : '-',
+                    'label' => $remainder,
+                    'kategori' => $kategori,
+                    'value' => round($value, 2),
+                    'period' => $period,
+                ];
+
+                $normKey = $this->normalizeAssetAttributeKey($remainder);
+                if (! isset($uitByNormalized[$normKey])) {
+                    $uitByNormalized[$normKey] = [
+                        'label' => $remainder,
+                        'kategori' => $kategori,
+                        'value' => 0.0,
+                    ];
+                }
+                $uitByNormalized[$normKey]['value'] += $value;
+
+                continue;
+            }
+
+            $parts = explode(' | ', $name, 4);
+            $upt = trim((string) ($parts[1] ?? ''));
+            $atribut = trim((string) ($parts[3] ?? ''));
+            if ($upt === '' || $atribut === '') {
+                continue;
+            }
+
+            $uptRowCount++;
+
+            if (! isset($uptMatrixMap[$atribut])) {
+                $uptValues = [];
+                foreach ($canonicalUpts as $canonicalUpt) {
+                    $uptValues[$canonicalUpt] = 0.0;
+                }
+
+                $uptMatrixMap[$atribut] = [
+                    'atribut' => $atribut,
+                    'kategori' => $this->classifyAssetCategory($atribut),
+                    'upt_values' => $uptValues,
+                    'upt_sum' => 0.0,
+                ];
+            }
+
+            if (array_key_exists($upt, $uptMatrixMap[$atribut]['upt_values'])) {
+                $uptMatrixMap[$atribut]['upt_values'][$upt] += $value;
+                $uptMatrixMap[$atribut]['upt_sum'] += $value;
+            }
+        }
+
+        $uptByNormalized = [];
+        $hasTrafo150_20In1b = false;
+
+        foreach ($uptMatrixMap as $atribut => $entry) {
+            if (str_contains($atribut, '150/20')) {
+                $hasTrafo150_20In1b = true;
+            }
+
+            foreach ($canonicalUpts as $canonicalUpt) {
+                $uptMatrixMap[$atribut]['upt_values'][$canonicalUpt] = round($entry['upt_values'][$canonicalUpt], 2);
+            }
+            $uptMatrixMap[$atribut]['upt_sum'] = round($entry['upt_sum'], 2);
+
+            $normKey = $this->normalizeAssetAttributeKey($atribut);
+            if (! isset($uptByNormalized[$normKey])) {
+                $uptByNormalized[$normKey] = [
+                    'labels' => [],
+                    'kategori' => $entry['kategori'],
+                    'value' => 0.0,
+                ];
+            }
+            $uptByNormalized[$normKey]['labels'][] = $atribut;
+            $uptByNormalized[$normKey]['value'] += $entry['upt_sum'];
+        }
+
+        $uptMatrix = array_values($uptMatrixMap);
+        usort($uptMatrix, static fn (array $a, array $b): int => [$a['kategori'], $a['atribut']] <=> [$b['kategori'], $b['atribut']]);
+
+        $reconciliation = [];
+        $towerUitTotal = 0.0;
+        $towerUptTotal = 0.0;
+        $hasTower = false;
+
+        $transmisiUitTotal = 0.0;
+        $transmisiUptTotal = 0.0;
+        $hasTransmisi = false;
+
+        $trafoMvaUitTotal = 0.0;
+        $trafoMvaUptTotal = 0.0;
+        $hasTrafoMva = false;
+
+        foreach ($uitRows as $row) {
+            $label = $row['label'];
+            $lower = mb_strtolower($label);
+
+            if (str_contains($lower, 'tower') && preg_match('/\bsu\b/i', $label)) {
+                $towerUitTotal += $row['value'];
+                $hasTower = true;
+            } elseif (str_contains($lower, 'transmisi') && preg_match('/\bsu\b/i', $label) && (str_contains($lower, 'kms') || str_contains($lower, 'su'))) {
+                $transmisiUitTotal += $row['value'];
+                $hasTransmisi = true;
+            } elseif (str_contains($lower, 'trafo') && str_contains($lower, 'mva')) {
+                if (! str_contains($label, '150/20') || $hasTrafo150_20In1b) {
+                    $trafoMvaUitTotal += $row['value'];
+                    $hasTrafoMva = true;
+                }
+            }
+        }
+
+        foreach ($uptMatrix as $entry) {
+            $atribut = $entry['atribut'];
+            $lower = mb_strtolower($atribut);
+
+            if (str_contains($lower, 'tower') && preg_match('/\bsu\b/i', $atribut)) {
+                $towerUptTotal += $entry['upt_sum'];
+                $hasTower = true;
+            } elseif (str_contains($lower, 'transmisi') && preg_match('/\bsu\b/i', $atribut) && str_contains($lower, 'kms')) {
+                $transmisiUptTotal += $entry['upt_sum'];
+                $hasTransmisi = true;
+            } elseif (str_contains($lower, 'trafo') && str_contains($lower, 'mva')) {
+                $trafoMvaUptTotal += $entry['upt_sum'];
+                $hasTrafoMva = true;
+            }
+        }
+
+        $summaryTotalsSpec = [
+            ['show' => $hasTower, 'label' => 'Total Tower SU', 'kategori' => 'Tower', 'uit' => $towerUitTotal, 'upt' => $towerUptTotal],
+            ['show' => $hasTransmisi, 'label' => 'Total Transmisi SU kms', 'kategori' => 'Transmisi', 'uit' => $transmisiUitTotal, 'upt' => $transmisiUptTotal],
+            ['show' => $hasTrafoMva, 'label' => 'Total Kapasitas Trafo MVA', 'kategori' => 'Trafo', 'uit' => $trafoMvaUitTotal, 'upt' => $trafoMvaUptTotal],
+        ];
+
+        foreach ($summaryTotalsSpec as $spec) {
+            if (! $spec['show']) {
+                continue;
+            }
+            $uitVal = round($spec['uit'], 2);
+            $uptVal = round($spec['upt'], 2);
+            $delta = round($uitVal - $uptVal, 2);
+            $reconciliation[] = [
+                'label' => $spec['label'],
+                'uit_label' => $spec['label'].' (Tab 1a)',
+                'upt_label' => $spec['label'].' (Akumulasi 8 UPT)',
+                'kategori' => $spec['kategori'],
+                'is_summary' => true,
+                'uit_value' => $uitVal,
+                'upt_sum' => $uptVal,
+                'delta' => $delta,
+                'is_matched' => abs($delta) < 0.01,
+            ];
+        }
+
+        foreach ($uitByNormalized as $normKey => $uitItem) {
+            if (! isset($uptByNormalized[$normKey])) {
+                continue;
+            }
+
+            $uptItem = $uptByNormalized[$normKey];
+            $uitVal = round($uitItem['value'], 2);
+            $uptVal = round($uptItem['value'], 2);
+            $delta = round($uitVal - $uptVal, 2);
+
+            $reconciliation[] = [
+                'label' => $uitItem['label'],
+                'uit_label' => $uitItem['label'],
+                'upt_label' => implode(', ', $uptItem['labels']),
+                'kategori' => $uitItem['kategori'],
+                'is_summary' => false,
+                'uit_value' => $uitVal,
+                'upt_sum' => $uptVal,
+                'delta' => $delta,
+                'is_matched' => abs($delta) < 0.01,
+            ];
+        }
+
+        $matchedCount = count(array_filter($reconciliation, static fn (array $r): bool => $r['is_matched']));
+        $reconciledCount = count($reconciliation);
+
+        return [
+            'canonical_upts' => $canonicalUpts,
+            'uit_rows' => $uitRows,
+            'upt_matrix' => $uptMatrix,
+            'reconciliation' => $reconciliation,
+            'summary' => [
+                'uit_row_count' => count($uitRows),
+                'upt_row_count' => $uptRowCount,
+                'upt_attribute_count' => count($uptMatrix),
+                'total_sync_rows' => count($uitRows) + $uptRowCount,
+                'reconciled_count' => $reconciledCount,
+                'matched_count' => $matchedCount,
+                'mismatched_count' => $reconciledCount - $matchedCount,
+                'tower_uit' => round($towerUitTotal, 2),
+                'tower_upt' => round($towerUptTotal, 2),
+                'tower_matched' => abs($towerUitTotal - $towerUptTotal) < 0.01,
+                'transmisi_uit' => round($transmisiUitTotal, 2),
+                'transmisi_upt' => round($transmisiUptTotal, 2),
+                'transmisi_matched' => abs($transmisiUitTotal - $transmisiUptTotal) < 0.01,
+                'trafo_mva_uit' => round($trafoMvaUitTotal, 2),
+                'trafo_mva_upt' => round($trafoMvaUptTotal, 2),
+                'trafo_mva_matched' => abs($trafoMvaUitTotal - $trafoMvaUptTotal) < 0.01,
+            ],
+        ];
+    }
+
+    /**
+     * Klasifikasikan atribut aset ke 5 kategori standar.
+     */
+    private function classifyAssetCategory(string $name): string
+    {
+        $lower = mb_strtolower($name);
+
+        if (str_contains($lower, 'tower')) {
+            return 'Tower';
+        }
+        if (str_contains($lower, 'transmisi')) {
+            return 'Transmisi';
+        }
+        if (str_contains($lower, 'trafo')) {
+            return 'Trafo';
+        }
+        if (str_contains($lower, 'bay') || str_contains($lower, 'gardu') || str_contains($lower, 'gi/gitet') || preg_match('/\b(gi|gitet)\b/', $lower)) {
+            return 'Gardu Induk & Bay';
+        }
+
+        return 'Peralatan Lain';
+    }
+
+    /**
+     * Normalisasikan nama atribut aset untuk pencocokan Tab 1a (UIT) vs Tab 1b (8 UPT).
+     */
+    private function normalizeAssetAttributeKey(string $attribute): string
+    {
+        $cleaned = trim($attribute);
+        $cleaned = (string) preg_replace('/^Trafo\s+Tenaga\s+[^|]+\|\s*/i', '', $cleaned);
+
+        $rawSegments = array_values(array_filter(
+            array_map(static fn (string $part): string => trim((string) preg_replace('/\s+/', ' ', $part)), explode('|', $cleaned)),
+            static fn (string $part): bool => $part !== '',
+        ));
+
+        $expandedSegments = [];
+        foreach ($rawSegments as $segment) {
+            if (preg_match('/^(.+?)\s*\(([^)]+)\)$/', $segment, $matches)) {
+                $expandedSegments[] = trim($matches[1]);
+                $expandedSegments[] = trim($matches[2]);
+            } else {
+                $expandedSegments[] = $segment;
+            }
+        }
+
+        $deduped = [];
+        foreach ($expandedSegments as $segment) {
+            $lower = mb_strtolower($segment);
+            if ($deduped === [] || end($deduped) !== $lower) {
+                $deduped[] = $lower;
+            }
+        }
+
+        if (isset($deduped[0]) && str_starts_with($deduped[0], 'tower ') && count($deduped) >= 3 && end($deduped) === 'unit') {
+            array_pop($deduped);
+        }
+
+        return implode(' | ', $deduped);
     }
 
     /**

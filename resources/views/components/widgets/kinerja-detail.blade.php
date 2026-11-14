@@ -40,7 +40,7 @@
     // (105,50 → 105,5).
     $fmt = function ($value, int $decimals, string $suffix = ''): string {
         if ($value === null) {
-            return '—';
+            return 'Tidak tercatat';
         }
 
         $formatted = number_format((float) $value, $decimals, ',', '.');
@@ -54,7 +54,7 @@
 @endphp
 
 <div
-    class="h-full rounded-xl bg-white border border-slate-200/80 shadow-xs p-2.5 flex flex-col justify-start transition-all duration-200 ease-out hover:shadow-md"
+    class="ibs-card h-full p-5 flex flex-col justify-start"
     x-data="{
         tableSearch: '',
         tableRag: 'all',
@@ -65,9 +65,11 @@
     }"
 >
     <div class="flex flex-wrap items-center justify-between gap-2">
-        <div>
-            <h3 class="text-base font-bold text-primary">{{ $widget['label'] ?? 'Detail Metrik KPI' }}</h3>
-            <p class="mt-0.5 text-xs text-gray-500">Periode {{ $period ?? '—' }}</p>
+        <div class="flex flex-wrap items-center gap-2">
+            <h3 class="ibs-section-title text-base font-bold text-slate-900">{{ $widget['label'] ?? 'Detail Metrik KPI' }}</h3>
+            <span class="inline-flex items-center rounded-full bg-[#e6f4f6] px-2.5 py-0.5 text-[11px] font-semibold text-[#0b6175]">
+                Periode {{ $period ?? 'Belum tersedia' }}
+            </span>
         </div>
 
         @if (! empty($unitOptions))
@@ -83,14 +85,14 @@
                 @endif
                 <label for="kinerja-detail-unit" class="sr-only">Pilih unit</label>
                 <select id="kinerja-detail-unit" name="unit" onchange="this.form.submit()"
-                        class="h-9 rounded border border-slate-300 bg-white px-2 text-sm text-gray-700">
+                        class="h-8 rounded-xl border border-slate-200 bg-white px-2.5 text-xs text-slate-700 focus:border-[#16a3b8] focus:outline-none focus:ring-1 focus:ring-[#16a3b8]">
                     <option value="">Semua unit</option>
                     @foreach ($unitOptions as $unitOption)
                         <option value="{{ $unitOption }}" @selected($selectedUnit === $unitOption)>{{ $unitOption }}</option>
                     @endforeach
                 </select>
                 <noscript>
-                    <button type="submit" class="h-9 rounded border border-slate-300 bg-white px-3 text-sm text-gray-700">Tampilkan</button>
+                    <button type="submit" class="h-8 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700">Tampilkan</button>
                 </noscript>
                 {{-- Jalan pintas supaya pembaca non-developer langsung menjangkau
                      TJBT (di urutan pertama daftar). --}}
@@ -102,7 +104,7 @@
                         'start_date' => is_string($startDate) ? $startDate : null,
                         'end_date' => is_string($endDate) ? $endDate : null,
                     ])) }}"
-                   class="inline-flex h-9 items-center rounded border border-primary px-3 text-sm font-medium text-primary hover:bg-primary hover:text-white">
+                   class="inline-flex h-8 items-center rounded-xl border border-[#0b6175]/20 bg-white px-3 text-xs font-semibold text-[#0b6175] transition hover:bg-[#e6f4f6]/60 shadow-2xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0b6175]/40">
                     {{ $primaryUnit }}
                 </a>
             </form>
@@ -110,12 +112,12 @@
     </div>
 
     @if ($rows->isEmpty())
-        <p class="mt-4 rounded-lg bg-slate-50 p-5 text-sm text-gray-600">
+        <p class="mt-4 rounded-xl border border-slate-200/70 bg-slate-50 p-5 text-sm text-slate-600">
             Belum ada data metrik pada periode ini.
         </p>
     @else
         {{-- Toolbar pencarian cepat & filter RAG --}}
-        <div class="mt-2 flex flex-col gap-1.5 rounded-lg border border-slate-200/80 bg-slate-50/70 p-1.5 sm:flex-row sm:items-center sm:justify-between">
+        <div class="mt-3 flex flex-col gap-2 rounded-xl border border-slate-200/80 bg-slate-50/70 p-2 sm:flex-row sm:items-center sm:justify-between">
             <div class="relative flex-1 max-w-xs">
                 <input
                     id="kinerja-detail-search"
@@ -123,7 +125,7 @@
                     x-model="tableSearch"
                     placeholder="Cari indikator atau unit..."
                     aria-label="Cari indikator atau unit"
-                    class="w-full rounded-md border border-slate-300 bg-white py-1 pl-2.5 pr-2.5 text-xs text-slate-800 placeholder:text-slate-400 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                    class="w-full rounded-lg border border-slate-300 bg-white py-1.5 pl-3 pr-3 text-xs text-slate-800 placeholder:text-slate-400 focus:border-[#16a3b8] focus:outline-none focus:ring-1 focus:ring-[#16a3b8]"
                 />
             </div>
             <div class="flex flex-wrap items-center gap-1.5 text-[11px]">
@@ -172,9 +174,9 @@
             </div>
         @endif
 
-        <div class="relative overflow-x-auto mt-2 rounded-lg border border-slate-200">
+        <div class="relative overflow-x-auto mt-3 rounded-xl border border-slate-200">
             <table class="w-full text-sm">
-                <thead class="bg-slate-50/80 text-xs text-slate-600 font-semibold uppercase tracking-wider border-b border-slate-200">
+                <thead class="bg-slate-50/80 text-[11px] text-slate-600 font-semibold uppercase tracking-wider border-b border-slate-200">
                     <tr>
                         <th class="py-2.5 px-3 text-left">Unit</th>
                         <th class="py-2.5 px-3 text-left">Indikator</th>
@@ -207,13 +209,13 @@
                             x-show="matches('{{ addcslashes($row['indikator'], "'\\") }}', '{{ addcslashes($row['unit'], "'\\") }}', '{{ $tier }}')"
                             class="hover:bg-slate-50/60 transition-colors"
                         >
-                            <td class="py-2.5 px-3 font-semibold text-primary">{{ $row['unit'] }}</td>
+                            <td class="py-2.5 px-3 font-semibold text-[#0b6175]">{{ $row['unit'] }}</td>
                             <td class="py-2.5 px-3 text-slate-800">{{ $row['indikator'] }}</td>
-                            <td class="py-2.5 px-3 text-right font-medium text-slate-600">{{ $row['target_display'] ?? $fmt($row['target'] ?? null, 2) }}</td>
-                            <td class="py-2.5 px-3 text-right font-medium text-slate-600">{{ $row['realisasi_display'] ?? $fmt($row['realisasi'] ?? null, 2) }}</td>
+                            <td class="py-2.5 px-3 text-right font-medium text-slate-600 tabular-nums">{{ $row['target_display'] ?? $fmt($row['target'] ?? null, 2) }}</td>
+                            <td class="py-2.5 px-3 text-right font-medium text-slate-600 tabular-nums">{{ $row['realisasi_display'] ?? $fmt($row['realisasi'] ?? null, 2) }}</td>
                             <td class="py-2.5 px-3 text-right">
                                 <div class="flex flex-col items-end">
-                                    <span class="font-medium text-slate-800">{{ $fmt($pencapaianVal, 1, '%') }}</span>
+                                    <span class="font-medium text-slate-800 tabular-nums">{{ $fmt($pencapaianVal, 1, '%') }}</span>
                                     @if ($pencapaianVal !== null)
                                         <div class="mt-1 h-1.5 w-16 sm:w-20 rounded-full bg-slate-100 overflow-hidden">
                                             <div class="h-full rounded-full {{ $barColor }}" style="width: {{ round($barWidth, 1) }}%"></div>
@@ -235,17 +237,17 @@
                 'all' => $showAll ? null : 1,
             ]);
         @endphp
-        <div class="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-gray-500">
-            <span>
+        <div class="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
+            <span class="tabular-nums">
                 Menampilkan {{ $displayRows->count() }} dari {{ $totalRows > 0 ? $totalRows : $rows->count() }} baris.
             </span>
             <div class="flex flex-wrap items-center gap-3">
                 @if ($isLimited)
-                    <a href="{{ route($currentRouteName, $seeAllParams) }}#kinerja-detail" class="font-semibold text-primary hover:underline inline-flex items-center gap-1">
+                    <a href="{{ route($currentRouteName, $seeAllParams) }}#kinerja-detail" class="font-semibold text-[#0b6175] hover:underline inline-flex items-center gap-1">
                         Lihat semua ({{ $totalRows > 0 ? $totalRows : $rows->count() }} baris) &rarr;
                     </a>
                 @elseif (! request()->routeIs('dashboard.kpi-detail') && $showAll && $rows->count() > 10)
-                    <a href="{{ route($currentRouteName, $seeAllParams) }}#kinerja-detail" class="font-semibold text-primary hover:underline inline-flex items-center gap-1">
+                    <a href="{{ route($currentRouteName, $seeAllParams) }}#kinerja-detail" class="font-semibold text-[#0b6175] hover:underline inline-flex items-center gap-1">
                         Tampilkan ringkas (10 baris) &rarr;
                     </a>
                 @endif
@@ -254,12 +256,12 @@
                         'unit' => $selectedUnit,
                         'start_date' => is_string($startDate) ? $startDate : null,
                         'end_date' => is_string($endDate) ? $endDate : null,
-                    ])) }}" class="font-semibold text-teal-700 hover:underline inline-flex items-center gap-1">
+                    ])) }}" class="font-semibold text-[#0b6175] hover:underline inline-flex items-center gap-1">
                         Halaman Rincian KPI &rarr;
                     </a>
                 @endif
                 @if (\App\Http\Controllers\KpiAnalyticsController::canAccessKpiAnalytics(auth()->user()))
-                    <a href="{{ route('dashboard.kpi-analytics') }}" class="font-semibold text-teal-700 hover:underline inline-flex items-center gap-1">
+                    <a href="{{ route('dashboard.kpi-analytics') }}" class="font-semibold text-[#0b6175] hover:underline inline-flex items-center gap-1">
                         Analitik &rarr;
                     </a>
                 @endif

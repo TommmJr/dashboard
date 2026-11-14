@@ -18,21 +18,15 @@
             <h1 class="text-2xl font-bold tracking-tight text-slate-900">
                 Edit User: {{ $user->name }}
             </h1>
-            <p class="mt-1 text-sm text-slate-500">
-                Perbarui profil pengguna, kredensial kata sandi, dan hak akses penempatan.
-            </p>
         </div>
     </div>
 
-    <div class="overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-2xs">
+    <div class="ibs-card animate-entrance overflow-hidden">
 
-        <div class="border-b border-slate-200/80 px-6 py-5">
-            <h2 class="text-base font-semibold text-slate-900">
+        <div class="border-b border-slate-100 px-6 py-4">
+            <h2 class="ibs-section-title">
                 Informasi Pengguna
             </h2>
-            <p class="mt-1 text-xs text-slate-500">
-                Perbarui data profil identitas dan hak akses akun ini.
-            </p>
         </div>
 
         <div class="p-6">
@@ -95,9 +89,6 @@
                     <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-500">
                         Keamanan &amp; Kata Sandi
                     </h3>
-                    <p class="mt-1 text-xs text-slate-400">
-                        Kosongkan kata sandi jika tidak ingin mengubah kata sandi yang sudah ada.
-                    </p>
                     <div class="mt-3 grid grid-cols-1 gap-5 sm:grid-cols-2">
                         <div>
                             <label for="password" class="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-600">
@@ -160,7 +151,7 @@
                                 required
                                 class="block w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-2xs transition focus:border-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-600/15"
                             >
-                                <option value="">-- Pilih role --</option>
+                                <option value="">Pilih role</option>
                                 @foreach ($roles as $role)
                                     <option value="{{ $role->id }}" @selected(old('role_id', $user->role_id) == $role->id)>
                                         {{ $role->name }}
@@ -196,8 +187,8 @@
                             >
                                 <option
                                     value=""
-                                    x-text="String(selectedRole) === String(staffRoleId) ? '-- Pilih divisi (wajib) --' : '-- Tanpa divisi --'"
-                                >{{ $isStaffSelected ? '-- Pilih divisi (wajib) --' : '-- Tanpa divisi --' }}</option>
+                                    x-text="String(selectedRole) === String(staffRoleId) ? 'Pilih divisi (wajib)' : 'Tanpa divisi'"
+                                >{{ $isStaffSelected ? 'Pilih divisi (wajib)' : 'Tanpa divisi' }}</option>
 
                                 @foreach ($divisions as $division)
                                     <option value="{{ $division->id }}" @selected(old('division_id', $user->division_id) == $division->id)>
@@ -220,7 +211,7 @@
 
                     <button
                         type="submit"
-                        class="inline-flex items-center justify-center rounded-lg bg-teal-600 px-5 py-2 text-xs font-semibold text-white shadow-2xs transition hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-600 focus:ring-offset-2 active:bg-teal-800"
+                        class="inline-flex items-center justify-center rounded-lg bg-primary px-5 py-2 text-xs font-semibold text-white shadow-2xs transition hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
                     >
                         Perbarui Pengguna
                     </button>

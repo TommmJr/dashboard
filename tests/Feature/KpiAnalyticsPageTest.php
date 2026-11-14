@@ -113,13 +113,19 @@ class KpiAnalyticsPageTest extends TestCase
             ->assertSee('Indikator Tercapai')
             ->assertSee('Rata-rata Pencapaian')
             ->assertSee('Indikator Bottleneck')
-            ->assertSee('Bottleneck Finder &mdash; Indikator Prioritas Perbaikan', false)
+            ->assertSee('Bottleneck Finder: Indikator Prioritas Perbaikan', false)
             ->assertSee('Kesiapan Pembangkit Trafo')
             ->assertSee('Keandalan Jaringan Transmisi')
             ->assertSee('id="kpi-bullet-chart"', false)
             ->assertSee('id="kpi-distribution-chart"', false)
             ->assertSee('id="kpiAnalyticsChartData"', false)
-            ->assertSee('style="width: 100%; height: 360px;"', false);
+            ->assertSee('style="width: 100%; height: 360px;"', false)
+            ->assertSee('ibs-card')
+            ->assertSee('PLN_CHART_PALETTE')
+            ->assertDontSee('font-mono')
+            ->assertDontSee('—')
+            ->assertDontSee('&mdash;', false)
+            ->assertDontSee('&ndash;', false);
     }
 
     public function test_alias_route_kpi_matrix_berfungsi_dan_mengarah_ke_halaman_analitik(): void

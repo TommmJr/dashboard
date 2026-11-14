@@ -541,7 +541,7 @@ class UserCrudTest extends TestCase
             ->get(route('users.edit', $this->staff))
             ->assertOk()
             ->assertSee('(wajib untuk Staf Divisi)')
-            ->assertSee('-- Pilih divisi (wajib) --');
+            ->assertSee('Pilih divisi (wajib)');
 
         $this->actingAs($this->admin)
             ->postJson(route('users.store'), [

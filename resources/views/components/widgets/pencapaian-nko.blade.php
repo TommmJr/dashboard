@@ -10,18 +10,18 @@
     $rag = \App\Support\KpiScoreNormalizer::ragThresholds();
 @endphp
 
-<div class="h-full rounded-xl bg-white border border-slate-200/80 shadow-xs p-4 sm:p-5 transition-all duration-200 ease-out hover:shadow-md">
-    <div class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-        <h3 class="text-base font-bold text-primary">{{ $widget['label'] ?? 'Pencapaian % per Unit' }}</h3>
+<div class="ibs-card h-full p-5">
+    <div class="flex flex-wrap items-center justify-between gap-2">
+        <h3 class="ibs-section-title text-base font-bold text-slate-900">{{ $widget['label'] ?? 'Pencapaian % per Unit' }}</h3>
         @if ($period !== null)
-            <span class="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-semibold text-slate-600">
+            <span class="inline-flex items-center rounded-full bg-[#e6f4f6] px-2.5 py-0.5 text-[11px] font-semibold text-[#0b6175]">
                 Periode {{ $period }}
             </span>
         @endif
     </div>
 
     @if ($labels->isEmpty())
-        <p class="mt-4 rounded-lg bg-slate-50 p-4 text-xs text-slate-500">
+        <p class="mt-4 rounded-xl border border-slate-200/70 bg-slate-50 p-4 text-xs text-slate-500">
             Belum ada data pencapaian pada periode ini.
         </p>
     @else
@@ -53,6 +53,19 @@
                 }
                 chartInstance = window.echarts.init(el);
                 const rag = parsed.rag || { tercapai_min: 100, hampir_min: 95 };
+                const palette = window.PLN_CHART_PALETTE || {
+                    primary: '#0b6175',
+                    accent: '#16a3b8',
+                    softTeal: '#bce3e8',
+                    targetSlate: '#cbd5e1',
+                    gridLine: '#f1f5f9',
+                    axisText: '#64748b',
+                    rag: {
+                        tercapai: '#10b981',
+                        waspada: '#f59e0b',
+                        kritis: '#f43f5e'
+                    }
+                };
 
                 chartInstance.setOption({
                     animation: true,
@@ -73,13 +86,13 @@
                     xAxis: {
                         type: 'category',
                         data: parsed.labels || [],
-                        axisLabel: { fontSize: 11, color: '#475569' }
+                        axisLabel: { fontSize: 11, color: palette.axisText }
                     },
                     yAxis: {
                         type: 'value',
                         max: 120,
-                        axisLabel: { formatter: '{value}%', fontSize: 10 },
-                        splitLine: { lineStyle: { color: '#f1f5f9' } }
+                        axisLabel: { formatter: '{value}%', fontSize: 10, color: palette.axisText },
+                        splitLine: { lineStyle: { color: palette.gridLine } }
                     },
                     series: [{
                         name: 'Pencapaian %',
@@ -88,17 +101,17 @@
                         itemStyle: {
                             color: (params) => {
                                 const val = Number(params.value || 0);
-                                if (val >= rag.tercapai_min) return '#10b981'; // emerald-500
-                                if (val >= rag.hampir_min) return '#f59e0b';   // amber-500
-                                return '#f43f5e';                             // rose-500
+                                if (val >= rag.tercapai_min) return palette.rag.tercapai;
+                                if (val >= rag.hampir_min) return palette.rag.waspada;
+                                return palette.rag.kritis;
                             },
-                            borderRadius: [4, 4, 0, 0]
+                            borderRadius: [6, 6, 0, 0]
                         },
                         markLine: {
                             silent: true,
                             symbol: 'none',
-                            lineStyle: { color: '#0b6175', type: 'dashed', width: 1.5 },
-                            label: { formatter: 'Target 100%', position: 'end', fontSize: 10, color: '#0b6175' },
+                            lineStyle: { color: palette.primary, type: 'dashed', width: 1.5 },
+                            label: { formatter: 'Target 100%', position: 'end', fontSize: 10, color: palette.primary },
                             data: [{ yAxis: 100 }]
                         }
                     }],

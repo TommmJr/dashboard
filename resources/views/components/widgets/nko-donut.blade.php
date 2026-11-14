@@ -12,19 +12,19 @@
         'Tercapai' => [
             'desc' => 'NKO ≥ 100',
             'color' => '#10b981',
-            'badge' => 'border-emerald-200 bg-emerald-50 text-emerald-800',
+            'badge' => 'border-slate-200/80 bg-white text-slate-800',
             'dot' => 'bg-emerald-500',
         ],
         'Hampir Tercapai' => [
             'desc' => '95 ≤ NKO < 100',
             'color' => '#f59e0b',
-            'badge' => 'border-amber-200 bg-amber-50 text-amber-800',
+            'badge' => 'border-slate-200/80 bg-white text-slate-800',
             'dot' => 'bg-amber-500',
         ],
         'Perlu Peningkatan' => [
             'desc' => 'NKO < 95',
-            'color' => '#ef4444',
-            'badge' => 'border-rose-200 bg-rose-50 text-rose-800',
+            'color' => '#f43f5e',
+            'badge' => 'border-slate-200/80 bg-white text-slate-800',
             'dot' => 'bg-rose-500',
         ],
     ];
@@ -36,16 +36,19 @@
     };
 @endphp
 
-<div class="h-full rounded-lg bg-white border border-slate-200 shadow-sm p-6 flex flex-col justify-between">
+<div class="ibs-card h-full p-5 flex flex-col justify-between">
     <div>
-        <h3 class="text-lg font-bold text-primary">{{ $widget['label'] ?? 'Distribusi NKO' }}</h3>
-
-        @if ($period !== null)
-            <p class="mt-1 text-xs text-gray-500">Periode {{ $period }}.</p>
-        @endif
+        <div class="flex flex-wrap items-center justify-between gap-2">
+            <h3 class="ibs-section-title text-base font-bold text-slate-900">{{ $widget['label'] ?? 'Distribusi NKO' }}</h3>
+            @if ($period !== null)
+                <span class="inline-flex items-center rounded-full bg-[#e6f4f6] px-2.5 py-0.5 text-[11px] font-semibold text-[#0b6175]">
+                    Periode {{ $period }}
+                </span>
+            @endif
+        </div>
 
         @if (empty($chartData))
-            <p class="mt-4 rounded-lg bg-slate-50 p-5 text-sm text-gray-600">
+            <p class="mt-4 rounded-xl border border-slate-200/70 bg-slate-50 p-5 text-sm text-slate-600">
                 Belum ada data NKO pada periode ini.
             </p>
         @else
@@ -62,17 +65,30 @@
                             const existing = window.echarts.getInstanceByDom(el);
                             chartInstance = existing || window.echarts.init(el);
 
+                            const palette = window.PLN_CHART_PALETTE || {
+                                primary: "#0b6175",
+                                accent: "#16a3b8",
+                                softTeal: "#bce3e8",
+                                targetSlate: "#cbd5e1",
+                                gridLine: "#f1f5f9",
+                                axisText: "#64748b",
+                                rag: {
+                                    tercapai: "#10b981",
+                                    waspada: "#f59e0b",
+                                    kritis: "#f43f5e"
+                                }
+                            };
                             const categoryColors = {
-                                Tercapai: "#10b981",
-                                "Hampir Tercapai": "#f59e0b",
-                                "Perlu Peningkatan": "#ef4444"
+                                Tercapai: palette.rag.tercapai,
+                                "Hampir Tercapai": palette.rag.waspada,
+                                "Perlu Peningkatan": palette.rag.kritis
                             };
                             const rawData = @json($chartData);
                             const seriesData = rawData.map(item => ({
                                 name: item.name,
                                 value: item.value,
                                 itemStyle: {
-                                    color: categoryColors[item.name] || "#64748b",
+                                    color: categoryColors[item.name] || palette.axisText,
                                     borderRadius: 6
                                 }
                             }));
@@ -144,22 +160,22 @@
                             'dot' => 'bg-slate-500',
                         ];
                     @endphp
-                    <div class="flex items-center justify-between rounded-lg border p-2.5 text-xs {{ $meta['badge'] }}">
+                    <div class="flex items-center justify-between rounded-xl border p-2.5 text-xs {{ $meta['badge'] }}">
                         <div class="flex items-center gap-2 min-w-0">
-                            <span class="h-2.5 w-2.5 rounded-full shrink-0 {{ $meta['dot'] }}"></span>
+                            <span class="h-1.5 w-1.5 rounded-full shrink-0 {{ $meta['dot'] }}" aria-hidden="true"></span>
                             <div class="truncate">
                                 <span class="font-semibold block text-slate-900">{{ $name }}</span>
                                 <span class="text-[11px] text-slate-500 block">{{ $meta['desc'] }}</span>
                             </div>
                         </div>
-                        <div class="text-right shrink-0 pl-2">
+                        <div class="text-right shrink-0 pl-2 tabular-nums">
                             <span class="font-bold text-xs text-slate-900 block">{{ $val }} unit</span>
                             <span class="text-[11px] font-medium text-slate-600 block">{{ $pctFormatted }}%</span>
                         </div>
                     </div>
                 @endforeach
             </div>
-            <div class="mt-2.5 flex items-center justify-between text-[11px] text-slate-500 px-0.5">
+            <div class="mt-2.5 flex items-center justify-between text-[11px] text-slate-500 px-0.5 tabular-nums">
                 <span>Total Unit Terdistribusi</span>
                 <span class="font-semibold text-slate-700">{{ $totalUnits }} unit</span>
             </div>

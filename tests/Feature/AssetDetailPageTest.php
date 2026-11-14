@@ -256,6 +256,59 @@ class AssetDetailPageTest extends TestCase
             ->assertSee('5');
     }
 
+    public function test_halaman_detail_aset_menampilkan_hirarki_kepemilikan_uit_jbt_dan_distribusi_wilayah_upt(): void
+    {
+        $division = Division::factory()->create(['name' => 'Managemen Aset', 'slug' => 'managemen-aset']);
+        $user = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $division->id]);
+
+        $this->seedAsetSampleData($division);
+
+        $this->actingAs($user)
+            ->get(route('dashboard.asset-detail'))
+            ->assertOk()
+            ->assertSee('Kepemilikan Aset UIT JBT', false)
+            ->assertSee('Unit Induk Transmisi Jawa Bagian Tengah (UIT JBT)', false)
+            ->assertSee('Rekapitulasi Kepemilikan Aset Induk UIT JBT (Tab 1a)', false)
+            ->assertSee('Distribusi Wilayah Aset UIT JBT', false)
+            ->assertSee('Distribusi Wilayah Aset UIT JBT pada 8 UPT (Tab 1b)', false)
+            ->assertSee('EKSPLORASI ASET UIT JBT', false)
+            ->assertSee('Kepemilikan Induk & Sebaran 8 UPT', false);
+
+        foreach (['mva', 'transmisi', 'tower'] as $section) {
+            $this->actingAs($user)
+                ->get(route('dashboard.asset-detail', ['section' => $section]))
+                ->assertOk()
+                ->assertSee('Kepemilikan Aset UIT JBT', false)
+                ->assertSee('Distribusi Wilayah Aset UIT JBT pada 8 UPT (Tab 1b)', false);
+        }
+    }
+
+    public function test_halaman_detail_aset_tidak_merender_filter_upt_ganda_di_toolbar_atas_dan_mempertahankan_filter_matriks_bawah(): void
+    {
+        $division = Division::factory()->create(['name' => 'Managemen Aset', 'slug' => 'managemen-aset']);
+        $user = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $division->id]);
+
+        $this->seedAsetSampleData($division);
+
+        foreach (['trafo', 'mva', 'transmisi', 'tower'] as $section) {
+            $this->actingAs($user)
+                ->get(route('dashboard.asset-detail', ['section' => $section]))
+                ->assertOk()
+                ->assertSee('Bedah Trafo & Tegangan', false)
+                ->assertSee('Distribusi Daya (MVA)', false)
+                ->assertSee('Jaringan Transmisi (kms)', false)
+                ->assertSee('Sebaran Tower (Unit)', false)
+                ->assertDontSee('setUptFilter', false)
+                ->assertDontSee('activeUptFilter', false)
+                ->assertDontSee('asset-upt-filter', false)
+                ->assertSee('Eksplorasi Matriks Seluruh Atribut Aset', false)
+                ->assertSee('x-model="selectedUpt"', false)
+                ->assertSee('Semua UPT (8 UPT)', false)
+                ->assertSee('selectedGroup', false)
+                ->assertSee('Cari atribut aset...', false);
+        }
+    }
+
     private function seedAsetSampleData(Division $division): void
     {
         $dataset = Dataset::factory()->create([
