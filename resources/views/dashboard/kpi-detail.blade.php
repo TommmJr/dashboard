@@ -138,6 +138,30 @@ if (typeof window.kpiDetailManager !== 'function') {
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#39;');
 
+        const formatChartIndicatorName = (rawName, maxLen) => {
+            const raw = String(rawName ?? '').trim();
+            const stripped = raw
+                .replace(/^[a-z]\.\s+/i, '')
+                .replace(/^\d+\.\s+/, '')
+                .trim();
+            const label = stripped || raw;
+            if (label.length <= maxLen) {
+                return label;
+            }
+            const slice = label.slice(0, Math.max(1, maxLen - 1)).trimEnd();
+            return slice + '\u2026';
+        };
+
+        const formatValueWithUnit = (displayVal, row) => {
+            if (!displayVal || displayVal === 'Tidak tercatat' || displayVal === 'Belum tersedia' || displayVal === 'Tidak ada target') {
+                return displayVal || 'Belum tersedia';
+            }
+            const unitTxt = (row?.satuan && row.satuan !== 'Tidak tercatat' && row.mode === 'numeric')
+                ? (' ' + row.satuan)
+                : '';
+            return displayVal + unitTxt;
+        };
+
         const formatPercentId = (val) => {
             if (val === null || val === undefined || Number.isNaN(Number(val))) {
                 return 'Belum tersedia';
@@ -238,6 +262,7 @@ if (typeof window.kpiDetailManager !== 'function') {
 
                 return {
                     total: filtered.length,
+                    allBase: base.length,
                     allTotal: this.allIndicators.length,
                     tercapai,
                     hampir,
@@ -388,195 +413,184 @@ if (typeof window.kpiDetailManager !== 'function') {
                         rag: { tercapai: '#10b981', waspada: '#f59e0b', kritis: '#f43f5e' },
                     };
 
-                    const labels = rows.map((r) => {
-                        const name = r.indikator || '';
-                        return name.length > 34 ? name.substring(0, 32) + '..' : name;
+                    const chartFont = 'Inter, system-ui, -apple-system, sans-serif';
+                    const containerWidth = canvasEl.clientWidth || window.innerWidth || 1280;
+                    const isNarrow = containerWidth < 680;
+                    const useSlider = rows.length > 20;
+                    const maxLabelLen = isNarrow ? 26 : 48;
+
+                    const labels = rows.map((r) => formatChartIndicatorName(r.indikator, maxLabelLen));
+                    const scores = rows.map((r) => {
+                        const raw = r.pencapaian !== null && r.pencapaian !== undefined ? Number(r.pencapaian) : 0;
+                        return Number.isNaN(raw) ? 0 : Math.max(0, raw);
                     });
-                    const scores = rows.map((r) => r.pencapaian !== null && r.pencapaian !== undefined ? Number(r.pencapaian) : 0);
-                    const maxPct = Math.max(120, ...scores.map((v) => Math.ceil((v + 10) / 10) * 10));
+                    const maxPct = Math.max(120, ...scores.map((v) => Math.ceil((v + 12) / 10) * 10));
+
+                    const ragColor = (tier) => {
+                        if (tier === 'tercapai') return tokens.rag.tercapai;
+                        if (tier === 'hampir') return tokens.rag.waspada;
+                        if (tier === 'perlu') return tokens.rag.kritis;
+                        return tokens.targetSlate;
+                    };
+
+                    const comparisonColor = (tier) => {
+                        if (tier === 'tercapai') return tokens.primary;
+                        if (tier === 'hampir') return tokens.rag.waspada;
+                        if (tier === 'perlu') return tokens.rag.kritis;
+                        return tokens.targetSlate;
+                    };
 
                     const tooltipFormatter = (params) => {
                         const first = Array.isArray(params) ? params[0] : params;
                         const idx = first?.dataIndex ?? 0;
                         const row = rows[idx];
                         if (!row) return '';
+
+                        const dotColor = ragColor(row.tier);
+                        const categoryLabel = row.group && row.group !== 'Umum' ? row.group : row.unit;
+                        const targetWithUnit = formatValueWithUnit(row.target_display, row);
+                        const realisasiWithUnit = formatValueWithUnit(row.realisasi_display, row);
+
                         return [
-                            '<div style="max-width:340px;white-space:normal;font-size:12px;line-height:1.45;">',
-                            '<div style="font-weight:700;color:#0f172a;margin-bottom:4px;">' + escapeHtml(row.indikator) + '</div>',
-                            '<div><span style="color:#64748b;">Unit:</span> <strong>' + escapeHtml(row.unit) + '</strong> &middot; <span style="color:#64748b;">Satuan:</span> ' + escapeHtml(row.satuan) + '</div>',
-                            '<div><span style="color:#64748b;">Target:</span> <strong style="font-variant-numeric:tabular-nums;">' + escapeHtml(row.target_display) + '</strong></div>',
-                            '<div><span style="color:#64748b;">Realisasi:</span> <strong style="font-variant-numeric:tabular-nums;">' + escapeHtml(row.realisasi_display) + '</strong></div>',
-                            '<div><span style="color:#64748b;">Skor Pencapaian KPI:</span> <strong style="font-variant-numeric:tabular-nums;">' + escapeHtml(row.pencapaian_display) + '</strong></div>',
-                            '<div><span style="color:#64748b;">Polaritas:</span> ' + escapeHtml(row.polaritas) + ' &middot; <span style="color:#64748b;">Status RAG:</span> <strong>' + escapeHtml(row.status) + '</strong></div>',
+                            '<div style="max-width:360px;white-space:normal;font-family:' + chartFont + ';font-size:12px;line-height:1.5;color:#334155;">',
+                            '<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">',
+                            '<span style="display:inline-block;background:#e6f4f6;color:#0b6175;font-size:10px;font-weight:700;padding:2px 7px;border-radius:9999px;">' + escapeHtml(categoryLabel || 'KPI') + '</span>',
+                            row.unit ? '<span style="color:#64748b;font-size:10.5px;font-weight:600;">' + escapeHtml(row.unit) + '</span>' : '',
+                            '</div>',
+                            '<div style="font-weight:700;color:#0f172a;margin-bottom:8px;line-height:1.35;">' + escapeHtml(row.indikator) + '</div>',
+                            '<div style="display:grid;grid-template-columns:auto 1fr;gap:3px 14px;border-top:1px solid #f1f5f9;padding-top:6px;">',
+                            '<span style="color:#64748b;">Target</span><strong style="text-align:right;color:#0f172a;font-variant-numeric:tabular-nums;">' + escapeHtml(targetWithUnit) + '</strong>',
+                            '<span style="color:#64748b;">Realisasi</span><strong style="text-align:right;color:#0f172a;font-variant-numeric:tabular-nums;">' + escapeHtml(realisasiWithUnit) + '</strong>',
+                            '<span style="color:#64748b;">Capaian</span><strong style="text-align:right;color:#0b6175;font-variant-numeric:tabular-nums;">' + escapeHtml(row.pencapaian_display || 'Belum tersedia') + '</strong>',
+                            '<span style="color:#64748b;">Status</span><span style="text-align:right;font-weight:600;color:#0f172a;"><span style="display:inline-block;width:7px;height:7px;border-radius:9999px;background:' + dotColor + ';margin-right:5px;vertical-align:middle;"></span>' + escapeHtml(row.status) + '</span>',
+                            '</div>',
                             '</div>',
                         ].join('');
                     };
 
+                    const baseYAxis = {
+                        type: 'category',
+                        inverse: true,
+                        data: labels,
+                        axisLine: { lineStyle: { color: tokens.gridLine } },
+                        axisTick: { show: false },
+                        axisLabel: {
+                            fontFamily: chartFont,
+                            fontSize: isNarrow ? 10 : 11.5,
+                            lineHeight: 15,
+                            color: '#1e293b',
+                            width: isNarrow ? 138 : 270,
+                            overflow: 'truncate',
+                        },
+                    };
+
+                    const baseTooltip = {
+                        trigger: 'axis',
+                        axisPointer: { type: 'shadow' },
+                        backgroundColor: '#ffffff',
+                        borderColor: '#e2e8f0',
+                        borderWidth: 1,
+                        padding: [10, 12],
+                        extraCssText: 'box-shadow:0 10px 25px -5px rgba(15,23,42,0.10);border-radius:10px;',
+                        formatter: tooltipFormatter,
+                    };
+
+                    const baseDataZoom = useSlider
+                        ? [
+                            { type: 'inside', yAxisIndex: 0 },
+                            { type: 'slider', yAxisIndex: 0, right: 6, width: 12, startValue: 0, endValue: 19 },
+                        ]
+                        : [];
+
                     let option;
                     if (this.chartMode === 'comparison') {
-                        const useSlider = rows.length > 8;
                         option = {
                             animation: true,
-                            animationDuration: 450,
-                            tooltip: {
-                                trigger: 'axis',
-                                axisPointer: { type: 'cross' },
-                                formatter: tooltipFormatter,
-                            },
+                            animationDuration: 420,
+                            textStyle: { fontFamily: chartFont },
+                            tooltip: baseTooltip,
                             legend: {
-                                top: 6,
-                                left: 8,
-                                textStyle: { fontSize: 11, color: tokens.axisText },
+                                top: 2,
+                                left: isNarrow ? 150 : 285,
+                                itemWidth: 12,
+                                itemHeight: 8,
+                                textStyle: { fontFamily: chartFont, fontSize: 11, color: '#475569' },
+                                data: [
+                                    { name: 'Target', itemStyle: { color: tokens.targetSlate } },
+                                    { name: 'Realisasi', itemStyle: { color: tokens.primary } },
+                                ],
                             },
-                            toolbox: {
-                                right: 16,
-                                top: 4,
-                                feature: {
-                                    restore: { title: 'Reset Zoom' },
-                                },
-                            },
-                            dataZoom: useSlider
-                                ? [
-                                    { type: 'inside', xAxisIndex: 0 },
-                                    { type: 'slider', xAxisIndex: 0, bottom: 8, height: 18, startValue: 0, endValue: Math.min(rows.length - 1, 13) },
-                                ]
-                                : [{ type: 'inside', xAxisIndex: 0 }],
+                            dataZoom: baseDataZoom,
                             grid: {
-                                left: 68,
-                                right: 64,
-                                top: 52,
-                                bottom: useSlider ? 88 : (rows.length > 5 ? 68 : 44),
-                            },
-                            xAxis: {
-                                type: 'category',
-                                data: labels,
-                                axisLine: { lineStyle: { color: tokens.gridLine } },
-                                axisLabel: {
-                                    fontSize: 10,
-                                    color: tokens.axisText,
-                                    interval: 0,
-                                    rotate: rows.length > 5 ? 22 : 0,
-                                    width: 120,
-                                    overflow: 'truncate',
-                                },
-                            },
-                            yAxis: [
-                                {
-                                    type: 'value',
-                                    name: 'Nilai Target & Realisasi',
-                                    nameTextStyle: { fontSize: 11, color: tokens.axisText },
-                                    axisLabel: { fontSize: 11, color: tokens.axisText },
-                                    splitLine: { lineStyle: { color: tokens.gridLine } },
-                                },
-                                {
-                                    type: 'value',
-                                    name: 'Skor Pencapaian KPI (%)',
-                                    min: 0,
-                                    max: maxPct,
-                                    nameTextStyle: { fontSize: 11, color: tokens.primary },
-                                    axisLabel: { formatter: '{value}%', fontSize: 11, color: tokens.primary },
-                                    splitLine: { show: false },
-                                },
-                            ],
-                            series: [
-                                {
-                                    name: 'Target',
-                                    type: 'bar',
-                                    yAxisIndex: 0,
-                                    barMaxWidth: 26,
-                                    itemStyle: { color: tokens.targetSlate, borderRadius: [6, 6, 0, 0] },
-                                    data: rows.map((r) => r.target_num),
-                                },
-                                {
-                                    name: 'Realisasi',
-                                    type: 'bar',
-                                    yAxisIndex: 0,
-                                    barMaxWidth: 26,
-                                    itemStyle: { color: tokens.primary, borderRadius: [6, 6, 0, 0] },
-                                    data: rows.map((r) => r.realisasi_num),
-                                },
-                                {
-                                    name: 'Skor Pencapaian KPI (%)',
-                                    type: 'line',
-                                    yAxisIndex: 1,
-                                    smooth: true,
-                                    symbol: 'circle',
-                                    symbolSize: 7,
-                                    itemStyle: { color: tokens.accent },
-                                    lineStyle: { width: 2.5, color: tokens.accent },
-                                    data: rows.map((r) => r.pencapaian),
-                                },
-                            ],
-                        };
-                    } else {
-                        const useSlider = rows.length > 12;
-                        option = {
-                            animation: true,
-                            animationDuration: 450,
-                            tooltip: {
-                                trigger: 'axis',
-                                axisPointer: { type: 'shadow' },
-                                formatter: tooltipFormatter,
-                            },
-                            toolbox: {
-                                right: 16,
-                                top: 4,
-                                feature: {
-                                    restore: { title: 'Reset Zoom' },
-                                },
-                            },
-                            dataZoom: useSlider
-                                ? [
-                                    { type: 'inside', yAxisIndex: 0 },
-                                    { type: 'slider', yAxisIndex: 0, right: 8, width: 14, startValue: 0, endValue: 11 },
-                                ]
-                                : [{ type: 'inside', yAxisIndex: 0 }],
-                            grid: {
-                                left: 230,
-                                right: useSlider ? 66 : 56,
-                                top: 42,
-                                bottom: 32,
+                                left: isNarrow ? 150 : 285,
+                                right: (isNarrow ? 75 : 175) + (useSlider ? 20 : 0),
+                                top: 38,
+                                bottom: 26,
                             },
                             xAxis: {
                                 type: 'value',
                                 min: 0,
                                 max: maxPct,
-                                axisLabel: { formatter: '{value}%', fontSize: 11, color: tokens.axisText },
-                                splitLine: { lineStyle: { color: tokens.gridLine } },
-                            },
-                            yAxis: {
-                                type: 'category',
-                                inverse: true,
-                                data: labels,
-                                axisLine: { lineStyle: { color: tokens.gridLine } },
                                 axisLabel: {
+                                    fontFamily: chartFont,
+                                    formatter: (val) => val + '%',
                                     fontSize: 11,
                                     color: tokens.axisText,
-                                    width: 210,
-                                    overflow: 'truncate',
                                 },
+                                splitLine: { lineStyle: { color: tokens.gridLine } },
                             },
+                            yAxis: baseYAxis,
                             series: [
                                 {
-                                    name: 'Capaian (%)',
+                                    name: 'Target',
                                     type: 'bar',
-                                    barMaxWidth: 22,
+                                    barMaxWidth: 9,
+                                    barGap: '28%',
+                                    itemStyle: { color: tokens.targetSlate, borderRadius: [0, 4, 4, 0] },
                                     data: rows.map((r) => {
-                                        let color = tokens.targetSlate;
-                                        if (r.tier === 'tercapai') color = tokens.rag.tercapai;
-                                        else if (r.tier === 'hampir') color = tokens.rag.waspada;
-                                        else if (r.tier === 'perlu') color = tokens.rag.kritis;
+                                        const hasTarget = (r.target_num !== null && r.target_num !== undefined)
+                                            || (r.pencapaian !== null && r.pencapaian !== undefined);
                                         return {
-                                            value: r.pencapaian !== null && r.pencapaian !== undefined ? Number(r.pencapaian) : 0,
-                                            itemStyle: { color, borderRadius: [0, 6, 6, 0] },
+                                            value: hasTarget ? 100 : 0,
+                                            raw_display: formatValueWithUnit(r.target_display, r),
+                                        };
+                                    }),
+                                    label: {
+                                        show: !isNarrow,
+                                        position: 'right',
+                                        fontFamily: chartFont,
+                                        fontSize: 10,
+                                        color: '#64748b',
+                                        formatter: (p) => p?.data?.raw_display || '',
+                                    },
+                                },
+                                {
+                                    name: 'Realisasi',
+                                    type: 'bar',
+                                    barMaxWidth: 9,
+                                    data: rows.map((r) => {
+                                        const rawPct = r.pencapaian !== null && r.pencapaian !== undefined ? Number(r.pencapaian) : 0;
+                                        return {
+                                            value: Number.isNaN(rawPct) ? 0 : Math.max(0, rawPct),
+                                            raw_display: formatValueWithUnit(r.realisasi_display, r),
+                                            itemStyle: { color: comparisonColor(r.tier), borderRadius: [0, 4, 4, 0] },
                                         };
                                     }),
                                     label: {
                                         show: true,
                                         position: 'right',
-                                        fontSize: 11,
-                                        color: tokens.axisText,
-                                        formatter: (p) => rows[p.dataIndex]?.pencapaian_display || 'Belum tersedia',
+                                        fontFamily: chartFont,
+                                        fontSize: 10.5,
+                                        fontWeight: 600,
+                                        color: '#0f172a',
+                                        formatter: (p) => {
+                                            const r = rows[p.dataIndex];
+                                            if (!r) return '';
+                                            const pctTxt = r.pencapaian_display || 'Belum tersedia';
+                                            if (isNarrow) return pctTxt;
+                                            const realTxt = formatValueWithUnit(r.realisasi_display, r);
+                                            return realTxt + ' (' + pctTxt + ')';
+                                        },
                                     },
                                     markLine: {
                                         silent: true,
@@ -585,12 +599,127 @@ if (typeof window.kpiDetailManager !== 'function') {
                                             {
                                                 xAxis: tercapaiMin,
                                                 lineStyle: { color: tokens.primary, type: 'dashed', width: 1.5 },
-                                                label: { formatter: 'Target 100%', position: 'end', fontSize: 10, color: tokens.primary },
+                                                label: {
+                                                    formatter: 'Target 100%',
+                                                    position: 'start',
+                                                    align: 'center',
+                                                    distance: 6,
+                                                    fontFamily: chartFont,
+                                                    fontSize: 10,
+                                                    color: tokens.primary,
+                                                },
+                                            },
+                                        ],
+                                    },
+                                },
+                            ],
+                        };
+                    } else {
+                        option = {
+                            animation: true,
+                            animationDuration: 420,
+                            textStyle: { fontFamily: chartFont },
+                            tooltip: baseTooltip,
+                            dataZoom: baseDataZoom,
+                            grid: {
+                                left: isNarrow ? 150 : 285,
+                                right: (isNarrow ? 65 : 155) + (useSlider ? 20 : 0),
+                                top: 34,
+                                bottom: 26,
+                            },
+                            xAxis: {
+                                type: 'value',
+                                min: 0,
+                                max: maxPct,
+                                axisLabel: {
+                                    fontFamily: chartFont,
+                                    formatter: '{value}%',
+                                    fontSize: 11,
+                                    color: tokens.axisText,
+                                },
+                                splitLine: { lineStyle: { color: tokens.gridLine } },
+                            },
+                            yAxis: baseYAxis,
+                            series: [
+                                {
+                                    name: 'Capaian (%)',
+                                    type: 'bar',
+                                    barMaxWidth: 16,
+                                    showBackground: true,
+                                    backgroundStyle: {
+                                        color: 'rgba(241, 245, 249, 0.75)',
+                                        borderRadius: [0, 6, 6, 0],
+                                    },
+                                    data: rows.map((r) => {
+                                        const rawPct = r.pencapaian !== null && r.pencapaian !== undefined ? Number(r.pencapaian) : 0;
+                                        return {
+                                            value: Number.isNaN(rawPct) ? 0 : Math.max(0, rawPct),
+                                            itemStyle: { color: ragColor(r.tier), borderRadius: [0, 6, 6, 0] },
+                                        };
+                                    }),
+                                    label: {
+                                        show: true,
+                                        position: 'right',
+                                        formatter: (p) => {
+                                            const r = rows[p.dataIndex];
+                                            if (!r) return 'Belum tersedia';
+                                            const pctTxt = r.pencapaian_display || 'Belum tersedia';
+                                            const hasPair = !isNarrow
+                                                && r.realisasi_display && r.realisasi_display !== 'Belum tersedia' && r.realisasi_display !== 'Tidak tercatat'
+                                                && r.target_display && r.target_display !== 'Tidak tercatat' && r.target_display !== 'Tidak ada target';
+                                            if (!hasPair) {
+                                                return '{pct|' + pctTxt + '}';
+                                            }
+                                            return '{pct|' + pctTxt + '}  {sep||}  {ratio|' + r.realisasi_display + ' / ' + r.target_display + '}';
+                                        },
+                                        rich: {
+                                            pct: {
+                                                fontFamily: chartFont,
+                                                fontWeight: 700,
+                                                fontSize: 11,
+                                                color: '#0f172a',
+                                            },
+                                            sep: {
+                                                fontFamily: chartFont,
+                                                fontSize: 10,
+                                                color: '#cbd5e1',
+                                            },
+                                            ratio: {
+                                                fontFamily: chartFont,
+                                                fontSize: 10.5,
+                                                color: '#64748b',
+                                            },
+                                        },
+                                    },
+                                    markLine: {
+                                        silent: true,
+                                        symbol: 'none',
+                                        data: [
+                                            {
+                                                xAxis: tercapaiMin,
+                                                lineStyle: { color: tokens.primary, type: 'dashed', width: 1.5 },
+                                                label: {
+                                                    formatter: 'Target 100%',
+                                                    position: 'start',
+                                                    align: 'left',
+                                                    distance: 6,
+                                                    fontFamily: chartFont,
+                                                    fontSize: 10,
+                                                    color: tokens.primary,
+                                                },
                                             },
                                             {
                                                 xAxis: hampirMin,
                                                 lineStyle: { color: tokens.rag.waspada, type: 'dotted', width: 1.5 },
-                                                label: { formatter: 'Ambang 95%', position: 'start', fontSize: 10, color: tokens.rag.waspada },
+                                                label: {
+                                                    formatter: 'Ambang 95%',
+                                                    position: 'start',
+                                                    align: 'right',
+                                                    distance: 6,
+                                                    fontFamily: chartFont,
+                                                    fontSize: 10,
+                                                    color: tokens.rag.waspada,
+                                                },
                                             },
                                         ],
                                     },
@@ -671,9 +800,9 @@ if (typeof window.kpiDetailManager !== 'function') {
     id="kpi-detail-container"
     x-data="kpiDetailManager()"
     @keydown.escape.window="if (isFullscreen) closeFullscreen()"
-    class="mx-auto max-w-[1600px] min-w-0 max-w-full space-y-5"
+    class="mx-auto max-w-[1600px] min-w-0 max-w-full space-y-4"
 >
-    {{-- Fullscreen Interactive ECharts Visualization Workspace --}}
+    {{-- Fullscreen Executive Boardroom Presentation Studio --}}
     <div
         id="kpi-fullscreen-workspace"
         x-show="isFullscreen"
@@ -681,299 +810,353 @@ if (typeof window.kpiDetailManager !== 'function') {
         role="dialog"
         aria-modal="true"
         aria-labelledby="kpi-fullscreen-title"
-        class="fixed inset-0 z-50 bg-slate-50/95 backdrop-blur-md p-4 sm:p-6 overflow-y-auto no-print"
+        class="fixed inset-0 z-50 bg-slate-900/55 backdrop-blur-sm p-3 sm:p-4 overflow-y-auto no-print"
     >
-        <div class="mx-auto max-w-[1600px] space-y-4">
-            {{-- Header & Action Strip --}}
-            <div class="ibs-card flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-white px-5 py-3.5 shadow-[0_1px_3px_rgba(15,23,42,0.03)]">
-                <div class="flex flex-wrap items-center gap-3">
-                    <div>
-                        <h2 id="kpi-fullscreen-title" class="ibs-section-title text-base font-bold tracking-tight text-slate-900">
+        <div class="mx-auto max-w-[1600px] rounded-2xl border border-slate-200/80 bg-slate-50/95 p-3 sm:p-4 shadow-2xl space-y-3">
+            {{-- Compact Single Unified Studio Command Header --}}
+            <div class="ibs-card rounded-2xl border border-slate-200/80 bg-white px-4 py-3 shadow-sm">
+                {{-- Top Row: Identity, Inline KPI Summary Pills, and Actions --}}
+                <div class="flex flex-col gap-2.5 xl:flex-row xl:items-center xl:justify-between">
+                    <div class="min-w-0">
+                        <div class="flex flex-wrap items-center gap-1.5 text-[11px] font-medium text-slate-500">
+                            <span class="font-semibold uppercase tracking-[0.06em] text-[#0b6175]">Executive Presentation Studio</span>
+                            <span class="h-1 w-1 rounded-full bg-slate-300" aria-hidden="true"></span>
+                            <span class="inline-flex items-center rounded-full bg-[#e6f4f6] px-2 py-0.5 text-[11px] font-semibold text-[#0b6175]" x-text="payload.unitLabel || 'Semua Unit'"></span>
+                            <span class="inline-flex items-center rounded-full border border-slate-200/80 bg-slate-50 px-2 py-0.5 text-[11px] font-medium text-slate-600 tabular-nums">
+                                Periode <strong class="ml-1 font-semibold text-slate-900" x-text="payload.period || 'Belum tersedia'"></strong>
+                            </span>
+                        </div>
+                        <h2 id="kpi-fullscreen-title" class="mt-0.5 text-base sm:text-lg font-semibold tracking-tight text-slate-900">
                             Visualisasi Grafik Capaian Indikator Kinerja
                         </h2>
-                        <div class="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500 tabular-nums">
-                            <span class="inline-flex items-center rounded-full bg-[#e6f4f6] px-2.5 py-0.5 text-[11px] font-semibold text-[#0b6175]">
-                                Unit: <strong class="ml-1 font-bold" x-text="payload.unitLabel || 'Semua Unit'"></strong>
+                    </div>
+
+                    <div class="flex flex-wrap items-center gap-2">
+                        {{-- Inline Executive KPI Summary Pills --}}
+                        <div class="flex flex-wrap items-center gap-1.5 tabular-nums text-[11px]">
+                            <span class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200/80 bg-slate-50/80 px-2.5 py-1 text-slate-600">
+                                <span>Total</span>
+                                <strong class="font-bold text-slate-900" x-text="summaryStats.total">0</strong>
                             </span>
-                            <span class="inline-flex items-center rounded-full border border-slate-200/80 bg-slate-50/70 px-2.5 py-0.5 text-[11px] font-medium text-slate-600">
-                                Periode: <strong class="ml-1 font-semibold text-slate-900" x-text="payload.period || 'Belum tersedia'"></strong>
+                            <span class="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200/80 bg-emerald-50/60 px-2.5 py-1 text-emerald-800">
+                                <span class="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0"></span>
+                                <span>Tercapai</span>
+                                <strong class="font-bold text-emerald-950" x-text="summaryStats.tercapai">0</strong>
+                            </span>
+                            <span class="inline-flex items-center gap-1.5 rounded-lg border border-amber-200/80 bg-amber-50/60 px-2.5 py-1 text-amber-800">
+                                <span class="h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0"></span>
+                                <span>Hampir Tercapai</span>
+                                <strong class="font-bold text-amber-950" x-text="summaryStats.hampir">0</strong>
+                            </span>
+                            <span class="inline-flex items-center gap-1.5 rounded-lg border border-rose-200/80 bg-rose-50/60 px-2.5 py-1 text-rose-800">
+                                <span class="h-1.5 w-1.5 rounded-full bg-rose-500 shrink-0"></span>
+                                <span>Perlu Peningkatan</span>
+                                <strong class="font-bold text-rose-950" x-text="summaryStats.perlu">0</strong>
+                            </span>
+                            <span class="inline-flex items-center gap-1.5 rounded-lg border border-[#0b6175]/20 bg-[#e6f4f6]/70 px-2.5 py-1 text-[#0b6175]">
+                                <span>Rata-rata</span>
+                                <strong class="font-bold" x-text="summaryStats.avgDisplay">Belum tersedia</strong>
+                            </span>
+                        </div>
+
+                        <span class="hidden xl:block h-5 w-px bg-slate-200" aria-hidden="true"></span>
+
+                        {{-- Compact Action Buttons --}}
+                        <div class="flex flex-wrap items-center gap-1.5">
+                            <button
+                                type="button"
+                                id="kpi-fullscreen-download-chart-btn"
+                                @click="downloadChartPng()"
+                                :disabled="filteredIndicators.length === 0 || !!chartError"
+                                class="inline-flex items-center gap-1.5 rounded-lg border border-[#0b6175]/25 bg-[#e6f4f6]/70 px-2.5 py-1.5 text-xs font-semibold text-[#0b6175] transition hover:bg-[#e6f4f6] disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a3b8]/40"
+                            >
+                                <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4m4-5 5 5 5-5m-5 5V3" stroke-linecap="round" stroke-linejoin="round"/>
+                                </svg>
+                                <span>Unduh PNG</span>
+                            </button>
+
+                            <button
+                                type="button"
+                                id="kpi-fullscreen-download-csv-btn"
+                                @click="downloadCsv()"
+                                class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200/80 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50 hover:text-slate-900 cursor-pointer whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a3b8]/40"
+                            >
+                                <svg class="h-3.5 w-3.5 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" stroke-linecap="round" stroke-linejoin="round"/>
+                                    <path d="M14 2v6h6M8 13h8M8 17h8M8 9h2" stroke-linecap="round" stroke-linejoin="round"/>
+                                </svg>
+                                <span>Unduh CSV</span>
+                            </button>
+
+                            <button
+                                type="button"
+                                id="kpi-fullscreen-close-btn"
+                                @click="closeFullscreen()"
+                                class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200/80 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50 hover:text-slate-900 cursor-pointer whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a3b8]/40"
+                            >
+                                <svg class="h-3.5 w-3.5 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                                    <path d="M18 6 6 18M6 6l12 12" stroke-linecap="round" stroke-linejoin="round"/>
+                                </svg>
+                                <span>Tutup</span>
+                                <kbd class="rounded border border-slate-200 bg-slate-100 px-1 py-0.5 text-[10px] font-semibold text-slate-500">ESC</kbd>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                {{-- Integrated Control Ribbon --}}
+                <div class="mt-2.5 pt-2.5 border-t border-slate-100 flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
+                    <div class="flex flex-wrap items-center gap-2">
+                        {{-- Segmented Chart Mode Switcher --}}
+                        <div class="inline-flex items-center rounded-xl border border-slate-200/60 bg-slate-100/90 p-0.5 text-xs">
+                            <button
+                                type="button"
+                                id="kpi-fullscreen-mode-achievement"
+                                @click="setChartMode('achievement')"
+                                :class="chartMode === 'achievement' ? 'bg-white text-[#0b6175] font-semibold shadow-xs ring-1 ring-slate-900/5' : 'text-slate-600 font-medium hover:text-slate-900'"
+                                class="pill-tab-transition rounded-lg px-2.5 py-1 cursor-pointer whitespace-nowrap"
+                            >
+                                Capaian (%)
+                            </button>
+                            <button
+                                type="button"
+                                id="kpi-fullscreen-mode-comparison"
+                                @click="setChartMode('comparison')"
+                                :class="chartMode === 'comparison' ? 'bg-white text-[#0b6175] font-semibold shadow-xs ring-1 ring-slate-900/5' : 'text-slate-600 font-medium hover:text-slate-900'"
+                                class="pill-tab-transition rounded-lg px-2.5 py-1 cursor-pointer whitespace-nowrap"
+                            >
+                                Perbandingan Target vs Realisasi
+                            </button>
+                        </div>
+
+                        {{-- RAG Status Pills --}}
+                        <div class="flex flex-wrap items-center gap-1.5 text-[11px] tabular-nums" role="group" aria-label="Filter status capaian grafik layar penuh">
+                            <button
+                                type="button"
+                                data-fullscreen-rag="all"
+                                @click="setRagFilter('all')"
+                                :class="ragFilter === 'all' ? 'border-slate-800 text-slate-900 font-semibold ring-1 ring-slate-800/15 shadow-2xs' : 'border-slate-200/80 text-slate-600 font-medium hover:border-slate-300 hover:bg-slate-50'"
+                                class="inline-flex items-center gap-1.5 rounded-lg border bg-white px-2.5 py-1 transition cursor-pointer whitespace-nowrap"
+                            >
+                                <span class="h-1.5 w-1.5 rounded-full bg-slate-400 shrink-0"></span>
+                                <span>Semua</span>
+                                <span class="text-slate-400" x-text="summaryStats.allBase">0</span>
+                            </button>
+                            <button
+                                type="button"
+                                data-fullscreen-rag="tercapai"
+                                @click="setRagFilter('tercapai')"
+                                :class="ragFilter === 'tercapai' ? 'border-emerald-600 text-emerald-950 font-semibold ring-1 ring-emerald-600/20 shadow-2xs' : 'border-slate-200/80 text-slate-600 font-medium hover:border-slate-300 hover:bg-slate-50'"
+                                class="inline-flex items-center gap-1.5 rounded-lg border bg-white px-2.5 py-1 transition cursor-pointer whitespace-nowrap"
+                            >
+                                <span class="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0"></span>
+                                <span>Tercapai</span>
+                                <span class="text-emerald-700" x-text="summaryStats.tercapai">0</span>
+                            </button>
+                            <button
+                                type="button"
+                                data-fullscreen-rag="hampir"
+                                @click="setRagFilter('hampir')"
+                                :class="ragFilter === 'hampir' ? 'border-amber-600 text-amber-950 font-semibold ring-1 ring-amber-600/20 shadow-2xs' : 'border-slate-200/80 text-slate-600 font-medium hover:border-slate-300 hover:bg-slate-50'"
+                                class="inline-flex items-center gap-1.5 rounded-lg border bg-white px-2.5 py-1 transition cursor-pointer whitespace-nowrap"
+                            >
+                                <span class="h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0"></span>
+                                <span>Hampir Tercapai</span>
+                                <span class="text-amber-700" x-text="summaryStats.hampir">0</span>
+                            </button>
+                            <button
+                                type="button"
+                                data-fullscreen-rag="perlu"
+                                @click="setRagFilter('perlu')"
+                                :class="ragFilter === 'perlu' ? 'border-rose-600 text-rose-950 font-semibold ring-1 ring-rose-600/20 shadow-2xs' : 'border-slate-200/80 text-slate-600 font-medium hover:border-slate-300 hover:bg-slate-50'"
+                                class="inline-flex items-center gap-1.5 rounded-lg border bg-white px-2.5 py-1 transition cursor-pointer whitespace-nowrap"
+                            >
+                                <span class="h-1.5 w-1.5 rounded-full bg-rose-500 shrink-0"></span>
+                                <span>Perlu Peningkatan</span>
+                                <span class="text-rose-700" x-text="summaryStats.perlu">0</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    {{-- Live Search + Filtered Count Badge --}}
+                    <div class="flex flex-wrap items-center gap-2 shrink-0">
+                        <span
+                            class="inline-flex items-center rounded-full border border-slate-200/80 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-600 tabular-nums whitespace-nowrap"
+                            x-text="'Menampilkan ' + filteredIndicators.length + ' dari ' + allIndicators.length + ' indikator'"
+                        ></span>
+                        <div class="relative w-full sm:w-60 shrink-0">
+                            <svg class="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                                <circle cx="11" cy="11" r="7"/>
+                                <path d="m20 20-3.5-3.5" stroke-linecap="round"/>
+                            </svg>
+                            <input
+                                id="kpi-fullscreen-search"
+                                type="search"
+                                x-model="searchQuery"
+                                @input="scheduleChartRender()"
+                                placeholder="Cari indikator..."
+                                aria-label="Cari indikator di grafik layar penuh"
+                                class="w-full rounded-lg border border-slate-200/80 bg-white pl-8 pr-3 py-1.5 text-xs text-slate-800 placeholder:text-slate-400 transition focus:border-[#0b6175] focus:outline-none focus:ring-2 focus:ring-[#0b6175]/15"
+                            />
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {{-- Boardroom Stage Grid: Primary Chart (8 cols) + Companion Scorecard (4 cols) --}}
+            <div class="grid grid-cols-1 xl:grid-cols-12 gap-4 items-stretch">
+                {{-- Left/Primary Visual Panel --}}
+                <div class="ibs-card xl:col-span-8 min-w-0 max-w-full overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-4 sm:p-5 shadow-sm flex flex-col">
+                    <div class="mb-2.5 flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <h3
+                                class="ibs-section-title text-sm font-semibold text-slate-900"
+                                x-text="chartMode === 'achievement' ? 'Capaian Indikator (%) terhadap Target 100%' : 'Perbandingan Target vs Realisasi (Skala Ternormalisasi %)'"
+                            ></h3>
+                            <span class="rounded-full bg-[#e6f4f6] px-2 py-0.5 text-[11px] font-semibold text-[#0b6175] tabular-nums" x-text="filteredIndicators.length + ' indikator'"></span>
+                        </div>
+
+                        {{-- Minimalist Contextual Color Key --}}
+                        <div x-show="chartMode === 'achievement'" class="flex flex-wrap items-center gap-3 text-[11px] text-slate-500">
+                            <span class="inline-flex items-center gap-1.5">
+                                <span class="h-2 w-2 rounded-full bg-emerald-500 shrink-0"></span>
+                                <span>&ge; 100% Tercapai</span>
+                            </span>
+                            <span class="inline-flex items-center gap-1.5">
+                                <span class="h-2 w-2 rounded-full bg-amber-500 shrink-0"></span>
+                                <span>95% s.d. 99,9% Mendekati Target</span>
+                            </span>
+                            <span class="inline-flex items-center gap-1.5">
+                                <span class="h-2 w-2 rounded-full bg-rose-500 shrink-0"></span>
+                                <span>&lt; 95% Perlu Perhatian</span>
+                            </span>
+                        </div>
+
+                        <div x-show="chartMode === 'comparison'" class="flex flex-wrap items-center gap-3 text-[11px] text-slate-500">
+                            <span class="inline-flex items-center gap-1.5">
+                                <span class="h-2 w-2 rounded-full bg-slate-300 shrink-0"></span>
+                                <span>Target (Acuan 100%)</span>
+                            </span>
+                            <span class="inline-flex items-center gap-1.5">
+                                <span class="h-2 w-2 rounded-full bg-[#0b6175] shrink-0"></span>
+                                <span>Realisasi (nilai aktual tertera di setiap baris)</span>
                             </span>
                         </div>
                     </div>
-                </div>
 
-                <div class="flex flex-wrap items-center gap-2">
-                    <button
-                        type="button"
-                        id="kpi-fullscreen-download-chart-btn"
-                        @click="downloadChartPng()"
-                        :disabled="filteredIndicators.length === 0 || !!chartError"
-                        class="inline-flex items-center gap-1.5 rounded-lg border border-[#0b6175]/25 bg-[#e6f4f6]/70 px-3 py-1.5 text-xs font-semibold text-[#0b6175] transition hover:bg-[#e6f4f6] disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a3b8]/40"
-                    >
-                        <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4m4-5 5 5 5-5m-5 5V3" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
-                        <span>Unduh Grafik (PNG)</span>
-                    </button>
+                    <div x-show="isChartLoading" class="flex items-center justify-center rounded-xl border border-slate-100 bg-slate-50/70" style="width: 100%; height: 500px; min-height: 440px;">
+                        <span class="text-xs font-medium text-slate-500">Memuat visualisasi grafik...</span>
+                    </div>
 
-                    <button
-                        type="button"
-                        id="kpi-fullscreen-download-csv-btn"
-                        @click="downloadCsv()"
-                        class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200/80 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50 hover:text-slate-900 cursor-pointer whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a3b8]/40"
-                    >
-                        <svg class="h-3.5 w-3.5 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" stroke-linecap="round" stroke-linejoin="round"/>
-                            <path d="M14 2v6h6M8 13h8M8 17h8M8 9h2" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
-                        <span>Unduh Data (CSV)</span>
-                    </button>
-
-                    <button
-                        type="button"
-                        id="kpi-fullscreen-close-btn"
-                        @click="closeFullscreen()"
-                        class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200/80 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50 hover:text-slate-900 cursor-pointer whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a3b8]/40"
-                    >
-                        <svg class="h-3.5 w-3.5 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-                            <path d="M18 6 6 18M6 6l12 12" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
-                        <span>Tutup Layar Penuh (ESC)</span>
-                    </button>
-                </div>
-            </div>
-
-            {{-- Unified Summary Strip --}}
-            <div class="ibs-card overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.03)]">
-                <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 divide-y sm:divide-y-0 sm:divide-x divide-slate-200/70">
-                    <div class="px-5 py-3.5">
-                        <div class="text-[11px] font-semibold uppercase tracking-[0.05em] text-slate-500">Total Indikator</div>
-                        <div class="ibs-metric-value mt-1 text-xl sm:text-2xl tabular-nums" x-text="summaryStats.total">0</div>
-                    </div>
-                    <div class="px-5 py-3.5">
-                        <div class="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.05em] text-slate-500">
-                            <span class="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0"></span>
-                            <span>Tercapai (&ge; 100%)</span>
-                        </div>
-                        <div class="ibs-metric-value mt-1 text-xl sm:text-2xl text-emerald-700 tabular-nums" x-text="summaryStats.tercapai">0</div>
-                    </div>
-                    <div class="px-5 py-3.5">
-                        <div class="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.05em] text-slate-500">
-                            <span class="h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0"></span>
-                            <span>Hampir Tercapai (95% s.d. 99,9%)</span>
-                        </div>
-                        <div class="ibs-metric-value mt-1 text-xl sm:text-2xl text-amber-700 tabular-nums" x-text="summaryStats.hampir">0</div>
-                    </div>
-                    <div class="px-5 py-3.5">
-                        <div class="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.05em] text-slate-500">
-                            <span class="h-1.5 w-1.5 rounded-full bg-rose-500 shrink-0"></span>
-                            <span>Perlu Peningkatan (&lt; 95%)</span>
-                        </div>
-                        <div class="ibs-metric-value mt-1 text-xl sm:text-2xl text-rose-700 tabular-nums" x-text="summaryStats.perlu">0</div>
-                    </div>
-                    <div class="col-span-2 sm:col-span-1 px-5 py-3.5">
-                        <div class="text-[11px] font-semibold uppercase tracking-[0.05em] text-slate-500">Rata-rata Capaian %</div>
-                        <div class="ibs-metric-value mt-1 text-xl sm:text-2xl text-[#0b6175] tabular-nums" x-text="summaryStats.avgDisplay">Belum tersedia</div>
-                    </div>
-                </div>
-            </div>
-
-            {{-- Interactive Filter & Mode Toolbar --}}
-            <div class="ibs-card flex flex-col gap-2.5 rounded-2xl border border-slate-200/80 bg-white px-4 py-3 shadow-[0_1px_3px_rgba(15,23,42,0.03)] lg:flex-row lg:items-center lg:justify-between">
-                <div class="flex flex-wrap items-center gap-2.5">
-                    <div class="inline-flex items-center rounded-xl border border-slate-200/60 bg-slate-100/90 p-1 text-xs">
+                    <div x-show="!isChartLoading && chartError" class="flex flex-col items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50/40 p-6 text-center" style="width: 100%; height: 500px; min-height: 440px;">
+                        <p class="text-xs font-medium text-rose-800" x-text="chartError"></p>
                         <button
                             type="button"
-                            id="kpi-fullscreen-mode-achievement"
-                            @click="setChartMode('achievement')"
-                            :class="chartMode === 'achievement' ? 'bg-white text-[#0b6175] font-semibold shadow-xs ring-1 ring-slate-900/5' : 'text-slate-600 font-medium hover:text-slate-900'"
-                            class="pill-tab-transition rounded-lg px-3 py-1 cursor-pointer whitespace-nowrap"
+                            @click="scheduleChartRender()"
+                            class="rounded-lg border border-rose-300 bg-white px-3 py-1.5 text-xs font-semibold text-rose-800 hover:bg-rose-50 cursor-pointer"
                         >
-                            Capaian Indikator (%) &amp; Status RAG
-                        </button>
-                        <button
-                            type="button"
-                            id="kpi-fullscreen-mode-comparison"
-                            @click="setChartMode('comparison')"
-                            :class="chartMode === 'comparison' ? 'bg-white text-[#0b6175] font-semibold shadow-xs ring-1 ring-slate-900/5' : 'text-slate-600 font-medium hover:text-slate-900'"
-                            class="pill-tab-transition rounded-lg px-3 py-1 cursor-pointer whitespace-nowrap"
-                        >
-                            Perbandingan Target vs Realisasi
+                            Muat Ulang Grafik
                         </button>
                     </div>
 
-                    <div class="flex flex-wrap items-center gap-1.5 text-[11px]">
+                    <div x-show="!isChartLoading && !chartError && filteredIndicators.length === 0" class="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 bg-slate-50/60 p-6 text-center" style="width: 100%; height: 500px; min-height: 440px;">
+                        <p class="text-xs font-medium text-slate-600">Tidak ada indikator yang cocok dengan filter atau kata kunci pencarian.</p>
                         <button
                             type="button"
-                            data-fullscreen-rag="all"
-                            @click="setRagFilter('all')"
-                            :class="ragFilter === 'all' ? 'border-slate-800 text-slate-900 font-semibold ring-1 ring-slate-800/15 shadow-2xs' : 'border-slate-200/80 text-slate-600 font-medium hover:border-slate-300 hover:bg-slate-50'"
-                            class="inline-flex items-center gap-1.5 rounded-lg border bg-white px-2.5 py-1 transition cursor-pointer"
+                            @click="resetFullscreenFilters()"
+                            class="rounded-lg border border-slate-200/80 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
                         >
-                            <span class="h-1.5 w-1.5 rounded-full bg-slate-400 shrink-0"></span>
-                            Semua Status
-                        </button>
-                        <button
-                            type="button"
-                            data-fullscreen-rag="tercapai"
-                            @click="setRagFilter('tercapai')"
-                            :class="ragFilter === 'tercapai' ? 'border-emerald-600 text-emerald-950 font-semibold ring-1 ring-emerald-600/20 shadow-2xs' : 'border-slate-200/80 text-slate-600 font-medium hover:border-slate-300 hover:bg-slate-50'"
-                            class="inline-flex items-center gap-1.5 rounded-lg border bg-white px-2.5 py-1 transition cursor-pointer"
-                        >
-                            <span class="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0"></span>
-                            Tercapai (&ge; 100%)
-                        </button>
-                        <button
-                            type="button"
-                            data-fullscreen-rag="hampir"
-                            @click="setRagFilter('hampir')"
-                            :class="ragFilter === 'hampir' ? 'border-amber-600 text-amber-950 font-semibold ring-1 ring-amber-600/20 shadow-2xs' : 'border-slate-200/80 text-slate-600 font-medium hover:border-slate-300 hover:bg-slate-50'"
-                            class="inline-flex items-center gap-1.5 rounded-lg border bg-white px-2.5 py-1 transition cursor-pointer"
-                        >
-                            <span class="h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0"></span>
-                            Hampir Tercapai (95% s.d. 99%)
-                        </button>
-                        <button
-                            type="button"
-                            data-fullscreen-rag="perlu"
-                            @click="setRagFilter('perlu')"
-                            :class="ragFilter === 'perlu' ? 'border-rose-600 text-rose-950 font-semibold ring-1 ring-rose-600/20 shadow-2xs' : 'border-slate-200/80 text-slate-600 font-medium hover:border-slate-300 hover:bg-slate-50'"
-                            class="inline-flex items-center gap-1.5 rounded-lg border bg-white px-2.5 py-1 transition cursor-pointer"
-                        >
-                            <span class="h-1.5 w-1.5 rounded-full bg-rose-500 shrink-0"></span>
-                            Perlu Peningkatan (&lt; 95%)
+                            Reset Filter
                         </button>
                     </div>
+
+                    <div
+                        x-show="!isChartLoading && !chartError && filteredIndicators.length > 0"
+                        id="kpi-fullscreen-echart-canvas"
+                        class="w-full"
+                        style="width: 100%; height: 500px; min-height: 440px;"
+                    ></div>
                 </div>
 
-                <div class="relative w-full lg:w-64 shrink-0">
-                    <svg class="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                        <circle cx="11" cy="11" r="7"/>
-                        <path d="m20 20-3.5-3.5" stroke-linecap="round"/>
-                    </svg>
-                    <input
-                        id="kpi-fullscreen-search"
-                        type="search"
-                        x-model="searchQuery"
-                        @input="scheduleChartRender()"
-                        placeholder="Cari indikator..."
-                        aria-label="Cari indikator di grafik layar penuh"
-                        class="w-full rounded-lg border border-slate-200/80 bg-white pl-8 pr-3 py-1.5 text-xs text-slate-800 placeholder:text-slate-400 transition focus:border-[#0b6175] focus:outline-none focus:ring-2 focus:ring-[#0b6175]/15"
-                    />
-                </div>
-            </div>
-
-            {{-- ECharts Canvas Card --}}
-            <div class="ibs-card min-w-0 max-w-full overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_1px_3px_rgba(15,23,42,0.03)]">
-                <div class="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
-                    <div class="flex items-center gap-2">
-                        <h3
-                            class="ibs-section-title"
-                            x-text="chartMode === 'achievement' ? 'Grafik Skor Pencapaian KPI (%) terhadap Target 100%' : 'Perbandingan Target vs Realisasi dan Skor Pencapaian KPI (%)'"
-                        ></h3>
-                        <span class="rounded-full bg-[#e6f4f6] px-2.5 py-0.5 text-[11px] font-semibold text-[#0b6175] tabular-nums" x-text="filteredIndicators.length + ' indikator'"></span>
+                {{-- Right/Companion Executive Scorecard & Matrix --}}
+                <div class="ibs-card xl:col-span-4 min-w-0 max-w-full rounded-2xl border border-slate-200/80 bg-white flex flex-col shadow-sm overflow-hidden">
+                    <div class="flex items-center justify-between gap-2 border-b border-slate-100 px-4 py-3">
+                        <h3 class="ibs-section-title text-sm font-semibold text-slate-900">Ringkasan Kinerja per Indikator</h3>
+                        <span class="rounded-full border border-slate-200/80 bg-slate-50 px-2 py-0.5 text-[11px] font-medium text-slate-600 tabular-nums whitespace-nowrap">
+                            Skor Maks 110%
+                        </span>
                     </div>
-                    <div x-show="chartMode === 'comparison' && hasNonNumericInFiltered" class="text-[11px] text-slate-500">
-                        Indikator non-numerik menampilkan kurva Capaian (%).
-                    </div>
-                </div>
 
-                <div x-show="isChartLoading" class="flex items-center justify-center rounded-xl border border-slate-100 bg-slate-50/70" style="width: 100%; height: 500px; min-height: 440px;">
-                    <span class="text-xs font-medium text-slate-500">Memuat visualisasi grafik...</span>
-                </div>
-
-                <div x-show="!isChartLoading && chartError" class="flex flex-col items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50/40 p-6 text-center" style="width: 100%; height: 500px; min-height: 440px;">
-                    <p class="text-xs font-medium text-rose-800" x-text="chartError"></p>
-                    <button
-                        type="button"
-                        @click="scheduleChartRender()"
-                        class="rounded-lg border border-rose-300 bg-white px-3 py-1.5 text-xs font-semibold text-rose-800 hover:bg-rose-50 cursor-pointer"
-                    >
-                        Muat Ulang Grafik
-                    </button>
-                </div>
-
-                <div x-show="!isChartLoading && !chartError && filteredIndicators.length === 0" class="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 bg-slate-50/60 p-6 text-center" style="width: 100%; height: 500px; min-height: 440px;">
-                    <p class="text-xs font-medium text-slate-600">Tidak ada indikator yang cocok dengan filter atau kata kunci pencarian.</p>
-                    <button
-                        type="button"
-                        @click="resetFullscreenFilters()"
-                        class="rounded-lg border border-slate-200/80 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
-                    >
-                        Reset Filter
-                    </button>
-                </div>
-
-                <div
-                    x-show="!isChartLoading && !chartError && filteredIndicators.length > 0"
-                    id="kpi-fullscreen-echart-canvas"
-                    style="width: 100%; height: 500px; min-height: 440px;"
-                ></div>
-            </div>
-
-            {{-- Companion Summary Table --}}
-            <div class="ibs-card min-w-0 max-w-full rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_1px_3px_rgba(15,23,42,0.03)]">
-                <div class="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
-                    <h3 class="ibs-section-title">Tabel Ringkas Indikator Terfilter</h3>
-                    <span class="text-xs text-slate-500 tabular-nums" x-text="filteredIndicators.length + ' dari ' + allIndicators.length + ' indikator'"></span>
-                </div>
-                <div class="w-full min-w-0 overflow-x-auto rounded-xl border border-slate-200/80">
-                    <table class="w-full text-xs">
-                        <thead class="border-b border-slate-200/80 bg-slate-50/90 text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500">
-                            <tr>
-                                <th class="px-3 py-2.5 text-left">No</th>
-                                <th class="px-3 py-2.5 text-left">Unit</th>
-                                <th class="px-3 py-2.5 text-left">Indikator</th>
-                                <th class="px-3 py-2.5 text-left">Satuan</th>
-                                <th class="px-3 py-2.5 text-left">Polaritas</th>
-                                <th class="px-3 py-2.5 text-right">Target</th>
-                                <th class="px-3 py-2.5 text-right">Realisasi</th>
-                                <th class="px-3 py-2.5 text-right">Skor Pencapaian KPI (Maks 110%)</th>
-                                <th class="px-3 py-2.5 text-left">Status RAG</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-slate-100">
-                            <template x-for="(row, idx) in filteredIndicators" :key="row.key">
-                                <tr class="transition-colors hover:bg-slate-50/70">
-                                    <td class="px-3 py-2.5 text-slate-400 tabular-nums" x-text="idx + 1"></td>
-                                    <td class="px-3 py-2.5">
-                                        <span class="inline-flex items-center rounded-md bg-[#e6f4f6]/80 px-2 py-0.5 text-[11px] font-semibold text-[#0b6175]" x-text="row.unit"></span>
-                                    </td>
-                                    <td class="px-3 py-2.5 font-medium text-slate-800" x-text="row.indikator"></td>
-                                    <td class="px-3 py-2.5 text-slate-500" x-text="row.satuan"></td>
-                                    <td class="px-3 py-2.5 text-slate-500" x-text="row.polaritas"></td>
-                                    <td class="px-3 py-2.5 text-right font-medium text-slate-700 tabular-nums" x-text="row.target_display"></td>
-                                    <td class="px-3 py-2.5 text-right font-medium text-slate-700 tabular-nums" x-text="row.realisasi_display"></td>
-                                    <td class="px-3 py-2.5 text-right font-bold text-slate-900 tabular-nums" x-text="row.pencapaian_display"></td>
-                                    <td class="px-3 py-2.5">
-                                        <span class="inline-flex items-center gap-1.5 rounded-md border border-slate-200/80 bg-white px-2 py-0.5 text-[11px] font-medium text-slate-700 whitespace-nowrap">
-                                            <span
-                                                class="h-1.5 w-1.5 rounded-full shrink-0"
-                                                :class="{
-                                                    'bg-emerald-500': row.tier === 'tercapai',
-                                                    'bg-amber-500': row.tier === 'hampir',
-                                                    'bg-rose-500': row.tier === 'perlu',
-                                                    'bg-slate-400': row.tier === 'unverified',
-                                                }"
-                                            ></span>
-                                            <span x-text="row.status"></span>
-                                        </span>
+                    <div class="flex-1 max-h-[540px] overflow-y-auto overflow-x-hidden">
+                        <table class="w-full table-fixed border-collapse text-xs">
+                            <thead class="sticky top-0 z-10 border-b border-slate-200/80 bg-slate-50/95 backdrop-blur-xs text-[11px] font-semibold uppercase tracking-[0.05em] text-slate-500">
+                                <tr>
+                                    <th class="w-[44%] pl-3.5 pr-1.5 py-2.5 text-left">Indikator</th>
+                                    <th class="w-[18%] px-1.5 py-2.5 text-right whitespace-nowrap">Target</th>
+                                    <th class="w-[19%] px-1.5 py-2.5 text-right whitespace-nowrap">Realisasi</th>
+                                    <th class="w-[19%] pl-1.5 pr-3.5 py-2.5 text-right whitespace-nowrap">Capaian</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                <template x-for="row in filteredIndicators" :key="row.key">
+                                    <tr class="transition-colors hover:bg-slate-50/80">
+                                        <td class="pl-3.5 pr-1.5 py-2.5 align-top break-words">
+                                            <div class="font-medium leading-snug text-slate-800" x-text="row.indikator"></div>
+                                            <div class="mt-1 flex flex-wrap items-center gap-1.5 text-[10.5px] text-slate-500">
+                                                <span class="inline-flex items-center rounded bg-[#e6f4f6] px-1.5 py-0.5 font-semibold text-[#0b6175]" x-text="row.unit"></span>
+                                                <span x-show="row.group && row.group !== 'Umum'" class="truncate max-w-[140px]" x-text="row.group"></span>
+                                                <span x-show="row.satuan && row.satuan !== 'Tidak tercatat'" class="text-slate-400" x-text="row.satuan"></span>
+                                            </div>
+                                        </td>
+                                        <td class="px-1.5 py-2.5 text-right align-top font-medium text-slate-600 tabular-nums" x-text="row.target_display || 'Tidak tercatat'"></td>
+                                        <td
+                                            class="px-1.5 py-2.5 text-right align-top font-medium tabular-nums"
+                                            :class="(row.realisasi_display && row.realisasi_display !== 'Tidak tercatat' && row.realisasi_display !== 'Belum tersedia') ? 'text-slate-800' : 'text-slate-400'"
+                                            x-text="(row.realisasi_display && row.realisasi_display !== 'Tidak tercatat') ? row.realisasi_display : 'Belum tersedia'"
+                                        ></td>
+                                        <td class="pl-1.5 pr-3.5 py-2.5 text-right align-top tabular-nums">
+                                            <div class="inline-flex items-center justify-end gap-1.5">
+                                                <span
+                                                    class="h-1.5 w-1.5 rounded-full shrink-0"
+                                                    :class="{
+                                                        'bg-emerald-500': row.tier === 'tercapai',
+                                                        'bg-amber-500': row.tier === 'hampir',
+                                                        'bg-rose-500': row.tier === 'perlu',
+                                                        'bg-slate-400': row.tier === 'unverified',
+                                                    }"
+                                                ></span>
+                                                <span class="font-bold text-slate-900" x-text="row.pencapaian_display || 'Belum tersedia'"></span>
+                                            </div>
+                                            <div class="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-slate-100">
+                                                <div
+                                                    class="h-1 rounded-full transition-all"
+                                                    :class="{
+                                                        'bg-emerald-500': row.tier === 'tercapai',
+                                                        'bg-amber-500': row.tier === 'hampir',
+                                                        'bg-rose-500': row.tier === 'perlu',
+                                                        'bg-slate-300': row.tier === 'unverified',
+                                                    }"
+                                                    :style="'width: ' + Math.min(100, Math.max(0, Number(row.pencapaian || 0))) + '%'"
+                                                ></div>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </template>
+                                <tr x-show="filteredIndicators.length === 0">
+                                    <td colspan="4" class="px-4 py-8 text-center text-xs text-slate-500">
+                                        Tidak ada baris indikator pada filter aktif.
                                     </td>
                                 </tr>
-                            </template>
-                            <tr x-show="filteredIndicators.length === 0">
-                                <td colspan="9" class="px-3 py-6 text-center text-xs text-slate-500">
-                                    Tidak ada baris indikator pada filter aktif.
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <div id="kpi-detail-header" class="ibs-card min-w-0 max-w-full rounded-2xl border border-slate-200/80 bg-white px-5 py-4 shadow-[0_1px_3px_rgba(15,23,42,0.03)]">
+    <div id="kpi-detail-header" class="ibs-card min-w-0 max-w-full rounded-2xl border border-slate-200/80 bg-white px-4 py-3 sm:px-5 sm:py-3.5 shadow-[0_1px_3px_rgba(15,23,42,0.03)]">
         {{-- Tier 1: Executive Identity & Action Cluster --}}
         <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between min-w-0">
             <div class="flex flex-wrap items-center gap-2.5 sm:gap-3 min-w-0">
@@ -1054,7 +1237,7 @@ if (typeof window.kpiDetailManager !== 'function') {
         </div>
 
         {{-- Tier 2: Single Unified Command Bar --}}
-        <div id="kpi-command-bar" class="mt-3.5 flex flex-col gap-3 border-t border-slate-200/70 pt-3.5 xl:flex-row xl:items-center xl:justify-between min-w-0 no-print">
+        <div id="kpi-command-bar" class="mt-3 flex flex-col gap-2.5 border-t border-slate-200/70 pt-2.5 xl:flex-row xl:items-center xl:justify-between min-w-0 no-print">
             <div id="kpi-view-switcher" class="inline-flex min-w-0 max-w-full flex-wrap items-center gap-0.5 rounded-xl border border-slate-200/60 bg-slate-100/90 p-1 text-xs">
                 <button
                     type="button"

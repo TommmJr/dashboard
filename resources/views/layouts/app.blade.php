@@ -25,65 +25,71 @@
             class="app-content flex min-h-full min-w-0 max-w-full flex-col overflow-x-clip transition-all duration-200 ease-in-out"
             :style="`margin-left: ${$store.ui.sidebarExpanded ? '16rem' : '4rem'}`"
         >
-            <header class="sticky top-0 z-30 flex h-16 min-w-0 items-center justify-between gap-2 border-b border-slate-200/80 bg-white/85 px-4 shadow-[0_1px_2px_0_rgba(15,23,42,0.03)] backdrop-blur-md sm:px-8">
-                <div class="flex min-w-0 items-center gap-3">
-                    <button type="button"
-                            class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 hover:text-[#0b6175] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a3b8] lg:hidden"
-                            @click="$store.ui.sidebarExpanded = !$store.ui.sidebarExpanded"
-                            :aria-expanded="$store.ui.sidebarExpanded"
-                            aria-controls="main-sidebar"
-                            aria-label="Buka menu">
-                        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-                            <path d="M4 6h16M4 12h16M4 18h16" stroke-linecap="round" stroke-linejoin="round" />
-                        </svg>
-                    </button>
-                    <div class="flex min-w-0 items-center gap-2.5 sm:gap-3">
-                        <span class="hidden sm:inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#e6f4f6] text-[#0b6175] ring-1 ring-[#0b6175]/15 shadow-2xs" aria-hidden="true">
+            <header class="sticky top-0 z-30 border-b border-slate-200/60 bg-white/85 shadow-[0_1px_2px_0_rgba(15,23,42,0.03)] backdrop-blur-md transition-colors duration-200">
+                <div class="mx-auto flex h-14 max-w-[1600px] min-w-0 items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
+                    <div class="flex min-w-0 items-center gap-2.5">
+                        <button type="button"
+                                class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200/80 bg-white text-slate-500 transition-colors hover:bg-slate-50 hover:text-[#0b6175] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a3b8] lg:hidden"
+                                @click="$store.ui.sidebarExpanded = !$store.ui.sidebarExpanded"
+                                :aria-expanded="$store.ui.sidebarExpanded"
+                                aria-controls="main-sidebar"
+                                aria-label="Buka menu">
+                            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                                <path d="M4 6h16M4 12h16M4 18h16" stroke-linecap="round" stroke-linejoin="round" />
+                            </svg>
+                        </button>
+                        <span class="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-[#e6f4f6] text-[#0b6175] ring-1 ring-inset ring-[#0b6175]/15" aria-hidden="true">
                             @if (request()->routeIs('dashboard.builder'))
-                                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                                     <rect x="3" y="3" width="7" height="7" rx="1.5" />
                                     <rect x="14" y="3" width="7" height="7" rx="1.5" />
                                     <rect x="14" y="14" width="7" height="7" rx="1.5" />
                                     <rect x="3" y="14" width="7" height="7" rx="1.5" />
                                 </svg>
                             @else
-                                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                                     <path d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" />
                                 </svg>
                             @endif
                         </span>
-                        <span class="truncate text-[15px] font-semibold tracking-tight text-slate-900">
-                            @yield('page_heading', 'Dashboard')
-                        </span>
                         @hasSection('breadcrumbs')
                             @yield('breadcrumbs')
                         @else
-                            <span class="hidden sm:inline-block select-none text-slate-300" aria-hidden="true">/</span>
-                            <nav aria-label="Breadcrumb" id="header-breadcrumb" class="hidden sm:inline-flex items-center gap-1.5 rounded-lg border border-slate-200/75 bg-slate-50/85 px-2.5 py-1 text-xs font-medium text-slate-500">
-                                <a href="{{ route('dashboard') }}" class="{{ request()->routeIs('dashboard') ? 'font-semibold text-slate-800' : 'text-slate-500 transition-colors hover:text-[#0b6175]' }}" @if(request()->routeIs('dashboard')) aria-current="page" @endif>Beranda</a>
-                                @if (! request()->routeIs('dashboard'))
-                                    <span class="text-slate-300" aria-hidden="true">/</span>
-                                    <span class="truncate font-semibold text-slate-800" aria-current="page">@yield('title')</span>
+                            @php
+                                $breadcrumbCurrent = trim($__env->yieldContent('title', 'Dashboard'));
+                                $pageHeading = trim($__env->yieldContent('page_heading'));
+                                $showPageHeadingCrumb = $pageHeading !== ''
+                                    && strcasecmp($pageHeading, 'Dashboard') !== 0
+                                    && strcasecmp($pageHeading, $breadcrumbCurrent) !== 0;
+                            @endphp
+                            <nav id="header-breadcrumb" aria-label="Breadcrumb" class="flex min-w-0 items-center gap-2 text-[13px] text-slate-500">
+                                @if (request()->routeIs('dashboard'))
+                                    <a href="{{ route('dashboard') }}" class="truncate font-semibold tracking-tight text-slate-800 transition-colors hover:text-[#0b6175]" aria-current="page">Beranda</a>
+                                @else
+                                    <a href="{{ route('dashboard') }}" class="shrink-0 font-medium text-slate-400 transition-colors hover:text-[#0b6175]">Beranda</a>
+                                    @if ($showPageHeadingCrumb)
+                                        <span class="shrink-0 text-slate-300" aria-hidden="true">/</span>
+                                        <span class="shrink-0 font-medium text-slate-500">{{ $pageHeading }}</span>
+                                    @endif
+                                    <span class="shrink-0 text-slate-300" aria-hidden="true">/</span>
+                                    <span class="truncate font-semibold tracking-tight text-slate-800" aria-current="page">{{ $breadcrumbCurrent }}</span>
                                 @endif
                             </nav>
                         @endif
                         @yield('header_meta')
                     </div>
-                </div>
-                <div class="flex shrink-0 items-center gap-3">
-                    @yield('header_actions')
-                    @php
-                        $contextLabel = auth()->user()->division?->name ?? auth()->user()->role?->name;
-                    @endphp
-                    @if ($contextLabel)
-                        <span id="topbar-context-badge" class="hidden sm:inline-flex items-center gap-2 rounded-full border border-slate-200/85 bg-white/95 px-3.5 py-1.5 text-xs font-medium text-slate-700 shadow-[0_1px_2px_0_rgba(15,23,42,0.03)] ring-1 ring-slate-900/[0.03]">
-                            <span class="relative flex h-2 w-2" aria-hidden="true">
-                                <span class="absolute inline-flex h-full w-full animate-ping motion-reduce:animate-none rounded-full bg-emerald-400 opacity-75"></span>
-                                <span class="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
+                    <div class="flex shrink-0 items-center gap-3">
+                        @yield('header_actions')
+                        @php
+                            $contextLabel = auth()->user()->division?->name ?? auth()->user()->role?->name;
+                        @endphp
+                        @if ($contextLabel)
+                            <span id="topbar-context-badge" class="hidden sm:inline-flex items-center gap-2 rounded-full border border-slate-200/60 bg-slate-50/70 px-2.5 py-1 text-[11px] font-medium tracking-tight text-slate-600">
+                                <span class="h-1.5 w-1.5 shrink-0 rounded-full bg-[#0b6175]" aria-hidden="true"></span>
+                                <span>{{ $contextLabel }}</span>
                             </span>
-                            <span>{{ $contextLabel }}</span>
-                        </span>
-                    @endif
+                        @endif
+                    </div>
                 </div>
             </header>
 

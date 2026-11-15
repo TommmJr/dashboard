@@ -790,4 +790,57 @@ class KpiDetailPageTest extends TestCase
             ->assertSee('lg:col-span-7', false)
             ->assertDontSee('Mode: <span', false);
     }
+
+    public function test_studio_presentasi_layar_penuh_menyajikan_layout_boardroom_dan_mode_perbandingan_ternormalisasi(): void
+    {
+        $role = Role::where('slug', Role::STAFF_DIVISI)->firstOrFail();
+        $user = User::factory()->create([
+            'role_id' => $role->id,
+            'division_id' => $this->pengusahaan->id,
+        ]);
+
+        $dataset = Dataset::factory()->create([
+            'division_id' => $this->pengusahaan->id,
+            'status' => Dataset::STATUS_READY,
+        ]);
+
+        $unit = OrgUnit::create(['name' => 'TJBT']);
+        $indicator = Indicator::create([
+            'org_unit_id' => $unit->id,
+            'name' => 'a. Faktor Ketersediaan Trafo (Trafo Availability)',
+            'satuan' => '%',
+            'is_group' => false,
+            'pencapaian_formula_kind' => 'polarity_ratio',
+        ]);
+
+        PerformanceObservation::create([
+            'dataset_id' => $dataset->id,
+            'indicator_id' => $indicator->id,
+            'org_unit_id' => $unit->id,
+            'division_id' => $this->pengusahaan->id,
+            'period' => '2026-08-31',
+            'target_type' => PerformanceObservation::TYPE_NUMERIC,
+            'realisasi_type' => PerformanceObservation::TYPE_NUMERIC,
+            'target_value' => 99.92,
+            'realisasi_value' => 99.99,
+            'pencapaian' => 1.0007,
+        ]);
+
+        $response = $this->actingAs($user)->get(route('dashboard.kpi-detail'));
+
+        $response->assertOk()
+            ->assertSee('Executive Presentation Studio')
+            ->assertSee('Ringkasan Kinerja per Indikator')
+            ->assertSee('xl:col-span-8', false)
+            ->assertSee('xl:col-span-4', false)
+            ->assertSee('Perbandingan Target vs Realisasi (Skala Ternormalisasi %)')
+            ->assertSee('Target (Acuan 100%)')
+            ->assertSee('formatChartIndicatorName', false)
+            ->assertSee('rows.length > 20', false)
+            ->assertDontSee('rows.length > 12', false)
+            ->assertDontSee('font-mono')
+            ->assertDontSee('monospace')
+            ->assertDontSee('&mdash;', false)
+            ->assertDontSee('&ndash;', false);
+    }
 }

@@ -244,16 +244,43 @@ class AppLayoutTest extends TestCase
 
         $response->assertOk()
             ->assertSee('overflow-x-clip', false)
+            ->assertSee('h-14', false)
             ->assertSee('bg-white/85', false)
             ->assertSee('backdrop-blur-md', false)
             ->assertSee('shadow-[0_1px_2px_0_rgba(15,23,42,0.03)]', false)
             ->assertSee('bg-[#e6f4f6] text-[#0b6175]', false)
             ->assertSee('id="header-breadcrumb"', false)
-            ->assertSee('rounded-lg border border-slate-200/75 bg-slate-50/85', false)
+            ->assertSee('flex min-w-0 items-center gap-2 text-[13px] text-slate-500', false)
             ->assertSee('id="topbar-context-badge"', false)
-            ->assertSee('rounded-full border border-slate-200/85 bg-white/95', false)
-            ->assertSee('relative flex h-2 w-2', false)
+            ->assertSee('rounded-full border border-slate-200/60 bg-slate-50/70 px-2.5 py-1 text-[11px] font-medium tracking-tight text-slate-600', false)
+            ->assertSee('h-1.5 w-1.5 shrink-0 rounded-full bg-[#0b6175]', false)
+            ->assertDontSee('rounded-lg border border-slate-200/75 bg-slate-50/85', false)
+            ->assertDontSee('animate-ping', false)
             ->assertDontSee('bg-slate-900 text-white shadow-xs', false)
             ->assertDontSee('font-mono', false);
+
+        $html = $response->getContent();
+        $this->assertSame(1, preg_match('/<header\b[^>]*>.*?<\/header>/s', $html, $headerMatch));
+        $headerHtml = $headerMatch[0];
+
+        $this->assertStringNotContainsString('>Dashboard<', $headerHtml);
+        $this->assertMatchesRegularExpression('/id="header-breadcrumb".*Beranda.*aria-current="page"[^>]*>Dashboard Builder</s', $headerHtml);
+        $this->assertSame(1, substr_count($headerHtml, 'Dashboard Builder'));
+    }
+
+    public function test_minimalist_navbar_omits_redundant_dashboard_label_across_routes(): void
+    {
+        $admin = User::factory()->withRole(Role::ADMIN)->create(['division_id' => null]);
+        $management = User::factory()->withRole(Role::MANAGEMENT)->create(['division_id' => null]);
+
+        $dashboardHtml = $this->actingAs($admin)->get(route('dashboard'))->assertOk()->getContent();
+        $this->assertSame(1, preg_match('/<header\b[^>]*>.*?<\/header>/s', $dashboardHtml, $dashHeaderMatch));
+        $this->assertStringNotContainsString('>Dashboard<', $dashHeaderMatch[0]);
+        $this->assertMatchesRegularExpression('/id="header-breadcrumb"[^>]*>.*aria-current="page"[^>]*>Beranda</s', $dashHeaderMatch[0]);
+
+        $kpiHtml = $this->actingAs($management)->get(route('dashboard.kpi-detail'))->assertOk()->getContent();
+        $this->assertSame(1, preg_match('/<header\b[^>]*>.*?<\/header>/s', $kpiHtml, $kpiHeaderMatch));
+        $this->assertStringNotContainsString('>Dashboard<', $kpiHeaderMatch[0]);
+        $this->assertMatchesRegularExpression('/id="header-breadcrumb".*Beranda.*aria-current="page"[^>]*>Rincian Kinerja KPI</s', $kpiHeaderMatch[0]);
     }
 }
