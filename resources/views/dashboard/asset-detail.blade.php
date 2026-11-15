@@ -93,7 +93,7 @@
     }
 @endphp
 
-<div class="space-y-5">
+<div class="space-y-5 min-w-0 max-w-full">
     {{-- Header Halaman Ringkas --}}
     <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div class="flex flex-wrap items-center gap-2.5">
@@ -134,7 +134,7 @@
     </span>
 
     {{-- Toolbar Tunggal: 4 Navigasi Seksi --}}
-    <div class="ibs-card p-3.5">
+    <div class="ibs-card min-w-0 max-w-full p-3.5">
         <div class="flex flex-wrap items-center justify-between gap-3">
             <div class="flex flex-wrap items-center gap-1.5">
                 <a href="{{ route('dashboard.asset-detail', ['section' => 'trafo']) }}"
@@ -171,7 +171,7 @@
     </div>
 
     {{-- Unified Summary Strip (4 Metrik Induk UIT JBT dalam 1 .ibs-card) --}}
-    <div class="ibs-card overflow-hidden">
+    <div class="ibs-card min-w-0 max-w-full overflow-hidden">
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-slate-100">
             {{-- Col 1: Total Kapasitas Trafo --}}
             <div class="p-5">
@@ -240,15 +240,15 @@
     @if ($section === 'trafo')
         {{-- Dual-Chart ECharts Canvases --}}
         <div
-            class="grid grid-cols-1 lg:grid-cols-2 gap-5"
+            class="grid grid-cols-1 lg:grid-cols-2 gap-5 min-w-0"
             x-data='assetTrafoCharts(@json($chartConfig), @json($bankByUpt), @json($unitByUpt), @json($canonicalUpts))'
             x-init="initCharts()"
         >
             {{-- Canvas 1: Kapasitas Daya per UPT --}}
-            <div class="ibs-card p-5 flex flex-col justify-between">
-                <div class="flex items-center justify-between gap-2 border-b border-slate-100 pb-3 mb-3">
+            <div class="ibs-card min-w-0 max-w-full overflow-hidden p-4 sm:p-5 flex flex-col justify-between">
+                <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3 mb-3">
                     <h2 class="ibs-section-title">Kapasitas Daya per UPT</h2>
-                    <div class="inline-flex items-center rounded-xl bg-slate-100/90 p-1 text-xs">
+                    <div class="inline-flex max-w-full flex-wrap items-center rounded-xl bg-slate-100/90 p-1 text-xs">
                         <button
                             type="button"
                             @click="setViewMode('total')"
@@ -275,8 +275,8 @@
             </div>
 
             {{-- Canvas 2: Fisik Trafo Terpasang --}}
-            <div class="ibs-card p-5 flex flex-col justify-between">
-                <div class="flex items-center justify-between gap-2 border-b border-slate-100 pb-3 mb-3">
+            <div class="ibs-card min-w-0 max-w-full overflow-hidden p-4 sm:p-5 flex flex-col justify-between">
+                <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3 mb-3">
                     <h2 class="ibs-section-title">Fisik Trafo Terpasang</h2>
                     <span class="inline-flex items-center rounded-md bg-[#e6f4f6] px-2.5 py-0.5 text-[11px] font-semibold text-[#0b6175]">
                         Bank & Unit
@@ -284,15 +284,15 @@
                 </div>
                 <div
                     id="asset-detail-trafo-physical-chart"
-                    class="w-full h-[360px] min-h-[340px]"
+                    class="w-full max-w-full overflow-hidden h-[360px] min-h-[340px]"
                     style="width: 100%; height: 360px; min-height: 340px;"
                 ></div>
             </div>
         </div>
 
         {{-- Main Panel: Bedah Detail Trafo per Level Tegangan & UPT --}}
-        <div class="ibs-card p-5 sm:p-6">
-            <div class="flex items-center justify-between border-b border-slate-100 pb-4">
+        <div class="ibs-card min-w-0 max-w-full p-4 sm:p-6">
+            <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-4">
                 <h2 class="ibs-section-title text-base font-bold text-slate-900">Bedah Detail Trafo per Level Tegangan & UPT</h2>
                 <span class="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-600">
                     8 UPT
@@ -300,19 +300,20 @@
             </div>
 
             <div class="mt-4 space-y-5">
-                @foreach ($trafoGroups as $tg)
+                @forelse ($trafoGroups as $tg)
                     @php
                         $tgTotalMva = (float) ($tg['uit_total']['mva'] ?? $tg['total_upt']['mva'] ?? 0);
                         $tgTotalBank = (float) ($tg['uit_total']['bank'] ?? $tg['total_upt']['bank'] ?? 0);
                         $tgTotalUnit = (float) ($tg['uit_total']['unit'] ?? $tg['total_upt']['unit'] ?? 0);
+                        $hasUptBank = (bool) ($tg['has_upt_bank'] ?? true);
                     @endphp
                     <div class="rounded-xl border border-slate-200/80 overflow-hidden">
                         <div class="flex flex-wrap items-center justify-between gap-2 bg-slate-50/70 px-4 py-3 border-b border-slate-200/80">
-                            <div class="flex items-center gap-2">
-                                <span class="h-2 w-2 rounded-full bg-[#0b6175]"></span>
+                            <div class="flex min-w-0 items-center gap-2">
+                                <span class="h-2 w-2 shrink-0 rounded-full bg-[#0b6175]"></span>
                                 <h3 class="text-sm font-semibold text-slate-800">{{ $tg['label'] }} ({{ $tg['voltage'] }})</h3>
                             </div>
-                            <div class="flex items-center gap-3 text-xs font-sans tabular-nums text-slate-600">
+                            <div class="flex flex-wrap items-center gap-3 text-xs font-sans tabular-nums text-slate-600">
                                 <span><strong class="text-slate-900">{{ number_format($tgTotalMva, 1, ',', '.') }}</strong> MVA</span>
                                 <span class="text-slate-300">|</span>
                                 <span><strong class="text-slate-900">{{ number_format($tgTotalBank, 0, ',', '.') }}</strong> Bank</span>
@@ -321,7 +322,7 @@
                             </div>
                         </div>
 
-                        <div class="overflow-x-auto">
+                        <div class="w-full overflow-x-auto">
                             <table class="w-full text-xs">
                                 <thead class="bg-slate-50/50 text-slate-500 uppercase tracking-wider font-semibold border-b border-slate-100">
                                     <tr>
@@ -348,7 +349,11 @@
                                                 </div>
                                             </td>
                                             <td class="py-2 px-4 text-right font-sans tabular-nums text-slate-700">
-                                                {{ number_format($row['bank'], 0, ',', '.') }}
+                                                @if ($hasUptBank)
+                                                    {{ number_format($row['bank'], 0, ',', '.') }}
+                                                @else
+                                                    <span class="text-slate-400">Tidak dirinci</span>
+                                                @endif
                                             </td>
                                             <td class="py-2 px-4 text-right font-sans tabular-nums text-slate-700">
                                                 {{ number_format($row['unit'], 0, ',', '.') }}
@@ -373,15 +378,19 @@
                             </table>
                         </div>
                     </div>
-                @endforeach
+                @empty
+                    <div class="rounded-xl border border-slate-200/80 bg-slate-50/70 p-6 text-center text-xs text-slate-500">
+                        Belum ada data rincian trafo untuk periode yang dipilih.
+                    </div>
+                @endforelse
             </div>
         </div>
 
         {{-- Panel Saluran Transmisi & Tower --}}
-        <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
+        <div class="grid grid-cols-1 gap-5 lg:grid-cols-2 min-w-0">
             {{-- Panel Saluran Transmisi (SU vs SK) --}}
-            <div class="ibs-card p-5">
-                <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+            <div class="ibs-card min-w-0 max-w-full p-4 sm:p-5">
+                <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3 mb-4">
                     <h3 class="ibs-section-title">Saluran Transmisi (SU vs SK)</h3>
                     <span class="rounded-md bg-[#e6f4f6] px-2.5 py-0.5 text-xs font-semibold font-sans tabular-nums text-[#0b6175]">
                         {{ number_format($totalTransmisi, 1, ',', '.') }} kms
@@ -426,8 +435,8 @@
             </div>
 
             {{-- Panel Tower Transmisi per Tegangan --}}
-            <div class="ibs-card p-5">
-                <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+            <div class="ibs-card min-w-0 max-w-full p-4 sm:p-5">
+                <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3 mb-4">
                     <h3 class="ibs-section-title">Tower Transmisi per Tegangan</h3>
                     <span class="rounded-md bg-[#e6f4f6] px-2.5 py-0.5 text-xs font-semibold font-sans tabular-nums text-[#0b6175]">
                         {{ number_format($totalTower, 0, ',', '.') }} Unit
@@ -477,12 +486,12 @@
     @if ($section === 'mva')
         {{-- Dual-Chart ECharts: Horizontal Ranked Bar + Donut Share --}}
         <div
-            class="grid grid-cols-1 lg:grid-cols-3 gap-5"
+            class="grid grid-cols-1 lg:grid-cols-3 gap-5 min-w-0"
             x-data='assetMvaCharts(@json($mvaByUpt), @json($totalTrafoMva))'
             x-init="initCharts()"
         >
-            <div class="lg:col-span-2 ibs-card p-5 flex flex-col justify-between">
-                <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-3">
+            <div class="lg:col-span-2 ibs-card min-w-0 max-w-full overflow-hidden p-4 sm:p-5 flex flex-col justify-between">
+                <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3 mb-3">
                     <h2 class="ibs-section-title">Peringkat Daya per UPT</h2>
                     <span class="inline-flex items-center rounded-md bg-[#e6f4f6] px-2.5 py-0.5 text-[11px] font-semibold font-sans tabular-nums text-[#0b6175]">
                         {{ number_format($totalTrafoMva, 1, ',', '.') }} MVA
@@ -490,32 +499,32 @@
                 </div>
                 <div
                     id="asset-mva-ranked-chart"
-                    class="w-full h-[360px] min-h-[340px]"
+                    class="w-full max-w-full overflow-hidden h-[360px] min-h-[340px]"
                     style="width: 100%; height: 360px; min-height: 340px;"
                 ></div>
             </div>
 
-            <div class="lg:col-span-1 ibs-card p-5 flex flex-col justify-between">
-                <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-3">
+            <div class="lg:col-span-1 ibs-card min-w-0 max-w-full overflow-hidden p-4 sm:p-5 flex flex-col justify-between">
+                <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3 mb-3">
                     <h2 class="ibs-section-title">Pangsa Daya UPT</h2>
                     <span class="text-[11px] text-slate-500 font-semibold">% Pangsa</span>
                 </div>
                 <div
                     id="asset-mva-donut-chart"
-                    class="w-full h-[360px] min-h-[340px]"
+                    class="w-full max-w-full overflow-hidden h-[360px] min-h-[340px]"
                     style="width: 100%; height: 360px; min-height: 340px;"
                 ></div>
             </div>
         </div>
 
         {{-- Tabel Matriks Daya MVA per UPT & Level Tegangan --}}
-        <div class="ibs-card p-5 sm:p-6">
-            <div class="flex items-center justify-between border-b border-slate-100 pb-4 mb-4">
+        <div class="ibs-card min-w-0 max-w-full p-4 sm:p-6">
+            <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-4 mb-4">
                 <h2 class="ibs-section-title text-base font-bold text-slate-900">Matriks Kapasitas Daya MVA</h2>
                 <span class="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-600">8 UPT</span>
             </div>
 
-            <div class="overflow-x-auto rounded-xl border border-slate-200/80">
+            <div class="w-full min-w-0 overflow-x-auto rounded-xl border border-slate-200/80">
                 <table class="w-full text-xs">
                     <thead class="bg-slate-50/70 text-slate-500 uppercase tracking-wider font-semibold border-b border-slate-200/80">
                         <tr>
@@ -527,12 +536,18 @@
                             <th class="py-2.5 px-4 text-right">Pangsa UIT JBT</th>
                         </tr>
                     </thead>
+                    @php
+                        $trafoGroupByVoltage = collect($trafoGroups)->keyBy('voltage');
+                        $tg500 = $trafoGroupByVoltage->get('500/150 kV');
+                        $tg150_70 = $trafoGroupByVoltage->get('150/70 kV');
+                        $tg150_20 = $trafoGroupByVoltage->get('150/20 kV');
+                    @endphp
                     <tbody class="divide-y divide-slate-100 bg-white">
                         @foreach ($rankedMva as $upt => $totMva)
                             @php
-                                $mva500 = (float) ($trafoGroups[0]['by_upt'][$upt]['mva'] ?? 0);
-                                $mva150_70 = (float) ($trafoGroups[1]['by_upt'][$upt]['mva'] ?? 0);
-                                $mva150_20 = (float) ($trafoGroups[2]['by_upt'][$upt]['mva'] ?? 0);
+                                $mva500 = (float) ($tg500['by_upt'][$upt]['mva'] ?? 0);
+                                $mva150_70 = (float) ($tg150_70['by_upt'][$upt]['mva'] ?? 0);
+                                $mva150_20 = (float) ($tg150_20['by_upt'][$upt]['mva'] ?? 0);
                                 $pct = $totalTrafoMva > 0 ? min(100, round(($totMva / $totalTrafoMva) * 100, 1)) : 0;
                             @endphp
                             <tr class="hover:bg-slate-50/60 transition">
@@ -556,13 +571,13 @@
                         <tr>
                             <td class="py-2.5 px-4 text-left font-bold text-slate-900">TOTAL UIT JBT</td>
                             <td class="py-2.5 px-4 text-right font-sans tabular-nums font-bold text-slate-900">
-                                {{ number_format((float) ($trafoGroups[0]['uit_total']['mva'] ?? $trafoGroups[0]['total_upt']['mva'] ?? 0), 1, ',', '.') }}
+                                {{ number_format((float) ($tg500['uit_total']['mva'] ?? $tg500['total_upt']['mva'] ?? 0), 1, ',', '.') }}
                             </td>
                             <td class="py-2.5 px-4 text-right font-sans tabular-nums font-bold text-slate-900">
-                                {{ number_format((float) ($trafoGroups[1]['uit_total']['mva'] ?? $trafoGroups[1]['total_upt']['mva'] ?? 0), 1, ',', '.') }}
+                                {{ number_format((float) ($tg150_70['uit_total']['mva'] ?? $tg150_70['total_upt']['mva'] ?? 0), 1, ',', '.') }}
                             </td>
                             <td class="py-2.5 px-4 text-right font-sans tabular-nums font-bold text-slate-900">
-                                {{ number_format((float) ($trafoGroups[2]['uit_total']['mva'] ?? $trafoGroups[2]['total_upt']['mva'] ?? 0), 1, ',', '.') }}
+                                {{ number_format((float) ($tg150_20['uit_total']['mva'] ?? $tg150_20['total_upt']['mva'] ?? 0), 1, ',', '.') }}
                             </td>
                             <td class="py-2.5 px-4 text-right font-sans tabular-nums font-bold text-slate-900">
                                 {{ number_format($totalTrafoMva, 1, ',', '.') }} MVA
@@ -579,12 +594,12 @@
     @if ($section === 'transmisi')
         {{-- Dual-Chart ECharts: Stacked Bar (SU vs SK) + Voltage Class Donut --}}
         <div
-            class="grid grid-cols-1 lg:grid-cols-3 gap-5"
+            class="grid grid-cols-1 lg:grid-cols-3 gap-5 min-w-0"
             x-data='assetTransmisiCharts(@json($transmisiByUpt), @json($transmisiGroups), @json($totalTransmisi))'
             x-init="initCharts()"
         >
-            <div class="lg:col-span-2 ibs-card p-5 flex flex-col justify-between">
-                <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-3">
+            <div class="lg:col-span-2 ibs-card min-w-0 max-w-full overflow-hidden p-4 sm:p-5 flex flex-col justify-between">
+                <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3 mb-3">
                     <h2 class="ibs-section-title">Panjang Saluran per UPT</h2>
                     <span class="inline-flex items-center rounded-md bg-[#e6f4f6] px-2.5 py-0.5 text-[11px] font-semibold font-sans tabular-nums text-[#0b6175]">
                         {{ number_format($totalTransmisi, 1, ',', '.') }} kms
@@ -592,27 +607,27 @@
                 </div>
                 <div
                     id="asset-transmisi-bar-chart"
-                    class="w-full h-[360px] min-h-[340px]"
+                    class="w-full max-w-full overflow-hidden h-[360px] min-h-[340px]"
                     style="width: 100%; height: 360px; min-height: 340px;"
                 ></div>
             </div>
 
-            <div class="lg:col-span-1 ibs-card p-5 flex flex-col justify-between">
-                <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-3">
+            <div class="lg:col-span-1 ibs-card min-w-0 max-w-full overflow-hidden p-4 sm:p-5 flex flex-col justify-between">
+                <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3 mb-3">
                     <h2 class="ibs-section-title">Pangsa Kelas Tegangan</h2>
                     <span class="text-[11px] text-slate-500 font-semibold">% Tegangan</span>
                 </div>
                 <div
                     id="asset-transmisi-voltage-chart"
-                    class="w-full h-[360px] min-h-[340px]"
+                    class="w-full max-w-full overflow-hidden h-[360px] min-h-[340px]"
                     style="width: 100%; height: 360px; min-height: 340px;"
                 ></div>
             </div>
         </div>
 
         {{-- Tabel Rincian Saluran Transmisi per Tegangan & UPT --}}
-        <div class="ibs-card p-5 sm:p-6 space-y-5">
-            <div class="flex items-center justify-between border-b border-slate-100 pb-4">
+        <div class="ibs-card min-w-0 max-w-full p-4 sm:p-6 space-y-5">
+            <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-4">
                 <h2 class="ibs-section-title text-base font-bold text-slate-900">Saluran Transmisi per Tegangan</h2>
                 <span class="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-600">4 Tegangan</span>
             </div>
@@ -670,12 +685,12 @@
     @if ($section === 'tower')
         {{-- Dual-Chart ECharts: Grouped Bar + UPT Share Donut --}}
         <div
-            class="grid grid-cols-1 lg:grid-cols-3 gap-5"
+            class="grid grid-cols-1 lg:grid-cols-3 gap-5 min-w-0"
             x-data='assetTowerCharts(@json($towerGroups), @json($towerByUpt), @json($canonicalUpts), @json($totalTower))'
             x-init="initCharts()"
         >
-            <div class="lg:col-span-2 ibs-card p-5 flex flex-col justify-between">
-                <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-3">
+            <div class="lg:col-span-2 ibs-card min-w-0 max-w-full overflow-hidden p-4 sm:p-5 flex flex-col justify-between">
+                <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3 mb-3">
                     <h2 class="ibs-section-title">Sebaran Tower per UPT</h2>
                     <span class="inline-flex items-center rounded-md bg-[#e6f4f6] px-2.5 py-0.5 text-[11px] font-semibold font-sans tabular-nums text-[#0b6175]">
                         {{ number_format($totalTower, 0, ',', '.') }} Unit
@@ -683,27 +698,27 @@
                 </div>
                 <div
                     id="asset-tower-bar-chart"
-                    class="w-full h-[360px] min-h-[340px]"
+                    class="w-full max-w-full overflow-hidden h-[360px] min-h-[340px]"
                     style="width: 100%; height: 360px; min-height: 340px;"
                 ></div>
             </div>
 
-            <div class="lg:col-span-1 ibs-card p-5 flex flex-col justify-between">
-                <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-3">
+            <div class="lg:col-span-1 ibs-card min-w-0 max-w-full overflow-hidden p-4 sm:p-5 flex flex-col justify-between">
+                <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3 mb-3">
                     <h2 class="ibs-section-title">Proporsi Tower UPT</h2>
                     <span class="text-[11px] text-slate-500 font-semibold">% Pangsa</span>
                 </div>
                 <div
                     id="asset-tower-pie-chart"
-                    class="w-full h-[360px] min-h-[340px]"
+                    class="w-full max-w-full overflow-hidden h-[360px] min-h-[340px]"
                     style="width: 100%; height: 360px; min-height: 340px;"
                 ></div>
             </div>
         </div>
 
         {{-- Tabel Rincian Tower per Kelas Tegangan & UPT --}}
-        <div class="ibs-card p-5 sm:p-6 space-y-5">
-            <div class="flex items-center justify-between border-b border-slate-100 pb-4">
+        <div class="ibs-card min-w-0 max-w-full p-4 sm:p-6 space-y-5">
+            <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-4">
                 <h2 class="ibs-section-title text-base font-bold text-slate-900">Tower Transmisi per Tegangan</h2>
                 <span class="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-600">8 UPT</span>
             </div>
@@ -759,7 +774,7 @@
 
     {{-- Interactive Alpine.js Matrix & Search Filter (Ada di semua sub-page) --}}
     <div
-        class="ibs-card p-5 sm:p-6"
+        class="ibs-card min-w-0 max-w-full p-4 sm:p-6"
         x-data='assetInteractiveMatrix(@json($interactiveMatrix), @json($canonicalUpts), @json($section))'
     >
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-4">
@@ -804,10 +819,10 @@
                 </button>
             </div>
 
-            <div class="flex items-center gap-2">
+            <div class="flex flex-wrap items-center gap-2 min-w-0 max-w-full">
                 <select
                     x-model="selectedUpt"
-                    class="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 focus:border-[#0b6175] focus:outline-hidden"
+                    class="max-w-full min-w-0 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 focus:border-[#0b6175] focus:outline-hidden"
                 >
                     <option value="all">Semua UPT (8 UPT)</option>
                     @foreach ($canonicalUpts as $u)
@@ -815,7 +830,7 @@
                     @endforeach
                 </select>
 
-                <div class="relative w-48 sm:w-64">
+                <div class="relative w-full sm:w-64 min-w-0">
                     <input
                         type="text"
                         x-model="search"
@@ -831,7 +846,7 @@
         </div>
 
         {{-- Tabel Matriks Interaktif --}}
-        <div class="mt-4 overflow-x-auto rounded-xl border border-slate-200/80">
+        <div class="mt-4 w-full min-w-0 overflow-x-auto rounded-xl border border-slate-200/80">
             <table class="w-full text-xs">
                 <thead class="bg-slate-50/70 text-slate-500 uppercase tracking-wider font-semibold border-b border-slate-200/80">
                     <tr>

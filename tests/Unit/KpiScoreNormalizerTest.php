@@ -75,4 +75,16 @@ class KpiScoreNormalizerTest extends TestCase
         $this->assertSame('ratio', $res['scale']);
         $this->assertEqualsWithDelta(104.85, $res['percent'], 0.001);
     }
+
+    public function test_rag_tier_membulatkan_satu_desimal_sebelum_evaluasi_batas(): void
+    {
+        $this->assertSame(KpiScoreNormalizer::TIER_HAMPIR, KpiScoreNormalizer::ragTier(99.94));
+        $this->assertSame(KpiScoreNormalizer::TIER_TERCAPAI, KpiScoreNormalizer::ragTier(99.95));
+        $this->assertSame(KpiScoreNormalizer::TIER_TERCAPAI, KpiScoreNormalizer::ragTier(99.96));
+        $this->assertSame(KpiScoreNormalizer::TIER_TERCAPAI, KpiScoreNormalizer::ragTier(99.99));
+        $this->assertSame(KpiScoreNormalizer::TIER_TERCAPAI, KpiScoreNormalizer::ragTier(100.0));
+
+        $this->assertSame(KpiScoreNormalizer::TIER_PERLU, KpiScoreNormalizer::ragTier(94.94));
+        $this->assertSame(KpiScoreNormalizer::TIER_HAMPIR, KpiScoreNormalizer::ragTier(94.95));
+    }
 }

@@ -189,7 +189,8 @@ class KpiNkoParityReadinessTest extends TestCase
         $this->assertEquals(90, $chart['y_axis_min']);
 
         $donut = $this->structured(fn () => $this->reader('nkoDonut', [$user]));
-        $this->assertSame([['name' => 'Hampir Tercapai', 'value' => 1]], $donut['data']);
+        // Tahap 1: ragTier() mengevaluasi round(99.9999, 1) = 100.0 yang tampil sebagai 100,0% -> Tercapai.
+        $this->assertSame([['name' => 'Tercapai', 'value' => 1]], $donut['data']);
     }
 
     /**

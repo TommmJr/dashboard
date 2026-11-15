@@ -262,7 +262,7 @@ class DashboardController extends Controller
 
         $fmtNum = static function (?float $value, int $decimals = 2): string {
             if ($value === null) {
-                return '—';
+                return 'Tidak tercatat';
             }
 
             $formatted = number_format($value, $decimals, ',', '.');
@@ -334,7 +334,7 @@ class DashboardController extends Controller
 
             $bobot = ($meta?->bobot !== null && (string) $meta->bobot !== '')
                 ? (string) $meta->bobot
-                : '—';
+                : 'Tidak tercatat';
 
             $mode = (string) ($panel['mode'] ?? 'numeric');
             $targetNum = $mode === 'numeric' && isset($panel['numeric']['target'])
@@ -348,11 +348,11 @@ class DashboardController extends Controller
                 $targetDisplay = $fmtNum($targetNum, 4);
                 $realisasiDisplay = $fmtNum($realisasiNum, 4);
             } elseif ($mode === 'date') {
-                $targetDisplay = (string) ($panel['date']['target'] ?? '—');
-                $realisasiDisplay = (string) ($panel['date']['realisasi'] ?? '—');
+                $targetDisplay = (string) ($panel['date']['target'] ?? 'Tidak ada target');
+                $realisasiDisplay = (string) ($panel['date']['realisasi'] ?? 'Belum tersedia');
             } else {
-                $targetDisplay = '—';
-                $realisasiDisplay = '—';
+                $targetDisplay = 'Tidak tercatat';
+                $realisasiDisplay = 'Tidak tercatat';
             }
 
             $rawPct = $panel['score']['percent'] ?? null;
@@ -362,7 +362,7 @@ class DashboardController extends Controller
             $tier = $pct === null ? 'unverified' : KpiScoreNormalizer::ragTier($pct);
             $satuan = isset($panel['satuan']) && trim((string) $panel['satuan']) !== ''
                 ? (string) $panel['satuan']
-                : '—';
+                : 'Tidak tercatat';
 
             $indicators[] = [
                 'key' => $unit.'|'.$id.'|'.$idx,
@@ -379,7 +379,7 @@ class DashboardController extends Controller
                 'target_display' => $targetDisplay,
                 'realisasi_display' => $realisasiDisplay,
                 'pencapaian' => $pct,
-                'pencapaian_display' => $pct !== null ? $fmtNum($pct, 1).'%' : '—',
+                'pencapaian_display' => $pct !== null ? $fmtNum($pct, 1).'%' : 'Belum tersedia',
                 'tier' => $tier,
                 'status' => $tierToStatus($tier),
             ];
@@ -401,16 +401,16 @@ class DashboardController extends Controller
                     'unit' => (string) ($row['unit'] ?? ''),
                     'group' => 'Umum',
                     'indikator' => (string) ($row['indikator'] ?? ''),
-                    'satuan' => '—',
+                    'satuan' => 'Tidak tercatat',
                     'polaritas' => 'Positif',
-                    'bobot' => '—',
+                    'bobot' => 'Tidak tercatat',
                     'mode' => $isDate ? 'date' : 'numeric',
                     'target_num' => $targetNum,
                     'realisasi_num' => $realisasiNum,
                     'target_display' => (string) ($row['target_display'] ?? $fmtNum($targetNum, 2)),
                     'realisasi_display' => (string) ($row['realisasi_display'] ?? $fmtNum($realisasiNum, 2)),
                     'pencapaian' => $pct,
-                    'pencapaian_display' => $pct !== null ? $fmtNum($pct, 1).'%' : '—',
+                    'pencapaian_display' => $pct !== null ? $fmtNum($pct, 1).'%' : 'Belum tersedia',
                     'tier' => $tier,
                     'status' => $tierToStatus($tier),
                 ];
@@ -1512,6 +1512,10 @@ class DashboardController extends Controller
                 $target = $vals['target'] ?? null;
                 $realisasi = $vals['realisasi'] ?? null;
                 $dateDisplay = $dateDisplays[$unit][$indikator] ?? [];
+                $pencapaian = array_key_exists('pencapaian', $dateDisplay)
+                    ? $dateDisplay['pencapaian']
+                    : (($target !== null && $target > 0 && $realisasi !== null)
+                        ? round($realisasi / $target * 100, 1) : null);
                 $rows[] = [
                     'unit' => $unit,
                     'indikator' => $indikator,
@@ -1519,10 +1523,8 @@ class DashboardController extends Controller
                     'realisasi' => $realisasi,
                     'target_display' => $dateDisplay['target'] ?? null,
                     'realisasi_display' => $dateDisplay['realisasi'] ?? null,
-                    'pencapaian' => array_key_exists('pencapaian', $dateDisplay)
-                        ? $dateDisplay['pencapaian']
-                        : (($target !== null && $target > 0 && $realisasi !== null)
-                            ? round($realisasi / $target * 100, 1) : null),
+                    'pencapaian' => $pencapaian,
+                    'skor_kpi' => $pencapaian !== null ? round(KpiScoreNormalizer::clamp((float) $pencapaian), 1) : null,
                     'nko' => $nko[$unit] ?? null,
                 ];
             }
@@ -1933,6 +1935,7 @@ class DashboardController extends Controller
             ->select(
                 'org_units.name as unit',
                 'indicators.name as indikator',
+                'indicators.pencapaian_formula_kind',
                 'performance_observations.target_value',
                 'performance_observations.target_date',
                 'performance_observations.target_type',
@@ -1984,6 +1987,19 @@ class DashboardController extends Controller
                     $pencapaian = null;
                 }
 
+                $skorKpi = null;
+                if ($obs->pencapaian !== null) {
+                    $scaled = KpiScoreNormalizer::scoreScale(
+                        (float) $obs->pencapaian,
+                        $obs->pencapaian_formula_kind,
+                    )['percent'];
+                    if ($scaled !== null) {
+                        $skorKpi = round(KpiScoreNormalizer::clamp($scaled), 1);
+                    }
+                } elseif ($pencapaian !== null) {
+                    $skorKpi = round(KpiScoreNormalizer::clamp((float) $pencapaian), 1);
+                }
+
                 $rowsByKey[$unit][$indikator] = [
                     'unit' => $unit,
                     'indikator' => $indikator,
@@ -1992,6 +2008,7 @@ class DashboardController extends Controller
                     'target_display' => $targetDisplay,
                     'realisasi_display' => $realisasiDisplay,
                     'pencapaian' => $pencapaian,
+                    'skor_kpi' => $skorKpi,
                     'nko' => $nko[$unit] ?? null,
                 ];
             });

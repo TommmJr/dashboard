@@ -87,7 +87,7 @@
 @endphp
 
 <div
-    class="space-y-5"
+    class="space-y-5 min-w-0 max-w-full"
     @if (!$labels->isEmpty() && !$series->isEmpty())
         x-data='asetUptChartWidget(@json($chartId))'
         x-init="init()"
@@ -156,12 +156,12 @@
 
         <span class="sr-only">
             Kepemilikan Aset Induk UIT JBT (Unit Induk Transmisi Jawa Bagian Tengah)
-            Rekapitulasi Kepemilikan Induk UIT JBT - Tab 1a
+            Rekapitulasi Kepemilikan Induk UIT JBT • Tab 1a
             Distribusi / Sebaran Wilayah Aset UIT pada 8 UPT (Tab 1b)
         </span>
 
         {{-- Row 1: Unified Metric Banner (3 Metrik Induk UIT JBT dalam 1 .ibs-card) --}}
-        <div class="ibs-card overflow-hidden">
+        <div class="ibs-card min-w-0 max-w-full overflow-hidden">
             <div class="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-slate-100">
                 {{-- Metric 1: Total Tower --}}
                 <div class="p-5">
@@ -235,15 +235,15 @@
         </div>
 
         {{-- Row 2: Split Visual Canvas (Bar Chart ~65% + Donut & Ranking List ~35%) --}}
-        <div class="ibs-card p-5">
+        <div class="ibs-card min-w-0 max-w-full p-4 sm:p-5">
             <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-4">
-                <div class="flex items-center gap-2.5">
+                <div class="flex flex-wrap items-center gap-2.5 min-w-0">
                     <h4 class="ibs-section-title">Sebaran Aset 8 UPT</h4>
                     <span class="rounded-md bg-[#e6f4f6] px-2 py-0.5 text-[11px] font-semibold text-[#0b6175]" x-text="activeUnit"></span>
                 </div>
 
                 {{-- Segmented Pill Switcher --}}
-                <div class="inline-flex items-center rounded-xl bg-slate-100/90 p-1 text-xs self-start sm:self-auto">
+                <div class="inline-flex flex-wrap max-w-full items-center rounded-xl bg-slate-100/90 p-1 text-xs self-start sm:self-auto">
                     <button
                         type="button"
                         data-category-filter="tower"
@@ -280,19 +280,19 @@
                 </div>
             </div>
 
-            <div class="mt-4 grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+            <div class="mt-4 grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch min-w-0">
                 {{-- Left (~65%): ECharts Bar Canvas --}}
-                <div class="lg:col-span-8 flex flex-col justify-between">
+                <div class="lg:col-span-8 min-w-0 max-w-full overflow-hidden flex flex-col justify-between">
                     <div
                         id="{{ $chartId }}"
                         data-chart-id="aset-upt-chart"
-                        class="w-full h-96 min-h-[360px]"
+                        class="w-full max-w-full overflow-hidden h-96 min-h-[360px]"
                         style="width: 100%; height: 380px; min-height: 360px;"
                     ></div>
                 </div>
 
                 {{-- Right (~35%): Donut + Horizontal Ranking Bar List --}}
-                <div class="lg:col-span-4 flex flex-col justify-between gap-4 border-t lg:border-t-0 lg:border-l border-slate-100 pt-4 lg:pt-0 lg:pl-5">
+                <div class="lg:col-span-4 min-w-0 max-w-full flex flex-col justify-between gap-4 border-t lg:border-t-0 lg:border-l border-slate-100 pt-4 lg:pt-0 lg:pl-5">
                     <div class="flex items-center justify-between">
                         <span class="ibs-section-title text-sm">Peringkat UPT</span>
                         <span class="text-[11px] font-semibold text-slate-500">% Pangsa</span>
@@ -301,7 +301,7 @@
                     <div
                         id="{{ $donutId }}"
                         data-chart-id="aset-upt-donut"
-                        class="w-full"
+                        class="w-full max-w-full overflow-hidden"
                         style="width: 100%; height: 185px; min-height: 185px;"
                     ></div>
 
@@ -331,15 +331,15 @@
 
         {{-- Row 3: Compact 8 UPT Matrix --}}
         @if (!empty($tableRows))
-            <div class="ibs-card overflow-hidden">
-                <div class="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+            <div class="ibs-card min-w-0 max-w-full overflow-hidden">
+                <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-5 py-4">
                     <h4 class="ibs-section-title">Matriks Fisik UPT</h4>
                     <span class="sr-only">Rekapitulasi Matriks Fisik per UPT</span>
                     <span class="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-600">
                         {{ count($tableRows) }} UPT
                     </span>
                 </div>
-                <div class="overflow-x-auto">
+                <div class="w-full min-w-0 overflow-x-auto">
                     <table class="w-full text-sm">
                         <thead class="bg-slate-50/70 text-[11px] font-semibold uppercase tracking-wider text-slate-500 border-b border-slate-100">
                             <tr>

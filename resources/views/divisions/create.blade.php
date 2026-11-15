@@ -43,7 +43,7 @@
 
                 @csrf
 
-                {{-- Ketentuan Identifier Slug --}}
+                {{-- Ketentuan Kode Divisi --}}
                 <div class="rounded-lg border border-[#0b6175]/15 bg-[#e6f4f6]/60 p-3.5 text-xs text-[#0b6175]">
                     <div class="flex items-start gap-2.5">
                         <svg class="mt-0.5 h-4 w-4 shrink-0 text-[#0b6175]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -51,7 +51,7 @@
                             <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
                         </svg>
                         <span>
-                            <strong>Slug permanen:</strong> dibuat otomatis dari nama divisi untuk menjaga integritas mapping dataset.
+                            <strong>Kode divisi permanen:</strong> dibuat otomatis dari nama divisi untuk menjaga keterkaitan data divisi.
                         </span>
                     </div>
                 </div>

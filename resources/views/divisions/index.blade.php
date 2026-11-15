@@ -31,7 +31,7 @@
                 <thead class="bg-slate-50/80 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
                     <tr>
                         <th scope="col" class="px-5 py-3">Nama</th>
-                        <th scope="col" class="px-5 py-3">Slug</th>
+                        <th scope="col" class="px-5 py-3">Kode Divisi</th>
                         <th scope="col" class="px-5 py-3">Deskripsi</th>
                         <th scope="col" class="px-5 py-3 text-center">Users</th>
                         <th scope="col" class="px-5 py-3 text-center">Datasets</th>
@@ -46,9 +46,9 @@
                                 {{ $division->name }}
                             </td>
 
-                            {{-- Slug Divisi (Sans-serif Tabular Badge dengan Lock Indicator) --}}
+                            {{-- Kode Divisi (Sans-serif Tabular Badge dengan Lock Indicator) --}}
                             <td class="whitespace-nowrap px-5 py-3.5">
-                                <span class="inline-flex items-center gap-1.5 rounded-md border border-slate-200/90 bg-slate-50 px-2.5 py-1 font-sans tabular-nums text-xs font-medium text-slate-700" title="Slug bersifat permanen (immutable)">
+                                <span class="inline-flex items-center gap-1.5 rounded-md border border-slate-200/90 bg-slate-50 px-2.5 py-1 font-sans tabular-nums text-xs font-medium text-slate-700" title="Kode divisi bersifat permanen">
                                     <svg class="h-3 w-3 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                                         <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
                                         <path d="M7 11V7a5 5 0 0 1 10 0v4"/>

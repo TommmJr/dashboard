@@ -86,7 +86,7 @@
                             };
                         @endphp
                         <tr class="hover:bg-slate-50/60 transition-colors">
-                            <td class="py-2.5 px-3 font-semibold text-primary">{{ $row['unit'] ?? '—' }}</td>
+                            <td class="py-2.5 px-3 font-semibold text-primary">{{ $row['unit'] ?? 'Tidak tercatat' }}</td>
                             <td class="py-2.5 px-3 font-medium text-slate-700">
                                 {{ number_format((float) ($row['achieved'] ?? 0), 0, ',', '.') }} dari {{ number_format((float) ($row['total'] ?? 0), 0, ',', '.') }}
                             </td>

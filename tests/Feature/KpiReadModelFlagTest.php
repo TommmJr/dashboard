@@ -1817,20 +1817,20 @@ class KpiReadModelFlagTest extends TestCase
 
         $response->assertOk()
             ->assertSee('Status Dataset')
-            ->assertSee('Dataset READY (Divisi)')
-            ->assertSee('Dataset ARCHIVED')
-            ->assertSee('Dataset GAGAL')
+            ->assertSee('Dataset Berhasil (Divisi)')
+            ->assertSee('Dataset Diarsipkan')
+            ->assertSee('Dataset Gagal')
             ->assertSee('Baris Data Aktif (TJBT)')
             ->assertSee('Periode data terbaru: 2026-08-31')
             ->assertSee('Sudah Lama')
             ->assertDontSee('Belum ada data KPI aktif.')
             ->assertSeeInOrder([
                 'Status Dataset',
-                'Dataset READY (Divisi)',
+                'Dataset Berhasil (Divisi)',
                 '1',
-                'Dataset ARCHIVED',
+                'Dataset Diarsipkan',
                 '1',
-                'Dataset GAGAL',
+                'Dataset Gagal',
                 '1',
                 'Baris Data Aktif (TJBT)',
                 '41',
@@ -1868,20 +1868,20 @@ class KpiReadModelFlagTest extends TestCase
 
         $structuredResponse->assertOk()
             ->assertSee('Status Dataset')
-            ->assertSee('Dataset READY (Divisi)')
-            ->assertSee('Dataset ARCHIVED')
-            ->assertSee('Dataset GAGAL')
+            ->assertSee('Dataset Berhasil (Divisi)')
+            ->assertSee('Dataset Diarsipkan')
+            ->assertSee('Dataset Gagal')
             ->assertSee('Baris Data Aktif (TJBT)')
             ->assertSee('Periode data terbaru: 2026-08-31')
             ->assertSee('Sudah Lama')
             ->assertDontSee('Belum ada data KPI aktif.')
             ->assertSeeInOrder([
                 'Status Dataset',
-                'Dataset READY (Divisi)',
+                'Dataset Berhasil (Divisi)',
                 '1',
-                'Dataset ARCHIVED',
+                'Dataset Diarsipkan',
                 '1',
-                'Dataset GAGAL',
+                'Dataset Gagal',
                 '1',
                 'Baris Data Aktif (TJBT)',
                 '30',
@@ -1929,9 +1929,9 @@ class KpiReadModelFlagTest extends TestCase
 
         $response->assertOk()
             ->assertSee('Status Dataset')
-            ->assertSee('Dataset READY (Divisi)')
-            ->assertSee('Dataset ARCHIVED')
-            ->assertSee('Dataset GAGAL')
+            ->assertSee('Dataset Berhasil (Divisi)')
+            ->assertSee('Dataset Diarsipkan')
+            ->assertSee('Dataset Gagal')
             ->assertSee('Baris Data Aktif')
             ->assertDontSee('Baris Data Aktif (TJBT)')
             ->assertSee('Periode data terbaru: 2026-08-31')
@@ -1939,11 +1939,11 @@ class KpiReadModelFlagTest extends TestCase
             ->assertDontSee('Belum ada data KPI aktif.')
             ->assertSeeInOrder([
                 'Status Dataset',
-                'Dataset READY (Divisi)',
+                'Dataset Berhasil (Divisi)',
                 '1',
-                'Dataset ARCHIVED',
+                'Dataset Diarsipkan',
                 '1',
-                'Dataset GAGAL',
+                'Dataset Gagal',
                 '0',
                 'Baris Data Aktif',
                 '1',
@@ -2005,7 +2005,7 @@ class KpiReadModelFlagTest extends TestCase
         $response->assertOk()
             ->assertSee('Status Dataset')
             ->assertSee('Belum ada data KPI aktif.')
-            ->assertDontSee('Dataset READY (Divisi)')
+            ->assertDontSee('Dataset Berhasil (Divisi)')
             ->assertDontSee('Periode data terbaru:')
             ->assertDontSee('2026-08-31');
 

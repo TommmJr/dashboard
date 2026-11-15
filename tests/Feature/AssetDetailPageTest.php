@@ -361,4 +361,80 @@ class AssetDetailPageTest extends TestCase
             ]);
         }
     }
+
+    public function test_detail_aset_tidak_menduplikasi_kartu_500_150_dan_membaca_trafo_tenaga_tanpa_nol_palsu(): void
+    {
+        $division = Division::factory()->create(['name' => 'Managemen Aset', 'slug' => 'managemen-aset']);
+        $user = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $division->id]);
+
+        $dataset = Dataset::factory()->create([
+            'division_id' => $division->id,
+            'status' => Dataset::STATUS_READY,
+        ]);
+
+        $period = '2026-10-31';
+
+        $tab1bRows = [
+            ['BANDUNG', 'BANDUNG SELATAN', 'Trafo 500/150 KV | MVA', 1000.0],
+            ['BANDUNG', 'BANDUNG SELATAN', 'Trafo 500/150 KV | Bank', 6.0],
+            ['BANDUNG', 'BANDUNG SELATAN', 'Trafo 500/150 KV | Unit/Set', 2.0],
+            ['BANDUNG', 'BANDUNG BARAT', 'Trafo Tenaga 150 kV | Trafo 150/20 KV | MVA', 2100.0],
+            ['BANDUNG', 'BANDUNG BARAT', 'Trafo Tenaga 150 kV | Trafo 150/20 KV | Unit', 35.0],
+            ['BANDUNG', 'BANDUNG BARAT', 'Trafo Tenaga 150 kV | Trafo 150/70 KV | MVA', 200.0],
+            ['BANDUNG', 'BANDUNG BARAT', 'Trafo Tenaga 150 kV | Trafo 150/70 KV | Unit', 2.0],
+            ['BANDUNG', 'BANDUNG SELATAN', 'Trafo Tenaga 70 kV | Trafo 70/20 KV | MVA', 50.0],
+            ['BANDUNG', 'BANDUNG SELATAN', 'Trafo Tenaga 70 kV | Trafo 70/20 KV | Unit', 2.0],
+        ];
+
+        foreach ($tab1bRows as [$upt, $ultg, $attr, $val]) {
+            PerformanceMetric::factory()->create([
+                'metric_name' => "ASET | {$upt} | {$ultg} | {$attr}",
+                'dataset_id' => $dataset->id,
+                'division_id' => $division->id,
+                'period' => $period,
+                'value' => $val,
+            ]);
+        }
+
+        $tab1aRows = [
+            ['Trafo 500/150 KV | BANK', 123.0],
+            ['Trafo 500/150 KV | MVA', 20500.0],
+            ['Trafo 500/150 KV | UNIT/SET', 41.0],
+            ['Trafo 150/70 KV | BANK', 22.0],
+            ['Trafo 150/70 KV | MVA', 2160.0],
+            ['Trafo 150/70 KV | UNIT', 22.0],
+            ['Trafo 150/20 KV (di hitung termasuk trafo 150/22 kV) | BANK', 446.0],
+            ['Trafo 150/20 KV (di hitung termasuk trafo 150/22 kV) | MVA', 25938.0],
+            ['Trafo 150/20 KV (di hitung termasuk trafo 150/22 kV) | UNIT', 446.0],
+            ['Trafo 70/20 KV (di hitung termasuk trafo 70/22 KV) | BANK', 50.0],
+            ['Trafo 70/20 KV (di hitung termasuk trafo 70/22 KV) | MVA', 1400.0],
+            ['Trafo 70/20 KV (di hitung termasuk trafo 70/22 KV) | UNIT', 50.0],
+        ];
+
+        foreach ($tab1aRows as [$attr, $val]) {
+            PerformanceMetric::factory()->create([
+                'metric_name' => "ASET | UIT | {$attr}",
+                'dataset_id' => $dataset->id,
+                'division_id' => $division->id,
+                'period' => $period,
+                'value' => $val,
+            ]);
+        }
+
+        $response = $this->actingAs($user)->get(route('dashboard.asset-detail'));
+
+        $response->assertOk()
+            ->assertDontSee('Trafo 500/150 KV (500/150 KV)', false)
+            ->assertSee('Trafo 500/150 KV (500/150 kV)', false)
+            ->assertSee('Trafo 150/70 KV (150/70 kV)', false)
+            ->assertSee('Trafo 150/20 KV (150/20 kV)', false)
+            ->assertSee('Trafo 70/20 KV (70/20 kV)', false)
+            ->assertSee('22 Bank', false)
+            ->assertSee('446 Bank', false)
+            ->assertSee('50 Bank', false)
+            ->assertSee('2.100,0', false)
+            ->assertSee('200,0', false)
+            ->assertSee('50,0', false)
+            ->assertDontSee('0 Bank | 0 Unit');
+    }
 }

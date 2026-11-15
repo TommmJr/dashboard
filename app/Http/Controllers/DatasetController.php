@@ -182,7 +182,7 @@ class DatasetController extends Controller
             $message .= " {$result['skipped']} baris dilewati karena tidak valid.";
         }
         if ($result['warnings'] > 0) {
-            $message .= " {$result['warnings']} baris ditandai WARNING (outlier).";
+            $message .= " {$result['warnings']} baris ditandai peringatan (nilai ekstrem).";
         }
 
         return redirect()

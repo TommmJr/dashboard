@@ -752,7 +752,7 @@
                                                 <div class="grid grid-cols-3 gap-2 text-center tabular-nums">
                                                     <div class="rounded-lg border border-emerald-200/80 bg-emerald-50/70 p-2">
                                                         <span class="block text-[10px] font-bold uppercase tracking-wide text-emerald-700">Status</span>
-                                                        <span class="text-sm font-extrabold text-emerald-950">READY</span>
+                                                        <span class="text-sm font-extrabold text-emerald-950">{{ \App\Enums\DatasetStatus::READY->label() }}</span>
                                                         <span class="block text-[9px] font-semibold text-emerald-700 mt-0.5">12 Dataset</span>
                                                     </div>
                                                     <div class="rounded-lg border border-slate-200/85 bg-white p-2">
@@ -896,7 +896,7 @@
                                                         <div class="flex items-center gap-1.5 truncate">
                                                             <span class="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0"></span>
                                                             <span class="font-semibold text-slate-800 truncate">admin@dashboard.local</span>
-                                                            <span class="rounded bg-slate-100 px-1.5 py-0.5 text-[8px] font-semibold text-slate-600 shrink-0">UPDATE</span>
+                                                            <span class="rounded bg-slate-100 px-1.5 py-0.5 text-[8px] font-semibold text-slate-600 shrink-0">Perbarui</span>
                                                         </div>
                                                         <span class="text-slate-500 shrink-0 text-[9px]">12:30</span>
                                                     </div>
@@ -904,7 +904,7 @@
                                                         <div class="flex items-center gap-1.5 truncate">
                                                             <span class="h-1.5 w-1.5 rounded-full bg-[#16a3b8] shrink-0"></span>
                                                             <span class="font-semibold text-slate-800 truncate">staf.aset@dashboard.local</span>
-                                                            <span class="rounded bg-[#e6f4f6] px-1.5 py-0.5 text-[8px] font-semibold text-[#0b6175] shrink-0">IMPORT</span>
+                                                            <span class="rounded bg-[#e6f4f6] px-1.5 py-0.5 text-[8px] font-semibold text-[#0b6175] shrink-0">Impor</span>
                                                         </div>
                                                         <span class="text-slate-500 shrink-0 text-[9px]">11:15</span>
                                                     </div>
@@ -912,7 +912,7 @@
                                                         <div class="flex items-center gap-1.5 truncate">
                                                             <span class="h-1.5 w-1.5 rounded-full bg-slate-400 shrink-0"></span>
                                                             <span class="font-semibold text-slate-800 truncate">editor@dashboard.local</span>
-                                                            <span class="rounded bg-slate-100 px-1.5 py-0.5 text-[8px] font-semibold text-slate-600 shrink-0">LAYOUT</span>
+                                                            <span class="rounded bg-slate-100 px-1.5 py-0.5 text-[8px] font-semibold text-slate-600 shrink-0">Tata Letak</span>
                                                         </div>
                                                         <span class="text-slate-500 shrink-0 text-[9px]">10:02</span>
                                                     </div>
@@ -930,7 +930,7 @@
                                                                 <p class="text-[9px] text-rose-700 truncate">Header sheet tidak valid</p>
                                                             </div>
                                                         </div>
-                                                        <span class="rounded bg-rose-100 px-1.5 py-0.5 font-bold text-rose-800 text-[8px] shrink-0">FAILED</span>
+                                                        <span class="rounded bg-rose-100 px-1.5 py-0.5 font-bold text-rose-800 text-[8px] shrink-0">{{ \App\Enums\DatasetStatus::FAILED->label() }}</span>
                                                     </div>
                                                     <div class="flex items-center justify-between text-[10px] text-slate-600 px-1 tabular-nums">
                                                         <span class="truncate">Antrean bersih (1 kendala terarsip)</span>
@@ -1276,7 +1276,7 @@
                             'recent-audit': { type: 'table', label: 'Tabel' },
                             'aset-upt-chart': { type: 'bar', label: 'Grafik Batang' },
                             'admin-quick-actions': { type: 'scorecard', label: 'Aksi Cepat' },
-                            'layout-editor-placeholder': { type: 'generic', label: 'Editor Layout' },
+                            'layout-editor-placeholder': { type: 'generic', label: 'Editor Tata Letak' },
                         };
 
                         return map[key] || { type: 'generic', label: 'Komponen' };

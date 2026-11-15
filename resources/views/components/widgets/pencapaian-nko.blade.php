@@ -100,7 +100,7 @@
                         data: parsed.seriesData || [],
                         itemStyle: {
                             color: (params) => {
-                                const val = Number(params.value || 0);
+                                const val = Math.round(Number(params.value || 0) * 10) / 10;
                                 if (val >= rag.tercapai_min) return palette.rag.tercapai;
                                 if (val >= rag.hampir_min) return palette.rag.waspada;
                                 return palette.rag.kritis;

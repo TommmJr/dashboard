@@ -586,7 +586,7 @@ class AsetUptChartWidgetTest extends TestCase
         );
 
         $html->assertSee('Kepemilikan Aset Induk UIT JBT (Unit Induk Transmisi Jawa Bagian Tengah)', false)
-            ->assertSee('Rekapitulasi Kepemilikan Induk UIT JBT - Tab 1a', false)
+            ->assertSee('Rekapitulasi Kepemilikan Induk UIT JBT • Tab 1a', false)
             ->assertSee('Distribusi / Sebaran Wilayah Aset UIT pada 8 UPT (Tab 1b)', false)
             ->assertSee('Sumber: Rekap Induk UIT (Tab 1a) & Distribusi 8 UPT (Tab 1b)', false)
             ->assertDontSee('belum diverifikasi PIC MANSET', false);
@@ -666,5 +666,27 @@ class AsetUptChartWidgetTest extends TestCase
                 'value' => $value,
             ]);
         }
+    }
+
+    public function test_header_dashboard_staf_managemen_aset_menampilkan_uit_jbt_8_upt_tanpa_tjbt(): void
+    {
+        $division = Division::factory()->create([
+            'name' => 'Managemen Aset',
+            'slug' => 'managemen-aset',
+        ]);
+
+        $staf = User::factory()->withRole(Role::STAFF_DIVISI)->create([
+            'division_id' => $division->id,
+        ]);
+
+        config(['kpi.visible_units' => ['TJBT']]);
+
+        $response = $this->actingAs($staf)->get(route('dashboard'));
+
+        $response->assertOk()
+            ->assertSee('Managemen Aset')
+            ->assertSee('UIT JBT')
+            ->assertSee('8 UPT')
+            ->assertDontSee('TJBT');
     }
 }

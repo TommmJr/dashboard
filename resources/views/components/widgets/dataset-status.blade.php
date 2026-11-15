@@ -51,15 +51,15 @@
         @else
             <div class="mt-4 grid grid-cols-2 {{ $cols >= 2 ? 'sm:grid-cols-4' : '' }} gap-3">
                 <div class="rounded-xl border border-slate-100 bg-slate-50/50 p-3.5 transition hover:border-slate-200 hover:bg-white">
-                    <p class="ibs-metric-label">Dataset READY (Divisi)</p>
+                    <p class="ibs-metric-label">Dataset {{ \App\Enums\DatasetStatus::READY->label() }} (Divisi)</p>
                     <p class="ibs-metric-value mt-1.5 text-2xl leading-none text-emerald-700"><span x-data="numberTicker('{{ $ready }}')" x-text="display">{{ $ready }}</span></p>
                 </div>
                 <div class="rounded-xl border border-slate-100 bg-slate-50/50 p-3.5 transition hover:border-slate-200 hover:bg-white">
-                    <p class="ibs-metric-label">Dataset ARCHIVED</p>
+                    <p class="ibs-metric-label">Dataset {{ \App\Enums\DatasetStatus::ARCHIVED->label() }}</p>
                     <p class="ibs-metric-value mt-1.5 text-2xl leading-none text-slate-700"><span x-data="numberTicker('{{ $archived }}')" x-text="display">{{ $archived }}</span></p>
                 </div>
                 <div class="rounded-xl border border-slate-100 bg-slate-50/50 p-3.5 transition hover:border-slate-200 hover:bg-white">
-                    <p class="ibs-metric-label">Dataset GAGAL</p>
+                    <p class="ibs-metric-label">Dataset {{ \App\Enums\DatasetStatus::FAILED->label() }}</p>
                     <p class="ibs-metric-value mt-1.5 text-2xl leading-none text-rose-600"><span x-data="numberTicker('{{ $failed }}')" x-text="display">{{ $failed }}</span></p>
                 </div>
                 @php

@@ -84,7 +84,7 @@ class UiSimplificationTest extends TestCase
         $response = $this->actingAs($this->staffUser)->get(route('dashboard'));
 
         $response->assertOk();
-        $response->assertSee('Dataset READY (Divisi)');
+        $response->assertSee('Dataset Berhasil (Divisi)');
         $response->assertDontSee('bg-emerald-50/40', false);
         $response->assertDontSee('bg-rose-50/40', false);
         $response->assertDontSee('bg-blue-50/40', false);

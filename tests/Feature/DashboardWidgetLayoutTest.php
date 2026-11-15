@@ -193,7 +193,7 @@ class DashboardWidgetLayoutTest extends TestCase
             ->get(route('dashboard'))
             ->assertOk()
             ->assertSee('Status Dataset')
-            ->assertSee('Dataset READY (Divisi)')
+            ->assertSee('Dataset Berhasil (Divisi)')
             ->assertSee('Baris Data Aktif')
             ->assertDontSee('Baris Data Aktif (TJBT)')
             ->assertDontSee('Baris Aktif')
@@ -219,7 +219,7 @@ class DashboardWidgetLayoutTest extends TestCase
             ->get(route('dashboard'))
             ->assertOk()
             ->assertSee('Rata-rata NKO')
-            ->assertSee('Dataset READY (Divisi)')
+            ->assertSee('Dataset Berhasil (Divisi)')
             ->assertSee('Baris Data Aktif (TJBT)')
             ->assertSee('Grafik Tren Kinerja')
             // Widget LAMA dicabut dari layout 2026-10-19 (keputusan user): R8
@@ -1393,7 +1393,7 @@ class DashboardWidgetLayoutTest extends TestCase
             ->get(route('dashboard'))
             ->assertOk()
             ->assertSee('Status Dataset')
-            ->assertSee('Dataset READY (Divisi)')
+            ->assertSee('Dataset Berhasil (Divisi)')
             ->assertSee('Baris Data Aktif')
             ->assertDontSee('Baris Data Aktif (TJBT)')
             ->assertSee('Kelola Dataset');

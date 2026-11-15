@@ -44,10 +44,10 @@
                 @csrf
                 @method('PATCH')
 
-                {{-- Slug Divisi (Locked & Immutable) --}}
+                {{-- Kode Divisi (Locked & Permanen) --}}
                 <div>
                     <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-600">
-                        Slug Divisi (Permanen / Immutable)
+                        Kode Divisi (Permanen)
                     </label>
                     <div class="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-600 select-none">
                         <svg class="h-4 w-4 shrink-0 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -57,7 +57,7 @@
                         <span class="font-sans tabular-nums text-xs font-medium text-slate-700">{{ $division->slug }}</span>
                     </div>
                     <p class="mt-1.5 text-xs text-slate-500">
-                        Slug bersifat permanen untuk menjaga integritas mapping dataset.
+                        Kode divisi bersifat permanen untuk menjaga keterkaitan data divisi.
                     </p>
                 </div>
 

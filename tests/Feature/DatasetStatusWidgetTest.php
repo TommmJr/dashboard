@@ -248,11 +248,11 @@ class DatasetStatusWidgetTest extends TestCase
 
         $response->assertSee('Status Dataset');
         $response->assertSeeInOrder([
-            'Dataset READY (Divisi)',
+            'Dataset Berhasil (Divisi)',
             '1',
-            'Dataset ARCHIVED',
+            'Dataset Diarsipkan',
             '1',
-            'Dataset GAGAL',
+            'Dataset Gagal',
             '1',
             'Baris Data Aktif',
             '1',

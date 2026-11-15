@@ -127,15 +127,9 @@
                                             <dd class="mt-1 font-sans tabular-nums text-xs font-semibold text-slate-800">#{{ $log->id }}</dd>
                                         </div>
                                         <div class="rounded-lg border border-slate-100 bg-slate-50/50 p-2.5">
-                                            <dt class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Tipe Objek (Internal)</dt>
+                                            <dt class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Kategori Data</dt>
                                             <dd class="mt-1 font-sans tabular-nums text-xs text-slate-700 break-all">
-                                                @if ($log->auditable_type && $log->auditable_id !== null)
-                                                    {{ $log->auditable_type }}#{{ $log->auditable_id }}
-                                                @elseif ($log->auditable_type)
-                                                    {{ $log->auditable_type }}
-                                                @else
-                                                    Tidak tercatat
-                                                @endif
+                                                {{ App\Services\AuditLogFormatter::objectLabel($log) }}
                                             </dd>
                                         </div>
                                         <div class="rounded-lg border border-slate-100 bg-slate-50/50 p-2.5">

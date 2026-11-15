@@ -22,10 +22,10 @@
         ></div>
 
         <div
-            class="app-content flex min-h-full flex-col overflow-x-clip transition-all duration-200 ease-in-out"
+            class="app-content flex min-h-full min-w-0 max-w-full flex-col overflow-x-clip transition-all duration-200 ease-in-out"
             :style="`margin-left: ${$store.ui.sidebarExpanded ? '16rem' : '4rem'}`"
         >
-            <header class="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-slate-200/80 bg-white/85 px-5 shadow-[0_1px_2px_0_rgba(15,23,42,0.03)] backdrop-blur-md sm:px-8">
+            <header class="sticky top-0 z-30 flex h-16 min-w-0 items-center justify-between gap-2 border-b border-slate-200/80 bg-white/85 px-4 shadow-[0_1px_2px_0_rgba(15,23,42,0.03)] backdrop-blur-md sm:px-8">
                 <div class="flex min-w-0 items-center gap-3">
                     <button type="button"
                             class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 hover:text-[#0b6175] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a3b8] lg:hidden"
@@ -87,7 +87,7 @@
                 </div>
             </header>
 
-            <main class="flex-1 px-5 py-6 sm:px-8 sm:py-8">
+            <main class="flex-1 min-w-0 max-w-full px-4 py-5 sm:px-8 sm:py-8">
                 @php
                     $flashBanners = [
                         'success' => [

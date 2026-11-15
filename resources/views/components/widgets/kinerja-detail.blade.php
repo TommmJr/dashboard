@@ -54,7 +54,7 @@
 @endphp
 
 <div
-    class="ibs-card h-full p-5 flex flex-col justify-start"
+    class="ibs-card min-w-0 max-w-full h-full p-4 sm:p-5 flex flex-col justify-start"
     x-data="{
         tableSearch: '',
         tableRag: 'all',
@@ -76,7 +76,7 @@
             {{-- Form GET: halaman dimuat ulang supaya widget server-side lain
                  (kinerja-realisasi, target vs realisasi) ikut unit yang sama.
                  Filter tanggal dibawa agar tidak hilang saat pindah unit. --}}
-            <form method="GET" action="{{ route($currentRouteName) }}" class="flex flex-wrap items-end gap-2">
+            <form method="GET" action="{{ route($currentRouteName) }}" class="flex min-w-0 max-w-full flex-wrap items-end gap-2">
                 @if (is_string($startDate) && $startDate !== '')
                     <input type="hidden" name="start_date" value="{{ $startDate }}">
                 @endif
@@ -85,7 +85,7 @@
                 @endif
                 <label for="kinerja-detail-unit" class="sr-only">Pilih unit</label>
                 <select id="kinerja-detail-unit" name="unit" onchange="this.form.submit()"
-                        class="h-8 rounded-xl border border-slate-200 bg-white px-2.5 text-xs text-slate-700 focus:border-[#16a3b8] focus:outline-none focus:ring-1 focus:ring-[#16a3b8]">
+                        class="h-8 max-w-full min-w-0 rounded-xl border border-slate-200 bg-white px-2.5 text-xs text-slate-700 focus:border-[#16a3b8] focus:outline-none focus:ring-1 focus:ring-[#16a3b8]">
                     <option value="">Semua unit</option>
                     @foreach ($unitOptions as $unitOption)
                         <option value="{{ $unitOption }}" @selected($selectedUnit === $unitOption)>{{ $unitOption }}</option>
@@ -117,8 +117,8 @@
         </p>
     @else
         {{-- Toolbar pencarian cepat & filter RAG --}}
-        <div class="mt-3 flex flex-col gap-2 rounded-xl border border-slate-200/80 bg-slate-50/70 p-2 sm:flex-row sm:items-center sm:justify-between">
-            <div class="relative flex-1 max-w-xs">
+        <div class="mt-3 flex flex-col gap-2 rounded-xl border border-slate-200/80 bg-slate-50/70 p-2 sm:flex-row sm:items-center sm:justify-between min-w-0">
+            <div class="relative flex-1 min-w-0 w-full sm:max-w-xs">
                 <input
                     id="kinerja-detail-search"
                     type="search"
@@ -174,7 +174,7 @@
             </div>
         @endif
 
-        <div class="relative overflow-x-auto mt-3 rounded-xl border border-slate-200">
+        <div class="relative w-full min-w-0 overflow-x-auto mt-3 rounded-xl border border-slate-200">
             <table class="w-full text-sm">
                 <thead class="bg-slate-50/80 text-[11px] text-slate-600 font-semibold uppercase tracking-wider border-b border-slate-200">
                     <tr>
@@ -182,18 +182,20 @@
                         <th class="py-2.5 px-3 text-left">Indikator</th>
                         <th class="py-2.5 px-3 text-right">Target</th>
                         <th class="py-2.5 px-3 text-right">Realisasi</th>
-                        <th class="py-2.5 px-3 text-right">Pencapaian %</th>
+                        <th class="py-2.5 px-3 text-right">Skor Pencapaian KPI (Maks 110%)</th>
+                        <th class="py-2.5 px-3 text-right">Rasio Realisasi Murni</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">
                     @foreach ($displayRows as $row)
                         @php
-                            $pencapaianVal = $row['pencapaian'] ?? null;
+                            $skorKpiVal = array_key_exists('skor_kpi', $row) ? $row['skor_kpi'] : ($row['pencapaian'] ?? null);
+                            $rasioMurniVal = $row['pencapaian'] ?? null;
                             $barWidth = 0;
                             $barColor = 'bg-slate-300';
                             $tier = 'all';
-                            if ($pencapaianVal !== null) {
-                                $numVal = (float) $pencapaianVal;
+                            if ($skorKpiVal !== null) {
+                                $numVal = (float) $skorKpiVal;
                                 $barWidth = max(0, min(100, $numVal));
                                 $tier = \App\Support\KpiScoreNormalizer::ragTier($numVal);
                                 if ($tier === \App\Support\KpiScoreNormalizer::TIER_TERCAPAI) {
@@ -215,13 +217,16 @@
                             <td class="py-2.5 px-3 text-right font-medium text-slate-600 tabular-nums">{{ $row['realisasi_display'] ?? $fmt($row['realisasi'] ?? null, 2) }}</td>
                             <td class="py-2.5 px-3 text-right">
                                 <div class="flex flex-col items-end">
-                                    <span class="font-medium text-slate-800 tabular-nums">{{ $fmt($pencapaianVal, 1, '%') }}</span>
-                                    @if ($pencapaianVal !== null)
+                                    <span class="font-medium text-slate-800 tabular-nums">{{ $fmt($skorKpiVal, 1, '%') }}</span>
+                                    @if ($skorKpiVal !== null)
                                         <div class="mt-1 h-1.5 w-16 sm:w-20 rounded-full bg-slate-100 overflow-hidden">
                                             <div class="h-full rounded-full {{ $barColor }}" style="width: {{ round($barWidth, 1) }}%"></div>
                                         </div>
                                     @endif
                                 </div>
+                            </td>
+                            <td class="py-2.5 px-3 text-right font-medium text-slate-600 tabular-nums">
+                                {{ $fmt($rasioMurniVal, 1, '%') }}
                             </td>
                         </tr>
                     @endforeach

@@ -89,7 +89,7 @@
                 </div>
                 <div class="flex-1">
                     <h2 class="ibs-section-title">Laporan Validasi Dataset</h2>
-                    <p class="mt-1 text-xs text-slate-500">Baris FATAL dan WARNING hasil validasi import.</p>
+                    <p class="mt-1 text-xs text-slate-500">Baris kesalahan dan peringatan hasil validasi impor.</p>
 
                     @if ($datasets->isEmpty())
                         <p class="mt-3 text-xs text-slate-400">Belum ada dataset tersedia.</p>

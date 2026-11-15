@@ -376,7 +376,7 @@ if (typeof window.kpiDetailManager !== 'function') {
                             '<div><span style="color:#64748b;">Unit:</span> <strong>' + escapeHtml(row.unit) + '</strong> &middot; <span style="color:#64748b;">Satuan:</span> ' + escapeHtml(row.satuan) + '</div>',
                             '<div><span style="color:#64748b;">Target:</span> <strong style="font-variant-numeric:tabular-nums;">' + escapeHtml(row.target_display) + '</strong></div>',
                             '<div><span style="color:#64748b;">Realisasi:</span> <strong style="font-variant-numeric:tabular-nums;">' + escapeHtml(row.realisasi_display) + '</strong></div>',
-                            '<div><span style="color:#64748b;">Pencapaian:</span> <strong style="font-variant-numeric:tabular-nums;">' + escapeHtml(row.pencapaian_display) + '</strong></div>',
+                            '<div><span style="color:#64748b;">Skor Pencapaian KPI:</span> <strong style="font-variant-numeric:tabular-nums;">' + escapeHtml(row.pencapaian_display) + '</strong></div>',
                             '<div><span style="color:#64748b;">Polaritas:</span> ' + escapeHtml(row.polaritas) + ' &middot; <span style="color:#64748b;">Status RAG:</span> <strong>' + escapeHtml(row.status) + '</strong></div>',
                             '</div>',
                         ].join('');
@@ -440,7 +440,7 @@ if (typeof window.kpiDetailManager !== 'function') {
                                 },
                                 {
                                     type: 'value',
-                                    name: 'Pencapaian (%)',
+                                    name: 'Skor Pencapaian KPI (%)',
                                     min: 0,
                                     max: maxPct,
                                     nameTextStyle: { fontSize: 11, color: tokens.primary },
@@ -466,7 +466,7 @@ if (typeof window.kpiDetailManager !== 'function') {
                                     data: rows.map((r) => r.realisasi_num),
                                 },
                                 {
-                                    name: 'Pencapaian (%)',
+                                    name: 'Skor Pencapaian KPI (%)',
                                     type: 'line',
                                     yAxisIndex: 1,
                                     smooth: true,
@@ -600,7 +600,7 @@ if (typeof window.kpiDetailManager !== 'function') {
             downloadCsv() {
                 const rawData = parseJson('kpiExportData', []);
                 let csv = '\uFEFFsep=;\r\n';
-                csv += 'Indikator;Polaritas;Satuan;Bobot;Target;Realisasi;Pencapaian (%);Status\r\n';
+                csv += 'Indikator;Polaritas;Satuan;Bobot;Target;Realisasi;Skor Pencapaian KPI (Maks 110%);Status\r\n';
                 rawData.forEach(row => {
                     const clean = (val) => '"' + String(val ?? '').replace(/"/g, '""') + '"';
                     csv += [
@@ -641,7 +641,7 @@ if (typeof window.kpiDetailManager !== 'function') {
     id="kpi-detail-container"
     x-data="kpiDetailManager()"
     @keydown.escape.window="if (isFullscreen) closeFullscreen()"
-    class="mx-auto max-w-[1600px] space-y-5"
+    class="mx-auto max-w-[1600px] min-w-0 max-w-full space-y-5"
 >
     {{-- Fullscreen Interactive ECharts Visualization Workspace --}}
     <div
@@ -835,12 +835,12 @@ if (typeof window.kpiDetailManager !== 'function') {
             </div>
 
             {{-- ECharts Canvas Card --}}
-            <div class="ibs-card p-5">
+            <div class="ibs-card min-w-0 max-w-full overflow-hidden p-4 sm:p-5">
                 <div class="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
                     <div class="flex items-center gap-2">
                         <h3
                             class="ibs-section-title"
-                            x-text="chartMode === 'achievement' ? 'Grafik Capaian Indikator (%) terhadap Target 100%' : 'Perbandingan Target vs Realisasi dan Pencapaian (%)'"
+                            x-text="chartMode === 'achievement' ? 'Grafik Skor Pencapaian KPI (%) terhadap Target 100%' : 'Perbandingan Target vs Realisasi dan Skor Pencapaian KPI (%)'"
                         ></h3>
                         <span class="rounded-full bg-[#e6f4f6] px-2.5 py-0.5 text-[11px] font-semibold text-[#0b6175] tabular-nums" x-text="filteredIndicators.length + ' indikator'"></span>
                     </div>
@@ -883,12 +883,12 @@ if (typeof window.kpiDetailManager !== 'function') {
             </div>
 
             {{-- Companion Summary Table --}}
-            <div class="ibs-card p-5">
-                <div class="mb-3 flex items-center justify-between border-b border-slate-100 pb-3">
+            <div class="ibs-card min-w-0 max-w-full p-4 sm:p-5">
+                <div class="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
                     <h3 class="ibs-section-title">Tabel Ringkas Indikator Terfilter</h3>
                     <span class="text-xs text-slate-500 tabular-nums" x-text="filteredIndicators.length + ' dari ' + allIndicators.length + ' indikator'"></span>
                 </div>
-                <div class="overflow-x-auto rounded-xl border border-slate-200/80">
+                <div class="w-full min-w-0 overflow-x-auto rounded-xl border border-slate-200/80">
                     <table class="w-full text-xs">
                         <thead class="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold uppercase tracking-wider text-slate-600">
                             <tr>
@@ -899,7 +899,7 @@ if (typeof window.kpiDetailManager !== 'function') {
                                 <th class="px-3 py-2.5 text-left">Polaritas</th>
                                 <th class="px-3 py-2.5 text-right">Target</th>
                                 <th class="px-3 py-2.5 text-right">Realisasi</th>
-                                <th class="px-3 py-2.5 text-right">Pencapaian (%)</th>
+                                <th class="px-3 py-2.5 text-right">Skor Pencapaian KPI (Maks 110%)</th>
                                 <th class="px-3 py-2.5 text-left">Status RAG</th>
                             </tr>
                         </thead>
@@ -942,15 +942,15 @@ if (typeof window.kpiDetailManager !== 'function') {
         </div>
     </div>
 
-    <div id="kpi-detail-header" class="ibs-card p-4 sm:p-5">
-        <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div class="flex flex-wrap items-center gap-2.5">
+    <div id="kpi-detail-header" class="ibs-card min-w-0 max-w-full p-4 sm:p-5">
+        <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between min-w-0">
+            <div class="flex flex-wrap items-center gap-2.5 min-w-0">
                 <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#e6f4f6] text-[#0b6175]">
                     <svg class="h-4.5 w-4.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
                         <path d="M9 17v-6m3 6V7m3 10v-4M5 21h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2Z" stroke-linecap="round" stroke-linejoin="round"/>
                     </svg>
                 </div>
-                <h1 class="text-xl font-bold tracking-tight text-slate-900 whitespace-nowrap">Rincian Kinerja KPI</h1>
+                <h1 class="text-xl font-bold tracking-tight text-slate-900 sm:whitespace-nowrap">Rincian Kinerja KPI</h1>
                 <span class="inline-flex items-center rounded-full bg-[#e6f4f6] px-2.5 py-0.5 text-xs font-semibold text-[#0b6175] whitespace-nowrap">
                     {{ !empty(config('kpi.visible_units')) ? implode(', ', config('kpi.visible_units')) : 'Semua Unit' }}
                 </span>
@@ -961,7 +961,7 @@ if (typeof window.kpiDetailManager !== 'function') {
                 @endif
             </div>
 
-            <div id="kpi-detail-actions" class="flex flex-wrap shrink-0 items-center gap-2">
+            <div id="kpi-detail-actions" class="flex min-w-0 max-w-full flex-wrap items-center gap-2">
                 <button
                     type="button"
                     id="kpi-detail-fullscreen-btn"
@@ -1020,15 +1020,15 @@ if (typeof window.kpiDetailManager !== 'function') {
             </div>
         </div>
 
-        <div class="mt-3.5 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
-            <div id="kpi-view-switcher" class="inline-flex flex-wrap items-center rounded-xl bg-slate-100/90 p-1 text-xs font-medium shrink-0">
+        <div class="mt-3.5 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3 min-w-0">
+            <div id="kpi-view-switcher" class="inline-flex min-w-0 max-w-full flex-wrap items-center gap-1 rounded-xl bg-slate-100/90 p-1 text-xs font-medium">
                 <button
                     type="button"
                     @click="viewMode = 'split'; $dispatch('kpi-view-changed', 'split')"
                     :class="viewMode === 'split' ? 'bg-white text-[#0b6175] font-semibold shadow-2xs' : 'text-slate-600 hover:text-slate-900'"
-                    class="pill-tab-transition inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 cursor-pointer whitespace-nowrap"
+                    class="pill-tab-transition inline-flex max-w-full items-center gap-1.5 rounded-lg px-3 py-1.5 cursor-pointer sm:whitespace-nowrap text-left"
                 >
-                    <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                    <svg class="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
                         <rect x="3" y="3" width="8" height="18" rx="1"/>
                         <rect x="13" y="3" width="8" height="18" rx="1"/>
                     </svg>
@@ -1038,9 +1038,9 @@ if (typeof window.kpiDetailManager !== 'function') {
                     type="button"
                     @click="viewMode = 'cards'; $dispatch('kpi-view-changed', 'cards')"
                     :class="viewMode === 'cards' ? 'bg-white text-[#0b6175] font-semibold shadow-2xs' : 'text-slate-600 hover:text-slate-900'"
-                    class="pill-tab-transition inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 cursor-pointer whitespace-nowrap"
+                    class="pill-tab-transition inline-flex max-w-full items-center gap-1.5 rounded-lg px-3 py-1.5 cursor-pointer sm:whitespace-nowrap text-left"
                 >
-                    <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                    <svg class="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
                         <rect x="3" y="3" width="7" height="7" rx="1"/>
                         <rect x="14" y="3" width="7" height="7" rx="1"/>
                         <rect x="3" y="14" width="7" height="7" rx="1"/>
@@ -1052,9 +1052,9 @@ if (typeof window.kpiDetailManager !== 'function') {
                     type="button"
                     @click="viewMode = 'table'; $dispatch('kpi-view-changed', 'table')"
                     :class="viewMode === 'table' ? 'bg-white text-[#0b6175] font-semibold shadow-2xs' : 'text-slate-600 hover:text-slate-900'"
-                    class="pill-tab-transition inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 cursor-pointer whitespace-nowrap"
+                    class="pill-tab-transition inline-flex max-w-full items-center gap-1.5 rounded-lg px-3 py-1.5 cursor-pointer sm:whitespace-nowrap text-left"
                 >
-                    <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                    <svg class="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
                         <path d="M3 6h18M3 12h18M3 18h18" stroke-linecap="round"/>
                     </svg>
                     <span>Fokus Tabel Matriks Padat</span>
@@ -1066,12 +1066,12 @@ if (typeof window.kpiDetailManager !== 'function') {
         </div>
     </div>
 
-    <div class="grid grid-cols-1 gap-5 lg:grid-cols-12 items-start w-full">
+    <div class="grid grid-cols-1 gap-5 lg:grid-cols-12 items-start w-full min-w-0">
         <div
             id="kpi-target-realisasi-container"
             x-show="viewMode === 'split' || viewMode === 'cards'"
             :class="{ 'lg:!col-span-12': viewMode === 'cards', 'hidden': viewMode === 'table' }"
-            class="h-full transition-all duration-200 lg:col-span-6 w-full"
+            class="h-full min-w-0 max-w-full transition-all duration-200 lg:col-span-6 w-full"
         >
             <x-widgets.target-realisasi-per-indikator
                 :widget="$targetRealisasiWidget"
@@ -1083,7 +1083,7 @@ if (typeof window.kpiDetailManager !== 'function') {
             id="kinerja-detail"
             x-show="viewMode === 'split' || viewMode === 'table'"
             :class="{ 'lg:!col-span-12': viewMode === 'table', 'hidden': viewMode === 'cards' }"
-            class="h-full transition-all duration-200 lg:col-span-6 w-full"
+            class="h-full min-w-0 max-w-full transition-all duration-200 lg:col-span-6 w-full"
         >
             <x-widgets.kinerja-detail
                 :widget="$kinerjaDetailWidget"

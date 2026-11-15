@@ -39,10 +39,10 @@
             </div>
         </div>
 
-        {{-- Card 2: Dataset READY --}}
+        {{-- Card 2: Dataset Berhasil --}}
         <div class="p-4 sm:p-5">
             <div class="flex items-center justify-between gap-2">
-                <p class="ibs-metric-label uppercase tracking-wider">Dataset READY (Divisi)</p>
+                <p class="ibs-metric-label uppercase tracking-wider">Dataset {{ \App\Enums\DatasetStatus::READY->label() }} (Divisi)</p>
                 <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#e6f4f6] text-[#0b6175]">
                     <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
                         <ellipse cx="12" cy="5" rx="9" ry="3"/>

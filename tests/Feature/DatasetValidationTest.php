@@ -156,8 +156,8 @@ class DatasetValidationTest extends TestCase
             ->get(route('datasets.show', $dataset))
             ->assertOk()
             ->assertSee('Ringkasan validasi')
-            ->assertSee('FATAL: 1')
-            ->assertSee('OK: 1');
+            ->assertSee('Kesalahan: 1')
+            ->assertSee('Sesuai: 1');
     }
 
     public function test_period_datetime_dengan_komponen_jam_diterima_tanggalnya_saja(): void
@@ -279,15 +279,15 @@ class DatasetValidationTest extends TestCase
             ->get(route('datasets.show', $dataset))
             ->assertOk()
             ->assertSee('Ringkasan validasi')
-            ->assertSee('OK: 2')
-            ->assertSee('WARNING: 0')
-            ->assertSee('FATAL: 0')
-            ->assertSee('KONFLIK PERIODE: 2')
+            ->assertSee('Sesuai: 2')
+            ->assertSee('Peringatan: 0')
+            ->assertSee('Kesalahan: 0')
+            ->assertSee('Konflik Periode: 2')
             ->assertSee('Konflik periode banner sheet (2 observasi)')
             ->assertSee('S.D. FEBRUARI 2025')
             ->assertDontSee('S.D. AGUSTUS 2026')
-            ->assertDontSee('[WARNING]')
-            ->assertDontSee('[FATAL]');
+            ->assertDontSee('[Peringatan]')
+            ->assertDontSee('[Kesalahan]');
     }
 
     public function test_halaman_detail_tidak_menampilkan_peringatan_konflik_periode_palsu_saat_tidak_ada_konflik(): void
@@ -316,8 +316,8 @@ class DatasetValidationTest extends TestCase
             ->get(route('datasets.show', $dataset))
             ->assertOk()
             ->assertSee('Ringkasan validasi')
-            ->assertSee('OK: 1')
-            ->assertDontSee('KONFLIK PERIODE:')
+            ->assertSee('Sesuai: 1')
+            ->assertDontSee('Konflik Periode:')
             ->assertDontSee('Konflik periode banner sheet');
     }
 }

@@ -23,9 +23,9 @@
 @endphp
 
 @section('content')
-<div class="mx-auto max-w-7xl" @if ($needsPerformanceState) x-data="performanceDashboard(@js($filters ?? []))" x-init="load()" @endif>
+<div class="mx-auto max-w-7xl min-w-0" @if ($needsPerformanceState) x-data="performanceDashboard(@js($filters ?? []))" x-init="load()" @endif>
     @if ($isStaffDashboard)
-        <div id="dashboard-header" class="mb-4 flex flex-col gap-3 rounded-lg border border-slate-200/80 bg-white px-4 py-3 shadow-[0_1px_2px_0_rgba(0,0,0,0.03)] sm:flex-row sm:items-center sm:justify-between">
+        <div id="dashboard-header" class="mb-4 flex min-w-0 flex-col gap-3 rounded-lg border border-slate-200/80 bg-white px-4 py-3 shadow-[0_1px_2px_0_rgba(0,0,0,0.03)] sm:flex-row sm:items-center sm:justify-between">
             <div class="flex flex-wrap items-center gap-3">
                 <div class="flex items-center gap-2">
                     <div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-teal-500/20 bg-teal-50 text-primary">
@@ -36,14 +36,22 @@
                     </div>
                     <h1 class="text-base font-bold tracking-tight text-primary">Dashboard Divisi</h1>
                 </div>
-                <div class="flex items-center gap-2 text-xs">
+                <div class="flex flex-wrap items-center gap-2 text-xs">
                     <span class="inline-flex items-center rounded border border-teal-200/80 bg-teal-50 px-2 py-0.5 font-semibold text-teal-800">
                         {{ auth()->user()?->division?->name ?? 'Divisi' }}
                     </span>
                     <span class="text-slate-300" aria-hidden="true">&bull;</span>
-                    <span class="inline-flex items-center gap-1 text-slate-500">
-                        <strong class="font-semibold text-slate-800">{{ !empty(config('kpi.visible_units')) ? implode(', ', config('kpi.visible_units')) : 'Semua Unit' }}</strong>
-                    </span>
+                    @if (in_array(auth()->user()?->division?->slug, ['managemen-aset', 'data-aset'], true))
+                        <span class="inline-flex items-center gap-1.5 text-slate-500">
+                            <strong class="font-semibold text-slate-800">UIT JBT</strong>
+                            <span class="text-slate-300" aria-hidden="true">&bull;</span>
+                            <span class="font-medium text-slate-600">8 UPT</span>
+                        </span>
+                    @else
+                        <span class="inline-flex items-center gap-1 text-slate-500">
+                            <strong class="font-semibold text-slate-800">{{ !empty(config('kpi.visible_units')) ? implode(', ', config('kpi.visible_units')) : 'Semua Unit' }}</strong>
+                        </span>
+                    @endif
                 </div>
             </div>
 
@@ -98,23 +106,23 @@
                 {{-- Form GET (bukan fetch): halaman dimuat ulang sehingga widget
                      SERVER-SIDE (peringkat NKO) dan CLIENT-SIDE (chart) memakai rentang
                      filter yang sama. Tanpa reload, peringkat tidak akan ikut terfilter. --}}
-                <form id="dashboard-filter" method="GET" action="{{ route('dashboard') }}" class="flex flex-wrap items-center gap-2">
-                    <div class="flex items-center gap-1.5">
+                <form id="dashboard-filter" method="GET" action="{{ route('dashboard') }}" class="flex min-w-0 max-w-full flex-wrap items-center gap-2">
+                    <div class="flex min-w-0 max-w-full flex-wrap items-center gap-1.5">
                         <label for="start_date" class="sr-only">Dari tanggal</label>
-                        <input id="start_date" name="start_date" type="date" value="{{ $filters['start_date'] ?? '' }}" class="h-9 rounded border border-slate-200 bg-white px-2.5 text-sm text-primary outline-none focus:border-accent focus:ring-2 focus:ring-accent/20">
+                        <input id="start_date" name="start_date" type="date" value="{{ $filters['start_date'] ?? '' }}" class="h-9 min-w-0 max-w-full rounded border border-slate-200 bg-white px-2.5 text-sm text-primary outline-none focus:border-accent focus:ring-2 focus:ring-accent/20">
                         <span class="text-xs font-medium text-slate-400" aria-hidden="true">s.d.</span>
                         <label for="end_date" class="sr-only">Sampai tanggal</label>
-                        <input id="end_date" name="end_date" type="date" value="{{ $filters['end_date'] ?? '' }}" class="h-9 rounded border border-slate-200 bg-white px-2.5 text-sm text-primary outline-none focus:border-accent focus:ring-2 focus:ring-accent/20">
+                        <input id="end_date" name="end_date" type="date" value="{{ $filters['end_date'] ?? '' }}" class="h-9 min-w-0 max-w-full rounded border border-slate-200 bg-white px-2.5 text-sm text-primary outline-none focus:border-accent focus:ring-2 focus:ring-accent/20">
                     </div>
 
-                    <div class="relative">
+                    <div class="relative min-w-0 max-w-full">
                         <label for="unit" class="sr-only">Unit</label>
                         <details class="group relative">
-                            <summary id="unit" class="flex h-9 min-w-[130px] cursor-pointer list-none items-center justify-between gap-2 rounded border border-slate-200 bg-white px-2.5 text-left text-sm text-primary outline-none transition hover:border-accent focus:border-accent focus:ring-2 focus:ring-accent/20">
+                            <summary id="unit" class="flex h-9 min-w-[130px] max-w-full cursor-pointer list-none items-center justify-between gap-2 rounded border border-slate-200 bg-white px-2.5 text-left text-sm text-primary outline-none transition hover:border-accent focus:border-accent focus:ring-2 focus:ring-accent/20">
                                 <span class="truncate" x-text="selectedUnitLabel()">{{ count($filters['units'] ?? []) > 0 ? count($filters['units']).' unit dipilih' : 'Semua unit' }}</span>
                                 <svg class="h-4 w-4 shrink-0 text-slate-400 transition group-open:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 9 6 6 6-6" stroke-linecap="round" stroke-linejoin="round" /></svg>
                             </summary>
-                            <div class="absolute right-0 z-30 mt-1 max-h-60 w-56 overflow-y-auto rounded border border-slate-200 bg-white p-2 shadow-lg" role="group" aria-label="Pilihan unit">
+                            <div class="absolute left-0 z-30 mt-1 max-h-60 w-56 max-w-[calc(100vw-5rem)] overflow-y-auto rounded border border-slate-200 bg-white p-2 shadow-lg sm:left-auto sm:right-0" role="group" aria-label="Pilihan unit">
                                 @forelse ($availableUnits ?? [] as $unitName)
                                     <label class="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm text-primary hover:bg-surface">
                                         <input type="checkbox" name="unit[]" value="{{ $unitName }}" @checked(in_array($unitName, $filters['units'] ?? [], true)) class="h-4 w-4 rounded border-slate-200 text-accent focus:ring-accent/30">
@@ -153,9 +161,9 @@
     @endif
 
     {{-- Widget per role: satu loop generik, urutan & komposisi dari config. --}}
-    <div class="grid grid-flow-dense gap-4 sm:gap-5 lg:grid-cols-3">
+    <div class="grid grid-cols-1 grid-flow-dense gap-4 sm:gap-5 lg:grid-cols-3">
         @if ($isStaffDashboard && count($widgets) === 1 && ($widgets[0]['key'] ?? '') === 'dataset-status')
-            <div class="h-full rounded-lg border border-slate-200 bg-white p-5 shadow-2xs lg:col-span-2">
+            <div class="h-full min-w-0 max-w-full rounded-lg border border-slate-200 bg-white p-5 shadow-2xs lg:col-span-2">
                 <div class="flex items-center gap-3">
                     <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-primary">
                         <svg class="h-4.5 w-4.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -209,7 +217,7 @@
                 };
                 $staggerIndex = (($loop->iteration - 1) % 6) + 1;
             @endphp
-            <div class="{{ $widgetClass }} h-full animate-entrance stagger-{{ $staggerIndex }}">
+            <div class="{{ $widgetClass }} h-full min-w-0 max-w-full animate-entrance stagger-{{ $staggerIndex }}">
                 @if (($widget['key'] ?? '') === 'aset-upt-chart')
                     @include('components.widgets.aset-upt-chart', ['widget' => $widget, 'data' => $widget['data'] ?? $widgetData['aset-upt-chart'] ?? null])
                 @else

@@ -23,7 +23,7 @@
     <h3 class="text-lg font-bold text-primary">{{ $widget['label'] ?? 'Target vs Realisasi' }}</h3>
 
     @if ($period !== null)
-        <p class="mt-1 text-xs text-gray-500">Periode {{ $period }} — total per unit dari seluruh indikator.</p>
+        <p class="mt-1 text-xs text-gray-500">Periode {{ $period }} &bull; total per unit dari seluruh indikator.</p>
     @endif
 
     @if ($labels->isEmpty())
@@ -41,10 +41,10 @@
                 // MEMPERTAHANKAN ekor float (mis. 322,247.70999999996 dari
                 // penjumlahan float R8). valueFormatter membulatkan ke maksimal
                 // 2 desimal TANPA menyentuh data/payload/agregasi. Format ribuan
-                // (koma) dipertahankan seperti default; null/NaN tetap '-'.
+                // (koma) dipertahankan seperti default; null/NaN tampil 'Tidak tercatat'.
                 const fmtTooltipNumber = (value) => (typeof value === 'number' && Number.isFinite(value))
                     ? value.toLocaleString('id-ID', { maximumFractionDigits: 2 })
-                    : (value === null || value === undefined || typeof value === 'number') ? '-' : value;
+                    : (value === null || value === undefined || typeof value === 'number') ? 'Tidak tercatat' : value;
                 const fmtTooltipValue = (value) => Array.isArray(value)
                     ? value.map(fmtTooltipNumber)
                     : fmtTooltipNumber(value);

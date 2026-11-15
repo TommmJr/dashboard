@@ -113,7 +113,7 @@
                         <dd class="mt-0.5 font-sans tabular-nums text-slate-800">{{ number_format($dataset->size / 1024, 1) }} KB</dd>
                     </div>
                     <div>
-                        <dt class="font-semibold text-slate-500 uppercase tracking-wider text-2xs">MIME</dt>
+                        <dt class="font-semibold text-slate-500 uppercase tracking-wider text-2xs">Tipe File</dt>
                         <dd class="mt-0.5 font-sans text-slate-800 break-all">{{ $dataset->mime_type }}</dd>
                     </div>
                     <div>
@@ -161,11 +161,11 @@
                     <div class="mt-4 rounded-lg border border-slate-200/90 bg-slate-50/40 p-4 text-xs">
                         <p class="font-semibold text-slate-800">Ringkasan validasi</p>
                         <div class="mt-2 flex flex-wrap gap-2 text-2xs">
-                            <span class="inline-flex items-center rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-800">OK: {{ $validationReport['ok'] ?? 0 }}</span>
-                            <span class="inline-flex items-center rounded-md border border-amber-200 bg-amber-50 px-2 py-0.5 font-semibold text-amber-800">WARNING: {{ $validationReport['warning'] ?? 0 }}</span>
-                            <span class="inline-flex items-center rounded-md border border-rose-200 bg-rose-50 px-2 py-0.5 font-semibold text-rose-800">FATAL: {{ $validationReport['fatal'] ?? 0 }}</span>
+                            <span class="inline-flex items-center rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-800">Sesuai: {{ $validationReport['ok'] ?? 0 }}</span>
+                            <span class="inline-flex items-center rounded-md border border-amber-200 bg-amber-50 px-2 py-0.5 font-semibold text-amber-800">Peringatan: {{ $validationReport['warning'] ?? 0 }}</span>
+                            <span class="inline-flex items-center rounded-md border border-rose-200 bg-rose-50 px-2 py-0.5 font-semibold text-rose-800">Kesalahan: {{ $validationReport['fatal'] ?? 0 }}</span>
                             @if ($periodConflictCount > 0)
-                                <span class="inline-flex items-center rounded-md border border-amber-300 bg-amber-100 px-2 py-0.5 font-semibold text-amber-900">KONFLIK PERIODE: {{ $periodConflictCount }}</span>
+                                <span class="inline-flex items-center rounded-md border border-amber-300 bg-amber-100 px-2 py-0.5 font-semibold text-amber-900">Konflik Periode: {{ $periodConflictCount }}</span>
                             @endif
                         </div>
                         @if ($periodConflictCount > 0)
@@ -180,7 +180,7 @@
                             <ul class="mt-3 max-h-40 space-y-1 overflow-y-auto text-xs text-slate-600">
                                 @foreach ($validationReport['issues'] as $issue)
                                     <li>
-                                        <span class="font-semibold {{ $issue['severity'] === 'FATAL' ? 'text-rose-700' : 'text-amber-700' }}">[{{ $issue['severity'] }}]</span>
+                                        <span class="font-semibold {{ $issue['severity'] === 'FATAL' ? 'text-rose-700' : 'text-amber-700' }}">[{{ $issue['severity'] === 'FATAL' ? 'Kesalahan' : 'Peringatan' }}]</span>
                                         Baris {{ $issue['row'] }}: {{ $issue['message'] }}
                                     </li>
                                 @endforeach

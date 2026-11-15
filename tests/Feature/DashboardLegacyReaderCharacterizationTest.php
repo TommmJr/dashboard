@@ -375,7 +375,7 @@ class DashboardLegacyReaderCharacterizationTest extends TestCase
 
         $this->metric($dataset, $division, 'A | NKO', 100.0);  // Tercapai (>=100)
         $this->metric($dataset, $division, 'B | NKO', 95.0);   // Hampir Tercapai (>=95)
-        $this->metric($dataset, $division, 'C | NKO', 94.99);  // Perlu Peningkatan
+        $this->metric($dataset, $division, 'C | NKO', 94.94);  // Perlu Peningkatan (<95 setelah pembulatan 1 desimal Tahap 1)
 
         $result = $this->reader('nkoDonut', [$this->management()]);
 

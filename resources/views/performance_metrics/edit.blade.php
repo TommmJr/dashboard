@@ -21,7 +21,7 @@
             </div>
             <div>
                 <dt class="font-semibold text-gray-800">Divisi</dt>
-                <dd>{{ $metric->division?->name ?? '-' }}</dd>
+                <dd>{{ $metric->division?->name ?? 'Tanpa divisi' }}</dd>
             </div>
         </dl>
 

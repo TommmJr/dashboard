@@ -614,7 +614,7 @@
                     data: scores,
                     itemStyle: {
                         color: function(params) {
-                            const val = Number(params.value || 0);
+                            const val = Math.round(Number(params.value || 0) * 10) / 10;
                             if (val >= rag.tercapai_min) return tokens.rag.tercapai;
                             if (val >= rag.hampir_min) return tokens.rag.waspada;
                             return tokens.rag.kritis;

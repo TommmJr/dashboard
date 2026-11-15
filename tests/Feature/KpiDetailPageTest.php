@@ -664,4 +664,76 @@ class KpiDetailPageTest extends TestCase
         $this->assertSame('2026-05-31', $payload['indicators'][0]['target_display']);
         $this->assertSame('2026-05-21', $payload['indicators'][0]['realisasi_display']);
     }
+
+    public function test_halaman_kpi_detail_memisahkan_dan_menyelaraskan_skor_kpi_dan_rasio_realisasi_murni(): void
+    {
+        $role = Role::where('slug', Role::STAFF_DIVISI)->firstOrFail();
+        $user = User::factory()->create([
+            'role_id' => $role->id,
+            'division_id' => $this->pengusahaan->id,
+        ]);
+
+        $dataset = Dataset::factory()->create([
+            'division_id' => $this->pengusahaan->id,
+            'status' => Dataset::STATUS_READY,
+        ]);
+
+        $unit = OrgUnit::create(['name' => 'TJBT']);
+
+        $attb = Indicator::create([
+            'org_unit_id' => $unit->id,
+            'name' => 'c. Usulan Penghapusan ATTB',
+            'satuan' => 'Rp. Juta',
+            'polarity' => 'higher_is_better',
+            'is_group' => false,
+            'pencapaian_formula_kind' => 'polarity_ratio',
+        ]);
+
+        $responseTime = Indicator::create([
+            'org_unit_id' => $unit->id,
+            'name' => 'Emergency Response time - Gangguan Meluas',
+            'satuan' => 'Jam',
+            'polarity' => 'lower_is_better',
+            'is_group' => false,
+            'pencapaian_formula_kind' => 'polarity_ratio',
+        ]);
+
+        PerformanceObservation::create([
+            'dataset_id' => $dataset->id,
+            'indicator_id' => $attb->id,
+            'org_unit_id' => $unit->id,
+            'division_id' => $this->pengusahaan->id,
+            'period' => '2026-08-31',
+            'target_type' => PerformanceObservation::TYPE_NUMERIC,
+            'realisasi_type' => PerformanceObservation::TYPE_NUMERIC,
+            'target_value' => 28795.3,
+            'realisasi_value' => 181979.53,
+            'pencapaian' => 1.1000,
+        ]);
+
+        PerformanceObservation::create([
+            'dataset_id' => $dataset->id,
+            'indicator_id' => $responseTime->id,
+            'org_unit_id' => $unit->id,
+            'division_id' => $this->pengusahaan->id,
+            'period' => '2026-08-31',
+            'target_type' => PerformanceObservation::TYPE_NUMERIC,
+            'realisasi_type' => PerformanceObservation::TYPE_NUMERIC,
+            'target_value' => 3.0,
+            'realisasi_value' => 0.41,
+            'pencapaian' => 1.1000,
+        ]);
+
+        $response = $this->actingAs($user)->get(route('dashboard.kpi-detail'));
+
+        $response->assertOk()
+            ->assertSee('Skor Pencapaian KPI (Maks 110%)')
+            ->assertSee('Rasio Realisasi Murni')
+            ->assertSee('110%')
+            ->assertSee('632%')
+            ->assertSee('13,7%')
+            ->assertSee("matches('Emergency Response time - Gangguan Meluas', 'TJBT', 'tercapai')", false)
+            // Polaritas terbalik yang tercapai (110%) tidak boleh memakai bar merah palsu dari rasio murni 13,7%.
+            ->assertDontSee('h-full rounded-full bg-rose-500');
+    }
 }

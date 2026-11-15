@@ -243,17 +243,18 @@ class AssetStockReport
             }
         }
 
-        // Helper cari nilai dari UPT & pola nama atribut
+        // Helper cari nilai dari UPT & pola nama atribut (mendukung hierarki segmen ' | ' dan case-insensitive)
         $getUptVal = function (string $upt, string $prefix, ?string $contains = null, ?string $notContains = null) use ($byUptAttr): float {
             $val = 0.0;
             foreach ($byUptAttr[$upt] ?? [] as $attr => $amount) {
-                if (! str_starts_with($attr, $prefix)) {
+                $matchesPrefix = stripos($attr, $prefix) === 0 || stripos($attr, ' | '.$prefix) !== false;
+                if (! $matchesPrefix) {
                     continue;
                 }
-                if ($contains !== null && ! str_contains($attr, $contains)) {
+                if ($contains !== null && stripos($attr, $contains) === false) {
                     continue;
                 }
-                if ($notContains !== null && str_contains($attr, $notContains)) {
+                if ($notContains !== null && stripos($attr, $notContains) !== false) {
                     continue;
                 }
                 $val += $amount;
@@ -262,17 +263,18 @@ class AssetStockReport
             return $val;
         };
 
-        // Helper cari nilai UIT
+        // Helper cari nilai UIT (case-insensitive terhadap satuan Tab 1a seperti BANK/UNIT)
         $getUitVal = function (string $prefix, ?string $contains = null, ?string $notContains = null) use ($uitTotals): ?float {
             $matched = $uitTotals->filter(function (object $t) use ($prefix, $contains, $notContains) {
-                $name = ($t->kelompok ?? '').' | '.($t->satuan ?? '').' | '.($t->attribute ?? '');
-                if (! str_starts_with($t->kelompok ?? '', $prefix) && ! str_starts_with($name, $prefix)) {
+                $kelompok = (string) ($t->kelompok ?? '');
+                $name = $kelompok.' | '.($t->satuan ?? '').' | '.($t->attribute ?? '');
+                if (stripos($kelompok, $prefix) !== 0 && stripos($name, $prefix) !== 0) {
                     return false;
                 }
-                if ($contains !== null && ! str_contains($name, $contains)) {
+                if ($contains !== null && stripos($name, $contains) === false) {
                     return false;
                 }
-                if ($notContains !== null && str_contains($name, $notContains)) {
+                if ($notContains !== null && stripos($name, $notContains) !== false) {
                     return false;
                 }
 
@@ -294,18 +296,28 @@ class AssetStockReport
             '150/20 kV' => 'Trafo 150/20 KV',
         ];
 
-        // Deteksi level tegangan tambahan di dataset yang belum masuk daftar kanonis
-        foreach ($totals as $row) {
-            if (str_starts_with($row->attribute, 'Trafo ')) {
-                $parts = explode('|', $row->attribute);
-                $name = trim($parts[0]);
-                if (preg_match('/Trafo\s+([0-9\/]+\s*k?V?)/i', $name, $matches)) {
-                    $key = trim($matches[1]);
+        $registerTrafoVoltage = function (?string $text) use (&$trafoVoltages): void {
+            if ($text === null || $text === '') {
+                return;
+            }
+            foreach (explode('|', $text) as $segment) {
+                $segment = trim($segment);
+                if (preg_match('/Trafo\s+([0-9]+\s*\/\s*[0-9]+)\s*k?v?\b/i', $segment, $matches)) {
+                    $ratio = preg_replace('/\s+/', '', $matches[1]);
+                    $key = $ratio.' kV';
                     if (! isset($trafoVoltages[$key])) {
-                        $trafoVoltages[$key] = $name;
+                        $trafoVoltages[$key] = 'Trafo '.$ratio.' KV';
                     }
                 }
             }
+        };
+
+        // Deteksi level tegangan tambahan dari Tab 1b (termasuk pola bersarang Trafo Tenaga) dan Tab 1a
+        foreach ($totals as $row) {
+            $registerTrafoVoltage($row->attribute ?? null);
+        }
+        foreach ($uitTotals as $row) {
+            $registerTrafoVoltage($row->kelompok ?? null);
         }
 
         $trafoGroups = [];
@@ -350,9 +362,23 @@ class AssetStockReport
             $totalTrafoBankUpt += $sumBank;
             $totalTrafoUnitUpt += $sumUnit;
 
+            $hasAnyData = $sumMva > 0 || $sumBank > 0 || $sumUnit > 0
+                || ($uitMva ?? 0.0) > 0 || ($uitBank ?? 0.0) > 0 || ($uitUnit ?? 0.0) > 0;
+            if (! $hasAnyData) {
+                continue;
+            }
+
+            $hasUptBank = $totals->contains(function (object $row) use ($prefix): bool {
+                $attr = (string) ($row->attribute ?? '');
+
+                return (stripos($attr, $prefix) === 0 || stripos($attr, ' | '.$prefix) !== false)
+                    && stripos($attr, 'Bank') !== false;
+            });
+
             $trafoGroups[] = [
                 'voltage' => $voltageKey,
                 'label' => $prefix,
+                'has_upt_bank' => $hasUptBank,
                 'by_upt' => $byUpt,
                 'total_upt' => [
                     'mva' => round($sumMva, 1),
@@ -551,13 +577,15 @@ class AssetStockReport
         $uitTowerTotal = $getUitVal('Tower ');
         $uitTransmisiTotal = $getUitVal('Transmisi ', 'kms');
         $uitTrafoMvaTotal = $getUitVal('Trafo ', 'MVA');
+        $uitTrafoBankTotal = $getUitVal('Trafo ', 'Bank');
+        $uitTrafoUnitTotal = $getUitVal('Trafo ', 'Unit', 'MVA') ?? $getUitVal('Trafo ', 'Set', 'MVA');
 
         $summaryTotals = [
             'total_tower' => $uitTowerTotal ?? $totalTowerUnitUpt,
             'total_transmisi' => round($uitTransmisiTotal ?? $totalTransmisiKmsUpt, 1),
             'total_trafo_mva' => round($uitTrafoMvaTotal ?? $totalTrafoMvaUpt, 1),
-            'total_trafo_bank' => round($totalTrafoBankUpt, 0),
-            'total_trafo_unit' => round($totalTrafoUnitUpt, 0),
+            'total_trafo_bank' => round($uitTrafoBankTotal ?? $totalTrafoBankUpt, 0),
+            'total_trafo_unit' => round($uitTrafoUnitTotal ?? $totalTrafoUnitUpt, 0),
         ];
 
         // 7. Series untuk Visual ECharts

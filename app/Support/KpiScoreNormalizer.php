@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Services\KpiReportConverter;
+use Illuminate\Container\Container;
 
 /**
  * Normalizer terpadu untuk skala dan batas skor KPI PLN.
@@ -96,7 +97,10 @@ class KpiScoreNormalizer
      */
     public static function ragThresholds(): array
     {
-        $configured = config('kpi.rag_thresholds');
+        $container = Container::getInstance();
+        $configured = ($container !== null && $container->bound('config'))
+            ? config('kpi.rag_thresholds')
+            : null;
         if (! is_array($configured)) {
             return [
                 'tercapai_min' => self::DEFAULT_TERCAPAI_MIN,
@@ -124,12 +128,13 @@ class KpiScoreNormalizer
     public static function ragTier(float $percentScore): string
     {
         $thresholds = self::ragThresholds();
+        $roundedScore = round($percentScore, 1);
 
-        if ($percentScore >= $thresholds['tercapai_min']) {
+        if ($roundedScore >= $thresholds['tercapai_min']) {
             return self::TIER_TERCAPAI;
         }
 
-        if ($percentScore >= $thresholds['hampir_min']) {
+        if ($roundedScore >= $thresholds['hampir_min']) {
             return self::TIER_HAMPIR;
         }
 

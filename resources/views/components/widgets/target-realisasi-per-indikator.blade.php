@@ -92,7 +92,7 @@ if (typeof window.targetRealisasiWidget !== 'function') {
 </script>
 
 <div
-    class="ibs-card h-full p-5 flex flex-col justify-start"
+    class="ibs-card min-w-0 max-w-full h-full p-4 sm:p-5 flex flex-col justify-start"
     x-data="targetRealisasiWidget(JSON.parse(document.getElementById('targetRealisasiItems_{{ $instanceId }}').textContent))"
     @kpi-view-changed.window="viewMode = $event.detail"
 >
@@ -222,7 +222,7 @@ if (typeof window.targetRealisasiWidget !== 'function') {
                     @endif
 
                     @if (count($chartable) > 0)
-                        <div id="{{ $chartId }}" class="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2" :class="{ 'md:grid-cols-3 lg:grid-cols-4': viewMode === 'cards' }">
+                        <div id="{{ $chartId }}" class="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2 min-w-0" :class="{ 'md:grid-cols-3 lg:grid-cols-4': viewMode === 'cards' }">
                             @foreach ($chartable as $p)
                                 @php
                                     $pct = round((float) $p['score']['percent'], 1);
@@ -246,13 +246,13 @@ if (typeof window.targetRealisasiWidget !== 'function') {
                                 @endphp
                                 <div
                                     x-show="matches('{{ addcslashes($searchHaystack, "'\\") }}', '{{ $tier }}')"
-                                    class="flex flex-col justify-between rounded-xl p-2.5 text-xs hover:bg-slate-50/80 transition border border-slate-200/70 bg-white shadow-2xs"
+                                    class="min-w-0 max-w-full flex flex-col justify-between rounded-xl p-2.5 text-xs hover:bg-slate-50/80 transition border border-slate-200/70 bg-white shadow-2xs"
                                     data-indicator-id="{{ $p['indicator_id'] }}"
                                     data-mode="{{ $p['mode'] }}"
                                     title="{{ $tooltip }}"
                                 >
-                                    <div class="flex items-start justify-between gap-1.5">
-                                        <span class="font-medium text-slate-800 leading-snug line-clamp-2 flex-1" title="{{ $p['name'] }}">
+                                    <div class="flex items-start justify-between gap-1.5 min-w-0">
+                                        <span class="font-medium text-slate-800 leading-snug line-clamp-2 flex-1 min-w-0" title="{{ $p['name'] }}">
                                             {{ $p['name'] }}
                                         </span>
                                         @if (! empty($p['satuan']))
@@ -261,9 +261,9 @@ if (typeof window.targetRealisasiWidget !== 'function') {
                                             </span>
                                         @endif
                                     </div>
-                                    <div class="mt-1 flex flex-col gap-1 border-t border-slate-100 pt-1 text-[11px]">
+                                    <div class="mt-1 flex flex-col gap-1 border-t border-slate-100 pt-1 text-[11px] min-w-0">
                                         @if ($p['mode'] === 'numeric')
-                                            <div class="flex items-center justify-between text-slate-500 tabular-nums">
+                                            <div class="flex flex-wrap items-center justify-between gap-1 text-slate-500 tabular-nums">
                                                 <span>Target: <strong class="font-semibold text-slate-700">{{ $targetStr }}</strong></span>
                                                 <span>Realisasi: <strong class="font-semibold text-slate-700">{{ $realisasiStr }}</strong></span>
                                             </div>
@@ -303,7 +303,7 @@ if (typeof window.targetRealisasiWidget !== 'function') {
                                 @endphp
                                 <div
                                     x-show="matches('{{ addcslashes($dateHaystack, "'\\") }}', '{{ $dateTier }}')"
-                                    class="inline-flex items-center gap-1.5 rounded-full border border-slate-200/90 bg-white px-2.5 py-0.5 text-[11px] font-medium text-slate-700 cursor-help tabular-nums"
+                                    class="inline-flex max-w-full items-center gap-1.5 rounded-full border border-slate-200/90 bg-white px-2.5 py-0.5 text-[11px] font-medium text-slate-700 cursor-help tabular-nums"
                                     data-indicator-id="{{ $panel['indicator_id'] }}"
                                     data-mode="{{ $panel['mode'] }}"
                                     title="{{ $chipTooltip }}"

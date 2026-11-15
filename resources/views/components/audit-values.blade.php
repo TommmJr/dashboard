@@ -8,6 +8,17 @@
 
 @php
     $rows = App\Services\AuditLogFormatter::rows($log);
+    $formatAuditValue = static function (string $label, ?string $value): ?string {
+        if ($value === null) {
+            return null;
+        }
+
+        if ($label === 'Status') {
+            return \App\Enums\DatasetStatus::tryFrom($value)?->label() ?? $value;
+        }
+
+        return $value;
+    };
 @endphp
 
 @if ($rows === [])
@@ -15,16 +26,20 @@
 @else
     <ul class="space-y-1">
         @foreach ($rows as $row)
+            @php
+                $oldValue = $formatAuditValue($row['label'], $row['old']);
+                $newValue = $formatAuditValue($row['label'], $row['new']);
+            @endphp
             <li class="leading-snug">
                 <span class="font-medium text-gray-700">{{ $row['label'] }}</span>:
-                @if ($row['old'] !== null && $row['new'] !== null)
-                    <span class="text-red-600">{{ $row['old'] }}</span>
+                @if ($oldValue !== null && $newValue !== null)
+                    <span class="text-red-600">{{ $oldValue }}</span>
                     <span class="text-gray-400" aria-hidden="true">&rarr;</span>
-                    <span class="font-medium text-green-700">{{ $row['new'] }}</span>
-                @elseif ($row['new'] !== null)
-                    <span class="text-gray-800">{{ $row['new'] }}</span>
+                    <span class="font-medium text-green-700">{{ $newValue }}</span>
+                @elseif ($newValue !== null)
+                    <span class="text-gray-800">{{ $newValue }}</span>
                 @else
-                    <span class="text-red-600">{{ $row['old'] }}</span>
+                    <span class="text-red-600">{{ $oldValue }}</span>
                 @endif
             </li>
         @endforeach
