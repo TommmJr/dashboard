@@ -837,6 +837,7 @@ class KpiDetailPageTest extends TestCase
             ->assertSee('Target (Acuan 100%)')
             ->assertSee('formatChartIndicatorName', false)
             ->assertSee('rows.length > 20', false)
+            ->assertDontSee('summaryStats.avgDisplay', false)
             ->assertDontSee('rows.length > 12', false)
             ->assertDontSee('font-mono')
             ->assertDontSee('monospace')

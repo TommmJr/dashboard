@@ -815,7 +815,7 @@ if (typeof window.kpiDetailManager !== 'function') {
         <div class="mx-auto max-w-[1600px] rounded-2xl border border-slate-200/80 bg-slate-50/95 p-3 sm:p-4 shadow-2xl space-y-3">
             {{-- Compact Single Unified Studio Command Header --}}
             <div class="ibs-card rounded-2xl border border-slate-200/80 bg-white px-4 py-3 shadow-sm">
-                {{-- Top Row: Identity, Inline KPI Summary Pills, and Actions --}}
+                {{-- Top Row: Identity and Actions --}}
                 <div class="flex flex-col gap-2.5 xl:flex-row xl:items-center xl:justify-between">
                     <div class="min-w-0">
                         <div class="flex flex-wrap items-center gap-1.5 text-[11px] font-medium text-slate-500">
@@ -831,77 +831,46 @@ if (typeof window.kpiDetailManager !== 'function') {
                         </h2>
                     </div>
 
-                    <div class="flex flex-wrap items-center gap-2">
-                        {{-- Inline Executive KPI Summary Pills --}}
-                        <div class="flex flex-wrap items-center gap-1.5 tabular-nums text-[11px]">
-                            <span class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200/80 bg-slate-50/80 px-2.5 py-1 text-slate-600">
-                                <span>Total</span>
-                                <strong class="font-bold text-slate-900" x-text="summaryStats.total">0</strong>
-                            </span>
-                            <span class="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200/80 bg-emerald-50/60 px-2.5 py-1 text-emerald-800">
-                                <span class="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0"></span>
-                                <span>Tercapai</span>
-                                <strong class="font-bold text-emerald-950" x-text="summaryStats.tercapai">0</strong>
-                            </span>
-                            <span class="inline-flex items-center gap-1.5 rounded-lg border border-amber-200/80 bg-amber-50/60 px-2.5 py-1 text-amber-800">
-                                <span class="h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0"></span>
-                                <span>Hampir Tercapai</span>
-                                <strong class="font-bold text-amber-950" x-text="summaryStats.hampir">0</strong>
-                            </span>
-                            <span class="inline-flex items-center gap-1.5 rounded-lg border border-rose-200/80 bg-rose-50/60 px-2.5 py-1 text-rose-800">
-                                <span class="h-1.5 w-1.5 rounded-full bg-rose-500 shrink-0"></span>
-                                <span>Perlu Peningkatan</span>
-                                <strong class="font-bold text-rose-950" x-text="summaryStats.perlu">0</strong>
-                            </span>
-                            <span class="inline-flex items-center gap-1.5 rounded-lg border border-[#0b6175]/20 bg-[#e6f4f6]/70 px-2.5 py-1 text-[#0b6175]">
-                                <span>Rata-rata</span>
-                                <strong class="font-bold" x-text="summaryStats.avgDisplay">Belum tersedia</strong>
-                            </span>
-                        </div>
+                    {{-- Compact Action Buttons --}}
+                    <div class="flex flex-wrap items-center gap-1.5">
+                        <button
+                            type="button"
+                            id="kpi-fullscreen-download-chart-btn"
+                            @click="downloadChartPng()"
+                            :disabled="filteredIndicators.length === 0 || !!chartError"
+                            class="inline-flex items-center gap-1.5 rounded-lg border border-[#0b6175]/25 bg-[#e6f4f6]/70 px-2.5 py-1.5 text-xs font-semibold text-[#0b6175] transition hover:bg-[#e6f4f6] disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a3b8]/40"
+                        >
+                            <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4m4-5 5 5 5-5m-5 5V3" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            <span>Unduh PNG</span>
+                        </button>
 
-                        <span class="hidden xl:block h-5 w-px bg-slate-200" aria-hidden="true"></span>
+                        <button
+                            type="button"
+                            id="kpi-fullscreen-download-csv-btn"
+                            @click="downloadCsv()"
+                            class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200/80 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50 hover:text-slate-900 cursor-pointer whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a3b8]/40"
+                        >
+                            <svg class="h-3.5 w-3.5 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" stroke-linecap="round" stroke-linejoin="round"/>
+                                <path d="M14 2v6h6M8 13h8M8 17h8M8 9h2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            <span>Unduh CSV</span>
+                        </button>
 
-                        {{-- Compact Action Buttons --}}
-                        <div class="flex flex-wrap items-center gap-1.5">
-                            <button
-                                type="button"
-                                id="kpi-fullscreen-download-chart-btn"
-                                @click="downloadChartPng()"
-                                :disabled="filteredIndicators.length === 0 || !!chartError"
-                                class="inline-flex items-center gap-1.5 rounded-lg border border-[#0b6175]/25 bg-[#e6f4f6]/70 px-2.5 py-1.5 text-xs font-semibold text-[#0b6175] transition hover:bg-[#e6f4f6] disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a3b8]/40"
-                            >
-                                <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4m4-5 5 5 5-5m-5 5V3" stroke-linecap="round" stroke-linejoin="round"/>
-                                </svg>
-                                <span>Unduh PNG</span>
-                            </button>
-
-                            <button
-                                type="button"
-                                id="kpi-fullscreen-download-csv-btn"
-                                @click="downloadCsv()"
-                                class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200/80 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50 hover:text-slate-900 cursor-pointer whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a3b8]/40"
-                            >
-                                <svg class="h-3.5 w-3.5 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" stroke-linecap="round" stroke-linejoin="round"/>
-                                    <path d="M14 2v6h6M8 13h8M8 17h8M8 9h2" stroke-linecap="round" stroke-linejoin="round"/>
-                                </svg>
-                                <span>Unduh CSV</span>
-                            </button>
-
-                            <button
-                                type="button"
-                                id="kpi-fullscreen-close-btn"
-                                @click="closeFullscreen()"
-                                class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200/80 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50 hover:text-slate-900 cursor-pointer whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a3b8]/40"
-                            >
-                                <svg class="h-3.5 w-3.5 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-                                    <path d="M18 6 6 18M6 6l12 12" stroke-linecap="round" stroke-linejoin="round"/>
-                                </svg>
-                                <span>Tutup</span>
-                                <kbd class="rounded border border-slate-200 bg-slate-100 px-1 py-0.5 text-[10px] font-semibold text-slate-500">ESC</kbd>
-                            </button>
-                        </div>
+                        <button
+                            type="button"
+                            id="kpi-fullscreen-close-btn"
+                            @click="closeFullscreen()"
+                            class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200/80 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50 hover:text-slate-900 cursor-pointer whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a3b8]/40"
+                        >
+                            <svg class="h-3.5 w-3.5 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                                <path d="M18 6 6 18M6 6l12 12" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            <span>Tutup</span>
+                            <kbd class="rounded border border-slate-200 bg-slate-100 px-1 py-0.5 text-[10px] font-semibold text-slate-500">ESC</kbd>
+                        </button>
                     </div>
                 </div>
 
