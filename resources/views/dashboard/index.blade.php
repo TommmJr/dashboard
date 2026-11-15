@@ -21,7 +21,6 @@
     $isAdminDashboard = $currentUser?->role?->slug === \App\Models\Role::ADMIN;
     $isStaffDashboard = $currentUser?->role?->slug === \App\Models\Role::STAFF_DIVISI;
     $canAccessKpiDetail = \App\Http\Controllers\DashboardController::canAccessKpiDetail($currentUser);
-    $canAccessKpiAnalytics = \App\Http\Controllers\KpiAnalyticsController::canAccessKpiAnalytics($currentUser);
     $isKpiDashboard = $canAccessKpiDetail && ! $isAdminDashboard;
     $needsPerformanceState = ! $isAdminDashboard || collect($widgets)->contains(fn (array $w): bool => in_array($w['key'] ?? '', ['kpi-summary', 'trend-chart'], true));
 
@@ -106,16 +105,6 @@
                                 <path d="M9 12h6M9 16h4" stroke-linecap="round" stroke-linejoin="round"/>
                             </svg>
                             Rincian KPI
-                        </a>
-                    @endif
-
-                    @if ($canAccessKpiAnalytics)
-                        <a href="{{ route('dashboard.kpi-analytics') }}" class="inline-flex items-center gap-1.5 rounded-lg border border-[#0b6175]/30 bg-white px-3 py-1.5 text-xs font-semibold text-[#0b6175] whitespace-nowrap shadow-2xs transition hover:bg-[#e6f4f6]/60 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-1">
-                            <svg class="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-                                <path d="M3 3v18h18" stroke-linecap="round" stroke-linejoin="round"/>
-                                <path d="m19 9-5 5-4-4-3 3" stroke-linecap="round" stroke-linejoin="round"/>
-                            </svg>
-                            Analitik KPI
                         </a>
                     @endif
 
@@ -460,6 +449,10 @@
                 //   sumbu Y dari 0. Snapshot dengan nilai hampir seragam jadi
                 //   terbaca jujur (tanpa legend 15 unit & tanpa bar terpotong).
                 // - >1 periode = garis per unit (tren), warna dari palet.
+                const fmtTooltipNumber = (v) => (v === null || v === undefined || String(v).trim() === '' || Number.isNaN(Number(v)))
+                    ? '-'
+                    : Number(v).toLocaleString('id-ID', { maximumFractionDigits: 1 });
+
                 if (payload.labels.length <= 1) {
                     const ranked = payload.series
                         .filter((s) => s.data[0] !== null && s.data[0] !== undefined)
@@ -471,7 +464,7 @@
                         animationDuration: 650,
                         animationEasing: 'cubicOut',
                         animationDurationUpdate: 400,
-                        tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+                        tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, valueFormatter: fmtTooltipNumber },
                         grid: { left: 70, right: 20, top: 20, bottom: 40 },
                         xAxis: {
                             type: 'category',
@@ -499,7 +492,7 @@
                                 position: 'top',
                                 color: tokens.primary,
                                 fontSize: 11,
-                                formatter: (params) => Number(params.value).toFixed(1),
+                                formatter: (params) => fmtTooltipNumber(params.value),
                             },
                         }],
                     });
@@ -518,7 +511,7 @@
                         animationDuration: 650,
                         animationEasing: 'cubicOut',
                         animationDurationUpdate: 400,
-                        tooltip: { trigger: 'axis' },
+                        tooltip: { trigger: 'axis', valueFormatter: fmtTooltipNumber },
                         legend: {
                             bottom: 0,
                             type: 'scroll',

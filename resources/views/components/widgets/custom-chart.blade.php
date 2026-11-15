@@ -85,6 +85,10 @@ if (typeof window.customChartWidget !== 'function') {
                             }
                         };
 
+                        const fmtTooltipNumber = (v) => (v === null || v === undefined || String(v).trim() === '' || Number.isNaN(Number(v)))
+                            ? '-'
+                            : Number(v).toLocaleString('id-ID', { maximumFractionDigits: 1 });
+                        const escHtml = (s) => String(s ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
                         let option = {};
                         if (data.chart_type === 'donut') {
                             option = {
@@ -92,7 +96,7 @@ if (typeof window.customChartWidget !== 'function') {
                                 animationDuration: 650,
                                 animationEasing: 'cubicOut',
                                 color: [palette.primary, palette.accent, palette.softTeal, palette.rag.tercapai, palette.rag.waspada, palette.targetSlate],
-                                tooltip: { trigger: 'item', formatter: '{b}: {c}' },
+                                tooltip: { trigger: 'item', formatter: (p) => `${escHtml(p.name)}: ${fmtTooltipNumber(p.value)}` },
                                 legend: { bottom: 0, textStyle: { color: palette.axisText, fontSize: 11 } },
                                 series: [{
                                     name: data.series[0].name || 'Metrik',
@@ -108,7 +112,7 @@ if (typeof window.customChartWidget !== 'function') {
                                 animation: true,
                                 animationDuration: 650,
                                 animationEasing: 'cubicOut',
-                                tooltip: { trigger: 'axis' },
+                                tooltip: { trigger: 'axis', valueFormatter: fmtTooltipNumber },
                                 grid: { left: '3%', right: '4%', bottom: '10%', containLabel: true },
                                 xAxis: {
                                     type: 'category',

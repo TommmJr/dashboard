@@ -288,11 +288,14 @@ class DashboardController extends Controller
         // PENTING: $this->kinerjaDetail() mengisi properti internal
         // $this->kinerjaDetailUnits (daftar seluruh opsi unit di dataset untuk
         // dropdown #kinerja-detail-unit), sama seperti di __invoke() baris 131.
-        $kinerjaDetailData = $this->kinerjaDetail(
+        $kinerjaDetailData = $this->enrichKinerjaDetailDisplayMeta(
+            $this->kinerjaDetail(
+                $user,
+                $filters['start_date'],
+                $filters['end_date'],
+                $filters['units'],
+            ),
             $user,
-            $filters['start_date'],
-            $filters['end_date'],
-            $filters['units'],
         );
 
         $fullscreenChartData = $this->kpiFullscreenChartData(
@@ -339,16 +342,6 @@ class DashboardController extends Controller
     {
         $rag = KpiScoreNormalizer::ragThresholds();
         $period = $kinerjaDetailData['period'] ?? ($targetRealisasiData['period'] ?? null);
-
-        $fmtNum = static function (?float $value, int $decimals = 2): string {
-            if ($value === null) {
-                return 'Tidak tercatat';
-            }
-
-            $formatted = number_format($value, $decimals, ',', '.');
-
-            return str_contains($formatted, ',') ? rtrim(rtrim($formatted, '0'), ',') : $formatted;
-        };
 
         $sections = $targetRealisasiData['sections'] ?? [];
         $availableSectionUnits = array_values(array_unique(array_filter(
@@ -417,32 +410,49 @@ class DashboardController extends Controller
                 : 'Tidak tercatat';
 
             $mode = (string) ($panel['mode'] ?? 'numeric');
-            $targetNum = $mode === 'numeric' && isset($panel['numeric']['target'])
-                ? (float) $panel['numeric']['target']
-                : null;
-            $realisasiNum = $mode === 'numeric' && isset($panel['numeric']['realisasi'])
-                ? (float) $panel['numeric']['realisasi']
-                : null;
-
-            if ($mode === 'numeric') {
-                $targetDisplay = $fmtNum($targetNum, 4);
-                $realisasiDisplay = $fmtNum($realisasiNum, 4);
-            } elseif ($mode === 'date') {
-                $targetDisplay = (string) ($panel['date']['target'] ?? 'Tidak ada target');
-                $realisasiDisplay = (string) ($panel['date']['realisasi'] ?? 'Belum tersedia');
-            } else {
-                $targetDisplay = 'Tidak tercatat';
-                $realisasiDisplay = 'Tidak tercatat';
-            }
+            $targetNum = match ($mode) {
+                'numeric' => isset($panel['numeric']['target']) ? (float) $panel['numeric']['target'] : null,
+                'score_only' => isset($panel['partial_numeric']['target']) ? (float) $panel['partial_numeric']['target'] : null,
+                default => null,
+            };
+            $realisasiNum = match ($mode) {
+                'numeric' => isset($panel['numeric']['realisasi']) ? (float) $panel['numeric']['realisasi'] : null,
+                'score_only' => isset($panel['partial_numeric']['realisasi']) ? (float) $panel['partial_numeric']['realisasi'] : null,
+                default => null,
+            };
 
             $rawPct = $panel['score']['percent'] ?? null;
             $scale = $panel['score']['scale'] ?? null;
             $pct = ($rawPct !== null && $scale !== 'unverified') ? round((float) $rawPct, 1) : null;
 
             $tier = $pct === null ? 'unverified' : KpiScoreNormalizer::ragTier($pct);
-            $satuan = isset($panel['satuan']) && trim((string) $panel['satuan']) !== ''
-                ? (string) $panel['satuan']
-                : 'Tidak tercatat';
+            $satuan = KpiScoreNormalizer::normalizeUnit($panel['satuan'] ?? null) ?? 'Tidak tercatat';
+
+            $cmp = KpiScoreNormalizer::describeComparison([
+                'target' => $targetNum,
+                'realisasi' => $realisasiNum,
+                'satuan' => $panel['satuan'] ?? null,
+                'polarity' => $meta?->polarity ?? ($panel['polarity'] ?? null),
+                'target_type' => $panel['target_type'] ?? ($mode === 'date' ? 'date' : 'numeric'),
+                'realisasi_type' => $panel['realisasi_type'] ?? ($mode === 'date' ? 'date' : 'numeric'),
+                'target_text' => $panel['target_text'] ?? null,
+                'realisasi_text' => $panel['realisasi_text'] ?? null,
+                'delta_days' => $panel['date']['delta_days'] ?? null,
+                'skor_kpi' => $pct,
+                'tier' => $tier,
+            ]);
+
+            if ($mode === 'date') {
+                $targetDisplay = (string) ($panel['date']['target'] ?? 'Tidak ada target');
+                $realisasiDisplay = (string) ($panel['date']['realisasi'] ?? 'Belum tersedia');
+            } else {
+                $targetDisplay = $targetNum !== null
+                    ? KpiScoreNormalizer::formatNumber($targetNum, 1)
+                    : ($cmp['target_override'] ?? 'Tidak tercatat');
+                $realisasiDisplay = $realisasiNum !== null
+                    ? KpiScoreNormalizer::formatNumber($realisasiNum, 1)
+                    : ($cmp['realisasi_override'] ?? 'Tidak tercatat');
+            }
 
             $indicators[] = [
                 'key' => $unit.'|'.$id.'|'.$idx,
@@ -458,8 +468,12 @@ class DashboardController extends Controller
                 'realisasi_num' => $realisasiNum,
                 'target_display' => $targetDisplay,
                 'realisasi_display' => $realisasiDisplay,
+                'indicator_hint' => $cmp['indicator_hint'],
+                'target_hint' => $cmp['target_hint'],
+                'realisasi_hint' => $cmp['realisasi_hint'],
+                'delta_display' => $cmp['diff_label'],
                 'pencapaian' => $pct,
-                'pencapaian_display' => $pct !== null ? $fmtNum($pct, 1).'%' : 'Belum tersedia',
+                'pencapaian_display' => $pct !== null ? KpiScoreNormalizer::formatNumber($pct, 1, '%') : 'Belum tersedia',
                 'tier' => $tier,
                 'status' => $tierToStatus($tier),
             ];
@@ -467,13 +481,27 @@ class DashboardController extends Controller
 
         if ($indicators === [] && ! empty($kinerjaDetailData['rows'])) {
             foreach ($kinerjaDetailData['rows'] as $idx => $row) {
-                $pct = isset($row['pencapaian']) && $row['pencapaian'] !== null
-                    ? round((float) $row['pencapaian'], 1)
-                    : null;
+                $pctRaw = array_key_exists('skor_kpi', $row) ? $row['skor_kpi'] : ($row['pencapaian'] ?? null);
+                $pct = $pctRaw !== null ? round((float) $pctRaw, 1) : null;
                 $tier = $pct === null ? 'unverified' : KpiScoreNormalizer::ragTier($pct);
                 $isDate = ($row['target_display'] ?? null) !== null || ($row['realisasi_display'] ?? null) !== null;
                 $targetNum = (! $isDate && isset($row['target']) && $row['target'] !== null) ? (float) $row['target'] : null;
                 $realisasiNum = (! $isDate && isset($row['realisasi']) && $row['realisasi'] !== null) ? (float) $row['realisasi'] : null;
+                $satuan = KpiScoreNormalizer::normalizeUnit($row['satuan'] ?? null) ?? 'Tidak tercatat';
+                $cmp = KpiScoreNormalizer::describeComparison([
+                    'target' => $targetNum,
+                    'realisasi' => $realisasiNum,
+                    'satuan' => $row['satuan'] ?? null,
+                    'polarity' => $row['polarity'] ?? null,
+                    'target_type' => $row['target_type'] ?? ($isDate ? 'date' : 'numeric'),
+                    'realisasi_type' => $row['realisasi_type'] ?? ($isDate ? 'date' : 'numeric'),
+                    'target_text' => $row['target_text'] ?? null,
+                    'realisasi_text' => $row['realisasi_text'] ?? null,
+                    'target_date' => $row['target_date'] ?? ($row['target_display'] ?? null),
+                    'realisasi_date' => $row['realisasi_date'] ?? ($row['realisasi_display'] ?? null),
+                    'skor_kpi' => $pct,
+                    'tier' => $tier,
+                ]);
 
                 $indicators[] = [
                     'key' => ($row['unit'] ?? '').'|'.$idx,
@@ -481,16 +509,20 @@ class DashboardController extends Controller
                     'unit' => (string) ($row['unit'] ?? ''),
                     'group' => 'Umum',
                     'indikator' => (string) ($row['indikator'] ?? ''),
-                    'satuan' => 'Tidak tercatat',
-                    'polaritas' => 'Positif',
+                    'satuan' => $satuan,
+                    'polaritas' => ($row['polarity'] ?? null) === KpiReportConverter::POLARITY_LOWER_IS_BETTER ? 'Negatif' : 'Positif',
                     'bobot' => 'Tidak tercatat',
                     'mode' => $isDate ? 'date' : 'numeric',
                     'target_num' => $targetNum,
                     'realisasi_num' => $realisasiNum,
-                    'target_display' => (string) ($row['target_display'] ?? $fmtNum($targetNum, 2)),
-                    'realisasi_display' => (string) ($row['realisasi_display'] ?? $fmtNum($realisasiNum, 2)),
+                    'target_display' => (string) ($row['target_display'] ?? $cmp['target_override'] ?? KpiScoreNormalizer::formatNumber($targetNum, 1)),
+                    'realisasi_display' => (string) ($row['realisasi_display'] ?? $cmp['realisasi_override'] ?? KpiScoreNormalizer::formatNumber($realisasiNum, 1)),
+                    'indicator_hint' => $cmp['indicator_hint'],
+                    'target_hint' => $cmp['target_hint'],
+                    'realisasi_hint' => $cmp['realisasi_hint'],
+                    'delta_display' => $cmp['diff_label'],
                     'pencapaian' => $pct,
-                    'pencapaian_display' => $pct !== null ? $fmtNum($pct, 1).'%' : 'Belum tersedia',
+                    'pencapaian_display' => $pct !== null ? KpiScoreNormalizer::formatNumber($pct, 1, '%') : 'Belum tersedia',
                     'tier' => $tier,
                     'status' => $tierToStatus($tier),
                 ];
@@ -611,7 +643,10 @@ class DashboardController extends Controller
             'admin-quick-actions' => null,
             'dataset-status' => $this->datasetStatus($user),
             'kinerja-realisasi' => $this->kinerjaRealisasi($user, $filters['start_date'] ?? null, $filters['end_date'] ?? null),
-            'kinerja-detail' => $this->kinerjaDetail($user, $filters['start_date'] ?? null, $filters['end_date'] ?? null, $filters['units'] ?? []),
+            'kinerja-detail' => $this->enrichKinerjaDetailDisplayMeta(
+                $this->kinerjaDetail($user, $filters['start_date'] ?? null, $filters['end_date'] ?? null, $filters['units'] ?? []),
+                $user,
+            ),
             'target-realisasi-per-indikator' => $this->targetRealisasiPerIndikator($user, $filters['start_date'] ?? null, $filters['end_date'] ?? null),
             'pencapaian-nko' => $this->pencapaianNko($user, $filters['start_date'] ?? null, $filters['end_date'] ?? null),
             'nko-donut' => $this->nkoDonut($user, $filters['start_date'] ?? null, $filters['end_date'] ?? null),
@@ -2121,6 +2156,73 @@ class DashboardController extends Controller
         }
 
         return ['period' => $period, 'rows' => $rows, 'truncated' => $truncated, 'total_rows' => $total];
+    }
+
+    /**
+     * Tambah metadata tampilan (satuan, polaritas, teks/tanggal sumber) di lapisan
+     * view/halaman tanpa mengubah kontrak struktur 9-kolom reader R7.
+     *
+     * @param  array{period: string|null, rows: list<array<string, mixed>>, truncated: bool, total_rows: int}  $data
+     * @return array{period: string|null, rows: list<array<string, mixed>>, truncated: bool, total_rows: int}
+     */
+    private function enrichKinerjaDetailDisplayMeta(array $data, ?User $user): array
+    {
+        $period = $data['period'] ?? null;
+        if ($period === null || ($data['rows'] ?? []) === []) {
+            return $data;
+        }
+
+        $divisionId = $this->isPrivileged($user) ? null : $user?->division_id;
+        $latestIds = $this->structuredNko->latestDatasetIds($divisionId, $period);
+
+        if ($latestIds === []) {
+            return $data;
+        }
+
+        $metaByKey = [];
+        DB::table('performance_observations')
+            ->join('indicators', 'indicators.id', '=', 'performance_observations.indicator_id')
+            ->join('org_units', 'org_units.id', '=', 'performance_observations.org_unit_id')
+            ->where('performance_observations.period', $period)
+            ->where('indicators.is_group', false)
+            ->when($divisionId !== null, fn ($q) => $q->where('performance_observations.division_id', $divisionId))
+            ->whereIn('performance_observations.dataset_id', $latestIds)
+            ->orderBy('performance_observations.dataset_id')
+            ->orderBy('indicators.id')
+            ->select(
+                'org_units.name as unit',
+                'indicators.name as indikator',
+                'indicators.satuan',
+                'indicators.polarity',
+                'performance_observations.target_type',
+                'performance_observations.target_text',
+                'performance_observations.target_date',
+                'performance_observations.realisasi_type',
+                'performance_observations.realisasi_text',
+                'performance_observations.realisasi_date',
+            )
+            ->get()
+            ->each(function (object $obs) use (&$metaByKey) {
+                $key = $obs->unit.'|'.$obs->indikator;
+                $metaByKey[$key] = [
+                    'satuan' => $obs->satuan !== null ? (string) $obs->satuan : null,
+                    'polarity' => $obs->polarity !== null ? (string) $obs->polarity : null,
+                    'target_type' => (string) $obs->target_type,
+                    'realisasi_type' => (string) $obs->realisasi_type,
+                    'target_text' => $obs->target_text !== null ? (string) $obs->target_text : null,
+                    'realisasi_text' => $obs->realisasi_text !== null ? (string) $obs->realisasi_text : null,
+                    'target_date' => $obs->target_date !== null ? substr((string) $obs->target_date, 0, 10) : null,
+                    'realisasi_date' => $obs->realisasi_date !== null ? substr((string) $obs->realisasi_date, 0, 10) : null,
+                ];
+            });
+
+        $data['rows'] = array_map(function (array $row) use ($metaByKey): array {
+            $meta = $metaByKey[($row['unit'] ?? '').'|'.($row['indikator'] ?? '')] ?? [];
+
+            return array_merge($row, $meta);
+        }, $data['rows']);
+
+        return $data;
     }
 
     /**

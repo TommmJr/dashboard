@@ -481,4 +481,106 @@ class TargetRealisasiPerIndikatorTest extends TestCase
         // Verifikasi blok aksesibilitas sr-only tetap terpelihara
         $response->assertSee('class="sr-only"', false);
     }
+
+    public function test_target_dan_realisasi_diformat_maksimal_satu_desimal_tanpa_nol_ekor(): void
+    {
+        $dataset = $this->dataset();
+
+        $traf = $this->indicator('TJBT', 'Faktor Ketersediaan Trafo', ['satuan' => '%']);
+        $obsTraf = $this->observe($dataset, $traf, [
+            'target_value' => 99.92,
+            'realisasi_value' => 99.986,
+            'pencapaian' => 1.0007,
+        ]);
+
+        $ccaf = $this->indicator('TJBT', 'Faktor Ketersediaan Transmisi', ['satuan' => '%']);
+        $this->observe($dataset, $ccaf, [
+            'target_value' => 99.94,
+            'realisasi_value' => 99.978,
+            'pencapaian' => 1.0,
+        ]);
+
+        $sirkit = $this->indicator('TJBT', 'Kali sirkit padam karena gangguan', ['satuan' => 'Kali']);
+        $this->observe($dataset, $sirkit, [
+            'target_value' => 5.326,
+            'realisasi_value' => 4,
+            'pencapaian' => 1.1,
+        ]);
+
+        $trafo = $this->indicator('TJBT', 'Kali trafo GI padam karena gangguan', ['satuan' => 'Kali']);
+        $this->observe($dataset, $trafo, [
+            'target_value' => 6,
+            'realisasi_value' => 6,
+            'pencapaian' => 1.0,
+        ]);
+
+        $bay = $this->indicator('TJBT', 'Kali gangguan pada peralatan di Another Bay', ['satuan' => 'Kali']);
+        $obsBay = $this->observe($dataset, $bay, [
+            'target_value' => 6.6575,
+            'realisasi_value' => 4,
+            'pencapaian' => 1.1,
+        ]);
+
+        $di = $this->indicator('TJBT', 'Dependability Index (DI)', ['satuan' => '%']);
+        $this->observe($dataset, $di, [
+            'target_value' => 97,
+            'realisasi_value' => 99.7,
+            'pencapaian' => 1.028,
+        ]);
+
+        $attb = $this->indicator('TJBT', 'Usulan Penghapusan ATTB', ['satuan' => 'Rp. Juta']);
+        $this->observe($dataset, $attb, [
+            'target_value' => 28795.3,
+            'realisasi_value' => 181979.53,
+            'pencapaian' => 1.1,
+        ]);
+
+        $nac = $this->indicator('TJBT', 'Pengendalian NAC (Non Allowable Cost)', [
+            'satuan' => 'Rp. Milyar',
+            'polarity' => 'lower_is_better',
+        ]);
+        $this->observe($dataset, $nac, [
+            'target_value' => 205.16,
+            'realisasi_value' => 158.53,
+            'pencapaian' => 1.1,
+        ]);
+
+        $staff = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $this->division->id]);
+
+        $response = $this->actingAs($staff)->get(route('dashboard.kpi-detail'))->assertOk();
+
+        $response->assertSee('99,9')
+            ->assertSee('100')
+            ->assertSee('5,3')
+            ->assertSee('6,7')
+            ->assertSee('99,7')
+            ->assertSee('181.979,5')
+            ->assertSee('205,2')
+            ->assertSee('158,5')
+            ->assertSee('100,1%')
+            ->assertSee('102,8%')
+            ->assertSee('Rp Juta')
+            ->assertSee('Rp Miliar')
+            ->assertSee('Makin kecil makin baik')
+            ->assertSee('Hemat 46,7 Rp Miliar')
+            ->assertSee('+153.184,2 Rp Juta')
+            ->assertDontSee('99,99')
+            ->assertDontSee('99,98')
+            ->assertDontSee('5,33')
+            ->assertDontSee('6,66')
+            ->assertDontSee('181.979,53')
+            ->assertDontSee('205,16')
+            ->assertDontSee('158,53')
+            ->assertDontSee('99,986')
+            ->assertDontSee('99,978')
+            ->assertDontSee('5,326')
+            ->assertDontSee('6,6575')
+            ->assertDontSee('99,70')
+            ->assertDontSee('4,00')
+            ->assertDontSee('6,00');
+
+        // Kontrak DB mentah tetap presisi penuh (presentation-only change).
+        $this->assertEqualsWithDelta(99.986, (float) $obsTraf->fresh()->realisasi_value, 0.00001);
+        $this->assertEqualsWithDelta(6.6575, (float) $obsBay->fresh()->target_value, 0.00001);
+    }
 }

@@ -372,6 +372,7 @@ if (typeof window.kpiDetailManager !== 'function') {
                             '<span style="color:#64748b;">Target</span><strong style="text-align:right;color:#0f172a;font-variant-numeric:tabular-nums;">' + escapeHtml(targetWithUnit) + '</strong>',
                             '<span style="color:#64748b;">Realisasi</span><strong style="text-align:right;color:#0f172a;font-variant-numeric:tabular-nums;">' + escapeHtml(realisasiWithUnit) + '</strong>',
                             '<span style="color:#64748b;">Capaian</span><strong style="text-align:right;color:#0b6175;font-variant-numeric:tabular-nums;">' + escapeHtml(row.pencapaian_display || 'Belum tersedia') + '</strong>',
+                            (row.delta_display ? '<span style="color:#64748b;">Perbandingan</span><strong style="text-align:right;color:#0f172a;font-variant-numeric:tabular-nums;">' + escapeHtml(row.delta_display) + '</strong>' : ''),
                             '<span style="color:#64748b;">Status</span><span style="text-align:right;font-weight:600;color:#0f172a;"><span style="display:inline-block;width:7px;height:7px;border-radius:9999px;background:' + dotColor + ';margin-right:5px;vertical-align:middle;"></span>' + escapeHtml(row.status) + '</span>',
                             '</div>',
                             '</div>',
@@ -940,15 +941,21 @@ if (typeof window.kpiDetailManager !== 'function') {
                                             <div class="mt-1 flex flex-wrap items-center gap-1.5 text-[10.5px] text-slate-500">
                                                 <span class="inline-flex items-center rounded bg-[#e6f4f6] px-1.5 py-0.5 font-semibold text-[#0b6175]" x-text="row.unit"></span>
                                                 <span x-show="row.group && row.group !== 'Umum'" class="truncate max-w-[140px]" x-text="row.group"></span>
-                                                <span x-show="row.satuan && row.satuan !== 'Tidak tercatat'" class="text-slate-400" x-text="row.satuan"></span>
+                                                <span x-show="row.indicator_hint || (row.satuan && row.satuan !== 'Tidak tercatat' && row.satuan !== '-')" class="text-slate-400" x-text="row.indicator_hint || row.satuan"></span>
                                             </div>
+                                            <div x-show="row.delta_display" class="mt-0.5 text-[10.5px] font-medium text-[#0b6175]" x-text="row.delta_display"></div>
                                         </td>
-                                        <td class="px-1.5 py-2.5 text-right align-top font-medium text-slate-600 tabular-nums" x-text="row.target_display || 'Tidak tercatat'"></td>
-                                        <td
-                                            class="px-1.5 py-2.5 text-right align-top font-medium tabular-nums"
-                                            :class="(row.realisasi_display && row.realisasi_display !== 'Tidak tercatat' && row.realisasi_display !== 'Belum tersedia') ? 'text-slate-800' : 'text-slate-400'"
-                                            x-text="(row.realisasi_display && row.realisasi_display !== 'Tidak tercatat') ? row.realisasi_display : 'Belum tersedia'"
-                                        ></td>
+                                        <td class="px-1.5 py-2.5 text-right align-top font-medium text-slate-600 tabular-nums">
+                                            <div x-text="row.target_display || 'Tidak tercatat'"></div>
+                                            <div x-show="row.target_hint" class="mt-0.5 text-[10px] font-normal text-slate-400" x-text="row.target_hint"></div>
+                                        </td>
+                                        <td class="px-1.5 py-2.5 text-right align-top font-medium tabular-nums">
+                                            <div
+                                                :class="(row.realisasi_display && row.realisasi_display !== 'Tidak tercatat' && row.realisasi_display !== 'Belum tersedia') ? 'text-slate-800' : 'text-slate-400'"
+                                                x-text="(row.realisasi_display && row.realisasi_display !== 'Tidak tercatat') ? row.realisasi_display : 'Belum tersedia'"
+                                            ></div>
+                                            <div x-show="row.realisasi_hint" class="mt-0.5 text-[10px] font-normal text-slate-400" x-text="row.realisasi_hint"></div>
+                                        </td>
                                         <td class="pl-1.5 pr-3.5 py-2.5 text-right align-top tabular-nums">
                                             <div class="inline-flex items-center justify-end gap-1.5">
                                                 <span
@@ -1016,20 +1023,6 @@ if (typeof window.kpiDetailManager !== 'function') {
             </div>
 
             <div id="kpi-detail-actions" class="flex min-w-0 max-w-full flex-wrap items-center gap-2">
-                @if (\App\Http\Controllers\KpiAnalyticsController::canAccessKpiAnalytics(auth()->user()))
-                    <a
-                        href="{{ route('dashboard.kpi-analytics') }}"
-                        class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200/80 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50 hover:text-slate-900 whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a3b8]/40"
-                    >
-                        <svg class="h-3.5 w-3.5 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-                            <path d="M3 3v18h18" stroke-linecap="round" stroke-linejoin="round" />
-                            <path d="m19 9-5 5-4-4-3 3" stroke-linecap="round" stroke-linejoin="round" />
-                            <circle cx="19" cy="9" r="1.5" fill="currentColor" stroke="none" />
-                        </svg>
-                        <span>Analitik KPI</span>
-                    </a>
-                @endif
-
                 <button
                     type="button"
                     id="kpi-detail-fullscreen-btn"

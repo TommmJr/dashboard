@@ -267,7 +267,8 @@ class KinerjaDetailUnitFilterTest extends TestCase
         $response->assertSee('value="TJBT" selected', false);
         $response->assertSee('Detail Metrik KPI');
         $response->assertSee('Skor Pencapaian KPI (Maks 110%)');
-        $response->assertSee('Rasio Realisasi Murni');
+        $response->assertSee('Perbandingan Target');
+        $response->assertDontSee('Rasio Realisasi Murni');
         $response->assertSee('Indikator A');
         $response->assertDontSee('Indikator B');
     }

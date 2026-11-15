@@ -43,7 +43,7 @@
                 // 2 desimal TANPA menyentuh data/payload/agregasi. Format ribuan
                 // (koma) dipertahankan seperti default; null/NaN tampil 'Tidak tercatat'.
                 const fmtTooltipNumber = (value) => (typeof value === 'number' && Number.isFinite(value))
-                    ? value.toLocaleString('id-ID', { maximumFractionDigits: 2 })
+                    ? value.toLocaleString('id-ID', { maximumFractionDigits: 1 })
                     : (value === null || value === undefined || typeof value === 'number') ? 'Tidak tercatat' : value;
                 const fmtTooltipValue = (value) => Array.isArray(value)
                     ? value.map(fmtTooltipNumber)

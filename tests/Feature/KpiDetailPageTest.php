@@ -467,7 +467,7 @@ class KpiDetailPageTest extends TestCase
 
         $html->assertSee('1%')
             ->assertSee('class="h-full rounded-full bg-rose-500" style="width: 1%"', false)
-            ->assertDontSee('style="width: 100%"', false);
+            ->assertDontSee('class="h-full rounded-full bg-rose-500" style="width: 100%"', false);
     }
 
     public function test_halaman_kpi_detail_menyediakan_workspace_grafik_layar_penuh_interaktif_dan_unduhan_png(): void
@@ -668,7 +668,7 @@ class KpiDetailPageTest extends TestCase
         $this->assertSame('2026-05-21', $payload['indicators'][0]['realisasi_display']);
     }
 
-    public function test_halaman_kpi_detail_memisahkan_dan_menyelaraskan_skor_kpi_dan_rasio_realisasi_murni(): void
+    public function test_halaman_kpi_detail_mengganti_rasio_murni_menjadi_perbandingan_visual_target(): void
     {
         $role = Role::where('slug', Role::STAFF_DIVISI)->firstOrFail();
         $user = User::factory()->create([
@@ -731,12 +731,19 @@ class KpiDetailPageTest extends TestCase
 
         $response->assertOk()
             ->assertSee('Skor Pencapaian KPI (Maks 110%)')
-            ->assertSee('Rasio Realisasi Murni')
+            ->assertSee('Perbandingan Target')
+            ->assertDontSee('Rasio Realisasi Murni')
             ->assertSee('110%')
-            ->assertSee('632%')
-            ->assertSee('13,7%')
+            ->assertSee('181.979,5')
+            ->assertSee('0,4')
+            ->assertSee('+153.184,2 Rp Juta')
+            ->assertSee('Lebih cepat 2,6 Jam')
+            ->assertSee('Nominal Rp Juta')
+            ->assertSee('Jam • Makin cepat makin baik')
+            ->assertDontSee('632%')
+            ->assertDontSee('13,7%')
             ->assertSee("matches('Emergency Response time - Gangguan Meluas', 'TJBT', 'tercapai')", false)
-            // Polaritas terbalik yang tercapai (110%) tidak boleh memakai bar merah palsu dari rasio murni 13,7%.
+            // Polaritas terbalik yang tercapai (110%) tidak boleh memakai bar merah palsu.
             ->assertDontSee('h-full rounded-full bg-rose-500');
     }
 
@@ -783,7 +790,7 @@ class KpiDetailPageTest extends TestCase
             ->assertSee('id="kpi-unified-search"', false)
             ->assertSee('kpi-page-filter-changed', false)
             ->assertSee('Ringkasan')
-            ->assertSee('Analitik KPI')
+            ->assertDontSee('Analitik KPI')
             ->assertSee('Unduh JPG')
             ->assertDontSee('Cetak Laporan')
             ->assertDontSee('id="kpi-detail-print-btn"', false)
@@ -851,5 +858,125 @@ class KpiDetailPageTest extends TestCase
             ->assertDontSee('monospace')
             ->assertDontSee('&mdash;', false)
             ->assertDontSee('&ndash;', false);
+    }
+
+    public function test_payload_layar_penuh_memformat_target_dan_realisasi_maksimal_satu_desimal_tanpa_nol_ekor(): void
+    {
+        $role = Role::where('slug', Role::STAFF_DIVISI)->firstOrFail();
+        $user = User::factory()->create([
+            'role_id' => $role->id,
+            'division_id' => $this->pengusahaan->id,
+        ]);
+
+        $dataset = Dataset::factory()->create([
+            'division_id' => $this->pengusahaan->id,
+            'status' => Dataset::STATUS_READY,
+        ]);
+
+        $unit = OrgUnit::create(['name' => 'TJBT']);
+        $rows = [
+            ['name' => 'TRAF', 'satuan' => '%', 'polarity' => 'higher_is_better', 'target' => 99.92, 'realisasi' => 99.986, 'pencapaian' => 1.0007, 'expected_t' => '99,9', 'expected_r' => '100', 'expected_delta' => '+0,1%'],
+            ['name' => 'CCAF', 'satuan' => '%', 'polarity' => 'higher_is_better', 'target' => 99.94, 'realisasi' => 99.978, 'pencapaian' => 1.0, 'expected_t' => '99,9', 'expected_r' => '100', 'expected_delta' => '+0,1%'],
+            ['name' => 'Sirkit Padam', 'satuan' => 'Kali', 'polarity' => 'lower_is_better', 'target' => 5.326, 'realisasi' => 4.0, 'pencapaian' => 1.1, 'expected_t' => '5,3', 'expected_r' => '4', 'expected_delta' => 'Lebih sedikit 1,3 Kali'],
+            ['name' => 'Trafo GI Padam', 'satuan' => 'Kali', 'polarity' => 'lower_is_better', 'target' => 6.0, 'realisasi' => 6.0, 'pencapaian' => 1.0, 'expected_t' => '6', 'expected_r' => '6', 'expected_delta' => 'Sesuai batas target'],
+            ['name' => 'Another Bay', 'satuan' => 'Kali', 'polarity' => 'lower_is_better', 'target' => 6.6575, 'realisasi' => 4.0, 'pencapaian' => 1.1, 'expected_t' => '6,7', 'expected_r' => '4', 'expected_delta' => 'Lebih sedikit 2,7 Kali'],
+            ['name' => 'Dependability Index', 'satuan' => '%', 'polarity' => 'higher_is_better', 'target' => 97.0, 'realisasi' => 99.7, 'pencapaian' => 1.028, 'expected_t' => '97', 'expected_r' => '99,7', 'expected_delta' => '+2,7%'],
+            ['name' => 'Pengendalian NAC', 'satuan' => 'Rp. Milyar', 'polarity' => 'lower_is_better', 'target' => 205.16, 'realisasi' => 158.53, 'pencapaian' => 1.1, 'expected_t' => '205,2', 'expected_r' => '158,5', 'expected_delta' => 'Hemat 46,7 Rp Miliar'],
+        ];
+
+        foreach ($rows as $row) {
+            $indicator = Indicator::create([
+                'org_unit_id' => $unit->id,
+                'name' => $row['name'],
+                'satuan' => $row['satuan'],
+                'polarity' => $row['polarity'],
+                'is_group' => false,
+                'pencapaian_formula_kind' => 'polarity_ratio',
+            ]);
+
+            PerformanceObservation::create([
+                'dataset_id' => $dataset->id,
+                'indicator_id' => $indicator->id,
+                'org_unit_id' => $unit->id,
+                'division_id' => $this->pengusahaan->id,
+                'period' => '2026-08-31',
+                'target_type' => PerformanceObservation::TYPE_NUMERIC,
+                'realisasi_type' => PerformanceObservation::TYPE_NUMERIC,
+                'target_value' => $row['target'],
+                'realisasi_value' => $row['realisasi'],
+                'pencapaian' => $row['pencapaian'],
+            ]);
+        }
+
+        $rkap = Indicator::create([
+            'org_unit_id' => $unit->id,
+            'name' => 'Penggunaan Anggaran Investasi sesuai RKAP',
+            'satuan' => '%',
+            'polarity' => 'higher_is_better',
+            'is_group' => false,
+            'pencapaian_formula_kind' => 'polarity_ratio',
+        ]);
+        PerformanceObservation::create([
+            'dataset_id' => $dataset->id,
+            'indicator_id' => $rkap->id,
+            'org_unit_id' => $unit->id,
+            'division_id' => $this->pengusahaan->id,
+            'period' => '2026-08-31',
+            'target_type' => PerformanceObservation::TYPE_TEXT,
+            'target_text' => '95% - 105%',
+            'realisasi_type' => PerformanceObservation::TYPE_NUMERIC,
+            'realisasi_value' => 99.85,
+            'pencapaian' => 1.049,
+        ]);
+
+        $legal = Indicator::create([
+            'org_unit_id' => $unit->id,
+            'name' => 'Dokumen Legal Aset Tanah PLN',
+            'satuan' => 'Dokumen Legal',
+            'polarity' => 'higher_is_better',
+            'is_group' => false,
+            'pencapaian_formula_kind' => 'polarity_ratio',
+        ]);
+        PerformanceObservation::create([
+            'dataset_id' => $dataset->id,
+            'indicator_id' => $legal->id,
+            'org_unit_id' => $unit->id,
+            'division_id' => $this->pengusahaan->id,
+            'period' => '2026-08-31',
+            'target_type' => PerformanceObservation::TYPE_NUMERIC,
+            'target_value' => 261,
+            'realisasi_type' => PerformanceObservation::TYPE_TEXT,
+            'realisasi_text' => "Sesuai Target : 283\nDiluar Target : 52",
+            'pencapaian' => 1.1,
+        ]);
+
+        $response = $this->actingAs($user)->get(route('dashboard.kpi-detail'));
+        $response->assertOk();
+
+        preg_match('/<script type="application\/json" id="kpiFullscreenChartData">\s*(.*?)\s*<\/script>/s', $response->getContent(), $matches);
+        $payload = json_decode($matches[1], true);
+
+        $byName = collect($payload['indicators'])->keyBy('indikator');
+        foreach ($rows as $row) {
+            $item = $byName->get($row['name']);
+            $this->assertNotNull($item, "Missing indicator {$row['name']}");
+            $this->assertSame($row['expected_t'], $item['target_display']);
+            $this->assertSame($row['expected_r'], $item['realisasi_display']);
+            $this->assertSame($row['expected_delta'], $item['delta_display']);
+        }
+
+        $rkapItem = $byName->get('Penggunaan Anggaran Investasi sesuai RKAP');
+        $this->assertNotNull($rkapItem);
+        $this->assertSame('95% - 105%', $rkapItem['target_display']);
+        $this->assertSame('99,9', $rkapItem['realisasi_display']);
+        $this->assertSame('Target rentang (teks)', $rkapItem['target_hint']);
+        $this->assertSame('Dalam rentang target', $rkapItem['delta_display']);
+
+        $legalItem = $byName->get('Dokumen Legal Aset Tanah PLN');
+        $this->assertNotNull($legalItem);
+        $this->assertSame('261', $legalItem['target_display']);
+        $this->assertSame('Sesuai target: 283', $legalItem['realisasi_display']);
+        $this->assertSame('Dokumen Legal • Sumber teks (+52 di luar target)', $legalItem['realisasi_hint']);
+        $this->assertSame('+22 Dokumen Legal', $legalItem['delta_display']);
     }
 }

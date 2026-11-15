@@ -79,12 +79,15 @@ class TargetRealisasiPerIndicatorReader
                 'po.realisasi_value',
                 'po.target_date',
                 'po.realisasi_date',
+                'po.target_text',
+                'po.realisasi_text',
                 'po.pencapaian',
                 'po.period_conflict',
                 'i.name',
                 'i.parent_id',
                 'i.is_group',
                 'i.satuan',
+                'i.polarity',
                 'i.pencapaian_formula_kind',
                 'u.name as unit',
             )
@@ -149,8 +152,14 @@ class TargetRealisasiPerIndicatorReader
             'parent_id' => $row->parent_id === null ? null : (int) $row->parent_id,
             'name' => (string) $row->name,
             'satuan' => $row->satuan === null ? null : (string) $row->satuan,
+            'polarity' => $row->polarity === null ? null : (string) $row->polarity,
+            'target_type' => $targetType,
+            'realisasi_type' => $realisasiType,
+            'target_text' => $row->target_text === null ? null : (string) $row->target_text,
+            'realisasi_text' => $row->realisasi_text === null ? null : (string) $row->realisasi_text,
             'period_conflict' => (bool) $row->period_conflict,
             'numeric' => null,
+            'partial_numeric' => null,
             'date' => null,
             'score' => $this->score($row),
         ];
@@ -186,9 +195,15 @@ class TargetRealisasiPerIndicatorReader
             ]);
         }
 
-        // Skor saja: target/realisasi tidak numerik, tapi workbook punya skor.
+        // Skor saja: target/realisasi tidak keduanya numerik, tapi workbook punya skor.
         if ($base['score'] !== null) {
-            return array_merge($base, ['mode' => 'score_only']);
+            return array_merge($base, [
+                'mode' => 'score_only',
+                'partial_numeric' => [
+                    'target' => $row->target_value !== null ? (float) $row->target_value : null,
+                    'realisasi' => $row->realisasi_value !== null ? (float) $row->realisasi_value : null,
+                ],
+            ]);
         }
 
         return null;

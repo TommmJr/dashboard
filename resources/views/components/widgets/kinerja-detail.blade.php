@@ -40,19 +40,11 @@
     // ponytail: format Indonesia (desimal koma, ribuan titik). Nilai bulat tampil
     // bulat (100,00 → 100, 100,0% → 100%); pecahan asli tetap maks 2 desimal
     // (105,50 → 105,5).
-    $fmt = function ($value, int $decimals, string $suffix = ''): string {
-        if ($value === null) {
-            return 'Tidak tercatat';
-        }
-
-        $formatted = number_format((float) $value, $decimals, ',', '.');
-
-        if (str_contains($formatted, ',')) {
-            $formatted = rtrim(rtrim($formatted, '0'), ',');
-        }
-
-        return $formatted.$suffix;
-    };
+    $fmt = fn ($value, int $decimals = 1, string $suffix = ''): string => \App\Support\KpiScoreNormalizer::formatNumber(
+        $value !== null ? (float) $value : null,
+        $decimals,
+        $suffix,
+    );
 
     $rowFilterItems = $displayRows->map(function (array $row): array {
         $skorKpiVal = array_key_exists('skor_kpi', $row) ? $row['skor_kpi'] : ($row['pencapaian'] ?? null);
@@ -217,14 +209,21 @@
                         <th class="py-2.5 px-3 text-right">Target</th>
                         <th class="py-2.5 px-3 text-right">Realisasi</th>
                         <th class="py-2.5 px-3 text-right">Skor Pencapaian KPI (Maks 110%)</th>
-                        <th class="py-2.5 px-3 text-right">Rasio Realisasi Murni</th>
+                        <th class="py-2.5 px-3 text-right">
+                            <div class="inline-flex flex-col items-end gap-0.5">
+                                <span>Perbandingan Target</span>
+                                <span class="inline-flex items-center gap-2 text-[9.5px] font-medium normal-case tracking-normal text-slate-400">
+                                    <span class="inline-flex items-center gap-1"><span class="inline-block w-2 h-1 rounded-full bg-slate-300"></span>Target</span>
+                                    <span class="inline-flex items-center gap-1"><span class="inline-block w-2 h-1 rounded-full bg-emerald-500"></span>Realisasi</span>
+                                </span>
+                            </div>
+                        </th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100/90">
                     @foreach ($displayRows as $row)
                         @php
                             $skorKpiVal = array_key_exists('skor_kpi', $row) ? $row['skor_kpi'] : ($row['pencapaian'] ?? null);
-                            $rasioMurniVal = $row['pencapaian'] ?? null;
                             $barWidth = 0;
                             $barColor = 'bg-slate-300';
                             $tier = 'all';
@@ -240,22 +239,46 @@
                                     $barColor = 'bg-rose-500';
                                 }
                             }
-                            $targetDisplay = $row['target_display'] ?? $fmt($row['target'] ?? null, 2);
-                            $realisasiDisplay = $row['realisasi_display'] ?? $fmt($row['realisasi'] ?? null, 2);
+                            $cmp = \App\Support\KpiScoreNormalizer::describeComparison([
+                                'satuan' => $row['satuan'] ?? null,
+                                'polarity' => $row['polarity'] ?? null,
+                                'target_type' => $row['target_type'] ?? 'numeric',
+                                'realisasi_type' => $row['realisasi_type'] ?? 'numeric',
+                                'target' => $row['target'] ?? null,
+                                'realisasi' => $row['realisasi'] ?? null,
+                                'target_text' => $row['target_text'] ?? null,
+                                'realisasi_text' => $row['realisasi_text'] ?? null,
+                                'target_date' => $row['target_date'] ?? null,
+                                'realisasi_date' => $row['realisasi_date'] ?? null,
+                                'skor_kpi' => $skorKpiVal,
+                                'tier' => $tier !== 'all' ? $tier : 'unverified',
+                            ]);
+                            $targetDisplay = $row['target_display'] ?? $cmp['target_override'] ?? $fmt($row['target'] ?? null, 1);
+                            $realisasiDisplay = $row['realisasi_display'] ?? $cmp['realisasi_override'] ?? $fmt($row['realisasi'] ?? null, 1);
                             $skorDisplay = $fmt($skorKpiVal, 1, '%');
-                            $rasioDisplay = $fmt($rasioMurniVal, 1, '%');
+                            $realisasiCompareColor = $skorKpiVal !== null ? $barColor : 'bg-[#0b6175]';
                         @endphp
                         <tr
                             x-show="matches('{{ addcslashes($row['indikator'], "'\\") }}', '{{ addcslashes($row['unit'], "'\\") }}', '{{ $tier }}')"
                             class="hover:bg-slate-50/70 transition-colors"
                         >
-                            <td class="py-2.5 px-3 whitespace-nowrap">
+                            <td class="py-2.5 px-3 whitespace-nowrap align-top">
                                 <span class="inline-flex items-center rounded-md bg-[#e6f4f6]/80 px-2 py-0.5 text-[11px] font-semibold text-[#0b6175]">{{ $row['unit'] }}</span>
                             </td>
-                            <td class="py-2.5 px-3 text-slate-800">{{ $row['indikator'] }}</td>
-                            <td class="py-2.5 px-3 text-right tabular-nums {{ $targetDisplay === 'Tidak tercatat' ? 'text-xs font-normal text-slate-400' : 'font-medium text-slate-600' }}">{{ $targetDisplay }}</td>
-                            <td class="py-2.5 px-3 text-right tabular-nums {{ $realisasiDisplay === 'Tidak tercatat' ? 'text-xs font-normal text-slate-400' : 'font-medium text-slate-600' }}">{{ $realisasiDisplay }}</td>
-                            <td class="py-2.5 px-3 text-right">
+                            <td class="py-2.5 px-3 text-slate-800">{{ $row['indikator'] }}@if (! empty($cmp['indicator_hint']))<div class="mt-0.5 text-[10.5px] leading-tight text-slate-400">{{ $cmp['indicator_hint'] }}</div>@endif</td>
+                            <td class="py-2.5 px-3 text-right tabular-nums align-top">
+                                <div class="{{ $targetDisplay === 'Tidak tercatat' ? 'text-xs font-normal text-slate-400' : 'font-medium text-slate-700' }}">{{ $targetDisplay }}</div>
+                                @if (! empty($cmp['target_hint']) && $targetDisplay !== 'Tidak tercatat')
+                                    <div class="mt-0.5 text-[10.5px] leading-tight text-slate-400">{{ $cmp['target_hint'] }}</div>
+                                @endif
+                            </td>
+                            <td class="py-2.5 px-3 text-right tabular-nums align-top">
+                                <div class="{{ $realisasiDisplay === 'Tidak tercatat' ? 'text-xs font-normal text-slate-400' : 'font-medium text-slate-800' }}">{{ $realisasiDisplay }}</div>
+                                @if (! empty($cmp['realisasi_hint']) && $realisasiDisplay !== 'Tidak tercatat')
+                                    <div class="mt-0.5 text-[10.5px] leading-tight text-slate-400">{{ $cmp['realisasi_hint'] }}</div>
+                                @endif
+                            </td>
+                            <td class="py-2.5 px-3 text-right align-top">
                                 <div class="flex flex-col items-end">
                                     <span class="tabular-nums {{ $skorDisplay === 'Tidak tercatat' ? 'text-xs font-normal text-slate-400' : 'font-semibold text-slate-900' }}">{{ $skorDisplay }}</span>
                                     @if ($skorKpiVal !== null)
@@ -265,8 +288,22 @@
                                     @endif
                                 </div>
                             </td>
-                            <td class="py-2.5 px-3 text-right tabular-nums {{ $rasioDisplay === 'Tidak tercatat' ? 'text-xs font-normal text-slate-400' : 'font-medium text-slate-600' }}">
-                                {{ $rasioDisplay }}
+                            <td class="py-2.5 px-3 text-right align-top">
+                                @if ($cmp['target_bar_pct'] !== null && $cmp['realisasi_bar_pct'] !== null)
+                                    <div class="inline-flex flex-col items-end min-w-[7.5rem]">
+                                        <div dir="ltr" class="w-24 sm:w-28 space-y-1">
+                                            <div class="h-1.5 w-full rounded-full bg-slate-100 overflow-hidden" title="Target: {{ $targetDisplay }}">
+                                                <div class="h-full rounded-full bg-slate-300" style="width: {{ $cmp['target_bar_pct'] }}%"></div>
+                                            </div>
+                                            <div class="h-1.5 w-full rounded-full bg-slate-100 overflow-hidden" title="Realisasi: {{ $realisasiDisplay }}">
+                                                <div class="h-full rounded-full {{ $realisasiCompareColor }}" style="width: {{ $cmp['realisasi_bar_pct'] }}%"></div>
+                                            </div>
+                                        </div>
+                                        <span class="mt-1 text-[11px] font-medium text-slate-600 leading-tight whitespace-nowrap">{{ $cmp['diff_label'] }}</span>
+                                    </div>
+                                @else
+                                    <span class="text-xs font-normal text-slate-400">{{ $cmp['diff_label'] }}</span>
+                                @endif
                             </td>
                         </tr>
                     @endforeach
@@ -310,11 +347,6 @@
                         'end_date' => is_string($endDate) ? $endDate : null,
                     ])) }}" class="font-semibold text-[#0b6175] hover:underline inline-flex items-center gap-1">
                         Halaman Rincian KPI &rarr;
-                    </a>
-                @endif
-                @if (\App\Http\Controllers\KpiAnalyticsController::canAccessKpiAnalytics(auth()->user()))
-                    <a href="{{ route('dashboard.kpi-analytics') }}" class="font-semibold text-[#0b6175] hover:underline inline-flex items-center gap-1">
-                        Analitik &rarr;
                     </a>
                 @endif
             </div>
