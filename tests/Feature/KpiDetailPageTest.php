@@ -736,4 +736,58 @@ class KpiDetailPageTest extends TestCase
             // Polaritas terbalik yang tercapai (110%) tidak boleh memakai bar merah palsu dari rasio murni 13,7%.
             ->assertDontSee('h-full rounded-full bg-rose-500');
     }
+
+    public function test_halaman_kpi_detail_menyediakan_header_eksekutif_dua_tingkat_dan_filter_terpadu(): void
+    {
+        $role = Role::where('slug', Role::STAFF_DIVISI)->firstOrFail();
+        $user = User::factory()->create([
+            'role_id' => $role->id,
+            'division_id' => $this->pengusahaan->id,
+        ]);
+
+        $dataset = Dataset::factory()->create([
+            'division_id' => $this->pengusahaan->id,
+            'status' => Dataset::STATUS_READY,
+        ]);
+
+        $unit = OrgUnit::create(['name' => 'TJBT']);
+        $indicator = Indicator::create([
+            'org_unit_id' => $unit->id,
+            'name' => 'Keandalan Transmisi Utama',
+            'satuan' => '%',
+            'is_group' => false,
+            'pencapaian_formula_kind' => 'polarity_ratio',
+        ]);
+
+        PerformanceObservation::create([
+            'dataset_id' => $dataset->id,
+            'indicator_id' => $indicator->id,
+            'org_unit_id' => $unit->id,
+            'division_id' => $this->pengusahaan->id,
+            'period' => '2026-08-31',
+            'target_type' => PerformanceObservation::TYPE_NUMERIC,
+            'realisasi_type' => PerformanceObservation::TYPE_NUMERIC,
+            'target_value' => 100.0,
+            'realisasi_value' => 102.0,
+            'pencapaian' => 1.02,
+        ]);
+
+        $response = $this->actingAs($user)->get(route('dashboard.kpi-detail'));
+
+        $response->assertOk()
+            ->assertSee('id="kpi-detail-header"', false)
+            ->assertSee('id="kpi-command-bar"', false)
+            ->assertSee('id="kpi-unified-search"', false)
+            ->assertSee('kpi-page-filter-changed', false)
+            ->assertSee('Ringkasan')
+            ->assertSee('Analitik KPI')
+            ->assertSee('Unduh CSV')
+            ->assertSee('Cetak Laporan')
+            ->assertSee('Berdampingan')
+            ->assertSee('Kartu Visual')
+            ->assertSee('Tabel Matriks')
+            ->assertSee('lg:col-span-5', false)
+            ->assertSee('lg:col-span-7', false)
+            ->assertDontSee('Mode: <span', false);
+    }
 }

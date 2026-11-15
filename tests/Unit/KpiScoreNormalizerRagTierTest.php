@@ -105,12 +105,23 @@ class KpiScoreNormalizerRagTierTest extends TestCase
             'pencapaian' => 0.92,
         ]);
 
+        // Sertakan target-realisasi-per-indikator sementara agar sinkronisasi threshold
+        // tetap teruji untuk ketiga widget (kpi-summary, kpi-rag-status, target-realisasi-per-indikator).
+        config([
+            'dashboard_layouts.layouts.staff_divisi:perencanaan-pengusahaan' => [
+                'kpi-summary',
+                'kpi-rag-status',
+                'target-realisasi-per-indikator',
+            ],
+        ]);
+
         $response = $this->actingAs($user)->get(route('dashboard'));
 
         $response->assertOk()
             ->assertSee('1 / 1')
-            ->assertSee('Skor &ge; 90%', false)
-            ->assertSee('Pencapaian &ge; 90%', false)
+            ->assertSee('0 / 1')
+            ->assertSee('0 Indikator')
+            ->assertSee('"tercapai":1', false)
             ->assertSee('Tercapai (&ge;90%): 1', false);
     }
 
@@ -134,8 +145,8 @@ class KpiScoreNormalizerRagTierTest extends TestCase
             ['data' => $nkoData]
         );
         $nkoHtml->assertSee('Hampir Tercapai')
-            ->assertSee('bg-yellow-100 text-yellow-800')
-            ->assertDontSee('bg-green-100 text-green-800');
+            ->assertSee('bg-amber-50 text-amber-800')
+            ->assertDontSee('bg-emerald-50 text-emerald-800');
 
         // 2. Verifikasi kinerja-realisasi component menggunakan threshold kustom
         $kinerjaRows = [

@@ -78,7 +78,7 @@ class PengusahaanUiEnhancementTest extends TestCase
             'source_row' => 12,
         ]);
 
-        $response = $this->actingAs($this->staffUser)->get(route('dashboard'));
+        $response = $this->actingAs($this->staffUser)->get(route('dashboard.kpi-detail'));
 
         $response->assertOk();
         $response->assertSee('id="target-realisasi-toolbar"', false);
@@ -175,6 +175,12 @@ class PengusahaanUiEnhancementTest extends TestCase
         $response->assertSee('Beranda');
         $response->assertSee('id="header-breadcrumb"', false);
         $response->assertSee('data-skeleton="trend-chart"', false);
-        $response->assertSee('markLine', false);
+
+        $detailResponse = $this->actingAs($this->staffUser)->get(route('dashboard.kpi-detail'));
+
+        $detailResponse->assertOk();
+        $detailResponse->assertSee('Beranda');
+        $detailResponse->assertSee('id="header-breadcrumb"', false);
+        $detailResponse->assertSee('markLine', false);
     }
 }

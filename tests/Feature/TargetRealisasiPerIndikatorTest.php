@@ -375,14 +375,14 @@ class TargetRealisasiPerIndikatorTest extends TestCase
 
         $staff = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $this->division->id]);
 
-        $response = $this->actingAs($staff)->get(route('dashboard'))->assertOk();
+        $response = $this->actingAs($staff)->get(route('dashboard.kpi-detail'))->assertOk();
 
         $response->assertSee('Target dan Realisasi per Indikator');
         $response->assertSee('data-indicator-id="'.$indicator->id.'"', false);
         $response->assertSee('100,1%');
         $response->assertSee('id="target-realisasi-chart-', false);
         // Widget lama tetap tidak ter-mount.
-        $response->assertDontSee('Target vs Realisasi');
+        $response->assertDontSee('Target vs Realisasi</h3>', false);
     }
 
     public function test_id_410_dirender_sebagai_110_persen(): void
@@ -400,7 +400,7 @@ class TargetRealisasiPerIndikatorTest extends TestCase
 
         $staff = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $this->division->id]);
 
-        $this->actingAs($staff)->get(route('dashboard'))
+        $this->actingAs($staff)->get(route('dashboard.kpi-detail'))
             ->assertOk()
             ->assertSee('110%')
             ->assertDontSee('11.000%');
@@ -421,7 +421,7 @@ class TargetRealisasiPerIndikatorTest extends TestCase
 
         $staff = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $this->division->id]);
 
-        $this->actingAs($staff)->get(route('dashboard'))
+        $this->actingAs($staff)->get(route('dashboard.kpi-detail'))
             ->assertOk()
             ->assertSee('104,9%')
             ->assertDontSee('Skor tidak terverifikasi');
@@ -431,7 +431,7 @@ class TargetRealisasiPerIndikatorTest extends TestCase
     {
         $staff = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $this->division->id]);
 
-        $this->actingAs($staff)->get(route('dashboard'))
+        $this->actingAs($staff)->get(route('dashboard.kpi-detail'))
             ->assertOk()
             ->assertSee('Target dan Realisasi per Indikator')
             ->assertSee('Belum ada data target/realisasi terstruktur pada periode ini.');
@@ -461,7 +461,7 @@ class TargetRealisasiPerIndikatorTest extends TestCase
 
         $staff = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $this->division->id]);
 
-        $response = $this->actingAs($staff)->get(route('dashboard'))->assertOk();
+        $response = $this->actingAs($staff)->get(route('dashboard.kpi-detail'))->assertOk();
 
         // Verifikasi container id chart tetap ada untuk kompatibilitas test
         $response->assertSee('id="target-realisasi-chart-', false);

@@ -53,6 +53,8 @@ class DatasetStatusWidgetTest extends TestCase
             ]);
         }
 
+        config(['dashboard_layouts.layouts.staff_divisi:perencanaan-pengusahaan' => ['dataset-status']]);
+
         $response = $this->actingAs($staff)
             ->get(route('dashboard'))
             ->assertOk();
@@ -109,6 +111,8 @@ class DatasetStatusWidgetTest extends TestCase
             ]);
         }
 
+        config(['dashboard_layouts.layouts.staff_divisi:perencanaan-pengusahaan' => ['dataset-status']]);
+
         $response = $this->actingAs($staff)
             ->get(route('dashboard'))
             ->assertOk();
@@ -133,6 +137,8 @@ class DatasetStatusWidgetTest extends TestCase
         $staff = User::factory()->withRole(Role::STAFF_DIVISI)->create([
             'division_id' => $division->id,
         ]);
+
+        config(['dashboard_layouts.layouts.staff_divisi:perencanaan-pengusahaan' => ['dataset-status']]);
 
         $response = $this->actingAs($staff)
             ->get(route('dashboard'))
@@ -177,6 +183,8 @@ class DatasetStatusWidgetTest extends TestCase
             'value' => 20.0,
             'period' => '2026-08-25',
         ]);
+
+        config(['dashboard_layouts.layouts.staff_divisi:perencanaan-pengusahaan' => ['dataset-status']]);
 
         $response = $this->actingAs($staff)
             ->get(route('dashboard'))
@@ -241,6 +249,8 @@ class DatasetStatusWidgetTest extends TestCase
             'value' => 50.0,
             'period' => '2026-08-31',
         ]);
+
+        config(['dashboard_layouts.layouts.staff_divisi:perencanaan-pengusahaan' => ['dataset-status']]);
 
         $response = $this->actingAs($staff)
             ->get(route('dashboard'))

@@ -50,7 +50,7 @@ class NkoRankingWidgetTest extends TestCase
         $this->actingAs($management)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('Peringkat NKO Unit')
+            ->assertSee('Peringkat NKO')
             ->assertSee('105,50')
             ->assertSee('100,74')
             ->assertSee('99,50')
@@ -84,7 +84,7 @@ class NkoRankingWidgetTest extends TestCase
         $this->actingAs($staff)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('Peringkat NKO Unit')
+            ->assertSee('Peringkat NKO')
             ->assertSee('105,50')
             ->assertSee('TJBT')
             ->assertDontSee('99.00')
@@ -100,7 +100,7 @@ class NkoRankingWidgetTest extends TestCase
         $this->actingAs($management)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('Peringkat NKO Unit');
+            ->assertSee('Peringkat NKO');
     }
 
     public function test_hanya_periode_terbaru_yang_ditampilkan(): void

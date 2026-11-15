@@ -17,14 +17,120 @@
 @endsection
 
 @php
-    $isAdminDashboard = auth()->user()?->role?->slug === \App\Models\Role::ADMIN;
-    $isStaffDashboard = auth()->user()?->role?->slug === \App\Models\Role::STAFF_DIVISI;
+    $currentUser = auth()->user();
+    $isAdminDashboard = $currentUser?->role?->slug === \App\Models\Role::ADMIN;
+    $isStaffDashboard = $currentUser?->role?->slug === \App\Models\Role::STAFF_DIVISI;
+    $canAccessKpiDetail = \App\Http\Controllers\DashboardController::canAccessKpiDetail($currentUser);
+    $canAccessKpiAnalytics = \App\Http\Controllers\KpiAnalyticsController::canAccessKpiAnalytics($currentUser);
+    $isKpiDashboard = $canAccessKpiDetail && ! $isAdminDashboard;
     $needsPerformanceState = ! $isAdminDashboard || collect($widgets)->contains(fn (array $w): bool => in_array($w['key'] ?? '', ['kpi-summary', 'trend-chart'], true));
+
+    $execMeta = is_array($executiveMeta ?? null) ? $executiveMeta : [];
+    $execUnitLabel = $execMeta['unit_label'] ?? (! empty(config('kpi.visible_units')) ? implode(', ', config('kpi.visible_units')) : 'Semua Unit');
+    $execPeriodLabel = $execMeta['period_label'] ?? null;
 @endphp
 
 @section('content')
 <div class="mx-auto max-w-7xl min-w-0" @if ($needsPerformanceState) x-data="performanceDashboard(@js($filters ?? []))" x-init="load()" @endif>
-    @if ($isStaffDashboard)
+    @if ($isKpiDashboard)
+        <div id="dashboard-header" class="mb-4 flex min-w-0 flex-col gap-3 lg:flex-row lg:items-center lg:justify-between animate-entrance">
+            <div class="flex min-w-0 flex-wrap items-center gap-2">
+                <h1 class="text-xl font-bold tracking-tight text-primary sm:text-2xl">Kinerja Pengusahaan</h1>
+                <span class="inline-flex items-center rounded-md border border-slate-200 bg-white px-2.5 py-0.5 text-xs font-semibold text-slate-700 whitespace-nowrap">
+                    {{ $execUnitLabel }}
+                </span>
+                <span class="inline-flex items-center rounded-full bg-[#e6f4f6] px-2.5 py-0.5 text-xs font-semibold text-[#0b6175] whitespace-nowrap">
+                    {{ $execPeriodLabel ?? 'Belum tersedia' }}
+                </span>
+            </div>
+
+            <div class="flex min-w-0 max-w-full flex-wrap items-center gap-2 lg:shrink-0">
+                @if (! $isStaffDashboard)
+                    {{-- Form GET (bukan fetch): halaman dimuat ulang sehingga widget
+                         SERVER-SIDE (peringkat NKO) dan CLIENT-SIDE (chart) memakai rentang
+                         filter yang sama. Tanpa reload, peringkat tidak akan ikut terfilter. --}}
+                    <form id="dashboard-filter" method="GET" action="{{ route('dashboard') }}" class="flex min-w-0 max-w-full flex-wrap items-center gap-1.5">
+                        <div class="flex min-w-0 max-w-full flex-wrap items-center gap-1.5">
+                            <label for="start_date" class="sr-only">Dari tanggal</label>
+                            <input id="start_date" name="start_date" type="date" value="{{ $filters['start_date'] ?? '' }}" class="h-8 min-w-0 max-w-full rounded border border-slate-200 bg-white px-2 text-xs text-primary outline-none focus:border-accent focus:ring-2 focus:ring-accent/20">
+                            <span class="text-xs font-medium text-slate-400" aria-hidden="true">s.d.</span>
+                            <label for="end_date" class="sr-only">Sampai tanggal</label>
+                            <input id="end_date" name="end_date" type="date" value="{{ $filters['end_date'] ?? '' }}" class="h-8 min-w-0 max-w-full rounded border border-slate-200 bg-white px-2 text-xs text-primary outline-none focus:border-accent focus:ring-2 focus:ring-accent/20">
+                        </div>
+
+                        <div class="relative min-w-0 max-w-full">
+                            <label for="unit" class="sr-only">Unit</label>
+                            <details class="group relative">
+                                <summary id="unit" class="flex h-8 min-w-[115px] max-w-full cursor-pointer list-none items-center justify-between gap-2 rounded border border-slate-200 bg-white px-2.5 text-left text-xs text-primary outline-none transition hover:border-accent focus:border-accent focus:ring-2 focus:ring-accent/20">
+                                    <span class="truncate" x-text="selectedUnitLabel()">{{ count($filters['units'] ?? []) > 0 ? count($filters['units']).' unit dipilih' : 'Semua unit' }}</span>
+                                    <svg class="h-3.5 w-3.5 shrink-0 text-slate-400 transition group-open:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 9 6 6 6-6" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                                </summary>
+                                <div class="absolute left-0 z-30 mt-1 max-h-60 w-56 max-w-[calc(100vw-5rem)] overflow-y-auto rounded border border-slate-200 bg-white p-2 shadow-lg sm:left-auto sm:right-0" role="group" aria-label="Pilihan unit">
+                                    @forelse ($availableUnits ?? [] as $unitName)
+                                        <label class="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-xs text-primary hover:bg-surface">
+                                            <input type="checkbox" name="unit[]" value="{{ $unitName }}" @checked(in_array($unitName, $filters['units'] ?? [], true)) class="h-4 w-4 rounded border-slate-200 text-accent focus:ring-accent/30">
+                                            <span class="truncate">{{ $unitName }}</span>
+                                        </label>
+                                    @empty
+                                        <p class="px-2 py-1.5 text-xs text-slate-500">Belum ada unit.</p>
+                                    @endforelse
+                                </div>
+                            </details>
+                        </div>
+
+                        <div class="flex items-center gap-1.5">
+                            <button type="submit"
+                                    title="Terapkan Filter"
+                                    aria-label="Terapkan"
+                                    class="inline-flex h-8 w-8 items-center justify-center rounded bg-accent text-white transition hover:bg-primary focus:outline-none focus:ring-2 focus:ring-accent/30 disabled:cursor-not-allowed disabled:opacity-60">
+                                <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 4h18M6 12h12M10 20h4" stroke-linecap="round" /></svg>
+                                <span class="sr-only">Terapkan</span>
+                            </button>
+                            <a href="{{ route('dashboard') }}"
+                               title="Reset Filter"
+                               aria-label="Reset"
+                               class="inline-flex h-8 w-8 items-center justify-center rounded border border-slate-200 bg-white text-slate-600 transition hover:border-accent hover:text-accent focus:outline-none focus:ring-2 focus:ring-accent/30">
+                                <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7M3 4v5h5" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                                <span class="sr-only">Reset</span>
+                            </a>
+                        </div>
+                    </form>
+                @endif
+
+                <div class="flex min-w-0 max-w-full flex-wrap items-center gap-2 lg:shrink-0">
+                    @if ($canAccessKpiDetail)
+                        <a href="{{ route('dashboard.kpi-detail') }}" class="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white whitespace-nowrap shadow-2xs transition hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-1">
+                            <svg class="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                                <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" stroke-linecap="round" stroke-linejoin="round"/>
+                                <path d="M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v0a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2Z" stroke-linecap="round" stroke-linejoin="round"/>
+                                <path d="M9 12h6M9 16h4" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            Rincian KPI
+                        </a>
+                    @endif
+
+                    @if ($canAccessKpiAnalytics)
+                        <a href="{{ route('dashboard.kpi-analytics') }}" class="inline-flex items-center gap-1.5 rounded-lg border border-[#0b6175]/30 bg-white px-3 py-1.5 text-xs font-semibold text-[#0b6175] whitespace-nowrap shadow-2xs transition hover:bg-[#e6f4f6]/60 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-1">
+                            <svg class="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                                <path d="M3 3v18h18" stroke-linecap="round" stroke-linejoin="round"/>
+                                <path d="m19 9-5 5-4-4-3 3" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            Analitik KPI
+                        </a>
+                    @endif
+
+                    @can('dataset.import')
+                        <a href="{{ route('datasets.create') }}" class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 whitespace-nowrap shadow-2xs transition hover:border-slate-300 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-1">
+                            <svg class="h-3.5 w-3.5 shrink-0 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                                <path d="M12 5v14M5 12h14" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            Unggah Data
+                        </a>
+                    @endcan
+                </div>
+            </div>
+        </div>
+    @elseif ($isStaffDashboard)
         <div id="dashboard-header" class="mb-4 flex min-w-0 flex-col gap-3 rounded-lg border border-slate-200/80 bg-white px-4 py-3 shadow-[0_1px_2px_0_rgba(0,0,0,0.03)] sm:flex-row sm:items-center sm:justify-between">
             <div class="flex flex-wrap items-center gap-3">
                 <div class="flex items-center gap-2">
@@ -38,10 +144,10 @@
                 </div>
                 <div class="flex flex-wrap items-center gap-2 text-xs">
                     <span class="inline-flex items-center rounded border border-teal-200/80 bg-teal-50 px-2 py-0.5 font-semibold text-teal-800">
-                        {{ auth()->user()?->division?->name ?? 'Divisi' }}
+                        {{ $currentUser?->division?->name ?? 'Divisi' }}
                     </span>
                     <span class="text-slate-300" aria-hidden="true">&bull;</span>
-                    @if (in_array(auth()->user()?->division?->slug, ['managemen-aset', 'data-aset'], true))
+                    @if (in_array($currentUser?->division?->slug, ['managemen-aset', 'data-aset'], true))
                         <span class="inline-flex items-center gap-1.5 text-slate-500">
                             <strong class="font-semibold text-slate-800">UIT JBT</strong>
                             <span class="text-slate-300" aria-hidden="true">&bull;</span>
@@ -220,6 +326,8 @@
             <div class="{{ $widgetClass }} h-full min-w-0 max-w-full animate-entrance stagger-{{ $staggerIndex }}">
                 @if (($widget['key'] ?? '') === 'aset-upt-chart')
                     @include('components.widgets.aset-upt-chart', ['widget' => $widget, 'data' => $widget['data'] ?? $widgetData['aset-upt-chart'] ?? null])
+                @elseif (($widget['key'] ?? '') === 'kpi-summary')
+                    <x-dynamic-component :component="$widget['view']" :widget="$widget" :data="$widget['data'] ?? null" :executive-meta="$executiveMeta ?? null" />
                 @else
                     <x-dynamic-component :component="$widget['view']" :widget="$widget" :data="$widget['data'] ?? null" />
                 @endif
@@ -239,8 +347,6 @@
             error: '',
             units: [],
             periodLabels: [],
-            chartPeriodCount: 0,
-            chartUnitCount: 0,
             filters: {
                 start_date: initial.start_date ?? '',
                 end_date: initial.end_date ?? '',
@@ -248,23 +354,10 @@
             },
 
             formatNumber(value) {
-                return new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 }).format(value);
-            },
-
-            // ponytail: subjudul mengikuti jumlah periode yang BENAR-BENAR ada.
-            // 1 periode = snapshot (bukan tren); >1 periode = tren. Batas ini
-            // cukup sampai agregasi bulanan riil tersedia. Unit tanpa data di
-            // periode yang tampil TIDAK dihitung sebagai unit di snapshot.
-            chartSubtitle() {
-                if (this.loading || this.empty) {
-                    return '';
-                }
-
-                if (this.chartPeriodCount <= 1) {
-                    return `Snapshot ${this.chartUnitCount} unit (${this.periodLabels[0] ?? ''}) · Tren muncul setelah 2+ bulan`;
-                }
-
-                return `Tren ${this.chartPeriodCount} periode (${this.periodLabels[0]} s.d. ${this.periodLabels[this.periodLabels.length - 1]})`;
+                return new Intl.NumberFormat('id-ID', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                }).format(value);
             },
 
             hasFilters() {
@@ -333,8 +426,6 @@
                     this.kpi = payload.kpi;
                     this.empty = payload.labels.length === 0;
                     this.periodLabels = payload.labels;
-                    this.chartPeriodCount = payload.labels.length;
-                    this.chartUnitCount = payload.series.length;
 
                     if (!this.empty) {
                         this.$nextTick(() => this.renderChart(payload));

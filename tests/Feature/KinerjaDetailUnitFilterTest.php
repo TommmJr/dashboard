@@ -230,7 +230,7 @@ class KinerjaDetailUnitFilterTest extends TestCase
         $this->metric($dataset, $division, 'MES | I | target', 100.0);
         $this->metric($dataset, $division, 'MES | I | realisasi', 100.0);
 
-        $response = $this->actingAs($this->staffOf($division))->get(route('dashboard'))->assertOk();
+        $response = $this->actingAs($this->staffOf($division))->get(route('dashboard.kpi-detail'))->assertOk();
 
         $response->assertSee('id="kinerja-detail-unit"', false);
         $response->assertSeeInOrder(['>TJBT<', '>MES<'], false);
@@ -244,7 +244,7 @@ class KinerjaDetailUnitFilterTest extends TestCase
     {
         $division = $this->pengusahaanDivision();
 
-        $response = $this->actingAs($this->staffOf($division))->get(route('dashboard'))->assertOk();
+        $response = $this->actingAs($this->staffOf($division))->get(route('dashboard.kpi-detail'))->assertOk();
 
         $response->assertDontSee('id="kinerja-detail-unit"', false);
         $response->assertSee('Belum ada data metrik pada periode ini.');
@@ -261,7 +261,7 @@ class KinerjaDetailUnitFilterTest extends TestCase
         $this->metric($dataset, $division, 'MES | Indikator B | realisasi', 5.0);
 
         $response = $this->actingAs($this->staffOf($division))
-            ->get(route('dashboard', ['unit' => 'TJBT']))
+            ->get(route('dashboard.kpi-detail', ['unit' => 'TJBT']))
             ->assertOk();
 
         $response->assertSee('value="TJBT" selected', false);
@@ -315,7 +315,7 @@ class KinerjaDetailUnitFilterTest extends TestCase
         }
 
         config(['kpi.read_model' => 'legacy']);
-        $response = $this->actingAs($this->staffOf($division))->get(route('dashboard'))->assertOk();
+        $response = $this->actingAs($this->staffOf($division))->get(route('dashboard.kpi-detail'))->assertOk();
         $response->assertSee('31/05/2026');
         $response->assertSee('21/05/2026');
         $response->assertDontSee('46.173,00');
@@ -351,7 +351,7 @@ class KinerjaDetailUnitFilterTest extends TestCase
         $this->assertSame(46173.0, $row['target']);
         $this->assertNull($row['target_display']);
 
-        $response = $this->actingAs($this->staffOf($division))->get(route('dashboard'))->assertOk();
+        $response = $this->actingAs($this->staffOf($division))->get(route('dashboard.kpi-detail'))->assertOk();
         $response->assertSee('46.173');
     }
 
@@ -568,6 +568,7 @@ class KinerjaDetailUnitFilterTest extends TestCase
         }
 
         $staff = $this->staffOf($division);
+        config(['dashboard_layouts.layouts.staff_divisi:perencanaan-pengusahaan' => ['kinerja-detail']]);
 
         // Akses default: hanya menampilkan 10 baris teratas pada tabel dan link Lihat semua
         $response = $this->actingAs($staff)->get(route('dashboard'))->assertOk();

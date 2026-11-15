@@ -1,9 +1,11 @@
-@props(['widget' => [], 'data' => null])
+@props(['widget' => [], 'data' => null, 'embeddedInKpiDetail' => false])
 
 {{-- Widget detail metrik KPI per unit/indikator (server-side).
-     Modern Looker Studio-style data table dengan inline achievement progress bars.
+     Quiet Luxury Financial Ledger table dengan inline achievement micro-bars.
      Data dihitung dari laporan KPI untuk periode terpilih. --}}
 @php
+    $isEmbedded = (bool) ($embeddedInKpiDetail ?? false);
+    $instanceId = $widget['instance'] ?? 0;
     $period = $data['period'] ?? null;
     $rows = collect($data['rows'] ?? []);
     $truncated = (bool) ($data['truncated'] ?? false);
@@ -51,32 +53,62 @@
 
         return $formatted.$suffix;
     };
+
+    $rowFilterItems = $displayRows->map(function (array $row): array {
+        $skorKpiVal = array_key_exists('skor_kpi', $row) ? $row['skor_kpi'] : ($row['pencapaian'] ?? null);
+        $tier = $skorKpiVal !== null
+            ? \App\Support\KpiScoreNormalizer::ragTier((float) $skorKpiVal)
+            : 'all';
+
+        return [
+            'indikator' => (string) ($row['indikator'] ?? ''),
+            'unit' => (string) ($row['unit'] ?? ''),
+            'tier' => $tier,
+        ];
+    })->values()->all();
 @endphp
 
+<script type="application/json" id="kinerjaDetailItems_{{ $instanceId }}">
+{!! json_encode($rowFilterItems) !!}
+</script>
+
 <div
-    class="ibs-card min-w-0 max-w-full h-full p-4 sm:p-5 flex flex-col justify-start"
+    class="ibs-card min-w-0 max-w-full h-full rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_1px_3px_rgba(15,23,42,0.03)] flex flex-col justify-start"
     x-data="{
         tableSearch: '',
         tableRag: 'all',
+        rows: JSON.parse(document.getElementById('kinerjaDetailItems_{{ $instanceId }}')?.textContent || '[]'),
         matches(indikator, unit, tier) {
             return (this.tableRag === 'all' || this.tableRag === tier) &&
                 (this.tableSearch.trim() === '' || (indikator + ' ' + unit).toLowerCase().includes(this.tableSearch.trim().toLowerCase()));
+        },
+        get visibleRowCount() {
+            return this.rows.filter(r => this.matches(r.indikator, r.unit, r.tier)).length;
         }
     }"
+    @kpi-page-filter-changed.window="tableSearch = $event.detail.search ?? ''; tableRag = $event.detail.rag ?? 'all'"
 >
-    <div class="flex flex-wrap items-center justify-between gap-2">
-        <div class="flex flex-wrap items-center gap-2">
-            <h3 class="ibs-section-title text-base font-bold text-slate-900">{{ $widget['label'] ?? 'Detail Metrik KPI' }}</h3>
-            <span class="inline-flex items-center rounded-full bg-[#e6f4f6] px-2.5 py-0.5 text-[11px] font-semibold text-[#0b6175]">
-                Periode {{ $period ?? 'Belum tersedia' }}
-            </span>
-        </div>
+    <div class="flex flex-wrap items-center justify-between gap-2 @if ($isEmbedded) pb-3 border-b border-slate-100 @endif">
+        @if ($isEmbedded)
+            <div class="flex flex-wrap items-center gap-2.5">
+                <h3 class="ibs-section-title text-sm font-semibold text-slate-900">{{ $widget['label'] ?? 'Detail Metrik KPI' }}</h3>
+                <span class="text-xs font-medium text-slate-400 tabular-nums" x-text="visibleRowCount + ' baris'">{{ $displayRows->count() }} baris</span>
+                <span class="sr-only">Periode {{ $period ?? 'Belum tersedia' }}</span>
+            </div>
+        @else
+            <div class="flex flex-wrap items-center gap-2">
+                <h3 class="ibs-section-title text-base font-bold text-slate-900">{{ $widget['label'] ?? 'Detail Metrik KPI' }}</h3>
+                <span class="inline-flex items-center rounded-full bg-[#e6f4f6] px-2.5 py-0.5 text-[11px] font-semibold text-[#0b6175]">
+                    Periode {{ $period ?? 'Belum tersedia' }}
+                </span>
+            </div>
+        @endif
 
         @if (! empty($unitOptions))
             {{-- Form GET: halaman dimuat ulang supaya widget server-side lain
                  (kinerja-realisasi, target vs realisasi) ikut unit yang sama.
                  Filter tanggal dibawa agar tidak hilang saat pindah unit. --}}
-            <form method="GET" action="{{ route($currentRouteName) }}" class="flex min-w-0 max-w-full flex-wrap items-end gap-2">
+            <form method="GET" action="{{ route($currentRouteName) }}" class="flex min-w-0 max-w-full flex-wrap items-center gap-2">
                 @if (is_string($startDate) && $startDate !== '')
                     <input type="hidden" name="start_date" value="{{ $startDate }}">
                 @endif
@@ -85,14 +117,14 @@
                 @endif
                 <label for="kinerja-detail-unit" class="sr-only">Pilih unit</label>
                 <select id="kinerja-detail-unit" name="unit" onchange="this.form.submit()"
-                        class="h-8 max-w-full min-w-0 rounded-xl border border-slate-200 bg-white px-2.5 text-xs text-slate-700 focus:border-[#16a3b8] focus:outline-none focus:ring-1 focus:ring-[#16a3b8]">
+                        class="h-8 max-w-full min-w-0 rounded-lg border border-slate-200/80 bg-white px-2.5 text-xs font-medium text-slate-700 focus:border-[#16a3b8] focus:outline-none focus:ring-1 focus:ring-[#16a3b8]">
                     <option value="">Semua unit</option>
                     @foreach ($unitOptions as $unitOption)
                         <option value="{{ $unitOption }}" @selected($selectedUnit === $unitOption)>{{ $unitOption }}</option>
                     @endforeach
                 </select>
                 <noscript>
-                    <button type="submit" class="h-8 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700">Tampilkan</button>
+                    <button type="submit" class="h-8 rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700">Tampilkan</button>
                 </noscript>
                 {{-- Jalan pintas supaya pembaca non-developer langsung menjangkau
                      TJBT (di urutan pertama daftar). --}}
@@ -104,7 +136,7 @@
                         'start_date' => is_string($startDate) ? $startDate : null,
                         'end_date' => is_string($endDate) ? $endDate : null,
                     ])) }}"
-                   class="inline-flex h-8 items-center rounded-xl border border-[#0b6175]/20 bg-white px-3 text-xs font-semibold text-[#0b6175] transition hover:bg-[#e6f4f6]/60 shadow-2xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0b6175]/40">
+                   class="inline-flex h-8 items-center rounded-lg border border-[#0b6175]/25 bg-white px-3 text-xs font-semibold text-[#0b6175] transition hover:bg-[#e6f4f6]/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0b6175]/40">
                     {{ $primaryUnit }}
                 </a>
             </form>
@@ -112,71 +144,73 @@
     </div>
 
     @if ($rows->isEmpty())
-        <p class="mt-4 rounded-xl border border-slate-200/70 bg-slate-50 p-5 text-sm text-slate-600">
+        <p class="mt-4 rounded-xl border border-slate-200/70 bg-slate-50/70 p-5 text-sm text-slate-600">
             Belum ada data metrik pada periode ini.
         </p>
     @else
-        {{-- Toolbar pencarian cepat & filter RAG --}}
-        <div class="mt-3 flex flex-col gap-2 rounded-xl border border-slate-200/80 bg-slate-50/70 p-2 sm:flex-row sm:items-center sm:justify-between min-w-0">
-            <div class="relative flex-1 min-w-0 w-full sm:max-w-xs">
-                <input
-                    id="kinerja-detail-search"
-                    type="search"
-                    x-model="tableSearch"
-                    placeholder="Cari indikator atau unit..."
-                    aria-label="Cari indikator atau unit"
-                    class="w-full rounded-lg border border-slate-300 bg-white py-1.5 pl-3 pr-3 text-xs text-slate-800 placeholder:text-slate-400 focus:border-[#16a3b8] focus:outline-none focus:ring-1 focus:ring-[#16a3b8]"
-                />
-            </div>
-            <div class="flex flex-wrap items-center gap-1.5 text-[11px]">
-                <button
-                    type="button"
-                    @click="tableRag = 'all'"
-                    :class="tableRag === 'all' ? 'border-slate-800 text-slate-900 font-bold ring-1 ring-slate-800/15 shadow-2xs' : 'border-slate-200 text-slate-600 font-medium hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800'"
-                    class="inline-flex items-center gap-1.5 cursor-pointer rounded-md border bg-white px-2.5 py-1 transition"
-                >
-                    <span class="h-1.5 w-1.5 rounded-full bg-slate-400 shrink-0"></span>
-                    Semua
-                </button>
-                <button
-                    type="button"
-                    @click="tableRag = 'tercapai'"
-                    :class="tableRag === 'tercapai' ? 'border-emerald-600 text-emerald-950 font-bold ring-1 ring-emerald-600/20 shadow-2xs' : 'border-slate-200 text-slate-600 font-medium hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800'"
-                    class="inline-flex items-center gap-1.5 cursor-pointer rounded-md border bg-white px-2.5 py-1 transition"
-                >
-                    <span class="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0"></span>
-                    Tercapai
-                </button>
-                <button
-                    type="button"
-                    @click="tableRag = 'hampir'"
-                    :class="tableRag === 'hampir' ? 'border-amber-600 text-amber-950 font-bold ring-1 ring-amber-600/20 shadow-2xs' : 'border-slate-200 text-slate-600 font-medium hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800'"
-                    class="inline-flex items-center gap-1.5 cursor-pointer rounded-md border bg-white px-2.5 py-1 transition"
-                >
-                    <span class="h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0"></span>
-                    Mendekati
-                </button>
-                <button
-                    type="button"
-                    @click="tableRag = 'perlu'"
-                    :class="tableRag === 'perlu' ? 'border-rose-600 text-rose-950 font-bold ring-1 ring-rose-600/20 shadow-2xs' : 'border-slate-200 text-slate-600 font-medium hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800'"
-                    class="inline-flex items-center gap-1.5 cursor-pointer rounded-md border bg-white px-2.5 py-1 transition"
-                >
-                    <span class="h-1.5 w-1.5 rounded-full bg-rose-500 shrink-0"></span>
-                    Perlu Perhatian
-                </button>
+        {{-- Toolbar pencarian cepat & filter RAG (disembunyikan secara visual saat embedded di /dashboard/kpi-detail) --}}
+        <div @class(['sr-only' => $isEmbedded])>
+            <div class="mt-3 flex flex-col gap-2 rounded-xl border border-slate-200/80 bg-slate-50/70 p-2 sm:flex-row sm:items-center sm:justify-between min-w-0">
+                <div class="relative flex-1 min-w-0 w-full sm:max-w-xs">
+                    <input
+                        id="kinerja-detail-search"
+                        type="search"
+                        x-model="tableSearch"
+                        placeholder="Cari indikator atau unit..."
+                        aria-label="Cari indikator atau unit"
+                        class="w-full rounded-lg border border-slate-200 bg-white py-1.5 pl-3 pr-3 text-xs text-slate-800 placeholder:text-slate-400 focus:border-[#16a3b8] focus:outline-none focus:ring-1 focus:ring-[#16a3b8]"
+                    />
+                </div>
+                <div class="flex flex-wrap items-center gap-1.5 text-[11px]">
+                    <button
+                        type="button"
+                        @click="tableRag = 'all'"
+                        :class="tableRag === 'all' ? 'border-slate-800 text-slate-900 font-bold ring-1 ring-slate-800/15 shadow-2xs' : 'border-slate-200 text-slate-600 font-medium hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800'"
+                        class="inline-flex items-center gap-1.5 cursor-pointer rounded-md border bg-white px-2.5 py-1 transition"
+                    >
+                        <span class="h-1.5 w-1.5 rounded-full bg-slate-400 shrink-0"></span>
+                        Semua
+                    </button>
+                    <button
+                        type="button"
+                        @click="tableRag = 'tercapai'"
+                        :class="tableRag === 'tercapai' ? 'border-emerald-600 text-emerald-950 font-bold ring-1 ring-emerald-600/20 shadow-2xs' : 'border-slate-200 text-slate-600 font-medium hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800'"
+                        class="inline-flex items-center gap-1.5 cursor-pointer rounded-md border bg-white px-2.5 py-1 transition"
+                    >
+                        <span class="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0"></span>
+                        Tercapai
+                    </button>
+                    <button
+                        type="button"
+                        @click="tableRag = 'hampir'"
+                        :class="tableRag === 'hampir' ? 'border-amber-600 text-amber-950 font-bold ring-1 ring-amber-600/20 shadow-2xs' : 'border-slate-200 text-slate-600 font-medium hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800'"
+                        class="inline-flex items-center gap-1.5 cursor-pointer rounded-md border bg-white px-2.5 py-1 transition"
+                    >
+                        <span class="h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0"></span>
+                        Mendekati
+                    </button>
+                    <button
+                        type="button"
+                        @click="tableRag = 'perlu'"
+                        :class="tableRag === 'perlu' ? 'border-rose-600 text-rose-950 font-bold ring-1 ring-rose-600/20 shadow-2xs' : 'border-slate-200 text-slate-600 font-medium hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800'"
+                        class="inline-flex items-center gap-1.5 cursor-pointer rounded-md border bg-white px-2.5 py-1 transition"
+                    >
+                        <span class="h-1.5 w-1.5 rounded-full bg-rose-500 shrink-0"></span>
+                        Perlu Perhatian
+                    </button>
+                </div>
             </div>
         </div>
 
         @if ($isLimited)
-            <div class="mt-2 text-[11px] text-slate-500">
+            <div class="mt-2.5 text-[11px] text-slate-500">
                 Menampilkan 10 baris teratas.@if (\App\Http\Controllers\DashboardController::canAccessKpiDetail(auth()->user())) Untuk mencari seluruh indikator, buka <a href="{{ route('dashboard.kpi-detail') }}" class="text-accent underline font-medium">Halaman Rincian KPI</a>.@endif
             </div>
         @endif
 
-        <div class="relative w-full min-w-0 overflow-x-auto mt-3 rounded-xl border border-slate-200">
-            <table class="w-full text-sm">
-                <thead class="bg-slate-50/80 text-[11px] text-slate-600 font-semibold uppercase tracking-wider border-b border-slate-200">
+        <div class="relative w-full min-w-0 overflow-x-auto mt-3.5 rounded-xl border border-slate-200/80">
+            <table class="w-full text-[13px]">
+                <thead class="bg-slate-50/90 text-[11px] text-slate-500 font-semibold uppercase tracking-[0.06em] border-b border-slate-200/80">
                     <tr>
                         <th class="py-2.5 px-3 text-left">Unit</th>
                         <th class="py-2.5 px-3 text-left">Indikator</th>
@@ -186,7 +220,7 @@
                         <th class="py-2.5 px-3 text-right">Rasio Realisasi Murni</th>
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-slate-100">
+                <tbody class="divide-y divide-slate-100/90">
                     @foreach ($displayRows as $row)
                         @php
                             $skorKpiVal = array_key_exists('skor_kpi', $row) ? $row['skor_kpi'] : ($row['pencapaian'] ?? null);
@@ -206,30 +240,43 @@
                                     $barColor = 'bg-rose-500';
                                 }
                             }
+                            $targetDisplay = $row['target_display'] ?? $fmt($row['target'] ?? null, 2);
+                            $realisasiDisplay = $row['realisasi_display'] ?? $fmt($row['realisasi'] ?? null, 2);
+                            $skorDisplay = $fmt($skorKpiVal, 1, '%');
+                            $rasioDisplay = $fmt($rasioMurniVal, 1, '%');
                         @endphp
                         <tr
                             x-show="matches('{{ addcslashes($row['indikator'], "'\\") }}', '{{ addcslashes($row['unit'], "'\\") }}', '{{ $tier }}')"
-                            class="hover:bg-slate-50/60 transition-colors"
+                            class="hover:bg-slate-50/70 transition-colors"
                         >
-                            <td class="py-2.5 px-3 font-semibold text-[#0b6175]">{{ $row['unit'] }}</td>
+                            <td class="py-2.5 px-3 whitespace-nowrap">
+                                <span class="inline-flex items-center rounded-md bg-[#e6f4f6]/80 px-2 py-0.5 text-[11px] font-semibold text-[#0b6175]">{{ $row['unit'] }}</span>
+                            </td>
                             <td class="py-2.5 px-3 text-slate-800">{{ $row['indikator'] }}</td>
-                            <td class="py-2.5 px-3 text-right font-medium text-slate-600 tabular-nums">{{ $row['target_display'] ?? $fmt($row['target'] ?? null, 2) }}</td>
-                            <td class="py-2.5 px-3 text-right font-medium text-slate-600 tabular-nums">{{ $row['realisasi_display'] ?? $fmt($row['realisasi'] ?? null, 2) }}</td>
+                            <td class="py-2.5 px-3 text-right tabular-nums {{ $targetDisplay === 'Tidak tercatat' ? 'text-xs font-normal text-slate-400' : 'font-medium text-slate-600' }}">{{ $targetDisplay }}</td>
+                            <td class="py-2.5 px-3 text-right tabular-nums {{ $realisasiDisplay === 'Tidak tercatat' ? 'text-xs font-normal text-slate-400' : 'font-medium text-slate-600' }}">{{ $realisasiDisplay }}</td>
                             <td class="py-2.5 px-3 text-right">
                                 <div class="flex flex-col items-end">
-                                    <span class="font-medium text-slate-800 tabular-nums">{{ $fmt($skorKpiVal, 1, '%') }}</span>
+                                    <span class="tabular-nums {{ $skorDisplay === 'Tidak tercatat' ? 'text-xs font-normal text-slate-400' : 'font-semibold text-slate-900' }}">{{ $skorDisplay }}</span>
                                     @if ($skorKpiVal !== null)
-                                        <div class="mt-1 h-1.5 w-16 sm:w-20 rounded-full bg-slate-100 overflow-hidden">
+                                        <div class="mt-1.5 h-1 w-16 sm:w-20 rounded-full bg-slate-100 overflow-hidden">
                                             <div class="h-full rounded-full {{ $barColor }}" style="width: {{ round($barWidth, 1) }}%"></div>
                                         </div>
                                     @endif
                                 </div>
                             </td>
-                            <td class="py-2.5 px-3 text-right font-medium text-slate-600 tabular-nums">
-                                {{ $fmt($rasioMurniVal, 1, '%') }}
+                            <td class="py-2.5 px-3 text-right tabular-nums {{ $rasioDisplay === 'Tidak tercatat' ? 'text-xs font-normal text-slate-400' : 'font-medium text-slate-600' }}">
+                                {{ $rasioDisplay }}
                             </td>
                         </tr>
                     @endforeach
+                    @if ($isEmbedded)
+                        <tr x-show="visibleRowCount === 0" x-cloak>
+                            <td colspan="6" class="py-8 px-4 text-center text-xs text-slate-500">
+                                Tidak ada indikator yang sesuai dengan filter.
+                            </td>
+                        </tr>
+                    @endif
                 </tbody>
             </table>
         </div>
@@ -242,7 +289,7 @@
                 'all' => $showAll ? null : 1,
             ]);
         @endphp
-        <div class="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
+        <div class="mt-3.5 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
             <span class="tabular-nums">
                 Menampilkan {{ $displayRows->count() }} dari {{ $totalRows > 0 ? $totalRows : $rows->count() }} baris.
             </span>

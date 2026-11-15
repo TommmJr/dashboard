@@ -8,6 +8,11 @@
     $chartId = 'pencapaianNko-'.$chartSlug.'-'.($widget['instance'] ?? 0);
     $dataId = 'data-'.$chartId;
     $rag = \App\Support\KpiScoreNormalizer::ragThresholds();
+    $pencapaianChartData = [
+        'labels' => $labels->all(),
+        'seriesData' => $data['data'] ?? [],
+        'rag' => $rag,
+    ];
 @endphp
 
 <div class="ibs-card h-full p-5">
@@ -27,19 +32,23 @@
     @else
         <div id="{{ $chartId }}" class="mt-4 w-full" style="width: 100%; height: 320px;"></div>
         <script type="application/json" id="{{ $dataId }}">
-        {
-            "labels": {{ Js::from($labels->all()) }},
-            "seriesData": {{ Js::from($data['data'] ?? []) }},
-            "rag": {{ Js::from($rag) }}
-        }
+            @json($pencapaianChartData)
         </script>
         <script>
         (function() {
             let chartInstance = null;
+            let attempts = 0;
             function initPencapaianChart() {
                 const el = document.getElementById(@json($chartId));
                 const dataEl = document.getElementById(@json($dataId));
-                if (!el || !dataEl || !window.echarts) { return; }
+                if (!el || !dataEl) { return; }
+                if (!window.echarts) {
+                    if (attempts < 30) {
+                        attempts += 1;
+                        window.setTimeout(initPencapaianChart, 40);
+                    }
+                    return;
+                }
 
                 let parsed = {};
                 try {

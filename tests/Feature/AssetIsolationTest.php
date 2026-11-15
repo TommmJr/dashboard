@@ -138,7 +138,7 @@ class AssetIsolationTest extends TestCase
         $management = User::factory()->withRole(Role::MANAGEMENT)->create(['division_id' => null]);
 
         $this->actingAs($management)->get(route('dashboard'))->assertOk()
-            ->assertSee('Peringkat NKO Unit')
+            ->assertSee('Peringkat NKO')
             ->assertSee('RST')
             ->assertDontSee('BANDUNG');
     }

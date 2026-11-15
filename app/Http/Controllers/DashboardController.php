@@ -12,6 +12,7 @@ use App\Models\PerformanceMetric;
 use App\Models\PerformanceObservation;
 use App\Models\Role;
 use App\Models\User;
+use App\Services\AssetStockConverter;
 use App\Services\AssetStockReport;
 use App\Services\KpiReportConverter;
 use App\Services\StructuredNkoReader;
@@ -145,11 +146,90 @@ class DashboardController extends Controller
             ->values()
             ->all();
 
+        $executiveMeta = self::canAccessKpiDetail($user)
+            ? $this->buildExecutiveMeta($user, $widgets, $filters)
+            : null;
+
         return view('dashboard.index', [
             'widgets' => $widgets,
             'filters' => $filters,
             'availableUnits' => $this->availableUnits($user),
+            'executiveMeta' => $executiveMeta,
         ]);
+    }
+
+    /**
+     * Ringkasan metadata SSR untuk Executive Header & fallback NKO di L1 KPI.
+     * Hanya dipanggil untuk role dengan akses Rincian KPI (fail-closed).
+     *
+     * @param  list<array<string, mixed>>  $widgets
+     * @param  array{start_date: ?string, end_date: ?string, units: list<string>}  $filters
+     * @return array<string, mixed>
+     */
+    private function buildExecutiveMeta(?User $user, array $widgets, array $filters): array
+    {
+        $widgetMap = collect($widgets)->keyBy('key');
+        $summaryData = $widgetMap->get('kpi-summary')['data']
+            ?? $this->kpiSummary($user, $filters['start_date'], $filters['end_date']);
+        $ragData = $widgetMap->get('kpi-rag-status')['data'] ?? null;
+
+        $nkoRows = $widgetMap->has('nko-ranking')
+            ? collect($widgetMap->get('nko-ranking')['data'] ?? [])
+            : $this->nkoRanking($user, $filters['start_date'], $filters['end_date']);
+
+        if (! empty($filters['units'])) {
+            $nkoRows = $nkoRows->filter(
+                fn (object $row): bool => in_array($row->unit ?? null, $filters['units'], true)
+            )->values();
+        }
+
+        $averageNko = $nkoRows->isNotEmpty()
+            ? round((float) $nkoRows->avg('nko'), 2)
+            : null;
+
+        $period = $ragData['period']
+            ?? $this->latestReadyPeriod($user, $filters['start_date'], $filters['end_date']);
+
+        $isPrivileged = $this->isPrivileged($user);
+        $readyDatasets = DB::table('datasets')
+            ->where('status', Dataset::STATUS_READY)
+            ->when(! $isPrivileged, fn ($q) => $q->where('division_id', $user?->division_id))
+            ->whereNotExists(function ($query) {
+                $query->select(DB::raw(1))
+                    ->from('performance_metrics')
+                    ->whereColumn('performance_metrics.dataset_id', 'datasets.id')
+                    ->where('performance_metrics.metric_name', 'like', AssetStockConverter::PREFIX.'%');
+            })
+            ->count();
+
+        $unitLabel = ! empty($filters['units'])
+            ? implode(', ', $filters['units'])
+            : (! empty(config('kpi.visible_units')) ? implode(', ', config('kpi.visible_units')) : 'Semua Unit');
+
+        $periodLabel = null;
+        if ($period !== null) {
+            $months = [
+                1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April',
+                5 => 'Mei', 6 => 'Juni', 7 => 'Juli', 8 => 'Agustus',
+                9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember',
+            ];
+            $dt = Carbon::parse($period);
+            $periodLabel = ($months[$dt->month] ?? $dt->format('M')).' '.$dt->year;
+        }
+
+        $achievedCount = $summaryData['achieved_count'] ?? null;
+        $totalCount = $summaryData['total_count'] ?? null;
+
+        return [
+            'unit_label' => $unitLabel,
+            'period' => $period,
+            'period_label' => $periodLabel,
+            'average_nko' => $averageNko,
+            'achieved_count' => $achievedCount,
+            'total_count' => $totalCount,
+            'ready_datasets' => $readyDatasets,
+            'has_data' => $averageNko !== null || (($summaryData['has_data'] ?? false) === true),
+        ];
     }
 
     /**

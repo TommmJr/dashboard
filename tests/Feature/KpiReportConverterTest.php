@@ -227,7 +227,7 @@ class KpiReportConverterTest extends TestCase
         $this->actingAs($management)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('Peringkat NKO Unit')
+            ->assertSee('Peringkat NKO')
             ->assertSee('TJBT')
             ->assertSee('105,50');
     }

@@ -255,16 +255,15 @@ class PerformanceChartDataTest extends TestCase
             ->assertSee(route('performance.data'), false);
     }
 
-    public function test_widget_tren_punya_subjudul_dinamis(): void
+    public function test_widget_tren_punya_header_ringkas_dan_target(): void
     {
-        // Subjudul mengikuti jumlah periode yang nyata (snapshot vs tren),
-        // supaya "grafik tren" tidak mengklaim tren saat data cuma 1 periode.
         $user = User::factory()->withRole(Role::MANAGEMENT)->create();
 
         $this->actingAs($user)->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('chartSubtitle()', false)
-            ->assertSee('chartPeriodCount', false);
+            ->assertSee('Tren NKO')
+            ->assertSee('Target 100')
+            ->assertDontSee('chartSubtitle()', false);
     }
 
     public function test_widget_tren_selalu_menampilkan_chart(): void
@@ -277,7 +276,7 @@ class PerformanceChartDataTest extends TestCase
             ->assertOk()
             ->assertDontSee('Tren akan tampil setelah ada 2 periode')
             ->assertSee('id="performanceChart"', false)
-            ->assertSee('chartSubtitle()', false);
+            ->assertSee('Tren NKO');
     }
 
     /**

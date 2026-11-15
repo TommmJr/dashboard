@@ -55,8 +55,8 @@ class DashboardWidgetLayoutTest extends TestCase
             ->assertSee('Aksi Cepat')
             ->assertDontSee('id="dashboard-layout-builder"', false)
             ->assertDontSee('Ringkasan KPI')
-            ->assertDontSee('Grafik Tren Kinerja')
-            ->assertDontSee('Peringkat NKO Unit');
+            ->assertDontSee('Tren NKO')
+            ->assertDontSee('Peringkat NKO');
 
         $this->actingAs($admin)
             ->get(route('dashboard.builder'))
@@ -117,7 +117,7 @@ class DashboardWidgetLayoutTest extends TestCase
         $this->actingAs($management)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('Grafik Tren Kinerja')
+            ->assertSee('Tren NKO')
             ->assertDontSee('Ringkasan Operasional')
             ->assertDontSee('Aksi Cepat')
             ->assertDontSee('Audit Terbaru')
@@ -197,16 +197,16 @@ class DashboardWidgetLayoutTest extends TestCase
             ->assertSee('Baris Data Aktif')
             ->assertDontSee('Baris Data Aktif (TJBT)')
             ->assertDontSee('Baris Aktif')
-            ->assertDontSee('Rata-rata NKO')
-            ->assertDontSee('Grafik Tren Kinerja')
-            ->assertDontSee('Peringkat NKO Unit')
+            ->assertDontSee('NKO (Nilai Kinerja Organisasi)')
+            ->assertDontSee('Tren NKO')
+            ->assertDontSee('Peringkat NKO')
             ->assertDontSee('Target vs Realisasi')
             ->assertDontSee('Distribusi NKO');
 
         $this->actingAs($user)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('Grafik Tren Kinerja')
+            ->assertSee('Tren NKO')
             ->assertDontSee('Audit Terbaru');
     }
 
@@ -218,21 +218,25 @@ class DashboardWidgetLayoutTest extends TestCase
         $this->actingAs($staff)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('Rata-rata NKO')
-            ->assertSee('Dataset Berhasil (Divisi)')
-            ->assertSee('Baris Data Aktif (TJBT)')
-            ->assertSee('Grafik Tren Kinerja')
-            // Widget LAMA dicabut dari layout 2026-10-19 (keputusan user): R8
-            // masih menjumlah lintas satuan. Judulnya dikunci dengan literal
-            // persis ('Target vs Realisasi') karena label widget PENGGANTI
-            // ("Target dan Realisasi per Indikator") tidak memuat substring
-            // itu; substring 'Realisasi' saja akan cocok ke keduanya.
+            ->assertSee('Kinerja Pengusahaan')
+            ->assertSee('NKO (Nilai Kinerja Organisasi)')
+            ->assertSee('Rata-rata Capaian')
+            ->assertSee('Memenuhi Target')
+            ->assertSee('Perlu Perhatian')
+            ->assertDontSee('id="executive-headline"', false)
+            ->assertDontSee('id="kpi-methodology-note"', false)
+            ->assertSee('Rincian KPI')
+            ->assertSee('Analitik KPI')
+            ->assertSee('Unggah Data')
+            ->assertSee('Tren NKO')
+            ->assertSee('Target 100')
+            ->assertSee('Status Indikator')
+            ->assertDontSee('Dataset Berhasil (Divisi)')
+            ->assertDontSee('Baris Data Aktif')
             ->assertDontSee('Target vs Realisasi')
-            // Widget BARU (keputusan Pak Gama 2026-10-19 11:17) ter-mount.
-            ->assertSee('Target dan Realisasi per Indikator</h3>', false)
-            ->assertSee('Status RAG Indikator')
+            ->assertDontSee('Target dan Realisasi per Indikator')
             ->assertDontSee('Distribusi NKO')
-            ->assertDontSee('Peringkat NKO Unit')
+            ->assertDontSee('Peringkat NKO')
             ->assertDontSee('Audit Terbaru')
             ->assertDontSee('Dataset Gagal')
             ->assertDontSee('Editor Layout')
@@ -243,15 +247,17 @@ class DashboardWidgetLayoutTest extends TestCase
     }
 
     /**
-     * Widget lama dan baru punya NAMA KATALOG yang berbeda; kunci keduanya di
-     * level layout supaya pemasangan/penghapusan tidak tertukar.
+     * Layout default L1 Pengusahaan dirampingkan untuk satu layar eksekutif,
+     * sementara katalog target-realisasi-per-indikator tetap tersedia untuk
+     * Builder dan widget lama target-vs-realisasi tetap dihapus.
      */
     public function test_layout_staff_pengusahaan_memakai_widget_per_indikator_bukan_widget_lama(): void
     {
         $layout = config('dashboard_layouts.layouts')['staff_divisi:perencanaan-pengusahaan'];
         $widgets = config('dashboard_layouts.widgets');
 
-        $this->assertContains('target-realisasi-per-indikator', $layout);
+        $this->assertSame(['kpi-summary', 'trend-chart', 'kpi-rag-status'], $layout);
+        $this->assertNotContains('target-realisasi-per-indikator', $layout);
         $this->assertArrayHasKey('target-realisasi-per-indikator', $widgets);
         $this->assertNotContains('target-vs-realisasi', $layout);
         $this->assertArrayNotHasKey('target-vs-realisasi', $widgets);
@@ -349,7 +355,7 @@ class DashboardWidgetLayoutTest extends TestCase
             ->get(route('dashboard'))
             ->assertOk()
             ->assertSee('Status Dataset')
-            ->assertDontSee('Grafik Tren Kinerja')
+            ->assertDontSee('Tren NKO')
             ->assertDontSee('Distribusi NKO');
 
         // 2. Config staff_divisi:<slug> menang atas DB staff_divisi generik.
@@ -361,12 +367,12 @@ class DashboardWidgetLayoutTest extends TestCase
         ]);
 
         // Staff Pengusahaan punya Config staff_divisi:perencanaan-pengusahaan (urutan #2),
-        // sehingga tetap melihat Grafik Tren Kinerja dan Status RAG Indikator (bukan hanya nko-donut dari DB staff_divisi #3).
+        // sehingga tetap melihat Tren NKO dan Status Indikator (bukan hanya nko-donut dari DB staff_divisi #3).
         $this->actingAs($staffPengusahaan)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('Grafik Tren Kinerja')
-            ->assertSee('Status RAG Indikator')
+            ->assertSee('Tren NKO')
+            ->assertSee('Status Indikator')
             ->assertDontSee('Distribusi NKO');
 
         // 3. Staff divisi lain yang tidak punya override divisi di DB (#1) maupun Config (#2)
@@ -398,8 +404,8 @@ class DashboardWidgetLayoutTest extends TestCase
         $this->actingAs($management)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('Grafik Tren Kinerja')
-            ->assertSee('Peringkat NKO Unit')
+            ->assertSee('Tren NKO')
+            ->assertSee('Peringkat NKO')
             ->assertDontSee('Stok Aset per UPT');
 
         // Jika DB berisi campuran widget valid + widget asing + widget ber-permission
@@ -417,7 +423,7 @@ class DashboardWidgetLayoutTest extends TestCase
             ->assertSee('Distribusi NKO')
             ->assertDontSee('Stok Aset per UPT')
             ->assertDontSee('Editor Layout')
-            ->assertDontSee('Grafik Tren Kinerja');
+            ->assertDontSee('Tren NKO');
     }
 
     public function test_endpoint_update_dan_reset_layout_hanya_diizinkan_untuk_pemegang_dashboard_update(): void
@@ -622,7 +628,7 @@ class DashboardWidgetLayoutTest extends TestCase
         $this->actingAs($management)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSeeInOrder(['Distribusi NKO', 'Rata-rata NKO']);
+            ->assertSeeInOrder(['Distribusi NKO', 'NKO (Nilai Kinerja Organisasi)']);
     }
 
     public function test_resolusi_layout_tetap_fallback_ke_config_saat_tabel_belum_dimigrasi(): void
@@ -634,8 +640,8 @@ class DashboardWidgetLayoutTest extends TestCase
         $this->actingAs($management)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('Grafik Tren Kinerja')
-            ->assertSee('Peringkat NKO Unit');
+            ->assertSee('Tren NKO')
+            ->assertSee('Peringkat NKO');
     }
 
     public function test_ui_builder_tidak_ditampilkan_untuk_pengguna_tanpa_permission_dashboard_update(): void
@@ -693,13 +699,13 @@ class DashboardWidgetLayoutTest extends TestCase
                 'widgets' => ['nko-donut', 'dataset-status', 'kpi-summary'],
             ]);
 
-        // 2. Staff Pengusahaan melihat urutan baru (Distribusi NKO -> Status Dataset -> Rata-rata NKO)
-        // dan tidak lagi melihat Grafik Tren Kinerja yang dihapus dari layout.
+        // 2. Staff Pengusahaan melihat urutan baru (Distribusi NKO -> Status Dataset -> kpi-summary)
+        // dan tidak lagi melihat Tren NKO yang dihapus dari layout.
         $this->actingAs($staffPengusahaan)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSeeInOrder(['Distribusi NKO', 'Status Dataset', 'Rata-rata NKO'])
-            ->assertDontSee('Grafik Tren Kinerja');
+            ->assertSeeInOrder(['Distribusi NKO', 'Status Dataset', 'NKO (Nilai Kinerja Organisasi)'])
+            ->assertDontSee('Tren NKO');
 
         // 3. Isolasi divisi: Staff Managemen Aset tidak terdampak perubahan divisi Pengusahaan.
         $this->actingAs($staffAset)
@@ -741,11 +747,11 @@ class DashboardWidgetLayoutTest extends TestCase
                 'layout_key' => 'staff_divisi:perencanaan-pengusahaan',
             ]);
 
-        // 6. Setelah reset, Staff Pengusahaan kembali melihat layout fallback config (termasuk Grafik Tren Kinerja).
+        // 6. Setelah reset, Staff Pengusahaan kembali melihat layout fallback config (termasuk Tren NKO).
         $this->actingAs($staffPengusahaan)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSeeInOrder(['Rata-rata NKO', 'Grafik Tren Kinerja', 'Status RAG Indikator']);
+            ->assertSeeInOrder(['NKO (Nilai Kinerja Organisasi)', 'Tren NKO', 'Status Indikator']);
     }
 
     public function test_endpoint_json_mengembalikan_422_untuk_widget_asing_dan_konflik_scoping(): void
@@ -881,7 +887,7 @@ class DashboardWidgetLayoutTest extends TestCase
                 'layout_key' => 'staff_divisi:managemen-aset',
             ]))
             ->assertOk()
-            ->assertSee('Status Dataset')
+            ->assertSee('Status Indikator')
             ->assertDontSee('Distribusi NKO');
 
         // 7. Percobaan spoofing id dan updated_by pada request body diabaikan; updated_by selalu user yang login.
@@ -939,14 +945,14 @@ class DashboardWidgetLayoutTest extends TestCase
         $this->actingAs($management)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('Grafik Tren Kinerja')
+            ->assertSee('Tren NKO')
             ->assertDontSee('Distribusi NKO');
 
         // 3. Staf dengan divisi yang memiliki slug rusak di DB tidak memicu 500 dan jatuh ke fallback staff_divisi.
         $this->actingAs($staffBad)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('Rata-rata NKO');
+            ->assertSee('NKO (Nilai Kinerja Organisasi)');
     }
 
     public function test_layout_update_rejects_non_canonical_targets_such_as_management_or_other_divisions(): void
@@ -1073,7 +1079,7 @@ class DashboardWidgetLayoutTest extends TestCase
             ->get(route('dashboard'))
             ->assertOk()
             ->assertSee('x-data="performanceDashboard(', false)
-            ->assertSee('Rata-rata NKO');
+            ->assertSee('NKO (Nilai Kinerja Organisasi)');
 
         // 3. Saat layout admin diubah ke 'trend-chart', wrapper juga tetap merender performanceDashboard.
         DashboardLayout::where('role_slug', Role::ADMIN)->update([
@@ -1084,7 +1090,7 @@ class DashboardWidgetLayoutTest extends TestCase
             ->get(route('dashboard'))
             ->assertOk()
             ->assertSee('x-data="performanceDashboard(', false)
-            ->assertSee('Grafik Tren Kinerja');
+            ->assertSee('Tren NKO');
     }
 
     public function test_penyimpanan_layout_admin_dapat_menyimpan_dengan_atau_tanpa_placeholder_dan_builder_tetap_aktif(): void
@@ -1158,7 +1164,7 @@ class DashboardWidgetLayoutTest extends TestCase
 
         $this->actingAs($staff)->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('Grafik Tren Kinerja')
+            ->assertSee('Tren NKO')
             ->assertDontSee('name="start_date"', false)
             ->assertDontSee('name="unit[]"', false)
             ->assertDontSee('Terapkan');
@@ -1219,17 +1225,19 @@ class DashboardWidgetLayoutTest extends TestCase
         $this->assertStringContainsString('GaugeChart', $js);
     }
 
-    public function test_subjudul_snapshot_menyebut_tren_setelah_dua_bulan(): void
+    public function test_widget_tren_nko_menampilkan_header_ringkas_tanpa_subjudul_kalimat(): void
     {
         $management = User::factory()->withRole(Role::MANAGEMENT)->create();
 
         $this->actingAs($management)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('Tren muncul setelah 2+ bulan');
+            ->assertSee('Tren NKO')
+            ->assertSee('Target 100')
+            ->assertDontSee('Tren muncul setelah 2+ bulan');
     }
 
-    public function test_staff_dashboard_menampilkan_hero_banner_identitas_divisi_dan_aksi_cepat(): void
+    public function test_staff_dashboard_menampilkan_header_ringkas_dan_aksi_cepat(): void
     {
         $division = Division::factory()->create(['name' => 'Perencanaan Pengusahaan', 'slug' => 'perencanaan-pengusahaan']);
         $staff = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $division->id]);
@@ -1237,23 +1245,23 @@ class DashboardWidgetLayoutTest extends TestCase
         $this->actingAs($staff)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('Dashboard Divisi')
-            ->assertSee('Perencanaan Pengusahaan')
+            ->assertSee('Kinerja Pengusahaan')
             ->assertSee('TJBT')
-            ->assertSee('Unggah Dataset');
+            ->assertSee('Unggah Data')
+            ->assertDontSee('Dashboard Divisi')
+            ->assertDontSee('Dataset Siap:');
     }
 
     public function test_layout_staff_pengusahaan_memiliki_urutan_seimbang_tanpa_celah_grid(): void
     {
         $layout = config('dashboard_layouts.layouts')['staff_divisi:perencanaan-pengusahaan'];
 
+        $this->assertCount(3, $layout);
         // Baris 1: kpi-summary (3)
         $this->assertSame('kpi-summary', $layout[0]);
         // Baris 2: trend-chart (2) + kpi-rag-status (1) = 3
         $this->assertSame('trend-chart', $layout[1]);
         $this->assertSame('kpi-rag-status', $layout[2]);
-        // Baris 3: dataset-status (3)
-        $this->assertSame('dataset-status', $layout[3]);
     }
 
     public function test_kpi_summary_menampilkan_badge_dan_ikon_konteks_informatif(): void
@@ -1264,15 +1272,103 @@ class DashboardWidgetLayoutTest extends TestCase
         $this->actingAs($staff)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('Rata-rata NKO')
-            ->assertSee('Skor Utama')
-            ->assertSee('Dataset Terverifikasi')
-            ->assertSee('Parameter Pantau')
-            ->assertSee('Rata-rata Pencapaian Indikator')
-            ->assertSee('Indikator Tercapai')
-            ->assertSee('Dihitung (Maks 110%)')
-            ->assertSee('Beda dari NKO workbook')
-            ->assertSee('Daun berskor');
+            ->assertSee('NKO (Nilai Kinerja Organisasi)')
+            ->assertSee('Target &ge; 100', false)
+            ->assertSee('Rata-rata Capaian')
+            ->assertSee('Maks 110%')
+            ->assertSee('Memenuhi Target')
+            ->assertSee('Perlu Perhatian')
+            ->assertDontSee('Capaian per indikator')
+            ->assertDontSee('Dataset Berhasil (Divisi)')
+            ->assertDontSee('Baris Data Aktif');
+    }
+
+    public function test_executive_header_dan_navigasi_l3_mengikuti_rbac_masing_masing_role(): void
+    {
+        $management = User::factory()->withRole(Role::MANAGEMENT)->create();
+        $editor = User::factory()->withRole(Role::EDITOR_DASHBOARD)->create();
+        $admin = User::factory()->withRole(Role::ADMIN)->create();
+        $asetDivision = Division::factory()->create(['slug' => 'managemen-aset']);
+        $asetStaff = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $asetDivision->id]);
+
+        $this->actingAs($management)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertDontSee('id="executive-headline"', false)
+            ->assertDontSee('id="kpi-methodology-note"', false)
+            ->assertSee('Kinerja Pengusahaan')
+            ->assertSee('id="dashboard-filter"', false)
+            ->assertSee('Rincian KPI')
+            ->assertSee('Analitik KPI')
+            ->assertDontSee('Unggah Data');
+
+        $this->actingAs($editor)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertDontSee('id="executive-headline"', false)
+            ->assertDontSee('id="kpi-methodology-note"', false)
+            ->assertSee('Kinerja Pengusahaan')
+            ->assertSee('id="dashboard-filter"', false)
+            ->assertSee('Rincian KPI')
+            ->assertDontSee('Analitik KPI')
+            ->assertDontSee('Unggah Data');
+
+        $this->actingAs($admin)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertDontSee('id="executive-headline"', false)
+            ->assertDontSee('Kinerja Pengusahaan')
+            ->assertDontSee('Rincian KPI')
+            ->assertDontSee('Analitik KPI');
+
+        $this->actingAs($asetStaff)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertDontSee('id="executive-headline"', false)
+            ->assertDontSee('Kinerja Pengusahaan')
+            ->assertDontSee('Rincian KPI')
+            ->assertDontSee('Analitik KPI');
+    }
+
+    public function test_widget_pencapaian_nko_dan_rag_status_serta_nko_ranking_merender_kontrak_visual_baru(): void
+    {
+        $editor = User::factory()->withRole(Role::EDITOR_DASHBOARD)->create();
+        $this->actingAs($editor);
+
+        $pencapaianHtml = (string) $this->blade('<x-widgets.pencapaian-nko :data="$data" />', [
+            'data' => [
+                'period' => '2026-09-30',
+                'labels' => ['TJBT'],
+                'data' => [102.4],
+            ],
+        ]);
+        $this->assertStringContainsString('type="application/json"', $pencapaianHtml);
+        $this->assertStringNotContainsString('JSON.parse(\'', $pencapaianHtml);
+        $this->assertStringContainsString('"labels":["TJBT"]', $pencapaianHtml);
+
+        $ragHtml = (string) $this->blade('<x-widgets.kpi-rag-status :data="$data" />', [
+            'data' => [
+                'period' => '2026-09-30',
+                'has_data' => true,
+                'counts' => ['tercapai' => 10, 'hampir' => 4, 'perlu' => 2, 'total' => 16],
+            ],
+        ]);
+        $this->assertStringContainsString('data-kpi-rag-chart="true"', $ragHtml);
+        $this->assertStringContainsString('Status Indikator', $ragHtml);
+        $this->assertStringContainsString('Tercapai', $ragHtml);
+        $this->assertStringContainsString('Hampir Tercapai', $ragHtml);
+        $this->assertStringContainsString('Perlu Peningkatan', $ragHtml);
+        $this->assertStringNotContainsString('Total Indikator Kinerja', $ragHtml);
+        $this->assertStringNotContainsString('Pencapaian &ge;', $ragHtml);
+        $this->assertStringNotContainsString('Rincian KPI', $ragHtml);
+        $this->assertStringNotContainsString('Analitik KPI', $ragHtml);
+
+        $rankingHtml = (string) $this->blade('<x-widgets.nko-ranking :data="$rows" />', [
+            'rows' => [(object) ['unit' => 'TJBT', 'nko' => 101.5]],
+        ]);
+        $this->assertStringContainsString('Peringkat NKO', $rankingHtml);
+        $this->assertStringNotContainsString('NKO (Nilai Kinerja Organisasi)', $rankingHtml);
+        $this->assertStringContainsString('Tercapai', $rankingHtml);
     }
 
     public function test_tercapai_di_kartu_5_sama_dengan_tercapai_di_rag(): void
@@ -1345,14 +1441,18 @@ class DashboardWidgetLayoutTest extends TestCase
 
         $response = $this->actingAs($staff)->get(route('dashboard'))->assertOk();
 
-        // Kartu 5 menampilkan "1 / 3"
+        // Kartu 3 & 4 serta Widget RAG menampilkan status ringkas tanpa sub-teks berulang
         $response->assertSee('1 / 3');
-
-        // Widget RAG menampilkan status
-        $response->assertSee('Status RAG Indikator');
-        $response->assertSee('Pencapaian &ge; 100%', false);
-        $response->assertSee('95% &le; Skor &lt; 100%', false);
-        $response->assertSee('Skor &lt; 95%', false);
+        $response->assertSee('2 / 3');
+        $response->assertSee('2 Indikator');
+        $response->assertSee('Status Indikator');
+        $response->assertSee('Tercapai');
+        $response->assertSee('Hampir Tercapai');
+        $response->assertSee('Perlu Peningkatan');
+        $response->assertDontSee('Pencapaian &ge; 100%', false);
+        $response->assertDontSee('95% &le; Skor &lt; 100%', false);
+        $response->assertDontSee('Skor &lt; 95%', false);
+        $response->assertDontSee('Total Indikator Kinerja');
 
         // Verifikasi kesetaraan data controller: tercapai kartu 5 == tercapai RAG
         $controller = app(DashboardController::class);

@@ -65,6 +65,19 @@
             ];
         }
     }
+
+    $ragCounts = [
+        'all' => count($fullscreenPayload['indicators'] ?? []),
+        'tercapai' => 0,
+        'hampir' => 0,
+        'perlu' => 0,
+    ];
+    foreach (($fullscreenPayload['indicators'] ?? []) as $indicatorItem) {
+        $tier = $indicatorItem['tier'] ?? null;
+        if (isset($ragCounts[$tier])) {
+            $ragCounts[$tier]++;
+        }
+    }
 @endphp
 
 <style>
@@ -78,6 +91,7 @@
     header,
     #header-breadcrumb,
     #kpi-detail-actions,
+    #kpi-command-bar,
     #kpi-view-switcher,
     #target-realisasi-toolbar,
     button,
@@ -136,6 +150,8 @@ if (typeof window.kpiDetailManager !== 'function') {
 
         return {
             viewMode: 'split',
+            pageSearch: '',
+            pageRag: 'all',
             isFullscreen: false,
             chartMode: 'achievement',
             ragFilter: 'all',
@@ -157,6 +173,20 @@ if (typeof window.kpiDetailManager !== 'function') {
                         this.disposeChart();
                     }
                 });
+            },
+
+            applyPageFilters() {
+                window.dispatchEvent(new CustomEvent('kpi-page-filter-changed', {
+                    detail: {
+                        search: this.pageSearch,
+                        rag: this.pageRag,
+                    },
+                }));
+            },
+
+            setPageRag(tier) {
+                this.pageRag = tier;
+                this.applyPageFilters();
             },
 
             get allIndicators() {
@@ -651,26 +681,21 @@ if (typeof window.kpiDetailManager !== 'function') {
         role="dialog"
         aria-modal="true"
         aria-labelledby="kpi-fullscreen-title"
-        class="fixed inset-0 z-50 bg-slate-50/95 backdrop-blur-sm p-5 overflow-y-auto no-print"
+        class="fixed inset-0 z-50 bg-slate-50/95 backdrop-blur-md p-4 sm:p-6 overflow-y-auto no-print"
     >
         <div class="mx-auto max-w-[1600px] space-y-4">
             {{-- Header & Action Strip --}}
-            <div class="ibs-card flex flex-wrap items-center justify-between gap-3 px-5 py-3.5">
+            <div class="ibs-card flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-white px-5 py-3.5 shadow-[0_1px_3px_rgba(15,23,42,0.03)]">
                 <div class="flex flex-wrap items-center gap-3">
-                    <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#e6f4f6] text-[#0b6175]">
-                        <svg class="h-4.5 w-4.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-                            <path d="M9 17v-6m3 6V7m3 10v-4M5 21h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2Z" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
-                    </div>
                     <div>
-                        <h2 id="kpi-fullscreen-title" class="ibs-section-title text-base font-bold text-slate-900">
+                        <h2 id="kpi-fullscreen-title" class="ibs-section-title text-base font-bold tracking-tight text-slate-900">
                             Visualisasi Grafik Capaian Indikator Kinerja
                         </h2>
                         <div class="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500 tabular-nums">
                             <span class="inline-flex items-center rounded-full bg-[#e6f4f6] px-2.5 py-0.5 text-[11px] font-semibold text-[#0b6175]">
                                 Unit: <strong class="ml-1 font-bold" x-text="payload.unitLabel || 'Semua Unit'"></strong>
                             </span>
-                            <span class="inline-flex items-center rounded-full border border-slate-200/80 bg-white px-2.5 py-0.5 text-[11px] font-medium text-slate-600">
+                            <span class="inline-flex items-center rounded-full border border-slate-200/80 bg-slate-50/70 px-2.5 py-0.5 text-[11px] font-medium text-slate-600">
                                 Periode: <strong class="ml-1 font-semibold text-slate-900" x-text="payload.period || 'Belum tersedia'"></strong>
                             </span>
                         </div>
@@ -683,7 +708,7 @@ if (typeof window.kpiDetailManager !== 'function') {
                         id="kpi-fullscreen-download-chart-btn"
                         @click="downloadChartPng()"
                         :disabled="filteredIndicators.length === 0 || !!chartError"
-                        class="inline-flex items-center gap-1.5 rounded-xl border border-[#0b6175]/30 bg-[#e6f4f6]/70 px-3 py-1.5 text-xs font-semibold text-[#0b6175] transition hover:bg-[#e6f4f6] disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a3b8]/40"
+                        class="inline-flex items-center gap-1.5 rounded-lg border border-[#0b6175]/25 bg-[#e6f4f6]/70 px-3 py-1.5 text-xs font-semibold text-[#0b6175] transition hover:bg-[#e6f4f6] disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a3b8]/40"
                     >
                         <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
                             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4m4-5 5 5 5-5m-5 5V3" stroke-linecap="round" stroke-linejoin="round"/>
@@ -695,7 +720,7 @@ if (typeof window.kpiDetailManager !== 'function') {
                         type="button"
                         id="kpi-fullscreen-download-csv-btn"
                         @click="downloadCsv()"
-                        class="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 cursor-pointer whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a3b8]/40"
+                        class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200/80 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50 hover:text-slate-900 cursor-pointer whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a3b8]/40"
                     >
                         <svg class="h-3.5 w-3.5 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
                             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" stroke-linecap="round" stroke-linejoin="round"/>
@@ -708,7 +733,7 @@ if (typeof window.kpiDetailManager !== 'function') {
                         type="button"
                         id="kpi-fullscreen-close-btn"
                         @click="closeFullscreen()"
-                        class="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 cursor-pointer whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a3b8]/40"
+                        class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200/80 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50 hover:text-slate-900 cursor-pointer whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a3b8]/40"
                     >
                         <svg class="h-3.5 w-3.5 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
                             <path d="M18 6 6 18M6 6l12 12" stroke-linecap="round" stroke-linejoin="round"/>
@@ -719,49 +744,49 @@ if (typeof window.kpiDetailManager !== 'function') {
             </div>
 
             {{-- Unified Summary Strip --}}
-            <div class="ibs-card overflow-hidden">
-                <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 divide-y sm:divide-y-0 sm:divide-x divide-slate-100">
-                    <div class="px-4 py-3">
-                        <div class="ibs-metric-label">Total Indikator</div>
-                        <div class="ibs-metric-value mt-1 text-xl sm:text-2xl" x-text="summaryStats.total">0</div>
+            <div class="ibs-card overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.03)]">
+                <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 divide-y sm:divide-y-0 sm:divide-x divide-slate-200/70">
+                    <div class="px-5 py-3.5">
+                        <div class="text-[11px] font-semibold uppercase tracking-[0.05em] text-slate-500">Total Indikator</div>
+                        <div class="ibs-metric-value mt-1 text-xl sm:text-2xl tabular-nums" x-text="summaryStats.total">0</div>
                     </div>
-                    <div class="px-4 py-3">
-                        <div class="flex items-center gap-1.5 ibs-metric-label">
+                    <div class="px-5 py-3.5">
+                        <div class="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.05em] text-slate-500">
                             <span class="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0"></span>
                             <span>Tercapai (&ge; 100%)</span>
                         </div>
-                        <div class="ibs-metric-value mt-1 text-xl sm:text-2xl text-emerald-700" x-text="summaryStats.tercapai">0</div>
+                        <div class="ibs-metric-value mt-1 text-xl sm:text-2xl text-emerald-700 tabular-nums" x-text="summaryStats.tercapai">0</div>
                     </div>
-                    <div class="px-4 py-3">
-                        <div class="flex items-center gap-1.5 ibs-metric-label">
+                    <div class="px-5 py-3.5">
+                        <div class="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.05em] text-slate-500">
                             <span class="h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0"></span>
                             <span>Hampir Tercapai (95% s.d. 99,9%)</span>
                         </div>
-                        <div class="ibs-metric-value mt-1 text-xl sm:text-2xl text-amber-700" x-text="summaryStats.hampir">0</div>
+                        <div class="ibs-metric-value mt-1 text-xl sm:text-2xl text-amber-700 tabular-nums" x-text="summaryStats.hampir">0</div>
                     </div>
-                    <div class="px-4 py-3">
-                        <div class="flex items-center gap-1.5 ibs-metric-label">
+                    <div class="px-5 py-3.5">
+                        <div class="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.05em] text-slate-500">
                             <span class="h-1.5 w-1.5 rounded-full bg-rose-500 shrink-0"></span>
                             <span>Perlu Peningkatan (&lt; 95%)</span>
                         </div>
-                        <div class="ibs-metric-value mt-1 text-xl sm:text-2xl text-rose-700" x-text="summaryStats.perlu">0</div>
+                        <div class="ibs-metric-value mt-1 text-xl sm:text-2xl text-rose-700 tabular-nums" x-text="summaryStats.perlu">0</div>
                     </div>
-                    <div class="col-span-2 sm:col-span-1 px-4 py-3">
-                        <div class="ibs-metric-label">Rata-rata Capaian %</div>
-                        <div class="ibs-metric-value mt-1 text-xl sm:text-2xl text-[#0b6175]" x-text="summaryStats.avgDisplay">Belum tersedia</div>
+                    <div class="col-span-2 sm:col-span-1 px-5 py-3.5">
+                        <div class="text-[11px] font-semibold uppercase tracking-[0.05em] text-slate-500">Rata-rata Capaian %</div>
+                        <div class="ibs-metric-value mt-1 text-xl sm:text-2xl text-[#0b6175] tabular-nums" x-text="summaryStats.avgDisplay">Belum tersedia</div>
                     </div>
                 </div>
             </div>
 
             {{-- Interactive Filter & Mode Toolbar --}}
-            <div class="ibs-card flex flex-col gap-2.5 p-3.5 lg:flex-row lg:items-center lg:justify-between">
-                <div class="flex flex-wrap items-center gap-2">
-                    <div class="inline-flex items-center rounded-xl bg-slate-100/90 p-1 text-xs font-medium">
+            <div class="ibs-card flex flex-col gap-2.5 rounded-2xl border border-slate-200/80 bg-white px-4 py-3 shadow-[0_1px_3px_rgba(15,23,42,0.03)] lg:flex-row lg:items-center lg:justify-between">
+                <div class="flex flex-wrap items-center gap-2.5">
+                    <div class="inline-flex items-center rounded-xl border border-slate-200/60 bg-slate-100/90 p-1 text-xs">
                         <button
                             type="button"
                             id="kpi-fullscreen-mode-achievement"
                             @click="setChartMode('achievement')"
-                            :class="chartMode === 'achievement' ? 'bg-white text-[#0b6175] font-semibold shadow-2xs' : 'text-slate-600 hover:text-slate-900'"
+                            :class="chartMode === 'achievement' ? 'bg-white text-[#0b6175] font-semibold shadow-xs ring-1 ring-slate-900/5' : 'text-slate-600 font-medium hover:text-slate-900'"
                             class="pill-tab-transition rounded-lg px-3 py-1 cursor-pointer whitespace-nowrap"
                         >
                             Capaian Indikator (%) &amp; Status RAG
@@ -770,7 +795,7 @@ if (typeof window.kpiDetailManager !== 'function') {
                             type="button"
                             id="kpi-fullscreen-mode-comparison"
                             @click="setChartMode('comparison')"
-                            :class="chartMode === 'comparison' ? 'bg-white text-[#0b6175] font-semibold shadow-2xs' : 'text-slate-600 hover:text-slate-900'"
+                            :class="chartMode === 'comparison' ? 'bg-white text-[#0b6175] font-semibold shadow-xs ring-1 ring-slate-900/5' : 'text-slate-600 font-medium hover:text-slate-900'"
                             class="pill-tab-transition rounded-lg px-3 py-1 cursor-pointer whitespace-nowrap"
                         >
                             Perbandingan Target vs Realisasi
@@ -782,7 +807,7 @@ if (typeof window.kpiDetailManager !== 'function') {
                             type="button"
                             data-fullscreen-rag="all"
                             @click="setRagFilter('all')"
-                            :class="ragFilter === 'all' ? 'border-slate-800 text-slate-900 font-bold ring-1 ring-slate-800/15 shadow-2xs' : 'border-slate-200 text-slate-600 font-medium hover:border-slate-300 hover:bg-slate-50'"
+                            :class="ragFilter === 'all' ? 'border-slate-800 text-slate-900 font-semibold ring-1 ring-slate-800/15 shadow-2xs' : 'border-slate-200/80 text-slate-600 font-medium hover:border-slate-300 hover:bg-slate-50'"
                             class="inline-flex items-center gap-1.5 rounded-lg border bg-white px-2.5 py-1 transition cursor-pointer"
                         >
                             <span class="h-1.5 w-1.5 rounded-full bg-slate-400 shrink-0"></span>
@@ -792,7 +817,7 @@ if (typeof window.kpiDetailManager !== 'function') {
                             type="button"
                             data-fullscreen-rag="tercapai"
                             @click="setRagFilter('tercapai')"
-                            :class="ragFilter === 'tercapai' ? 'border-emerald-600 text-emerald-950 font-bold ring-1 ring-emerald-600/20 shadow-2xs' : 'border-slate-200 text-slate-600 font-medium hover:border-slate-300 hover:bg-slate-50'"
+                            :class="ragFilter === 'tercapai' ? 'border-emerald-600 text-emerald-950 font-semibold ring-1 ring-emerald-600/20 shadow-2xs' : 'border-slate-200/80 text-slate-600 font-medium hover:border-slate-300 hover:bg-slate-50'"
                             class="inline-flex items-center gap-1.5 rounded-lg border bg-white px-2.5 py-1 transition cursor-pointer"
                         >
                             <span class="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0"></span>
@@ -802,7 +827,7 @@ if (typeof window.kpiDetailManager !== 'function') {
                             type="button"
                             data-fullscreen-rag="hampir"
                             @click="setRagFilter('hampir')"
-                            :class="ragFilter === 'hampir' ? 'border-amber-600 text-amber-950 font-bold ring-1 ring-amber-600/20 shadow-2xs' : 'border-slate-200 text-slate-600 font-medium hover:border-slate-300 hover:bg-slate-50'"
+                            :class="ragFilter === 'hampir' ? 'border-amber-600 text-amber-950 font-semibold ring-1 ring-amber-600/20 shadow-2xs' : 'border-slate-200/80 text-slate-600 font-medium hover:border-slate-300 hover:bg-slate-50'"
                             class="inline-flex items-center gap-1.5 rounded-lg border bg-white px-2.5 py-1 transition cursor-pointer"
                         >
                             <span class="h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0"></span>
@@ -812,7 +837,7 @@ if (typeof window.kpiDetailManager !== 'function') {
                             type="button"
                             data-fullscreen-rag="perlu"
                             @click="setRagFilter('perlu')"
-                            :class="ragFilter === 'perlu' ? 'border-rose-600 text-rose-950 font-bold ring-1 ring-rose-600/20 shadow-2xs' : 'border-slate-200 text-slate-600 font-medium hover:border-slate-300 hover:bg-slate-50'"
+                            :class="ragFilter === 'perlu' ? 'border-rose-600 text-rose-950 font-semibold ring-1 ring-rose-600/20 shadow-2xs' : 'border-slate-200/80 text-slate-600 font-medium hover:border-slate-300 hover:bg-slate-50'"
                             class="inline-flex items-center gap-1.5 rounded-lg border bg-white px-2.5 py-1 transition cursor-pointer"
                         >
                             <span class="h-1.5 w-1.5 rounded-full bg-rose-500 shrink-0"></span>
@@ -821,7 +846,11 @@ if (typeof window.kpiDetailManager !== 'function') {
                     </div>
                 </div>
 
-                <div class="w-full lg:w-64 shrink-0">
+                <div class="relative w-full lg:w-64 shrink-0">
+                    <svg class="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <circle cx="11" cy="11" r="7"/>
+                        <path d="m20 20-3.5-3.5" stroke-linecap="round"/>
+                    </svg>
                     <input
                         id="kpi-fullscreen-search"
                         type="search"
@@ -829,13 +858,13 @@ if (typeof window.kpiDetailManager !== 'function') {
                         @input="scheduleChartRender()"
                         placeholder="Cari indikator..."
                         aria-label="Cari indikator di grafik layar penuh"
-                        class="w-full rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-800 placeholder:text-slate-400 focus:border-[#16a3b8] focus:outline-none focus:ring-1 focus:ring-[#16a3b8]"
+                        class="w-full rounded-lg border border-slate-200/80 bg-white pl-8 pr-3 py-1.5 text-xs text-slate-800 placeholder:text-slate-400 transition focus:border-[#0b6175] focus:outline-none focus:ring-2 focus:ring-[#0b6175]/15"
                     />
                 </div>
             </div>
 
             {{-- ECharts Canvas Card --}}
-            <div class="ibs-card min-w-0 max-w-full overflow-hidden p-4 sm:p-5">
+            <div class="ibs-card min-w-0 max-w-full overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_1px_3px_rgba(15,23,42,0.03)]">
                 <div class="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
                     <div class="flex items-center gap-2">
                         <h3
@@ -858,7 +887,7 @@ if (typeof window.kpiDetailManager !== 'function') {
                     <button
                         type="button"
                         @click="scheduleChartRender()"
-                        class="rounded-xl border border-rose-300 bg-white px-3 py-1.5 text-xs font-semibold text-rose-800 hover:bg-rose-50 cursor-pointer"
+                        class="rounded-lg border border-rose-300 bg-white px-3 py-1.5 text-xs font-semibold text-rose-800 hover:bg-rose-50 cursor-pointer"
                     >
                         Muat Ulang Grafik
                     </button>
@@ -869,7 +898,7 @@ if (typeof window.kpiDetailManager !== 'function') {
                     <button
                         type="button"
                         @click="resetFullscreenFilters()"
-                        class="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
+                        class="rounded-lg border border-slate-200/80 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
                     >
                         Reset Filter
                     </button>
@@ -883,14 +912,14 @@ if (typeof window.kpiDetailManager !== 'function') {
             </div>
 
             {{-- Companion Summary Table --}}
-            <div class="ibs-card min-w-0 max-w-full p-4 sm:p-5">
+            <div class="ibs-card min-w-0 max-w-full rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_1px_3px_rgba(15,23,42,0.03)]">
                 <div class="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
                     <h3 class="ibs-section-title">Tabel Ringkas Indikator Terfilter</h3>
                     <span class="text-xs text-slate-500 tabular-nums" x-text="filteredIndicators.length + ' dari ' + allIndicators.length + ' indikator'"></span>
                 </div>
                 <div class="w-full min-w-0 overflow-x-auto rounded-xl border border-slate-200/80">
                     <table class="w-full text-xs">
-                        <thead class="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold uppercase tracking-wider text-slate-600">
+                        <thead class="border-b border-slate-200/80 bg-slate-50/90 text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500">
                             <tr>
                                 <th class="px-3 py-2.5 text-left">No</th>
                                 <th class="px-3 py-2.5 text-left">Unit</th>
@@ -905,17 +934,19 @@ if (typeof window.kpiDetailManager !== 'function') {
                         </thead>
                         <tbody class="divide-y divide-slate-100">
                             <template x-for="(row, idx) in filteredIndicators" :key="row.key">
-                                <tr class="hover:bg-slate-50/70">
-                                    <td class="px-3 py-2 text-slate-500 tabular-nums" x-text="idx + 1"></td>
-                                    <td class="px-3 py-2 font-semibold text-[#0b6175]" x-text="row.unit"></td>
-                                    <td class="px-3 py-2 font-medium text-slate-800" x-text="row.indikator"></td>
-                                    <td class="px-3 py-2 text-slate-600" x-text="row.satuan"></td>
-                                    <td class="px-3 py-2 text-slate-600" x-text="row.polaritas"></td>
-                                    <td class="px-3 py-2 text-right font-medium text-slate-700 tabular-nums" x-text="row.target_display"></td>
-                                    <td class="px-3 py-2 text-right font-medium text-slate-700 tabular-nums" x-text="row.realisasi_display"></td>
-                                    <td class="px-3 py-2 text-right font-bold text-slate-900 tabular-nums" x-text="row.pencapaian_display"></td>
-                                    <td class="px-3 py-2">
-                                        <span class="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-medium text-slate-700 whitespace-nowrap">
+                                <tr class="transition-colors hover:bg-slate-50/70">
+                                    <td class="px-3 py-2.5 text-slate-400 tabular-nums" x-text="idx + 1"></td>
+                                    <td class="px-3 py-2.5">
+                                        <span class="inline-flex items-center rounded-md bg-[#e6f4f6]/80 px-2 py-0.5 text-[11px] font-semibold text-[#0b6175]" x-text="row.unit"></span>
+                                    </td>
+                                    <td class="px-3 py-2.5 font-medium text-slate-800" x-text="row.indikator"></td>
+                                    <td class="px-3 py-2.5 text-slate-500" x-text="row.satuan"></td>
+                                    <td class="px-3 py-2.5 text-slate-500" x-text="row.polaritas"></td>
+                                    <td class="px-3 py-2.5 text-right font-medium text-slate-700 tabular-nums" x-text="row.target_display"></td>
+                                    <td class="px-3 py-2.5 text-right font-medium text-slate-700 tabular-nums" x-text="row.realisasi_display"></td>
+                                    <td class="px-3 py-2.5 text-right font-bold text-slate-900 tabular-nums" x-text="row.pencapaian_display"></td>
+                                    <td class="px-3 py-2.5">
+                                        <span class="inline-flex items-center gap-1.5 rounded-md border border-slate-200/80 bg-white px-2 py-0.5 text-[11px] font-medium text-slate-700 whitespace-nowrap">
                                             <span
                                                 class="h-1.5 w-1.5 rounded-full shrink-0"
                                                 :class="{
@@ -942,102 +973,106 @@ if (typeof window.kpiDetailManager !== 'function') {
         </div>
     </div>
 
-    <div id="kpi-detail-header" class="ibs-card min-w-0 max-w-full p-4 sm:p-5">
+    <div id="kpi-detail-header" class="ibs-card min-w-0 max-w-full rounded-2xl border border-slate-200/80 bg-white px-5 py-4 shadow-[0_1px_3px_rgba(15,23,42,0.03)]">
+        {{-- Tier 1: Executive Identity & Action Cluster --}}
         <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between min-w-0">
-            <div class="flex flex-wrap items-center gap-2.5 min-w-0">
-                <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#e6f4f6] text-[#0b6175]">
-                    <svg class="h-4.5 w-4.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-                        <path d="M9 17v-6m3 6V7m3 10v-4M5 21h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2Z" stroke-linecap="round" stroke-linejoin="round"/>
+            <div class="flex flex-wrap items-center gap-2.5 sm:gap-3 min-w-0">
+                <a
+                    href="{{ route('dashboard') }}"
+                    class="inline-flex items-center gap-1.5 rounded-lg py-1 text-xs font-medium text-slate-500 transition hover:text-slate-900 whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a3b8]/40"
+                >
+                    <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                        <path d="M19 12H5M12 19l-7-7 7-7" stroke-linecap="round" stroke-linejoin="round" />
                     </svg>
-                </div>
-                <h1 class="text-xl font-bold tracking-tight text-slate-900 sm:whitespace-nowrap">Rincian Kinerja KPI</h1>
-                <span class="inline-flex items-center rounded-full bg-[#e6f4f6] px-2.5 py-0.5 text-xs font-semibold text-[#0b6175] whitespace-nowrap">
+                    <span>Ringkasan</span>
+                </a>
+                <span class="hidden sm:block h-4 w-px bg-slate-200" aria-hidden="true"></span>
+                <h1 class="text-lg sm:text-xl font-bold tracking-tight text-slate-900 sm:whitespace-nowrap">Rincian Kinerja KPI</h1>
+                <span class="inline-flex items-center rounded-full bg-[#e6f4f6] px-2.5 py-0.5 text-[11px] font-semibold text-[#0b6175] whitespace-nowrap">
                     {{ !empty(config('kpi.visible_units')) ? implode(', ', config('kpi.visible_units')) : 'Semua Unit' }}
                 </span>
                 @if (! empty($fullscreenPayload['period']))
-                    <span class="inline-flex items-center rounded-full border border-slate-200/80 bg-white px-2.5 py-0.5 text-xs font-medium text-slate-600 tabular-nums whitespace-nowrap">
+                    <span class="inline-flex items-center rounded-full border border-slate-200/80 bg-slate-50/70 px-2.5 py-0.5 text-[11px] font-medium text-slate-600 tabular-nums whitespace-nowrap">
                         Periode {{ $fullscreenPayload['period'] }}
                     </span>
                 @endif
             </div>
 
             <div id="kpi-detail-actions" class="flex min-w-0 max-w-full flex-wrap items-center gap-2">
-                <button
-                    type="button"
-                    id="kpi-detail-fullscreen-btn"
-                    @click="toggleFullscreen()"
-                    class="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 shadow-2xs cursor-pointer whitespace-nowrap"
-                    :title="isFullscreen ? 'Keluar Layar Penuh' : 'Mode Layar Penuh'"
-                >
-                    <svg class="h-3.5 w-3.5 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-                        <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
-                    <span x-text="isFullscreen ? 'Keluar Penuh' : 'Layar Penuh'">Layar Penuh</span>
-                </button>
+                @if (\App\Http\Controllers\KpiAnalyticsController::canAccessKpiAnalytics(auth()->user()))
+                    <a
+                        href="{{ route('dashboard.kpi-analytics') }}"
+                        class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200/80 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50 hover:text-slate-900 whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a3b8]/40"
+                    >
+                        <svg class="h-3.5 w-3.5 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                            <path d="M3 3v18h18" stroke-linecap="round" stroke-linejoin="round" />
+                            <path d="m19 9-5 5-4-4-3 3" stroke-linecap="round" stroke-linejoin="round" />
+                            <circle cx="19" cy="9" r="1.5" fill="currentColor" stroke="none" />
+                        </svg>
+                        <span>Analitik KPI</span>
+                    </a>
+                @endif
 
                 <button
                     type="button"
                     id="kpi-detail-download-btn"
                     @click="downloadCsv()"
-                    class="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 shadow-2xs cursor-pointer whitespace-nowrap"
+                    class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200/80 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50 hover:text-slate-900 cursor-pointer whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a3b8]/40"
                 >
                     <svg class="h-3.5 w-3.5 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4m4-5 5 5 5-5m-5 5V3" stroke-linecap="round" stroke-linejoin="round"/>
                     </svg>
-                    <span>Download CSV/Excel</span>
+                    <span>Unduh CSV</span>
                 </button>
 
                 <button
                     type="button"
                     id="kpi-detail-print-btn"
                     onclick="window.print()"
-                    class="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 shadow-2xs cursor-pointer whitespace-nowrap"
+                    class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200/80 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50 hover:text-slate-900 cursor-pointer whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a3b8]/40"
                 >
                     <svg class="h-3.5 w-3.5 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
                         <path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" stroke-linecap="round" stroke-linejoin="round"/>
                         <path d="M6 14h12v8H6z" stroke-linecap="round" stroke-linejoin="round"/>
                     </svg>
-                    <span>Cetak / PDF</span>
+                    <span>Cetak Laporan</span>
                 </button>
 
-                @if (\App\Http\Controllers\KpiAnalyticsController::canAccessKpiAnalytics(auth()->user()))
-                    <a href="{{ route('dashboard.kpi-analytics') }}" class="inline-flex items-center gap-1.5 rounded-xl border border-[#0b6175]/25 bg-[#e6f4f6]/70 px-3 py-1.5 text-xs font-semibold text-[#0b6175] transition hover:bg-[#e6f4f6] whitespace-nowrap">
-                        <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-                            <path d="M3 3v18h18" stroke-linecap="round" stroke-linejoin="round" />
-                            <path d="m19 9-5 5-4-4-3 3" stroke-linecap="round" stroke-linejoin="round" />
-                            <circle cx="19" cy="9" r="1.5" fill="currentColor" stroke="none" />
-                        </svg>
-                        Analitik & Bottleneck KPI
-                    </a>
-                @endif
-
-                <a href="{{ route('dashboard') }}" class="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 shadow-2xs whitespace-nowrap">
-                    <svg class="h-3.5 w-3.5 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-                        <path d="M19 12H5M12 19l-7-7 7-7" stroke-linecap="round" stroke-linejoin="round" />
+                <button
+                    type="button"
+                    id="kpi-detail-fullscreen-btn"
+                    @click="toggleFullscreen()"
+                    class="inline-flex items-center gap-1.5 rounded-lg bg-[#0b6175] px-3.5 py-1.5 text-xs font-semibold text-white shadow-xs transition hover:bg-[#094e5e] cursor-pointer whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a3b8]/40"
+                    :title="isFullscreen ? 'Keluar Layar Penuh' : 'Mode Layar Penuh'"
+                >
+                    <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                        <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" stroke-linecap="round" stroke-linejoin="round"/>
                     </svg>
-                    <span>Kembali ke Ringkasan</span>
-                </a>
+                    <span x-text="isFullscreen ? 'Keluar Penuh' : 'Layar Penuh'">Layar Penuh</span>
+                </button>
             </div>
         </div>
 
-        <div class="mt-3.5 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3 min-w-0">
-            <div id="kpi-view-switcher" class="inline-flex min-w-0 max-w-full flex-wrap items-center gap-1 rounded-xl bg-slate-100/90 p-1 text-xs font-medium">
+        {{-- Tier 2: Single Unified Command Bar --}}
+        <div id="kpi-command-bar" class="mt-3.5 flex flex-col gap-3 border-t border-slate-200/70 pt-3.5 xl:flex-row xl:items-center xl:justify-between min-w-0 no-print">
+            <div id="kpi-view-switcher" class="inline-flex min-w-0 max-w-full flex-wrap items-center gap-0.5 rounded-xl border border-slate-200/60 bg-slate-100/90 p-1 text-xs">
                 <button
                     type="button"
                     @click="viewMode = 'split'; $dispatch('kpi-view-changed', 'split')"
-                    :class="viewMode === 'split' ? 'bg-white text-[#0b6175] font-semibold shadow-2xs' : 'text-slate-600 hover:text-slate-900'"
+                    :class="viewMode === 'split' ? 'bg-white text-[#0b6175] shadow-xs ring-1 ring-slate-900/5 font-semibold' : 'text-slate-600 hover:text-slate-900 font-medium'"
                     class="pill-tab-transition inline-flex max-w-full items-center gap-1.5 rounded-lg px-3 py-1.5 cursor-pointer sm:whitespace-nowrap text-left"
                 >
                     <svg class="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
                         <rect x="3" y="3" width="8" height="18" rx="1"/>
                         <rect x="13" y="3" width="8" height="18" rx="1"/>
                     </svg>
-                    <span>Semua Berdampingan Compact</span>
+                    <span>Berdampingan</span>
+                    <span class="sr-only">Semua Berdampingan Compact</span>
                 </button>
                 <button
                     type="button"
                     @click="viewMode = 'cards'; $dispatch('kpi-view-changed', 'cards')"
-                    :class="viewMode === 'cards' ? 'bg-white text-[#0b6175] font-semibold shadow-2xs' : 'text-slate-600 hover:text-slate-900'"
+                    :class="viewMode === 'cards' ? 'bg-white text-[#0b6175] shadow-xs ring-1 ring-slate-900/5 font-semibold' : 'text-slate-600 hover:text-slate-900 font-medium'"
                     class="pill-tab-transition inline-flex max-w-full items-center gap-1.5 rounded-lg px-3 py-1.5 cursor-pointer sm:whitespace-nowrap text-left"
                 >
                     <svg class="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
@@ -1046,22 +1081,82 @@ if (typeof window.kpiDetailManager !== 'function') {
                         <rect x="3" y="14" width="7" height="7" rx="1"/>
                         <rect x="14" y="14" width="7" height="7" rx="1"/>
                     </svg>
-                    <span>Fokus Kartu Visual (Grid 4 Kolom)</span>
+                    <span>Kartu Visual</span>
+                    <span class="sr-only">Fokus Kartu Visual (Grid 4 Kolom)</span>
                 </button>
                 <button
                     type="button"
                     @click="viewMode = 'table'; $dispatch('kpi-view-changed', 'table')"
-                    :class="viewMode === 'table' ? 'bg-white text-[#0b6175] font-semibold shadow-2xs' : 'text-slate-600 hover:text-slate-900'"
+                    :class="viewMode === 'table' ? 'bg-white text-[#0b6175] shadow-xs ring-1 ring-slate-900/5 font-semibold' : 'text-slate-600 hover:text-slate-900 font-medium'"
                     class="pill-tab-transition inline-flex max-w-full items-center gap-1.5 rounded-lg px-3 py-1.5 cursor-pointer sm:whitespace-nowrap text-left"
                 >
                     <svg class="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
                         <path d="M3 6h18M3 12h18M3 18h18" stroke-linecap="round"/>
                     </svg>
-                    <span>Fokus Tabel Matriks Padat</span>
+                    <span>Tabel Matriks</span>
+                    <span class="sr-only">Fokus Tabel Matriks Padat</span>
                 </button>
             </div>
-            <div class="hidden sm:block text-[11px] text-slate-500">
-                Mode: <span class="font-semibold text-slate-700" x-text="viewMode === 'split' ? 'Berdampingan' : (viewMode === 'cards' ? 'Kartu Visual' : 'Tabel Matriks')"></span>
+
+            <div class="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center min-w-0">
+                <div class="flex flex-wrap items-center gap-1.5 text-xs" role="group" aria-label="Filter status capaian KPI">
+                    <button
+                        type="button"
+                        @click="setPageRag('all')"
+                        :class="pageRag === 'all' ? 'border-slate-800 text-slate-900 font-semibold ring-1 ring-slate-900/10 shadow-2xs' : 'border-slate-200/80 text-slate-600 font-medium hover:border-slate-300 hover:bg-slate-50'"
+                        class="inline-flex items-center gap-1.5 rounded-lg border bg-white px-2.5 py-1.5 transition cursor-pointer whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a3b8]/40"
+                    >
+                        <span class="h-1.5 w-1.5 rounded-full bg-slate-400 shrink-0"></span>
+                        <span>Semua</span>
+                        <span class="tabular-nums text-[11px]" :class="pageRag === 'all' ? 'text-slate-700' : 'text-slate-400'">{{ $ragCounts['all'] }}</span>
+                    </button>
+                    <button
+                        type="button"
+                        @click="setPageRag('tercapai')"
+                        :class="pageRag === 'tercapai' ? 'border-emerald-600 text-emerald-950 font-semibold ring-1 ring-emerald-600/20 shadow-2xs' : 'border-slate-200/80 text-slate-600 font-medium hover:border-slate-300 hover:bg-slate-50'"
+                        class="inline-flex items-center gap-1.5 rounded-lg border bg-white px-2.5 py-1.5 transition cursor-pointer whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a3b8]/40"
+                    >
+                        <span class="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0"></span>
+                        <span>Tercapai</span>
+                        <span class="tabular-nums text-[11px]" :class="pageRag === 'tercapai' ? 'text-emerald-800' : 'text-slate-400'">{{ $ragCounts['tercapai'] }}</span>
+                    </button>
+                    <button
+                        type="button"
+                        @click="setPageRag('hampir')"
+                        :class="pageRag === 'hampir' ? 'border-amber-600 text-amber-950 font-semibold ring-1 ring-amber-600/20 shadow-2xs' : 'border-slate-200/80 text-slate-600 font-medium hover:border-slate-300 hover:bg-slate-50'"
+                        class="inline-flex items-center gap-1.5 rounded-lg border bg-white px-2.5 py-1.5 transition cursor-pointer whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a3b8]/40"
+                    >
+                        <span class="h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0"></span>
+                        <span>Mendekati</span>
+                        <span class="tabular-nums text-[11px]" :class="pageRag === 'hampir' ? 'text-amber-800' : 'text-slate-400'">{{ $ragCounts['hampir'] }}</span>
+                    </button>
+                    <button
+                        type="button"
+                        @click="setPageRag('perlu')"
+                        :class="pageRag === 'perlu' ? 'border-rose-600 text-rose-950 font-semibold ring-1 ring-rose-600/20 shadow-2xs' : 'border-slate-200/80 text-slate-600 font-medium hover:border-slate-300 hover:bg-slate-50'"
+                        class="inline-flex items-center gap-1.5 rounded-lg border bg-white px-2.5 py-1.5 transition cursor-pointer whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a3b8]/40"
+                    >
+                        <span class="h-1.5 w-1.5 rounded-full bg-rose-500 shrink-0"></span>
+                        <span>Perlu Perhatian</span>
+                        <span class="tabular-nums text-[11px]" :class="pageRag === 'perlu' ? 'text-rose-800' : 'text-slate-400'">{{ $ragCounts['perlu'] }}</span>
+                    </button>
+                </div>
+
+                <div class="relative w-full sm:w-60 shrink-0">
+                    <svg class="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <circle cx="11" cy="11" r="7"/>
+                        <path d="m20 20-3.5-3.5" stroke-linecap="round"/>
+                    </svg>
+                    <input
+                        id="kpi-unified-search"
+                        type="search"
+                        x-model="pageSearch"
+                        @input="applyPageFilters()"
+                        placeholder="Cari indikator KPI..."
+                        aria-label="Cari indikator KPI"
+                        class="w-full rounded-lg border border-slate-200/80 bg-white pl-8 pr-3 py-1.5 text-xs text-slate-800 placeholder:text-slate-400 transition focus:border-[#0b6175] focus:outline-none focus:ring-2 focus:ring-[#0b6175]/15"
+                    />
+                </div>
             </div>
         </div>
     </div>
@@ -1071,11 +1166,12 @@ if (typeof window.kpiDetailManager !== 'function') {
             id="kpi-target-realisasi-container"
             x-show="viewMode === 'split' || viewMode === 'cards'"
             :class="{ 'lg:!col-span-12': viewMode === 'cards', 'hidden': viewMode === 'table' }"
-            class="h-full min-w-0 max-w-full transition-all duration-200 lg:col-span-6 w-full"
+            class="h-full min-w-0 max-w-full transition-all duration-200 lg:col-span-5 w-full"
         >
             <x-widgets.target-realisasi-per-indikator
                 :widget="$targetRealisasiWidget"
                 :data="$targetRealisasiData"
+                :embedded-in-kpi-detail="true"
             />
         </div>
 
@@ -1083,11 +1179,12 @@ if (typeof window.kpiDetailManager !== 'function') {
             id="kinerja-detail"
             x-show="viewMode === 'split' || viewMode === 'table'"
             :class="{ 'lg:!col-span-12': viewMode === 'table', 'hidden': viewMode === 'cards' }"
-            class="h-full min-w-0 max-w-full transition-all duration-200 lg:col-span-6 w-full"
+            class="h-full min-w-0 max-w-full transition-all duration-200 lg:col-span-7 w-full"
         >
             <x-widgets.kinerja-detail
                 :widget="$kinerjaDetailWidget"
                 :data="$kinerjaDetailData"
+                :embedded-in-kpi-detail="true"
             />
         </div>
     </div>

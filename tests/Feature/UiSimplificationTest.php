@@ -81,6 +81,8 @@ class UiSimplificationTest extends TestCase
             'source_row' => 10,
         ]);
 
+        config(['dashboard_layouts.layouts.staff_divisi:perencanaan-pengusahaan' => ['dataset-status']]);
+
         $response = $this->actingAs($this->staffUser)->get(route('dashboard'));
 
         $response->assertOk();
@@ -126,7 +128,10 @@ class UiSimplificationTest extends TestCase
         $response = $this->actingAs($this->staffUser)->get(route('dashboard'));
 
         $response->assertOk();
-        $response->assertSee('Status RAG Indikator');
+        $response->assertSee('Status Indikator');
+        $response->assertSee('Tercapai');
+        $response->assertDontSee('Pencapaian &ge; 100%', false);
+        $response->assertDontSee('Total Indikator Kinerja');
         $response->assertDontSee('bg-emerald-50/70', false);
         $response->assertDontSee('bg-amber-50/70', false);
         $response->assertDontSee('bg-rose-50/70', false);
@@ -165,7 +170,7 @@ class UiSimplificationTest extends TestCase
             'source_row' => 11,
         ]);
 
-        $response = $this->actingAs($this->staffUser)->get(route('dashboard'));
+        $response = $this->actingAs($this->staffUser)->get(route('dashboard.kpi-detail'));
 
         $response->assertOk();
         $response->assertSee('id="target-realisasi-toolbar"', false);

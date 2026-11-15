@@ -1811,6 +1811,7 @@ class KpiReadModelFlagTest extends TestCase
         config([
             'kpi.read_model' => 'legacy',
             'kpi.visible_units' => ['TJBT'],
+            'dashboard_layouts.layouts.staff_divisi:perencanaan-pengusahaan' => ['dataset-status'],
         ]);
 
         $response = $this->actingAs($staff)->get(route('dashboard'));
@@ -1856,6 +1857,7 @@ class KpiReadModelFlagTest extends TestCase
         config([
             'kpi.read_model' => 'legacy',
             'kpi.visible_units' => ['TJBT'],
+            'dashboard_layouts.layouts.staff_divisi:perencanaan-pengusahaan' => ['dataset-status'],
         ]);
         $legacyResponse = $this->actingAs($staff)->get(route('dashboard'))->assertOk();
         $legacyData = collect($legacyResponse->viewData('widgets'))->keyBy('key')->get('dataset-status')['data'];
@@ -1863,6 +1865,7 @@ class KpiReadModelFlagTest extends TestCase
         config([
             'kpi.read_model' => 'structured',
             'kpi.visible_units' => ['TJBT'],
+            'dashboard_layouts.layouts.staff_divisi:perencanaan-pengusahaan' => ['dataset-status'],
         ]);
         $structuredResponse = $this->actingAs($staff)->get(route('dashboard'));
 
@@ -2446,6 +2449,7 @@ class KpiReadModelFlagTest extends TestCase
         config([
             'kpi.read_model' => 'legacy',
             'kpi.visible_units' => ['TJBT'],
+            'dashboard_layouts.layouts.staff_divisi:perencanaan-pengusahaan' => ['kinerja-realisasi', 'pencapaian-nko'],
         ]);
         $legacyResponse = $this->actingAs($staff)->get(route('dashboard'))->assertOk();
         $legacyWidgets = collect($legacyResponse->viewData('widgets'))->keyBy('key');
@@ -2455,6 +2459,7 @@ class KpiReadModelFlagTest extends TestCase
         config([
             'kpi.read_model' => 'structured',
             'kpi.visible_units' => ['TJBT'],
+            'dashboard_layouts.layouts.staff_divisi:perencanaan-pengusahaan' => ['kinerja-realisasi', 'pencapaian-nko'],
         ]);
         $structuredResponse = $this->actingAs($staff)->get(route('dashboard'));
 

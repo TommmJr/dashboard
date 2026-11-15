@@ -3,9 +3,8 @@
 {{-- Area chart ECharts --}}
 <div class="ibs-card h-full p-5">
     <div class="flex flex-wrap items-center justify-between gap-2">
-        <h3 class="ibs-section-title text-base font-bold text-slate-900">{{ $widget['label'] ?? 'Grafik Tren Kinerja' }}</h3>
-        {{-- Subjudul dinamis: jujur soal jumlah periode yang tersedia. --}}
-        <p class="text-xs text-slate-500" x-text="chartSubtitle()" x-cloak></p>
+        <h3 class="ibs-section-title text-base font-bold text-slate-900">{{ $widget['label'] ?? 'Tren NKO' }}</h3>
+        <span class="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-semibold text-slate-700 tabular-nums whitespace-nowrap">Target 100</span>
     </div>
 
     {{-- Skeleton shimmer loading state --}}

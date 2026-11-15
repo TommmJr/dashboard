@@ -41,7 +41,7 @@ return [
         ],
         'trend-chart' => [
             'default_cols' => 2,
-            'label' => 'Grafik Tren Kinerja',
+            'label' => 'Tren NKO',
             'view' => 'widgets.trend-chart',
             'permission' => null,
             'category' => 'Kinerja / KPI',
@@ -49,7 +49,7 @@ return [
         ],
         'nko-ranking' => [
             'default_cols' => 1,
-            'label' => 'Peringkat NKO Unit',
+            'label' => 'Peringkat NKO',
             'view' => 'widgets.nko-ranking',
             'permission' => 'dashboard.view',
             'category' => 'Kinerja / KPI',
@@ -108,7 +108,7 @@ return [
         ],
         'kpi-rag-status' => [
             'default_cols' => 1,
-            'label' => 'Status RAG Indikator',
+            'label' => 'Status Indikator',
             'view' => 'widgets.kpi-rag-status',
             'permission' => 'dashboard.view',
             'category' => 'Kinerja / KPI',
@@ -223,23 +223,22 @@ return [
         'editor_dashboard' => ['kpi-summary', 'trend-chart', 'nko-ranking'],
         // Default staf divisi yang belum punya override: hanya dataset-status.
         'staff_divisi' => ['dataset-status'],
-        // Override per-divisi: divisi Perencanaan Pengusahaan mendapat seluruh
-        // widget KPI/Kinerja yang tersedia.
+        // Override per-divisi: layar depan (L1) Perencanaan Pengusahaan dirampingkan
+        // ke 3 widget inti agar muat satu layar eksekutif tanpa duplikasi daftar
+        // 16 indikator antara L1 dan L3 (/dashboard/kpi-detail).
         //
         // REVISI 2026-10-25 (Keputusan Bisnis 5 Pak Gama): isu agregasi lintas
         // satuan C-1 resmi ditutup dengan memilih tampilan kartu per indikator
         // (`target-realisasi-per-indikator`) dan menghapus definisi widget
         // agregat lama (`target-vs-realisasi`) dari katalog.
-        // REVISI 2026-11-09 (Tahap 2): nko-ranking dan nko-donut dilepas dari
-        // layout default staff pengusahaan (tetap ada di katalog). Peran donut
-        // digantikan ubin kompak status RAG indikator daun (kpi-rag-status).
+        // REVISI 2026-11-15: dataset-status, kinerja-realisasi, pencapaian-nko,
+        // target-realisasi-per-indikator, dan kinerja-detail tetap di katalog
+        // untuk Builder & halaman L3 (/dashboard/kpi-detail), sementara default
+        // L1 berfokus pada ringkasan bisnis, tren NKO, dan status RAG.
         'staff_divisi:perencanaan-pengusahaan' => [
             'kpi-summary',
-            'trend-chart', 'kpi-rag-status',
-            'dataset-status',
-            'kinerja-realisasi', 'pencapaian-nko',
-            'target-realisasi-per-indikator',
-            'kinerja-detail',
+            'trend-chart',
+            'kpi-rag-status',
         ],
         // Demo prototipe 2026-11-11 (instruksi user, bukan sign-off mentor/PIC):
         // staf Managemen Aset melihat Status Dataset lalu Stok Aset per UPT.
