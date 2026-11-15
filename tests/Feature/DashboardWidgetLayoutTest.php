@@ -226,7 +226,7 @@ class DashboardWidgetLayoutTest extends TestCase
             ->assertDontSee('id="executive-headline"', false)
             ->assertDontSee('id="kpi-methodology-note"', false)
             ->assertSee('Rincian KPI')
-            ->assertSee('Analitik KPI')
+            ->assertDontSee('Analitik KPI')
             ->assertSee('Unggah Data')
             ->assertSee('Tren NKO')
             ->assertSee('Target 100')
@@ -1299,7 +1299,7 @@ class DashboardWidgetLayoutTest extends TestCase
             ->assertSee('Kinerja Pengusahaan')
             ->assertSee('id="dashboard-filter"', false)
             ->assertSee('Rincian KPI')
-            ->assertSee('Analitik KPI')
+            ->assertDontSee('Analitik KPI')
             ->assertDontSee('Unggah Data');
 
         $this->actingAs($editor)

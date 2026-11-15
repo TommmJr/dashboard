@@ -229,23 +229,13 @@ class UiSimplificationTest extends TestCase
         $response->assertSee("tableRag === 'perlu' ? 'border-rose-600", false);
     }
 
-    public function test_admin_dashboard_omits_marketing_filler_and_kpi_analytics_uses_outline_tabs(): void
+    public function test_admin_dashboard_omits_marketing_filler(): void
     {
         $this->actingAs($this->adminUser)
             ->get(route('dashboard'))
             ->assertOk()
             ->assertDontSee('Pusat Kendali Operasional')
             ->assertDontSee('Monitoring dataset, audit aktivitas, dan administrasi sistem.');
-
-        $analyticsResponse = $this->actingAs($this->staffUser)
-            ->get(route('dashboard.kpi-analytics'));
-
-        $analyticsResponse->assertOk()
-            ->assertDontSee('bg-gradient-to-r', false)
-            ->assertDontSee("activeTab === 'kritis' ? 'bg-rose-600", false)
-            ->assertDontSee("activeTab === 'tercapai' ? 'bg-emerald-600", false)
-            ->assertSee("activeTab === 'kritis' ? 'border-rose-600", false)
-            ->assertSee("activeTab === 'tercapai' ? 'border-emerald-600", false);
     }
 
     public function test_kpi_summary_avoids_decorative_gradients(): void

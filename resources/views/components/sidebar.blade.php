@@ -21,7 +21,6 @@
 
     $isDashboard = request()->routeIs('dashboard');
     $isKpiDetail = request()->routeIs('dashboard.kpi-detail');
-    $isKpiAnalytics = request()->routeIs('dashboard.kpi-analytics') || request()->routeIs('dashboard.kpi-matrix');
     $isAssetDetail = request()->routeIs('dashboard.asset-detail');
     $assetSection = request()->route('section') ?? request()->query('section');
     $isAssetTrafo = $isAssetDetail && (! $assetSection || $assetSection === 'trafo');
@@ -94,20 +93,6 @@
                         <path d="M9 17v-6m3 6V7m3 10v-4M5 21h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2Z" stroke-linecap="round" stroke-linejoin="round" />
                     </svg>
                     <span x-show="$store.ui.sidebarExpanded" x-transition.opacity class="sidebar-label whitespace-nowrap overflow-hidden text-ellipsis">Rincian KPI</span>
-                </a>
-            @endif
-
-            @if (!$isAdmin && \App\Http\Controllers\KpiAnalyticsController::canAccessKpiAnalytics($authUser))
-                <a href="{{ route('dashboard.kpi-analytics') }}"
-                   id="sidebar-kpi-analytics-link"
-                   @if ($isKpiAnalytics) aria-current="page" @endif
-                   class="{{ $linkBase }} {{ $isKpiAnalytics ? $linkActive : $linkInactive }}">
-                    <svg class="{{ $iconBase }} {{ $isKpiAnalytics ? $iconActive : $iconInactive }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
-                        <path d="M3 3v18h18" stroke-linecap="round" stroke-linejoin="round" />
-                        <path d="m19 9-5 5-4-4-3 3" stroke-linecap="round" stroke-linejoin="round" />
-                        <circle cx="19" cy="9" r="1.5" fill="currentColor" stroke="none" />
-                    </svg>
-                    <span x-show="$store.ui.sidebarExpanded" x-transition.opacity class="sidebar-label whitespace-nowrap overflow-hidden text-ellipsis">Analitik & Bottleneck KPI</span>
                 </a>
             @endif
         </div>

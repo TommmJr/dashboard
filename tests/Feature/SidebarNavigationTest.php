@@ -103,7 +103,7 @@ class SidebarNavigationTest extends TestCase
         $respPengusahaan->assertSee('DATA DIVISI');
         $respPengusahaan->assertDontSee('EKSPLORASI ASET');
         $respPengusahaan->assertSee('id="sidebar-kpi-detail-link"', false);
-        $respPengusahaan->assertSee('id="sidebar-kpi-analytics-link"', false);
+        $respPengusahaan->assertDontSee('id="sidebar-kpi-analytics-link"', false);
         $respPengusahaan->assertDontSee('Ringkasan NKO & tren');
         $respPengusahaan->assertDontSee('Arsip & riwayat berkas');
         $respPengusahaan->assertDontSee('Impor workbook KPI');

@@ -7,7 +7,6 @@ use App\Http\Controllers\CustomChartController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DatasetController;
 use App\Http\Controllers\DivisionController;
-use App\Http\Controllers\KpiAnalyticsController;
 use App\Http\Controllers\PerformanceChartController;
 use App\Http\Controllers\PerformanceMetricController;
 use App\Http\Controllers\ReportController;
@@ -41,10 +40,6 @@ Route::middleware('auth')->group(function () {
         ->name('dashboard.kpi-detail');
     Route::get('/dashboard/asset-detail/{section?}', [AssetDetailController::class, 'index'])
         ->name('dashboard.asset-detail');
-    Route::get('/dashboard/kpi-analytics', [KpiAnalyticsController::class, 'index'])
-        ->name('dashboard.kpi-analytics');
-    Route::get('/dashboard/kpi-matrix', [KpiAnalyticsController::class, 'index'])
-        ->name('dashboard.kpi-matrix');
     Route::middleware('can:dashboard.update')->group(function () {
         Route::get('/dashboard/builder', [DashboardController::class, 'builder'])
             ->name('dashboard.builder');

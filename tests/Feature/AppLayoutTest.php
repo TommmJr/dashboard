@@ -8,6 +8,7 @@ use App\Models\Role;
 use App\Models\User;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Route;
 use Tests\TestCase;
 
 class AppLayoutTest extends TestCase
@@ -142,12 +143,12 @@ class AppLayoutTest extends TestCase
             ->assertDontSee(route('divisions.index'), false)
             ->assertDontSee(route('audit-logs.index'), false);
 
-        // Staf Perencanaan Pengusahaan: KPI detail + analytics + datasets, no asset/admin/builder links
+        // Staf Perencanaan Pengusahaan: KPI detail + datasets, no analytics/asset/admin/builder links
         $this->actingAs($stafPengusahaan)
             ->get(route('dashboard'))
             ->assertOk()
             ->assertSee('id="sidebar-kpi-detail-link"', false)
-            ->assertSee('id="sidebar-kpi-analytics-link"', false)
+            ->assertDontSee('id="sidebar-kpi-analytics-link"', false)
             ->assertSee(route('datasets.index'), false)
             ->assertSee(route('datasets.create'), false)
             ->assertDontSee('id="sidebar-asset-detail-link"', false)
@@ -156,12 +157,12 @@ class AppLayoutTest extends TestCase
             ->assertDontSee(route('divisions.index'), false)
             ->assertDontSee(route('audit-logs.index'), false);
 
-        // Management: KPI detail + analytics + audit log + dataset view, no upload/builder/users
+        // Management: KPI detail + audit log + dataset view, no analytics/upload/builder/users
         $this->actingAs($management)
             ->get(route('dashboard'))
             ->assertOk()
             ->assertSee('id="sidebar-kpi-detail-link"', false)
-            ->assertSee('id="sidebar-kpi-analytics-link"', false)
+            ->assertDontSee('id="sidebar-kpi-analytics-link"', false)
             ->assertSee(route('audit-logs.index'), false)
             ->assertSee(route('datasets.index'), false)
             ->assertDontSee(route('datasets.create'), false)
@@ -183,6 +184,18 @@ class AppLayoutTest extends TestCase
             ->assertDontSee(route('users.index'), false)
             ->assertDontSee(route('divisions.index'), false)
             ->assertDontSee('id="sidebar-asset-detail-link"', false);
+
+        // Rute Analitik & Bottleneck KPI sudah dihapus permanen
+        $this->assertFalse(Route::has('dashboard.kpi-analytics'));
+        $this->assertFalse(Route::has('dashboard.kpi-matrix'));
+
+        $this->actingAs($stafPengusahaan)
+            ->get('/dashboard/kpi-analytics')
+            ->assertRedirect(route('dashboard'));
+
+        $this->actingAs($management)
+            ->get('/dashboard/kpi-matrix')
+            ->assertRedirect(route('dashboard'));
     }
 
     public function test_flash_notification_dirender_tepat_satu_kali_tanpa_duplikasi_lintas_halaman(): void
