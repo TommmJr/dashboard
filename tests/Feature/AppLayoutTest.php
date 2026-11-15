@@ -243,15 +243,17 @@ class AppLayoutTest extends TestCase
         $response = $this->actingAs($admin)->get(route('dashboard.builder'));
 
         $response->assertOk()
+            ->assertSee('overflow-x-clip', false)
             ->assertSee('bg-white/85', false)
             ->assertSee('backdrop-blur-md', false)
-            ->assertSee('shadow-[0_1px_3px_0_rgba(15,23,42,0.03)]', false)
-            ->assertSee('bg-slate-900 text-white shadow-xs', false)
+            ->assertSee('shadow-[0_1px_2px_0_rgba(15,23,42,0.03)]', false)
+            ->assertSee('bg-[#e6f4f6] text-[#0b6175]', false)
             ->assertSee('id="header-breadcrumb"', false)
-            ->assertSee('rounded-md bg-slate-100/80', false)
+            ->assertSee('rounded-lg border border-slate-200/75 bg-slate-50/85', false)
             ->assertSee('id="topbar-context-badge"', false)
-            ->assertSee('bg-gradient-to-b from-white to-slate-50', false)
+            ->assertSee('rounded-full border border-slate-200/85 bg-white/95', false)
             ->assertSee('relative flex h-2 w-2', false)
+            ->assertDontSee('bg-slate-900 text-white shadow-xs', false)
             ->assertDontSee('font-mono', false);
     }
 }

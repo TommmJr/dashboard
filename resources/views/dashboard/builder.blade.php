@@ -4,7 +4,7 @@
 @section('page_heading', 'Dashboard Builder')
 
 @section('content')
-<div class="-mx-5 sm:-mx-8 px-4">
+<div class="-mt-2 sm:-mt-3">
     <x-widgets.layout-editor-placeholder :widget="['label' => 'Editor Tata Letak Dashboard']" :data="$builderData" />
 </div>
 @endsection

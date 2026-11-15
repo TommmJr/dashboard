@@ -22,13 +22,13 @@
         ></div>
 
         <div
-            class="app-content flex min-h-full flex-col overflow-auto transition-all duration-200 ease-in-out"
+            class="app-content flex min-h-full flex-col overflow-x-clip transition-all duration-200 ease-in-out"
             :style="`margin-left: ${$store.ui.sidebarExpanded ? '16rem' : '4rem'}`"
         >
-            <header class="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-slate-200/80 bg-white/85 px-5 shadow-[0_1px_3px_0_rgba(15,23,42,0.03)] backdrop-blur-md sm:px-8">
+            <header class="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-slate-200/80 bg-white/85 px-5 shadow-[0_1px_2px_0_rgba(15,23,42,0.03)] backdrop-blur-md sm:px-8">
                 <div class="flex min-w-0 items-center gap-3">
                     <button type="button"
-                            class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a3b8] lg:hidden"
+                            class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 hover:text-[#0b6175] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a3b8] lg:hidden"
                             @click="$store.ui.sidebarExpanded = !$store.ui.sidebarExpanded"
                             :aria-expanded="$store.ui.sidebarExpanded"
                             aria-controls="main-sidebar"
@@ -38,7 +38,7 @@
                         </svg>
                     </button>
                     <div class="flex min-w-0 items-center gap-2.5 sm:gap-3">
-                        <span class="hidden sm:inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-900 text-white shadow-xs ring-1 ring-slate-900/10" aria-hidden="true">
+                        <span class="hidden sm:inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#e6f4f6] text-[#0b6175] ring-1 ring-[#0b6175]/15 shadow-2xs" aria-hidden="true">
                             @if (request()->routeIs('dashboard.builder'))
                                 <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                                     <rect x="3" y="3" width="7" height="7" rx="1.5" />
@@ -52,18 +52,18 @@
                                 </svg>
                             @endif
                         </span>
-                        <span class="truncate text-[15px] font-bold tracking-tight text-slate-900">
+                        <span class="truncate text-[15px] font-semibold tracking-tight text-slate-900">
                             @yield('page_heading', 'Dashboard')
                         </span>
                         @hasSection('breadcrumbs')
                             @yield('breadcrumbs')
                         @else
                             <span class="hidden sm:inline-block select-none text-slate-300" aria-hidden="true">/</span>
-                            <nav aria-label="Breadcrumb" id="header-breadcrumb" class="hidden sm:inline-flex items-center gap-1.5 rounded-md bg-slate-100/80 px-2.5 py-1 text-xs font-medium text-slate-600 ring-1 ring-slate-200/60">
-                                <a href="{{ route('dashboard') }}" class="{{ request()->routeIs('dashboard') ? 'font-semibold text-slate-900' : 'text-slate-500 transition-colors hover:text-[#0b6175]' }}" @if(request()->routeIs('dashboard')) aria-current="page" @endif>Beranda</a>
+                            <nav aria-label="Breadcrumb" id="header-breadcrumb" class="hidden sm:inline-flex items-center gap-1.5 rounded-lg border border-slate-200/75 bg-slate-50/85 px-2.5 py-1 text-xs font-medium text-slate-500">
+                                <a href="{{ route('dashboard') }}" class="{{ request()->routeIs('dashboard') ? 'font-semibold text-slate-800' : 'text-slate-500 transition-colors hover:text-[#0b6175]' }}" @if(request()->routeIs('dashboard')) aria-current="page" @endif>Beranda</a>
                                 @if (! request()->routeIs('dashboard'))
                                     <span class="text-slate-300" aria-hidden="true">/</span>
-                                    <span class="truncate font-semibold text-slate-900" aria-current="page">@yield('title')</span>
+                                    <span class="truncate font-semibold text-slate-800" aria-current="page">@yield('title')</span>
                                 @endif
                             </nav>
                         @endif
@@ -76,7 +76,7 @@
                         $contextLabel = auth()->user()->division?->name ?? auth()->user()->role?->name;
                     @endphp
                     @if ($contextLabel)
-                        <span id="topbar-context-badge" class="hidden sm:inline-flex items-center gap-2 rounded-full border border-slate-200/90 bg-gradient-to-b from-white to-slate-50 px-3.5 py-1.5 text-xs font-semibold text-slate-800 shadow-2xs ring-1 ring-slate-900/5">
+                        <span id="topbar-context-badge" class="hidden sm:inline-flex items-center gap-2 rounded-full border border-slate-200/85 bg-white/95 px-3.5 py-1.5 text-xs font-medium text-slate-700 shadow-[0_1px_2px_0_rgba(15,23,42,0.03)] ring-1 ring-slate-900/[0.03]">
                             <span class="relative flex h-2 w-2" aria-hidden="true">
                                 <span class="absolute inline-flex h-full w-full animate-ping motion-reduce:animate-none rounded-full bg-emerald-400 opacity-75"></span>
                                 <span class="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>

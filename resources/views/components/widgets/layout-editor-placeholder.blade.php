@@ -17,18 +17,18 @@
         id="dashboard-layout-builder"
         x-data="dashboardLayoutBuilder('{{ $encodedBuilderData }}')"
         @keydown.escape.window="cancelDrag()"
-        @resize.window="viewportWidth = window.innerWidth; resizePreviewCharts()"
+        @resize.window="viewportWidth = window.innerWidth; resizePreviewCharts(); $nextTick(() => syncStickyTop())"
         class="w-full"
     >
         {{-- Floating Drag Proxy (mengikuti pointer saat Pointer Events drag berlangsung) --}}
         <div
             x-show="pointerDrag.active && pointerDrag.item"
             x-cloak
-            class="pointer-events-none fixed z-50 rounded-xl border-2 border-indigo-500 bg-white/95 px-3.5 py-2.5 shadow-xl select-none"
+            class="pointer-events-none fixed z-50 rounded-xl border-2 border-[#16a3b8] bg-white/95 px-3.5 py-2.5 shadow-xl select-none"
             :style="`left: ${pointerDrag.x}px; top: ${pointerDrag.y}px; width: ${pointerDrag.width}px; transform: translate3d(-50%, -50%, 0) scale(1.02); opacity: 0.95;`"
         >
             <div class="flex items-center gap-2">
-                <span class="inline-flex h-5 w-5 items-center justify-center rounded-md bg-indigo-50 text-indigo-600 ring-1 ring-indigo-500/20">
+                <span class="inline-flex h-5 w-5 items-center justify-center rounded-md bg-[#e6f4f6] text-[#0b6175] ring-1 ring-[#0b6175]/15">
                     <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                         <circle cx="9" cy="6" r="1.5" />
                         <circle cx="15" cy="6" r="1.5" />
@@ -38,8 +38,8 @@
                         <circle cx="15" cy="18" r="1.5" />
                     </svg>
                 </span>
-                <span class="truncate text-xs font-bold text-slate-900" x-text="pointerDrag.item ? (pointerDrag.item.key === 'custom-chart' ? (pointerDrag.item.config?.title || widgetLabel(pointerDrag.item.key)) : widgetLabel(pointerDrag.item.key)) : ''"></span>
-                <span class="ml-auto shrink-0 rounded-md bg-indigo-50 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-700 tabular-nums" x-text="`${pointerDrag.item?.cols || 3} Kol`"></span>
+                <span class="truncate text-xs font-semibold text-slate-900" x-text="pointerDrag.item ? (pointerDrag.item.key === 'custom-chart' ? (pointerDrag.item.config?.title || widgetLabel(pointerDrag.item.key)) : widgetLabel(pointerDrag.item.key)) : ''"></span>
+                <span class="ml-auto shrink-0 rounded-md bg-[#e6f4f6] px-1.5 py-0.5 text-[10px] font-semibold text-[#0b6175] tabular-nums" x-text="`${pointerDrag.item?.cols || 3} Kol`"></span>
             </div>
         </div>
 
@@ -99,13 +99,13 @@
             </ul>
         </div>
 
-        {{-- Unified Obsidian Studio Command Bar --}}
+        {{-- Quiet Luxury Editorial Studio Command Bar --}}
         <div
             id="builder-top-bar"
-            class="sticky top-20 z-20 mb-5 flex flex-col gap-3 rounded-2xl border border-slate-800 bg-slate-900 px-4 py-3 text-white shadow-lg ring-1 ring-white/10 lg:flex-row lg:items-center lg:justify-between"
+            class="lg:sticky lg:top-20 z-20 mb-5 flex flex-col gap-2 rounded-2xl border border-slate-200/85 bg-white/95 px-3 py-2 text-slate-800 shadow-[0_2px_10px_-3px_rgba(15,23,42,0.06),0_1px_2px_0_rgba(15,23,42,0.03)] ring-1 ring-slate-900/[0.02] backdrop-blur-md xl:flex-row xl:items-center xl:justify-between xl:gap-3"
         >
             {{-- Left Side: Visual Target Role Switcher Pills + Preserved Accessible Select --}}
-            <div class="flex flex-wrap items-center gap-2.5">
+            <div class="flex flex-wrap items-center gap-2 xl:shrink-0">
                 <label for="layout-editor-target" class="sr-only">Target Layout:</label>
                 <select
                     id="layout-editor-target"
@@ -121,7 +121,7 @@
                 </select>
 
                 <div
-                    class="inline-flex flex-wrap items-center gap-1 rounded-xl bg-slate-800/90 p-1 ring-1 ring-white/10"
+                    class="inline-flex flex-wrap items-center gap-1 rounded-xl border border-slate-200/80 bg-slate-100/85 p-1 xl:flex-nowrap"
                     role="tablist"
                     aria-label="Pilih target tata letak peran"
                 >
@@ -133,9 +133,9 @@
                             @click="selectedTargetKey = target.key; onTargetChange()"
                             :disabled="saving"
                             :class="selectedTargetKey === (target.key || target.layout_key)
-                                ? 'bg-indigo-600 text-white font-semibold shadow-sm ring-1 ring-indigo-400/30'
-                                : 'text-slate-300 hover:bg-slate-700/60 hover:text-white font-medium'"
-                            class="inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-xs transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/60 disabled:cursor-not-allowed disabled:opacity-60"
+                                ? 'bg-white text-[#0b6175] font-semibold shadow-[0_1px_2px_rgba(15,23,42,0.07)] ring-1 ring-[#0b6175]/15'
+                                : 'text-slate-600 hover:bg-white/60 hover:text-slate-900 font-medium'"
+                            class="inline-flex h-7 items-center gap-1.5 whitespace-nowrap rounded-lg px-2 text-[11px] 2xl:px-2.5 2xl:text-xs transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a3b8]/50 disabled:cursor-not-allowed disabled:opacity-60"
                         >
                             <span x-text="target.label"></span>
                         </button>
@@ -144,29 +144,29 @@
             </div>
 
             {{-- Right Side: Studio Status Badges & Actions --}}
-            <div class="flex flex-wrap items-center gap-2 lg:justify-end">
+            <div class="flex flex-wrap items-center gap-1.5 xl:justify-end">
                 <span
-                    class="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1 text-xs font-semibold text-slate-200"
+                    class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-slate-200/80 bg-slate-50/90 px-2 py-1 text-[11px] 2xl:px-2.5 2xl:text-xs font-medium text-slate-700"
                 >
                     <span
                         class="h-1.5 w-1.5 rounded-full"
-                        :class="isCustomized() ? 'bg-indigo-400' : 'bg-emerald-500'"
+                        :class="isCustomized() ? 'bg-[#16a3b8]' : 'bg-emerald-500'"
                         aria-hidden="true"
                     ></span>
                     <span x-text="isCustomized() ? 'Kustom' : 'Bawaan'">Bawaan</span>
                 </span>
 
                 <span
-                    class="inline-flex items-center rounded-lg border border-indigo-400/30 bg-indigo-500/20 px-2.5 py-1 text-xs font-semibold text-indigo-200 tabular-nums"
+                    class="inline-flex items-center whitespace-nowrap rounded-lg border border-[#0b6175]/15 bg-[#e6f4f6]/75 px-2 py-1 text-[11px] 2xl:px-2.5 2xl:text-xs font-semibold text-[#0b6175] tabular-nums"
                     x-text="`${activeWidgets.length} Widget`"
                 ></span>
 
                 <span
                     x-show="isDirty()"
                     x-cloak
-                    class="inline-flex items-center gap-1.5 rounded-lg border border-amber-400/40 bg-amber-500/20 px-2.5 py-1 text-xs font-semibold text-amber-300"
+                    class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-amber-200/90 bg-amber-50/90 px-2 py-1 text-[11px] 2xl:px-2.5 2xl:text-xs font-semibold text-amber-800"
                 >
-                    <span class="h-1.5 w-1.5 rounded-full bg-amber-400" aria-hidden="true"></span>
+                    <span class="h-1.5 w-1.5 rounded-full bg-amber-500" aria-hidden="true"></span>
                     <span>Belum disimpan</span>
                 </span>
 
@@ -175,16 +175,16 @@
                     @click="resetLayout()"
                     :disabled="saving"
                     title="Reset ke Default"
-                    class="inline-flex h-8 items-center justify-center rounded-xl border border-slate-700 bg-slate-800/80 px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:bg-slate-700 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/60 disabled:cursor-not-allowed disabled:opacity-50"
+                    class="inline-flex h-8 items-center justify-center whitespace-nowrap rounded-xl border border-slate-200/90 bg-white px-2.5 py-1.5 text-[11px] 2xl:text-xs font-medium text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a3b8]/40 disabled:cursor-not-allowed disabled:opacity-45"
                 >
                     Reset ke Bawaan
                 </button>
 
                 <a
                     href="{{ route('dashboard') }}"
-                    class="inline-flex h-8 items-center justify-center gap-1.5 rounded-xl border border-slate-700 bg-slate-800/80 px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:bg-slate-700 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/60"
+                    class="inline-flex h-8 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border border-slate-200/90 bg-white px-2.5 py-1.5 text-[11px] 2xl:text-xs font-medium text-slate-700 transition hover:border-[#0b6175]/30 hover:bg-[#e6f4f6]/50 hover:text-[#0b6175] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a3b8]/40"
                 >
-                    <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                    <svg class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                     </svg>
                     <span>Buka Dashboard</span>
@@ -195,10 +195,10 @@
                     @click="saveLayout()"
                     :disabled="saving || activeWidgets.length === 0"
                     title="Simpan Tata Letak"
-                    :class="isDirty() ? 'ring-2 ring-indigo-300/70 font-bold' : 'font-semibold'"
-                    class="inline-flex h-8 items-center justify-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-1.5 text-xs text-white shadow-sm ring-1 ring-indigo-400/40 transition hover:bg-indigo-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 disabled:cursor-not-allowed disabled:opacity-50"
+                    :class="isDirty() ? 'ring-2 ring-[#16a3b8]/40 font-semibold' : 'font-medium'"
+                    class="inline-flex h-8 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl bg-[#0b6175] px-2.5 2xl:px-3 py-1.5 text-[11px] 2xl:text-xs text-white shadow-[0_1px_2px_rgba(11,97,117,0.25)] transition hover:bg-[#094e5e] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a3b8]/60 disabled:cursor-not-allowed disabled:opacity-45"
                 >
-                    <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                    <svg class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
                     </svg>
                     <span>Simpan Tata Letak</span>
@@ -210,13 +210,13 @@
         {{-- Side-by-Side Studio Workspace --}}
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
             {{-- Left Panel: Pinned Component Library Dock --}}
-            <aside id="builder-config-pane" class="lg:col-span-4 xl:col-span-3 lg:sticky lg:top-40">
-                <div class="ibs-card flex flex-col overflow-hidden border-slate-300/80 bg-white shadow-sm">
+            <aside id="builder-config-pane" :style="desktopStickyStyle()" class="lg:col-span-4 xl:col-span-3 lg:sticky lg:top-44 xl:top-40">
+                <div class="ibs-card flex flex-col overflow-hidden border-slate-200/85 bg-white shadow-[0_1px_3px_0_rgba(15,23,42,0.04)] lg:max-h-[var(--builder-pane-max-h,calc(100vh-11.5rem))]">
                     {{-- Dock Header --}}
-                    <div class="space-y-3 border-b border-slate-200/80 bg-slate-900/[0.03] px-4 py-3.5">
+                    <div class="shrink-0 space-y-2.5 border-b border-slate-200/80 bg-slate-50/75 px-3.5 py-3">
                         <div class="flex items-center justify-between gap-2">
                             <div class="flex items-center gap-2">
-                                <span class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-900 text-white shadow-2xs">
+                                <span class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#e6f4f6] text-[#0b6175] ring-1 ring-[#0b6175]/15">
                                     <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                                     </svg>
@@ -225,7 +225,7 @@
                                 <span class="sr-only">Komponen</span>
                             </div>
                             <span
-                                class="inline-flex items-center rounded-md bg-indigo-50 px-2 py-0.5 text-xs font-bold text-indigo-700 ring-1 ring-indigo-500/20 tabular-nums"
+                                class="inline-flex items-center rounded-md border border-[#0b6175]/15 bg-[#e6f4f6]/80 px-2 py-0.5 text-[11px] font-semibold text-[#0b6175] tabular-nums"
                                 x-text="filteredCatalog().length"
                             >{{ count($catalog) }}</span>
                         </div>
@@ -237,97 +237,105 @@
                             <input
                                 type="search"
                                 x-model="catalogSearch"
+                                @input="$refs.catalogList && ($refs.catalogList.scrollTop = 0)"
                                 placeholder="Cari komponen..."
                                 aria-label="Cari komponen"
-                                class="h-8 w-full rounded-lg border border-slate-300/80 bg-white pl-8 pr-3 text-xs text-slate-800 placeholder:text-slate-400 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                                class="h-8 w-full rounded-lg border border-slate-200/90 bg-white pl-8 pr-3 text-xs text-slate-800 placeholder:text-slate-400 outline-none transition focus:border-[#16a3b8] focus:ring-2 focus:ring-[#16a3b8]/15"
                             />
                         </div>
 
-                        <div class="grid grid-cols-4 gap-1 rounded-lg border border-slate-200/90 bg-slate-100 p-0.5 text-[11px] font-semibold">
+                        <div class="grid grid-cols-4 gap-1 rounded-lg border border-slate-200/80 bg-slate-100/85 p-0.5 text-[11px] font-medium">
                             <button
                                 type="button"
-                                @click="catalogFilterCategory = 'all'"
-                                :class="catalogFilterCategory === 'all' ? 'bg-slate-900 text-white font-semibold shadow-2xs' : 'text-slate-600 hover:bg-slate-200/70 hover:text-slate-900'"
+                                @click="catalogFilterCategory = 'all'; $refs.catalogList && ($refs.catalogList.scrollTop = 0)"
+                                :class="catalogFilterCategory === 'all' ? 'bg-white text-[#0b6175] font-semibold shadow-2xs ring-1 ring-[#0b6175]/15' : 'text-slate-600 hover:bg-white/60 hover:text-slate-900'"
                                 class="rounded-md px-1.5 py-1 text-center transition"
                             >Semua</button>
                             <button
                                 type="button"
-                                @click="catalogFilterCategory = 'Kinerja / KPI'"
-                                :class="catalogFilterCategory === 'Kinerja / KPI' ? 'bg-slate-900 text-white font-semibold shadow-2xs' : 'text-slate-600 hover:bg-slate-200/70 hover:text-slate-900'"
+                                @click="catalogFilterCategory = 'Kinerja / KPI'; $refs.catalogList && ($refs.catalogList.scrollTop = 0)"
+                                :class="catalogFilterCategory === 'Kinerja / KPI' ? 'bg-white text-[#0b6175] font-semibold shadow-2xs ring-1 ring-[#0b6175]/15' : 'text-slate-600 hover:bg-white/60 hover:text-slate-900'"
                                 class="rounded-md px-1.5 py-1 text-center transition"
                             >KPI</button>
                             <button
                                 type="button"
-                                @click="catalogFilterCategory = 'Manajemen Aset'"
-                                :class="catalogFilterCategory === 'Manajemen Aset' ? 'bg-slate-900 text-white font-semibold shadow-2xs' : 'text-slate-600 hover:bg-slate-200/70 hover:text-slate-900'"
+                                @click="catalogFilterCategory = 'Manajemen Aset'; $refs.catalogList && ($refs.catalogList.scrollTop = 0)"
+                                :class="catalogFilterCategory === 'Manajemen Aset' ? 'bg-white text-[#0b6175] font-semibold shadow-2xs ring-1 ring-[#0b6175]/15' : 'text-slate-600 hover:bg-white/60 hover:text-slate-900'"
                                 class="rounded-md px-1.5 py-1 text-center transition"
                             >Aset</button>
                             <button
                                 type="button"
-                                @click="catalogFilterCategory = 'Operasional & Admin'"
-                                :class="catalogFilterCategory === 'Operasional & Admin' ? 'bg-slate-900 text-white font-semibold shadow-2xs' : 'text-slate-600 hover:bg-slate-200/70 hover:text-slate-900'"
+                                @click="catalogFilterCategory = 'Operasional & Admin'; $refs.catalogList && ($refs.catalogList.scrollTop = 0)"
+                                :class="catalogFilterCategory === 'Operasional & Admin' ? 'bg-white text-[#0b6175] font-semibold shadow-2xs ring-1 ring-[#0b6175]/15' : 'text-slate-600 hover:bg-white/60 hover:text-slate-900'"
                                 class="rounded-md px-1.5 py-1 text-center transition"
                             >Admin</button>
                         </div>
                     </div>
 
-                    {{-- Compact Studio Row List --}}
-                    <div class="max-h-[calc(100vh-18rem)] overflow-y-auto divide-y divide-slate-200/70 px-3 py-2" aria-label="Palet komponen">
-                        <template x-for="item in filteredCatalog()" :key="item.key">
-                            <div
-                                draggable="true"
-                                @dragstart="startPaletteDrag($event, item.key)"
-                                @dragend="endPaletteDrag()"
-                                class="flex items-center justify-between gap-2.5 rounded-xl p-2.5 transition hover:bg-slate-50/90 cursor-grab active:cursor-grabbing"
-                                :class="(item.key !== 'custom-chart' && hasWidget(item.key)) ? 'bg-slate-50/70' : ''"
-                            >
+                    {{-- Compact Studio Row List (Anti-Clipping Container) --}}
+                    <div
+                        x-ref="catalogList"
+                        class="min-h-0 flex-1 max-h-[26rem] lg:max-h-none overflow-y-auto overscroll-contain px-3 pt-3 pb-4 scroll-pt-3"
+                        aria-label="Palet komponen"
+                    >
+                        <div class="flex flex-col gap-1.5">
+                            <template x-for="item in filteredCatalog()" :key="item.key">
                                 <div
-                                    class="palette-thumb h-9 w-9 shrink-0 rounded-lg flex items-center justify-center transition-colors"
-                                    :class="paletteThumbClass(item.key)"
+                                    draggable="true"
+                                    @dragstart="startPaletteDrag($event, item.key)"
+                                    @dragend="endPaletteDrag()"
+                                    :title="item.label"
+                                    class="group flex items-center justify-between gap-2 rounded-xl border border-slate-200/75 bg-white px-2.5 py-2 transition duration-150 hover:border-[#16a3b8]/45 hover:bg-[#f4f8fa]/75 hover:shadow-2xs cursor-grab active:cursor-grabbing"
+                                    :class="(item.key !== 'custom-chart' && hasWidget(item.key)) ? 'bg-slate-50/80 border-slate-200/70' : ''"
                                 >
-                                    @include('components.widgets.partials.widget-sketch', ['keyExpr' => 'item.key', 'sizeClass' => 'h-6 w-6'])
-                                </div>
-
-                                <div class="min-w-0 flex-1">
-                                    <p class="text-xs font-semibold text-slate-900 truncate" x-text="item.label"></p>
-                                    <div class="mt-0.5 flex items-center gap-1.5 text-[10px]">
-                                        <span class="palette-type-label truncate font-medium text-slate-600" x-text="paletteVisual(item.key).label"></span>
-                                        <span class="text-slate-300" aria-hidden="true">&bull;</span>
-                                        <span class="shrink-0 font-semibold text-slate-600 tabular-nums" x-text="`${item.default_cols || 3} Kol`"></span>
-                                    </div>
-                                </div>
-
-                                <template x-if="item.key !== 'custom-chart' && hasWidget(item.key)">
-                                    <span class="inline-flex shrink-0 items-center rounded-lg bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-500/20">
-                                        Aktif
-                                    </span>
-                                </template>
-                                <template x-if="item.key === 'custom-chart' || !hasWidget(item.key)">
-                                    <button
-                                        type="button"
-                                        @click="addWidget(item.key)"
-                                        :disabled="saving"
-                                        class="inline-flex shrink-0 items-center rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-800 shadow-2xs transition hover:border-indigo-600 hover:bg-indigo-600 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40 disabled:cursor-not-allowed disabled:opacity-50"
+                                    <div
+                                        class="palette-thumb h-8 w-8 shrink-0 rounded-lg flex items-center justify-center transition-colors"
+                                        :class="paletteThumbClass(item.key)"
                                     >
-                                        + Tambah
-                                    </button>
-                                </template>
-                            </div>
-                        </template>
+                                        @include('components.widgets.partials.widget-sketch', ['keyExpr' => 'item.key', 'sizeClass' => 'h-5 w-5'])
+                                    </div>
 
-                        <div
-                            x-show="filteredCatalog().length === 0"
-                            x-cloak
-                            class="flex flex-col items-center justify-center py-8 px-3 text-center"
-                        >
-                            <p class="text-xs font-semibold text-slate-700">Komponen tidak ditemukan</p>
-                            <button
-                                type="button"
-                                @click="catalogSearch = ''; catalogFilterCategory = 'all'"
-                                class="mt-2 rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-800 transition hover:border-indigo-500 hover:bg-indigo-50 hover:text-indigo-700"
+                                    <div class="min-w-0 flex-1">
+                                        <p class="text-xs font-semibold leading-snug text-slate-800 truncate" x-text="item.label"></p>
+                                        <div class="mt-0.5 flex items-center gap-1.5 text-[10px] leading-tight">
+                                            <span class="palette-type-label truncate font-medium text-slate-500" x-text="paletteVisual(item.key).label"></span>
+                                            <span class="text-slate-300" aria-hidden="true">&bull;</span>
+                                            <span class="shrink-0 font-semibold text-slate-600 tabular-nums" x-text="`${item.default_cols || 3} Kol`"></span>
+                                        </div>
+                                    </div>
+
+                                    <template x-if="item.key !== 'custom-chart' && hasWidget(item.key)">
+                                        <span class="inline-flex shrink-0 items-center rounded-lg border border-emerald-200/80 bg-emerald-50/80 px-2 py-1 text-[11px] font-medium text-emerald-700">
+                                            Aktif
+                                        </span>
+                                    </template>
+                                    <template x-if="item.key === 'custom-chart' || !hasWidget(item.key)">
+                                        <button
+                                            type="button"
+                                            @click="addWidget(item.key)"
+                                            :disabled="saving"
+                                            class="inline-flex shrink-0 items-center rounded-lg border border-slate-200/90 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 shadow-2xs transition hover:border-[#0b6175] hover:bg-[#0b6175] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a3b8]/40 disabled:cursor-not-allowed disabled:opacity-45"
+                                        >
+                                            + Tambah
+                                        </button>
+                                    </template>
+                                </div>
+                            </template>
+
+                            <div
+                                x-show="filteredCatalog().length === 0"
+                                x-cloak
+                                class="flex flex-col items-center justify-center py-8 px-3 text-center"
                             >
-                                Reset Filter
-                            </button>
+                                <p class="text-xs font-semibold text-slate-700">Komponen tidak ditemukan</p>
+                                <button
+                                    type="button"
+                                    @click="catalogSearch = ''; catalogFilterCategory = 'all'; $refs.catalogList && ($refs.catalogList.scrollTop = 0)"
+                                    class="mt-2 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 transition hover:border-[#0b6175] hover:bg-[#e6f4f6] hover:text-[#0b6175]"
+                                >
+                                    Reset Filter
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -335,19 +343,19 @@
 
             {{-- Right Panel: Architectural Dot-Grid Canvas --}}
             <section id="builder-preview-pane" class="lg:col-span-8 xl:col-span-9">
-                <div class="ibs-card overflow-hidden border-slate-300/80 bg-white shadow-sm">
+                <div class="ibs-card overflow-hidden border-slate-200/85 bg-white shadow-[0_1px_3px_0_rgba(15,23,42,0.04)]">
                     {{-- Clean 1-row Canvas Header --}}
-                    <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/80 bg-slate-900/[0.02] px-4 py-3">
+                    <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/80 bg-slate-50/75 px-4 py-3">
                         <div class="flex flex-wrap items-center gap-2">
-                            <span class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 ring-1 ring-indigo-500/15">
+                            <span class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#e6f4f6] text-[#0b6175] ring-1 ring-[#0b6175]/15">
                                 <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
                                 </svg>
                             </span>
                             <h4 class="ibs-section-title text-slate-900">Pratinjau Tata Letak</h4>
-                            <span class="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-600">Kanvas Grid 3 Kolom</span>
+                            <span class="rounded-md border border-slate-200/80 bg-white px-2 py-0.5 text-[11px] font-medium text-slate-600">Kanvas Grid 3 Kolom</span>
                             <span
-                                class="rounded-md bg-indigo-50 px-2 py-0.5 text-[11px] font-bold text-indigo-700 ring-1 ring-indigo-500/20 tabular-nums"
+                                class="rounded-md border border-[#0b6175]/15 bg-[#e6f4f6]/80 px-2 py-0.5 text-[11px] font-semibold text-[#0b6175] tabular-nums"
                                 x-text="`${activeWidgets.reduce((acc, w) => acc + (parseInt(w.cols, 10) || 3), 0)} Kolom Terpakai`"
                             ></span>
                         </div>
@@ -356,15 +364,15 @@
                         </p>
                     </div>
 
-                    {{-- Dot-Grid Canvas Viewport --}}
+                    {{-- Quiet Architectural Dot-Grid Canvas Viewport --}}
                     <div
                         id="preview-canvas-viewport"
                         @dragover="autoScrollPreview($event)"
                         @dragleave="onViewportDragLeave($event)"
                         @drop.prevent="isDragOverCanvas = false; onCanvasDrop($event)"
-                        :class="isDragOverCanvas ? 'ring-2 ring-inset ring-indigo-500 bg-indigo-100/60' : ''"
-                        class="border-t border-slate-300/80 bg-slate-200/75 p-4 sm:p-5 min-h-[540px] shadow-inner transition"
-                        style="background-image: radial-gradient(#94a3b8 1.25px, transparent 1.25px); background-size: 18px 18px;"
+                        :class="isDragOverCanvas ? 'ring-2 ring-inset ring-[#16a3b8]/60 bg-[#e6f4f6]/40' : ''"
+                        class="border-t border-slate-200/80 bg-[#f7fafb] p-4 sm:p-5 min-h-[540px] transition"
+                        style="background-image: radial-gradient(#cbd5e1 0.85px, transparent 0.85px); background-size: 20px 20px;"
                     >
                         <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 items-stretch">
                             <template x-for="(w, index) in activeWidgets" :key="w._uid || index">
@@ -374,25 +382,25 @@
                                     @drop.prevent.stop="onCardDrop($event, index)"
                                     :class="[
                                         previewSpanClass(w.cols),
-                                        canvasDragIndex === index ? 'opacity-40 border-dashed border-indigo-500' : 'border-slate-300/90',
-                                        (dropTargetIndex === index && (canvasDragIndex !== index || paletteDragKey)) ? 'ring-2 ring-indigo-500 ring-offset-1' : ''
+                                        canvasDragIndex === index ? 'opacity-40 border-dashed border-[#16a3b8]' : 'border-slate-200/90',
+                                        (dropTargetIndex === index && (canvasDragIndex !== index || paletteDragKey)) ? 'ring-2 ring-[#16a3b8] ring-offset-1' : ''
                                     ]"
-                                    class="preview-card-item group relative flex min-w-0 flex-col justify-between rounded-2xl border bg-white shadow-md transition hover:border-indigo-400 hover:shadow-lg"
+                                    class="preview-card-item group relative flex min-w-0 flex-col justify-between rounded-2xl border bg-white shadow-[0_1px_3px_0_rgba(15,23,42,0.05),0_1px_2px_-1px_rgba(15,23,42,0.03)] transition duration-150 hover:border-[#16a3b8]/50 hover:shadow-[0_6px_16px_-4px_rgba(11,97,117,0.10),0_2px_6px_-2px_rgba(15,23,42,0.04)]"
                                 >
                                     {{-- Indikator garis posisi drop (sebelum / sesudah) --}}
                                     <div
                                         x-show="dropTargetIndex === index && (canvasDragIndex !== index || paletteDragKey)"
                                         x-cloak
                                         :class="dropPlacement === 'before' ? '-top-2 left-1 right-1 h-1.5' : '-bottom-2 left-1 right-1 h-1.5'"
-                                        class="pointer-events-none absolute z-30 rounded-full bg-indigo-600 shadow"
+                                        class="pointer-events-none absolute z-30 rounded-full bg-[#0b6175] shadow"
                                     ></div>
 
                                     {{-- Card Header with Direct 1-Click Controls --}}
-                                    <div class="canvas-card-toolbar relative flex flex-wrap items-center justify-between gap-2 rounded-t-2xl border-b border-slate-200/80 bg-slate-50/90 px-3.5 py-2.5" :class="(canvasDragIndex !== null || paletteDragKey) ? 'pointer-events-none' : ''">
+                                    <div class="canvas-card-toolbar relative flex flex-wrap items-center justify-between gap-2 rounded-t-2xl border-b border-slate-200/75 bg-slate-50/60 px-3.5 py-2.5" :class="(canvasDragIndex !== null || paletteDragKey) ? 'pointer-events-none' : ''">
                                         <div class="flex min-w-0 flex-1 items-center gap-1.5 pointer-events-auto">
                                             <span
                                                 @pointerdown="onCardPointerDown($event, index)"
-                                                class="canvas-drag-handle inline-flex h-7 w-7 shrink-0 cursor-grab items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-200/70 hover:text-slate-700 active:cursor-grabbing select-none touch-none"
+                                                class="canvas-drag-handle inline-flex h-7 w-7 shrink-0 cursor-grab items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-200/60 hover:text-[#0b6175] active:cursor-grabbing select-none touch-none"
                                                 title="Tarik untuk memindahkan urutan widget"
                                             >
                                                 <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -405,19 +413,19 @@
                                                 </svg>
                                             </span>
                                             <span
-                                                class="bg-slate-900 text-white text-[11px] font-bold px-2 py-0.5 rounded-md tabular-nums select-none shrink-0"
+                                                class="inline-flex items-center justify-center rounded-md border border-[#0b6175]/15 bg-[#e6f4f6] px-2 py-0.5 text-[11px] font-semibold text-[#0b6175] tabular-nums select-none shrink-0"
                                                 x-text="`#${index + 1}`"
                                                 title="Posisi widget"
                                             ></span>
                                             <p
-                                                class="text-xs sm:text-[13px] font-bold text-slate-900 truncate select-none"
+                                                class="text-xs sm:text-[13px] font-semibold text-slate-900 truncate select-none"
                                                 x-text="w.key === 'custom-chart' ? (w.config?.title || widgetLabel(w.key)) : widgetLabel(w.key)"
                                             ></p>
                                         </div>
 
                                         <div class="flex shrink-0 items-center gap-1 pointer-events-auto">
                                             <span class="sr-only">Lebar Kolom</span>
-                                            <div class="inline-flex rounded-lg border border-slate-300/80 bg-slate-100 p-0.5 tabular-nums" role="group" aria-label="Atur Lebar Kolom">
+                                            <div class="inline-flex rounded-lg border border-slate-200/85 bg-slate-100/80 p-0.5 tabular-nums" role="group" aria-label="Atur Lebar Kolom">
                                                 <button
                                                     type="button"
                                                     draggable="false"
@@ -425,7 +433,7 @@
                                                     @pointerdown.stop
                                                     @click="setWidgetCols(index, 1)"
                                                     :disabled="saving"
-                                                    :class="parseInt(w.cols, 10) === 1 ? 'bg-indigo-600 text-white font-semibold shadow-xs' : 'text-slate-600 hover:bg-slate-200/70 hover:text-slate-900'"
+                                                    :class="parseInt(w.cols, 10) === 1 ? 'bg-white text-[#0b6175] font-semibold shadow-2xs ring-1 ring-[#0b6175]/20' : 'text-slate-500 hover:bg-white/60 hover:text-slate-900 font-medium'"
                                                     class="rounded-md px-2 py-0.5 text-[11px] transition disabled:cursor-not-allowed"
                                                     aria-label="Lebar 1 kolom"
                                                 >1 Kol</button>
@@ -436,7 +444,7 @@
                                                     @pointerdown.stop
                                                     @click="setWidgetCols(index, 2)"
                                                     :disabled="saving"
-                                                    :class="parseInt(w.cols, 10) === 2 ? 'bg-indigo-600 text-white font-semibold shadow-xs' : 'text-slate-600 hover:bg-slate-200/70 hover:text-slate-900'"
+                                                    :class="parseInt(w.cols, 10) === 2 ? 'bg-white text-[#0b6175] font-semibold shadow-2xs ring-1 ring-[#0b6175]/20' : 'text-slate-500 hover:bg-white/60 hover:text-slate-900 font-medium'"
                                                     class="rounded-md px-2 py-0.5 text-[11px] transition disabled:cursor-not-allowed"
                                                     aria-label="Lebar 2 kolom"
                                                 >2 Kol</button>
@@ -447,7 +455,7 @@
                                                     @pointerdown.stop
                                                     @click="setWidgetCols(index, 3)"
                                                     :disabled="saving"
-                                                    :class="parseInt(w.cols, 10) === 3 ? 'bg-indigo-600 text-white font-semibold shadow-xs' : 'text-slate-600 hover:bg-slate-200/70 hover:text-slate-900'"
+                                                    :class="parseInt(w.cols, 10) === 3 ? 'bg-white text-[#0b6175] font-semibold shadow-2xs ring-1 ring-[#0b6175]/20' : 'text-slate-500 hover:bg-white/60 hover:text-slate-900 font-medium'"
                                                     class="rounded-md px-2 py-0.5 text-[11px] transition disabled:cursor-not-allowed"
                                                     aria-label="Lebar 3 kolom"
                                                 >3 Kol</button>
@@ -494,7 +502,7 @@
                                                     @click="toggleConfigPanel(index)"
                                                     :title="w._openConfig ? 'Tutup Pengaturan' : 'Atur Grafik'"
                                                     :aria-label="`Atur grafik ${widgetLabel(w.key)}`"
-                                                    :class="w._openConfig ? 'bg-indigo-100 text-indigo-700' : 'text-slate-500 hover:bg-slate-200/70 hover:text-indigo-700'"
+                                                    :class="w._openConfig ? 'bg-[#e6f4f6] text-[#0b6175] ring-1 ring-[#0b6175]/15' : 'text-slate-500 hover:bg-slate-200/60 hover:text-[#0b6175]'"
                                                     class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition"
                                                 >
                                                     <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
@@ -533,7 +541,7 @@
                                                         type="text"
                                                         x-model="w.config.title"
                                                         maxlength="60"
-                                                        class="w-full rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs text-slate-800 outline-none focus:border-indigo-500"
+                                                        class="w-full rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs text-slate-800 outline-none focus:border-[#16a3b8]"
                                                         placeholder="Contoh: Distribusi Skor NKO"
                                                     />
                                                 </div>
@@ -542,7 +550,7 @@
                                                         <label class="mb-1 block font-semibold text-slate-700">Tipe Grafik</label>
                                                         <select
                                                             x-model="w.config.chart_type"
-                                                            class="w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-800 outline-none focus:border-indigo-500"
+                                                            class="w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-800 outline-none focus:border-[#16a3b8]"
                                                         >
                                                             <option value="bar">Batang</option>
                                                             <option value="line">Garis</option>
@@ -553,7 +561,7 @@
                                                         <label class="mb-1 block font-semibold text-slate-700">Metrik</label>
                                                         <select
                                                             x-model="w.config.metric"
-                                                            class="w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-800 outline-none focus:border-indigo-500"
+                                                            class="w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-800 outline-none focus:border-[#16a3b8]"
                                                         >
                                                             <option value="nko_score">Skor NKO</option>
                                                             <option value="pencapaian_ratio">Persentase Pencapaian</option>
@@ -583,39 +591,39 @@
                                         </template>
 
                                         {{-- High-Fidelity Representative Visual Mini-Mockups --}}
-                                        <div class="preview-sketch flex flex-1 flex-col justify-between rounded-xl border border-slate-200/80 bg-slate-50/80 p-3" data-mini-mockup="true">
+                                        <div class="preview-sketch flex flex-1 flex-col justify-between rounded-xl border border-slate-200/75 bg-slate-50/70 p-3" data-mini-mockup="true">
                                             {{-- 1. nko-ranking --}}
                                             <template x-if="w.key === 'nko-ranking'">
                                                 <div class="space-y-1.5">
                                                     <div class="flex items-center justify-between text-[11px] font-semibold text-slate-800">
                                                         <span class="flex items-center gap-1.5 truncate">
-                                                            <span class="h-2 w-2 rounded-full bg-indigo-600 shrink-0"></span>
+                                                            <span class="h-2 w-2 rounded-full bg-[#0b6175] shrink-0"></span>
                                                             1. TJBT (Jawa Bagian Tengah)
                                                         </span>
-                                                        <span class="rounded bg-indigo-50 px-1.5 py-0.5 font-bold text-indigo-700 ring-1 ring-indigo-500/20 tabular-nums shrink-0">105.5</span>
+                                                        <span class="rounded bg-[#e6f4f6] px-1.5 py-0.5 font-bold text-[#0b6175] ring-1 ring-[#0b6175]/15 tabular-nums shrink-0">105.5</span>
                                                     </div>
-                                                    <div class="h-2 w-full overflow-hidden rounded-full bg-slate-200">
-                                                        <div class="h-full rounded-full bg-indigo-600" style="width: 100%;"></div>
+                                                    <div class="h-2 w-full overflow-hidden rounded-full bg-slate-200/80">
+                                                        <div class="h-full rounded-full bg-[#0b6175]" style="width: 100%;"></div>
                                                     </div>
                                                     <div class="flex items-center justify-between text-[11px] font-semibold text-slate-800">
                                                         <span class="flex items-center gap-1.5 truncate">
-                                                            <span class="h-2 w-2 rounded-full bg-teal-600 shrink-0"></span>
+                                                            <span class="h-2 w-2 rounded-full bg-[#16a3b8] shrink-0"></span>
                                                             2. TRANS (Transmisi)
                                                         </span>
-                                                        <span class="rounded bg-teal-50 px-1.5 py-0.5 font-bold text-teal-700 ring-1 ring-teal-500/20 tabular-nums shrink-0">100.7</span>
+                                                        <span class="rounded bg-cyan-50 px-1.5 py-0.5 font-bold text-cyan-800 ring-1 ring-cyan-600/15 tabular-nums shrink-0">100.7</span>
                                                     </div>
-                                                    <div class="h-2 w-full overflow-hidden rounded-full bg-slate-200">
-                                                        <div class="h-full rounded-full bg-teal-600" style="width: 95%;"></div>
+                                                    <div class="h-2 w-full overflow-hidden rounded-full bg-slate-200/80">
+                                                        <div class="h-full rounded-full bg-[#16a3b8]" style="width: 95%;"></div>
                                                     </div>
                                                     <div class="flex items-center justify-between text-[11px] font-semibold text-slate-700">
                                                         <span class="flex items-center gap-1.5 truncate">
-                                                            <span class="h-2 w-2 rounded-full bg-slate-600 shrink-0"></span>
+                                                            <span class="h-2 w-2 rounded-full bg-slate-500 shrink-0"></span>
                                                             3. UPT Semarang
                                                         </span>
-                                                        <span class="rounded bg-slate-200/80 px-1.5 py-0.5 font-bold text-slate-700 tabular-nums shrink-0">99.4</span>
+                                                        <span class="rounded bg-slate-200/75 px-1.5 py-0.5 font-bold text-slate-700 tabular-nums shrink-0">99.4</span>
                                                     </div>
-                                                    <div class="h-2 w-full overflow-hidden rounded-full bg-slate-200">
-                                                        <div class="h-full rounded-full bg-slate-600" style="width: 88%;"></div>
+                                                    <div class="h-2 w-full overflow-hidden rounded-full bg-slate-200/80">
+                                                        <div class="h-full rounded-full bg-slate-500" style="width: 88%;"></div>
                                                     </div>
                                                 </div>
                                             </template>
@@ -625,20 +633,20 @@
                                                 <div class="space-y-2">
                                                     <div class="flex items-center justify-between text-[11px]">
                                                         <span class="font-bold text-slate-800 truncate">Rekapitulasi 8 UPT</span>
-                                                        <span class="rounded bg-teal-50 px-1.5 py-0.5 text-[9px] font-bold text-teal-700 border border-teal-200 tabular-nums shrink-0">1.824 Trafo &bull; 86.420 MVA</span>
+                                                        <span class="rounded bg-[#e6f4f6] px-1.5 py-0.5 text-[9px] font-bold text-[#0b6175] border border-[#0b6175]/15 tabular-nums shrink-0">1.824 Trafo &bull; 86.420 MVA</span>
                                                     </div>
                                                     <svg class="h-16 w-full" viewBox="0 0 240 60" fill="none">
-                                                        <line x1="10" y1="52" x2="230" y2="52" stroke="#94a3b8" stroke-width="1" />
-                                                        <rect x="20" y="16" width="16" height="36" rx="2" fill="#4f46e5" />
-                                                        <rect x="38" y="24" width="16" height="28" rx="2" fill="#0d9488" />
-                                                        <rect x="74" y="10" width="16" height="42" rx="2" fill="#4f46e5" />
-                                                        <rect x="92" y="18" width="16" height="34" rx="2" fill="#0d9488" />
-                                                        <rect x="128" y="22" width="16" height="30" rx="2" fill="#4f46e5" />
-                                                        <rect x="146" y="30" width="16" height="22" rx="2" fill="#0d9488" />
-                                                        <rect x="182" y="14" width="16" height="38" rx="2" fill="#4f46e5" />
-                                                        <rect x="200" y="26" width="16" height="26" rx="2" fill="#0d9488" />
+                                                        <line x1="10" y1="52" x2="230" y2="52" stroke="#cbd5e1" stroke-width="1" />
+                                                        <rect x="20" y="16" width="16" height="36" rx="2" fill="#0b6175" />
+                                                        <rect x="38" y="24" width="16" height="28" rx="2" fill="#16a3b8" />
+                                                        <rect x="74" y="10" width="16" height="42" rx="2" fill="#0b6175" />
+                                                        <rect x="92" y="18" width="16" height="34" rx="2" fill="#16a3b8" />
+                                                        <rect x="128" y="22" width="16" height="30" rx="2" fill="#0b6175" />
+                                                        <rect x="146" y="30" width="16" height="22" rx="2" fill="#16a3b8" />
+                                                        <rect x="182" y="14" width="16" height="38" rx="2" fill="#0b6175" />
+                                                        <rect x="200" y="26" width="16" height="26" rx="2" fill="#16a3b8" />
                                                     </svg>
-                                                    <div class="flex items-center justify-between text-[10px] font-medium text-slate-600 px-2">
+                                                    <div class="flex items-center justify-between text-[10px] font-medium text-slate-500 px-2">
                                                         <span>Smg</span><span>Skr</span><span>Pwt</span><span>Ygy</span>
                                                     </div>
                                                 </div>
@@ -649,25 +657,25 @@
                                                 <div class="space-y-2">
                                                     <div class="flex items-center justify-between text-[11px]">
                                                         <span class="font-bold text-slate-800 truncate">Target vs Realisasi Indikator</span>
-                                                        <span class="rounded bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700 border border-emerald-200 shrink-0">Terstruktur</span>
+                                                        <span class="rounded bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700 border border-emerald-200/80 shrink-0">Terstruktur</span>
                                                     </div>
                                                     <div class="space-y-1.5 text-[11px]">
                                                         <div>
                                                             <div class="flex justify-between text-slate-700 mb-0.5 tabular-nums">
                                                                 <span class="truncate font-medium">Kesiapan Pembangkit</span>
-                                                                <span class="font-bold text-indigo-700 shrink-0">98.5% / 100%</span>
+                                                                <span class="font-bold text-[#0b6175] shrink-0">98.5% / 100%</span>
                                                             </div>
-                                                            <div class="h-2 w-full rounded-full bg-slate-200 overflow-hidden flex">
-                                                                <div class="bg-indigo-600 h-full rounded-full" style="width: 98.5%;"></div>
+                                                            <div class="h-2 w-full rounded-full bg-slate-200/80 overflow-hidden flex">
+                                                                <div class="bg-[#0b6175] h-full rounded-full" style="width: 98.5%;"></div>
                                                             </div>
                                                         </div>
                                                         <div>
                                                             <div class="flex justify-between text-slate-700 mb-0.5 tabular-nums">
                                                                 <span class="truncate font-medium">Keandalan Transmisi</span>
-                                                                <span class="font-bold text-teal-700 shrink-0">104.2% / 100%</span>
+                                                                <span class="font-bold text-[#0e7490] shrink-0">104.2% / 100%</span>
                                                             </div>
-                                                            <div class="h-2 w-full rounded-full bg-slate-200 overflow-hidden flex">
-                                                                <div class="bg-teal-600 h-full rounded-full" style="width: 100%;"></div>
+                                                            <div class="h-2 w-full rounded-full bg-slate-200/80 overflow-hidden flex">
+                                                                <div class="bg-[#16a3b8] h-full rounded-full" style="width: 100%;"></div>
                                                             </div>
                                                         </div>
                                                     </div>
@@ -681,7 +689,7 @@
                                                         <svg class="h-20 w-20 -rotate-90" viewBox="0 0 36 36">
                                                             <path class="text-slate-200" stroke-width="4.5" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
                                                             <path class="text-emerald-500" stroke-dasharray="65, 100" stroke-width="4.5" stroke-linecap="round" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                                                            <path class="text-indigo-600" stroke-dasharray="25, 100" stroke-dashoffset="-65" stroke-width="4.5" stroke-linecap="round" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                                            <path class="text-[#0b6175]" stroke-dasharray="25, 100" stroke-dashoffset="-65" stroke-width="4.5" stroke-linecap="round" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
                                                             <path class="text-amber-500" stroke-dasharray="10, 100" stroke-dashoffset="-90" stroke-width="4.5" stroke-linecap="round" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
                                                         </svg>
                                                         <div class="absolute inset-0 flex flex-col items-center justify-center text-center tabular-nums">
@@ -691,7 +699,7 @@
                                                     </div>
                                                     <div class="flex flex-1 flex-col justify-center space-y-1 text-[11px] tabular-nums">
                                                         <div class="flex items-center justify-between"><span class="flex items-center gap-1.5 font-medium text-slate-700 truncate"><span class="h-2 w-2 rounded-full bg-emerald-500 shrink-0"></span>Tercapai</span><span class="font-bold text-emerald-700 shrink-0">16 Indikator</span></div>
-                                                        <div class="flex items-center justify-between"><span class="flex items-center gap-1.5 font-medium text-slate-700 truncate"><span class="h-2 w-2 rounded-full bg-indigo-600 shrink-0"></span>Hampir</span><span class="font-bold text-indigo-700 shrink-0">3 Indikator</span></div>
+                                                        <div class="flex items-center justify-between"><span class="flex items-center gap-1.5 font-medium text-slate-700 truncate"><span class="h-2 w-2 rounded-full bg-[#0b6175] shrink-0"></span>Hampir</span><span class="font-bold text-[#0b6175] shrink-0">3 Indikator</span></div>
                                                         <div class="flex items-center justify-between"><span class="flex items-center gap-1.5 font-medium text-slate-700 truncate"><span class="h-2 w-2 rounded-full bg-amber-500 shrink-0"></span>Perhatian</span><span class="font-bold text-amber-700 shrink-0">2 Indikator</span></div>
                                                     </div>
                                                 </div>
@@ -699,21 +707,21 @@
 
                                             {{-- 5. kpi-rag-status --}}
                                             <template x-if="w.key === 'kpi-rag-status'">
-                                                <div class="grid grid-cols-3 gap-2 tabular-nums">
-                                                    <div class="rounded-lg border border-emerald-300/80 bg-emerald-50 p-2 text-center">
-                                                        <span class="block text-[10px] font-bold uppercase tracking-wider text-emerald-700">Tercapai</span>
+                                                <div class="grid grid-cols-3 gap-1.5 tabular-nums">
+                                                    <div class="min-w-0 rounded-lg border border-emerald-200/85 bg-emerald-50/80 px-1.5 py-2 text-center">
+                                                        <span class="block truncate text-[8.5px] font-bold uppercase tracking-tight text-emerald-700">Tercapai</span>
                                                         <span class="text-base font-extrabold text-emerald-950">16</span>
                                                         <span class="block text-[9px] font-semibold text-emerald-700">&ge; 100%</span>
                                                     </div>
-                                                    <div class="rounded-lg border border-amber-300/80 bg-amber-50 p-2 text-center">
-                                                        <span class="block text-[10px] font-bold uppercase tracking-wider text-amber-700">Hampir</span>
+                                                    <div class="min-w-0 rounded-lg border border-amber-200/85 bg-amber-50/80 px-1.5 py-2 text-center">
+                                                        <span class="block truncate text-[8.5px] font-bold uppercase tracking-tight text-amber-700">Hampir</span>
                                                         <span class="text-base font-extrabold text-amber-950">3</span>
                                                         <span class="block text-[9px] font-semibold text-amber-700">95 s.d. 99%</span>
                                                     </div>
-                                                    <div class="rounded-lg border border-teal-300/80 bg-teal-50 p-2 text-center">
-                                                        <span class="block text-[10px] font-bold uppercase tracking-wider text-teal-700">Perhatian</span>
-                                                        <span class="text-base font-extrabold text-teal-950">2</span>
-                                                        <span class="block text-[9px] font-semibold text-teal-700">&lt; 95%</span>
+                                                    <div class="min-w-0 rounded-lg border border-[#bce3e8] bg-[#e6f4f6]/80 px-1.5 py-2 text-center">
+                                                        <span class="block truncate text-[8.5px] font-bold uppercase tracking-tight text-[#0b6175]">Perhatian</span>
+                                                        <span class="text-base font-extrabold text-slate-900">2</span>
+                                                        <span class="block text-[9px] font-semibold text-[#0b6175]">&lt; 95%</span>
                                                     </div>
                                                 </div>
                                             </template>
@@ -721,20 +729,20 @@
                                             {{-- 6. kpi-summary --}}
                                             <template x-if="w.key === 'kpi-summary'">
                                                 <div class="grid grid-cols-3 gap-2 tabular-nums">
-                                                    <div class="rounded-lg border border-indigo-200 bg-indigo-50/80 p-2">
-                                                        <p class="text-[10px] font-bold uppercase tracking-wide text-indigo-700 truncate">Rerata NKO</p>
-                                                        <p class="mt-0.5 text-base font-bold text-indigo-950">105.4%</p>
-                                                        <div class="mt-1 h-1.5 w-full rounded-full bg-indigo-200"><div class="h-full rounded-full bg-indigo-600" style="width: 100%;"></div></div>
+                                                    <div class="rounded-lg border border-[#bce3e8] bg-[#e6f4f6]/65 p-2">
+                                                        <p class="text-[10px] font-bold uppercase tracking-wide text-[#0b6175] truncate">Rerata NKO</p>
+                                                        <p class="mt-0.5 text-base font-bold text-slate-900">105.4%</p>
+                                                        <div class="mt-1 h-1.5 w-full rounded-full bg-[#bce3e8]/70"><div class="h-full rounded-full bg-[#0b6175]" style="width: 100%;"></div></div>
                                                     </div>
-                                                    <div class="rounded-lg border border-emerald-200 bg-emerald-50/80 p-2">
+                                                    <div class="rounded-lg border border-emerald-200/80 bg-emerald-50/70 p-2">
                                                         <p class="text-[10px] font-bold uppercase tracking-wide text-emerald-700 truncate">Indikator</p>
                                                         <p class="mt-0.5 text-base font-bold text-emerald-950">16 Tercapai</p>
-                                                        <div class="mt-1 h-1.5 w-full rounded-full bg-emerald-200"><div class="h-full rounded-full bg-emerald-600" style="width: 80%;"></div></div>
+                                                        <div class="mt-1 h-1.5 w-full rounded-full bg-emerald-200/75"><div class="h-full rounded-full bg-emerald-600" style="width: 80%;"></div></div>
                                                     </div>
-                                                    <div class="rounded-lg border border-amber-200 bg-amber-50/80 p-2">
-                                                        <p class="text-[10px] font-bold uppercase tracking-wide text-amber-700 truncate">Periode</p>
-                                                        <p class="mt-0.5 text-xs font-bold text-amber-950">Agu 2026</p>
-                                                        <span class="mt-1 inline-block rounded bg-amber-200/80 px-1.5 text-[9px] font-bold text-amber-900">Final</span>
+                                                    <div class="rounded-lg border border-slate-200/85 bg-white p-2">
+                                                        <p class="text-[10px] font-bold uppercase tracking-wide text-slate-500 truncate">Periode</p>
+                                                        <p class="mt-0.5 text-xs font-bold text-slate-900">Agu 2026</p>
+                                                        <span class="mt-1 inline-block rounded bg-[#e6f4f6] px-1.5 text-[9px] font-semibold text-[#0b6175]">Final</span>
                                                     </div>
                                                 </div>
                                             </template>
@@ -742,20 +750,20 @@
                                             {{-- 7. dataset-status --}}
                                             <template x-if="w.key === 'dataset-status'">
                                                 <div class="grid grid-cols-3 gap-2 text-center tabular-nums">
-                                                    <div class="rounded-lg border border-emerald-200 bg-emerald-50/80 p-2">
+                                                    <div class="rounded-lg border border-emerald-200/80 bg-emerald-50/70 p-2">
                                                         <span class="block text-[10px] font-bold uppercase tracking-wide text-emerald-700">Status</span>
                                                         <span class="text-sm font-extrabold text-emerald-950">READY</span>
                                                         <span class="block text-[9px] font-semibold text-emerald-700 mt-0.5">12 Dataset</span>
                                                     </div>
-                                                    <div class="rounded-lg border border-slate-200 bg-white p-2">
-                                                        <span class="block text-[10px] font-bold uppercase tracking-wide text-slate-600">Baris Data</span>
+                                                    <div class="rounded-lg border border-slate-200/85 bg-white p-2">
+                                                        <span class="block text-[10px] font-bold uppercase tracking-wide text-slate-500">Baris Data</span>
                                                         <span class="text-sm font-extrabold text-slate-900">1.420</span>
                                                         <span class="block text-[9px] font-medium text-slate-500 mt-0.5">Aktif TJBT</span>
                                                     </div>
-                                                    <div class="rounded-lg border border-slate-200 bg-white p-2">
-                                                        <span class="block text-[10px] font-bold uppercase tracking-wide text-slate-600">Periode</span>
+                                                    <div class="rounded-lg border border-slate-200/85 bg-white p-2">
+                                                        <span class="block text-[10px] font-bold uppercase tracking-wide text-slate-500">Periode</span>
                                                         <span class="text-xs font-bold text-slate-900 mt-0.5">Agu 2026</span>
-                                                        <span class="block text-[9px] text-teal-700 font-semibold mt-0.5">Terverifikasi</span>
+                                                        <span class="block text-[9px] text-[#0b6175] font-semibold mt-0.5">Terverifikasi</span>
                                                     </div>
                                                 </div>
                                             </template>
@@ -765,18 +773,18 @@
                                                 <div class="space-y-1.5 tabular-nums">
                                                     <div class="flex items-center justify-between text-[11px]">
                                                         <span class="font-bold text-slate-800 truncate">Pencapaian % per Unit</span>
-                                                        <span class="text-[10px] font-bold text-indigo-700 shrink-0">Rerata 104.2%</span>
+                                                        <span class="text-[10px] font-bold text-[#0b6175] shrink-0">Rerata 104.2%</span>
                                                     </div>
                                                     <div class="space-y-1">
                                                         <div class="flex items-center justify-between text-[10px]">
                                                             <span class="w-16 truncate font-medium text-slate-700">TJBT</span>
-                                                            <div class="h-2 flex-1 mx-2 rounded-full bg-slate-200 overflow-hidden"><div class="h-full bg-indigo-600 rounded-full" style="width: 100%;"></div></div>
-                                                            <span class="font-bold text-indigo-700 shrink-0">105.5%</span>
+                                                            <div class="h-2 flex-1 mx-2 rounded-full bg-slate-200/80 overflow-hidden"><div class="h-full bg-[#0b6175] rounded-full" style="width: 100%;"></div></div>
+                                                            <span class="font-bold text-[#0b6175] shrink-0">105.5%</span>
                                                         </div>
                                                         <div class="flex items-center justify-between text-[10px]">
                                                             <span class="w-16 truncate font-medium text-slate-700">TRANS</span>
-                                                            <div class="h-2 flex-1 mx-2 rounded-full bg-slate-200 overflow-hidden"><div class="h-full bg-teal-600 rounded-full" style="width: 96%;"></div></div>
-                                                            <span class="font-bold text-teal-700 shrink-0">100.7%</span>
+                                                            <div class="h-2 flex-1 mx-2 rounded-full bg-slate-200/80 overflow-hidden"><div class="h-full bg-[#16a3b8] rounded-full" style="width: 96%;"></div></div>
+                                                            <span class="font-bold text-[#0e7490] shrink-0">100.7%</span>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -785,20 +793,20 @@
                                             {{-- 9. admin-quick-actions --}}
                                             <template x-if="w.key === 'admin-quick-actions'">
                                                 <div class="grid grid-cols-3 gap-2">
-                                                    <div class="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white p-2 text-left">
-                                                        <div class="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-teal-50 text-teal-700 ring-1 ring-teal-500/15">
+                                                    <div class="flex items-center gap-1.5 rounded-lg border border-slate-200/85 bg-white p-2 text-left">
+                                                        <div class="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-[#e6f4f6] text-[#0b6175] ring-1 ring-[#0b6175]/15">
                                                             <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
                                                         </div>
                                                         <div class="min-w-0"><p class="truncate text-[10px] font-bold text-slate-900">Upload</p><p class="text-[8px] font-medium text-slate-500">Dataset</p></div>
                                                     </div>
-                                                    <div class="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white p-2 text-left">
-                                                        <div class="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-indigo-50 text-indigo-700 ring-1 ring-indigo-500/15">
+                                                    <div class="flex items-center gap-1.5 rounded-lg border border-slate-200/85 bg-white p-2 text-left">
+                                                        <div class="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/15">
                                                             <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                                                         </div>
                                                         <div class="min-w-0"><p class="truncate text-[10px] font-bold text-slate-900">Audit</p><p class="text-[8px] font-medium text-slate-500">Log</p></div>
                                                     </div>
-                                                    <div class="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white p-2 text-left">
-                                                        <div class="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-amber-50 text-amber-700 ring-1 ring-amber-500/15">
+                                                    <div class="flex items-center gap-1.5 rounded-lg border border-slate-200/85 bg-white p-2 text-left">
+                                                        <div class="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-amber-50 text-amber-700 ring-1 ring-amber-600/15">
                                                             <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
                                                         </div>
                                                         <div class="min-w-0"><p class="truncate text-[10px] font-bold text-slate-900">User</p><p class="text-[8px] font-medium text-slate-500">Kelola</p></div>
@@ -809,18 +817,18 @@
                                             {{-- 10. admin-summary --}}
                                             <template x-if="w.key === 'admin-summary'">
                                                 <div class="grid grid-cols-3 gap-2 tabular-nums">
-                                                    <div class="rounded-lg border border-slate-200 bg-white p-2">
-                                                        <span class="block text-[9px] font-bold uppercase tracking-wider text-slate-600 truncate">Total Dataset</span>
+                                                    <div class="rounded-lg border border-slate-200/85 bg-white p-2">
+                                                        <span class="block text-[9px] font-bold uppercase tracking-wider text-slate-500 truncate">Total Dataset</span>
                                                         <span class="mt-0.5 text-sm font-extrabold text-slate-900">24</span>
                                                         <span class="block text-[8px] text-emerald-700 font-semibold mt-0.5">22 Siap</span>
                                                     </div>
-                                                    <div class="rounded-lg border border-slate-200 bg-white p-2">
-                                                        <span class="block text-[9px] font-bold uppercase tracking-wider text-slate-600 truncate">Pengguna</span>
+                                                    <div class="rounded-lg border border-slate-200/85 bg-white p-2">
+                                                        <span class="block text-[9px] font-bold uppercase tracking-wider text-slate-500 truncate">Pengguna</span>
                                                         <span class="mt-0.5 text-sm font-extrabold text-slate-900">18</span>
-                                                        <span class="block text-[8px] text-indigo-700 font-semibold mt-0.5">4 Peran</span>
+                                                        <span class="block text-[8px] text-[#0b6175] font-semibold mt-0.5">4 Peran</span>
                                                     </div>
-                                                    <div class="rounded-lg border border-slate-200 bg-white p-2">
-                                                        <span class="block text-[9px] font-bold uppercase tracking-wider text-slate-600 truncate">Sistem</span>
+                                                    <div class="rounded-lg border border-slate-200/85 bg-white p-2">
+                                                        <span class="block text-[9px] font-bold uppercase tracking-wider text-slate-500 truncate">Sistem</span>
                                                         <span class="mt-0.5 text-sm font-extrabold text-emerald-700">Optimal</span>
                                                         <span class="block text-[8px] font-medium text-slate-500 mt-0.5">Audit Aman</span>
                                                     </div>
@@ -829,27 +837,27 @@
 
                                             {{-- 11. kinerja-detail --}}
                                             <template x-if="w.key === 'kinerja-detail'">
-                                                <div class="overflow-hidden rounded-md border border-slate-200 text-[10px] tabular-nums">
-                                                    <div class="grid grid-cols-12 bg-slate-800 px-2 py-1 font-bold text-white uppercase tracking-wider">
+                                                <div class="overflow-hidden rounded-lg border border-slate-200/85 text-[10px] tabular-nums">
+                                                    <div class="grid grid-cols-12 border-b border-slate-200 bg-slate-50 px-2 py-1.5 font-semibold text-slate-600 uppercase tracking-wider">
                                                         <span class="col-span-6 truncate">Indikator Metrik</span>
                                                         <span class="col-span-3 text-right">Target</span>
                                                         <span class="col-span-3 text-right">Realisasi</span>
                                                     </div>
-                                                    <div class="divide-y divide-slate-200/80 bg-white">
+                                                    <div class="divide-y divide-slate-200/70 bg-white">
                                                         <div class="grid grid-cols-12 px-2 py-1 items-center">
                                                             <span class="col-span-6 truncate font-medium text-slate-800">Kesiapan Pembangkit</span>
-                                                            <span class="col-span-3 text-right text-slate-600">100.0</span>
-                                                            <span class="col-span-3 text-right font-bold text-indigo-700">98.5</span>
+                                                            <span class="col-span-3 text-right text-slate-500">100.0</span>
+                                                            <span class="col-span-3 text-right font-bold text-[#0b6175]">98.5</span>
                                                         </div>
-                                                        <div class="grid grid-cols-12 px-2 py-1 items-center bg-slate-50/70">
+                                                        <div class="grid grid-cols-12 px-2 py-1 items-center bg-slate-50/50">
                                                             <span class="col-span-6 truncate font-medium text-slate-800">Keandalan Transmisi</span>
-                                                            <span class="col-span-3 text-right text-slate-600">100.0</span>
+                                                            <span class="col-span-3 text-right text-slate-500">100.0</span>
                                                             <span class="col-span-3 text-right font-bold text-emerald-700">104.2</span>
                                                         </div>
                                                         <div class="grid grid-cols-12 px-2 py-1 items-center">
                                                             <span class="col-span-6 truncate font-medium text-slate-800">Efisiensi Operasi</span>
-                                                            <span class="col-span-3 text-right text-slate-600">95.0</span>
-                                                            <span class="col-span-3 text-right font-bold text-teal-700">96.8</span>
+                                                            <span class="col-span-3 text-right text-slate-500">95.0</span>
+                                                            <span class="col-span-3 text-right font-bold text-[#0e7490]">96.8</span>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -860,22 +868,22 @@
                                                 <div class="space-y-1.5 tabular-nums">
                                                     <div class="flex items-center justify-between text-[11px] font-bold text-slate-800">
                                                         <span class="truncate">Realisasi vs Target Bulanan</span>
-                                                        <span class="rounded bg-indigo-50 px-1.5 py-0.5 text-[9px] text-indigo-700 shrink-0">105.4% Rerata</span>
+                                                        <span class="rounded bg-[#e6f4f6] px-1.5 py-0.5 text-[9px] text-[#0b6175] shrink-0">105.4% Rerata</span>
                                                     </div>
                                                     <div class="space-y-1 text-[10px]">
                                                         <div>
                                                             <div class="flex justify-between text-slate-700 mb-0.5">
                                                                 <span class="truncate font-medium">Realisasi Operasi</span>
-                                                                <span class="font-bold text-indigo-700 shrink-0">105.5</span>
+                                                                <span class="font-bold text-[#0b6175] shrink-0">105.5</span>
                                                             </div>
-                                                            <div class="h-1.5 w-full rounded-full bg-slate-200 overflow-hidden"><div class="h-full bg-indigo-600 rounded-full" style="width: 100%;"></div></div>
+                                                            <div class="h-1.5 w-full rounded-full bg-slate-200/80 overflow-hidden"><div class="h-full bg-[#0b6175] rounded-full" style="width: 100%;"></div></div>
                                                         </div>
                                                         <div>
                                                             <div class="flex justify-between text-slate-700 mb-0.5">
                                                                 <span class="truncate font-medium">Target Anggaran</span>
-                                                                <span class="font-bold text-teal-700 shrink-0">100.0</span>
+                                                                <span class="font-bold text-[#0e7490] shrink-0">100.0</span>
                                                             </div>
-                                                            <div class="h-1.5 w-full rounded-full bg-slate-200 overflow-hidden"><div class="h-full bg-teal-600 rounded-full" style="width: 95%;"></div></div>
+                                                            <div class="h-1.5 w-full rounded-full bg-slate-200/80 overflow-hidden"><div class="h-full bg-[#16a3b8] rounded-full" style="width: 95%;"></div></div>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -884,27 +892,27 @@
                                             {{-- 13. recent-audit --}}
                                             <template x-if="w.key === 'recent-audit'">
                                                 <div class="space-y-1 text-[10px] tabular-nums">
-                                                    <div class="flex items-center justify-between rounded border border-slate-200 bg-white p-1.5">
+                                                    <div class="flex items-center justify-between rounded-lg border border-slate-200/80 bg-white p-1.5">
                                                         <div class="flex items-center gap-1.5 truncate">
                                                             <span class="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0"></span>
-                                                            <span class="font-bold text-slate-900 truncate">admin@dashboard.local</span>
-                                                            <span class="rounded bg-slate-200/80 px-1 text-[8px] font-semibold text-slate-700 shrink-0">UPDATE</span>
+                                                            <span class="font-semibold text-slate-800 truncate">admin@dashboard.local</span>
+                                                            <span class="rounded bg-slate-100 px-1.5 py-0.5 text-[8px] font-semibold text-slate-600 shrink-0">UPDATE</span>
                                                         </div>
                                                         <span class="text-slate-500 shrink-0 text-[9px]">12:30</span>
                                                     </div>
-                                                    <div class="flex items-center justify-between rounded border border-slate-200 bg-white p-1.5">
+                                                    <div class="flex items-center justify-between rounded-lg border border-slate-200/80 bg-white p-1.5">
                                                         <div class="flex items-center gap-1.5 truncate">
-                                                            <span class="h-1.5 w-1.5 rounded-full bg-indigo-500 shrink-0"></span>
-                                                            <span class="font-bold text-slate-900 truncate">staf.aset@dashboard.local</span>
-                                                            <span class="rounded bg-indigo-50 px-1 text-[8px] font-semibold text-indigo-700 shrink-0">IMPORT</span>
+                                                            <span class="h-1.5 w-1.5 rounded-full bg-[#16a3b8] shrink-0"></span>
+                                                            <span class="font-semibold text-slate-800 truncate">staf.aset@dashboard.local</span>
+                                                            <span class="rounded bg-[#e6f4f6] px-1.5 py-0.5 text-[8px] font-semibold text-[#0b6175] shrink-0">IMPORT</span>
                                                         </div>
                                                         <span class="text-slate-500 shrink-0 text-[9px]">11:15</span>
                                                     </div>
-                                                    <div class="flex items-center justify-between rounded border border-slate-200 bg-white p-1.5">
+                                                    <div class="flex items-center justify-between rounded-lg border border-slate-200/80 bg-white p-1.5">
                                                         <div class="flex items-center gap-1.5 truncate">
-                                                            <span class="h-1.5 w-1.5 rounded-full bg-slate-500 shrink-0"></span>
-                                                            <span class="font-bold text-slate-900 truncate">editor@dashboard.local</span>
-                                                            <span class="rounded bg-slate-200/80 px-1 text-[8px] font-semibold text-slate-700 shrink-0">LAYOUT</span>
+                                                            <span class="h-1.5 w-1.5 rounded-full bg-slate-400 shrink-0"></span>
+                                                            <span class="font-semibold text-slate-800 truncate">editor@dashboard.local</span>
+                                                            <span class="rounded bg-slate-100 px-1.5 py-0.5 text-[8px] font-semibold text-slate-600 shrink-0">LAYOUT</span>
                                                         </div>
                                                         <span class="text-slate-500 shrink-0 text-[9px]">10:02</span>
                                                     </div>
@@ -914,7 +922,7 @@
                                             {{-- 14. failed-datasets --}}
                                             <template x-if="w.key === 'failed-datasets'">
                                                 <div class="space-y-1.5 text-[10px]">
-                                                    <div class="flex items-center justify-between rounded border border-rose-200 bg-rose-50/80 p-2">
+                                                    <div class="flex items-center justify-between rounded-lg border border-rose-200/85 bg-rose-50/75 p-2">
                                                         <div class="flex items-center gap-2 truncate">
                                                             <span class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-rose-100 text-rose-700 font-bold text-[10px]">!</span>
                                                             <div class="min-w-0">
@@ -933,15 +941,15 @@
 
                                             {{-- 15. layout-editor-placeholder --}}
                                             <template x-if="w.key === 'layout-editor-placeholder'">
-                                                <div class="flex items-center justify-between rounded border border-slate-200 bg-white p-2.5 text-[11px]">
+                                                <div class="flex items-center justify-between rounded-lg border border-slate-200/85 bg-white p-2.5 text-[11px]">
                                                     <div class="flex items-center gap-2 truncate">
-                                                        <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-slate-900 text-white font-bold text-xs">BI</span>
+                                                        <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-[#e6f4f6] text-[#0b6175] ring-1 ring-[#0b6175]/15 font-bold text-xs">BI</span>
                                                         <div class="min-w-0">
                                                             <p class="font-bold text-slate-900 truncate">Editor Tata Letak</p>
                                                             <p class="text-[9px] text-slate-500 truncate">Drag &amp; drop kanvas</p>
                                                         </div>
                                                     </div>
-                                                    <span class="rounded bg-indigo-50 px-2 py-0.5 text-[10px] font-bold text-indigo-700 shrink-0">Aktif</span>
+                                                    <span class="rounded bg-[#e6f4f6] px-2 py-0.5 text-[10px] font-semibold text-[#0b6175] shrink-0">Aktif</span>
                                                 </div>
                                             </template>
 
@@ -950,7 +958,7 @@
                                                 <div class="space-y-1">
                                                     <div class="flex items-center justify-between text-[11px] font-semibold text-slate-800">
                                                         <span class="truncate" x-text="w.config?.title || widgetLabel(w.key)"></span>
-                                                        <span class="rounded bg-indigo-50 px-1.5 py-0.5 text-[9px] font-bold text-indigo-700 shrink-0" x-text="(w.config?.chart_type || 'chart').toUpperCase()"></span>
+                                                        <span class="rounded bg-[#e6f4f6] px-1.5 py-0.5 text-[9px] font-semibold text-[#0b6175] shrink-0" x-text="(w.config?.chart_type || 'chart').toUpperCase()"></span>
                                                     </div>
                                                     <div class="flex items-center justify-between text-[10px] text-slate-500">
                                                         <span class="truncate">Interaktif ECharts Rendered</span>
@@ -960,10 +968,10 @@
                                             </template>
 
                                             {{-- Compact Bottom Row: Visualization Type + Grid Proportion --}}
-                                            <div class="mt-2.5 flex items-center justify-between border-t border-slate-200 pt-1.5 text-[10px] text-slate-600 tabular-nums">
+                                            <div class="mt-2.5 flex items-center justify-between border-t border-slate-200/75 pt-1.5 text-[10px] text-slate-600 tabular-nums">
                                                 <span class="font-semibold text-slate-700" x-text="paletteVisual(w.key).label"></span>
                                                 <span
-                                                    class="rounded bg-slate-200/80 px-1.5 py-0.5 text-[9px] font-bold text-slate-700"
+                                                    class="rounded-md border border-slate-200/75 bg-white px-1.5 py-0.5 text-[9px] font-semibold text-slate-600"
                                                     x-text="`${parseInt(w.cols, 10) || 3} Kolom (${parseInt(w.cols, 10) === 1 ? '33%' : (parseInt(w.cols, 10) === 2 ? '66%' : '100%')})`"
                                                 ></span>
                                             </div>
@@ -977,13 +985,15 @@
                         <div
                             x-show="activeWidgets.length === 0"
                             x-cloak
-                            class="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-400/70 bg-white/95 p-10 text-center shadow-sm"
+                            class="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white/95 p-10 text-center shadow-2xs"
                         >
-                            <svg class="mb-2.5 h-10 w-10 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                            </svg>
-                            <p class="text-sm font-bold text-slate-800">Kanvas Masih Kosong</p>
-                            <p class="mt-1 text-xs text-slate-600">Tarik atau klik + Tambah pada panel komponen di sebelah kiri.</p>
+                            <span class="mb-3 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-[#e6f4f6] text-[#0b6175] ring-1 ring-[#0b6175]/15">
+                                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                                </svg>
+                            </span>
+                            <p class="text-sm font-semibold text-slate-800">Kanvas Masih Kosong</p>
+                            <p class="mt-1 text-xs text-slate-500">Tarik atau klik + Tambah pada panel komponen di sebelah kiri.</p>
                         </div>
                     </div>
                 </div>
@@ -1044,10 +1054,32 @@
                         isWindow: false,
                     },
                     viewportWidth: window.innerWidth,
+                    stickyConfigTop: 160,
+                    topBarResizeObserver: null,
                     currentUserLayoutKey: initial.current_user_layout_key || '',
                     toast: { show: false, message: '', type: 'success', timer: null },
                     previewChartInstances: {},
                     previewResizeFrame: null,
+
+                    syncStickyTop() {
+                        const bar = document.getElementById('builder-top-bar');
+                        if (!bar) {
+                            return;
+                        }
+                        // Sticky top-20 = 80px below viewport top; reserve 16px breathing gap below #builder-top-bar.
+                        this.stickyConfigTop = Math.ceil(80 + bar.offsetHeight + 16);
+                    },
+
+                    desktopStickyStyle() {
+                        if (this.viewportWidth < 1024) {
+                            return {};
+                        }
+                        const topPx = this.stickyConfigTop;
+                        return {
+                            top: `${topPx}px`,
+                            '--builder-pane-max-h': `calc(100vh - ${topPx + 16}px)`,
+                        };
+                    },
 
                     showToast(msg, type = 'success') {
                         if (this.toast.timer) {
@@ -1066,6 +1098,15 @@
                         this.activeWidgets = (target && Array.isArray(target.active_widgets))
                             ? target.active_widgets.map((w) => this.normalizeItem(w))
                             : [];
+
+                        this.$nextTick(() => {
+                            this.syncStickyTop();
+                            const bar = document.getElementById('builder-top-bar');
+                            if (bar && typeof ResizeObserver !== 'undefined') {
+                                this.topBarResizeObserver = new ResizeObserver(() => this.syncStickyTop());
+                                this.topBarResizeObserver.observe(bar);
+                            }
+                        });
 
                         window.addEventListener('keydown', (e) => {
                             if (e.key !== 'Escape') {
@@ -1271,12 +1312,12 @@
                     paletteThumbClass(key) {
                         const cat = this.getWidgetCategory(key);
                         if (cat === 'Kinerja / KPI') {
-                            return 'bg-indigo-50 text-indigo-600 ring-1 ring-indigo-500/15';
+                            return 'bg-[#e6f4f6] text-[#0b6175] ring-1 ring-[#0b6175]/15';
                         }
                         if (cat === 'Manajemen Aset') {
-                            return 'bg-teal-50 text-teal-700 ring-1 ring-teal-500/15';
+                            return 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/15';
                         }
-                        return 'bg-amber-50 text-amber-700 ring-1 ring-amber-500/15';
+                        return 'bg-amber-50 text-amber-700 ring-1 ring-amber-600/15';
                     },
 
                     getWidgetDescription(key) {
@@ -1892,11 +1933,11 @@
                     previewChartOption(widget) {
                         if (widget.key === 'trend-chart') {
                             return {
-                                color: ['#4f46e5'],
+                                color: ['#0b6175'],
                                 grid: { top: 15, right: 15, bottom: 25, left: 35 },
-                                xAxis: { type: 'category', data: ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu'], axisLabel: { fontSize: 10, color: '#334155' } },
-                                yAxis: { type: 'value', min: 95, axisLabel: { fontSize: 10, color: '#334155' }, splitLine: { lineStyle: { color: '#e2e8f0' } } },
-                                series: [{ data: [98.2, 99.1, 100.4, 101.2, 102.5, 103.8, 104.9, 105.5], type: 'line', smooth: true, areaStyle: { opacity: 0.12 } }]
+                                xAxis: { type: 'category', data: ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu'], axisLabel: { fontSize: 10, color: '#475569' } },
+                                yAxis: { type: 'value', min: 95, axisLabel: { fontSize: 10, color: '#475569' }, splitLine: { lineStyle: { color: '#e2e8f0' } } },
+                                series: [{ data: [98.2, 99.1, 100.4, 101.2, 102.5, 103.8, 104.9, 105.5], type: 'line', smooth: true, areaStyle: { opacity: 0.10 } }]
                             };
                         }
 
@@ -1907,7 +1948,7 @@
 
                         if (chartType === 'donut') {
                             return {
-                                color: ['#4f46e5', '#0d9488', '#10b981', '#334155'],
+                                color: ['#0b6175', '#16a3b8', '#10b981', '#64748b'],
                                 tooltip: { trigger: 'item' },
                                 series: [{
                                     name: widget.config?.title || 'Metrik',
@@ -1926,12 +1967,12 @@
                         }
 
                         return {
-                            color: ['#4f46e5'],
+                            color: ['#0b6175'],
                             grid: { top: 15, right: 15, bottom: 25, left: 35 },
-                            xAxis: { type: 'category', data: units, axisLabel: { fontSize: 10, color: '#334155' } },
-                            yAxis: { type: 'value', axisLabel: { fontSize: 10, color: '#334155' }, splitLine: { lineStyle: { color: '#e2e8f0' } } },
+                            xAxis: { type: 'category', data: units, axisLabel: { fontSize: 10, color: '#475569' } },
+                            yAxis: { type: 'value', axisLabel: { fontSize: 10, color: '#475569' }, splitLine: { lineStyle: { color: '#e2e8f0' } } },
                             series: chartType === 'line'
-                                ? [{ data: values, type: 'line', smooth: true, areaStyle: { opacity: 0.15 } }]
+                                ? [{ data: values, type: 'line', smooth: true, areaStyle: { opacity: 0.12 } }]
                                 : [{ data: values, type: 'bar', barWidth: '45%', itemStyle: { borderRadius: [4, 4, 0, 0] } }]
                         };
                     },
