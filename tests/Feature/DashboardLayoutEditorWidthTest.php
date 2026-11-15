@@ -123,17 +123,27 @@ class DashboardLayoutEditorWidthTest extends TestCase
 
         $response->assertOk()
             ->assertSee('id="builder-top-bar"', false)
-            ->assertSee('id="builder-preview-pane"', false)
+            ->assertSee('lg:grid-cols-12', false)
             ->assertSee('id="builder-config-pane"', false)
+            ->assertSee('lg:col-span-4 xl:col-span-3', false)
+            ->assertSee('id="builder-preview-pane"', false)
+            ->assertSee('lg:col-span-8 xl:col-span-9', false)
             ->assertSee('w-full')
-            ->assertSee('Pratinjau');
+            ->assertSee('Pratinjau Tata Letak');
 
         $html = $response->getContent();
-        $previewPos = strpos($html, 'id="builder-preview-pane"');
+        $topBarPos = strpos($html, 'id="builder-top-bar"');
+        $gridPos = strpos($html, 'lg:grid-cols-12');
         $configPos = strpos($html, 'id="builder-config-pane"');
-        $this->assertNotFalse($previewPos);
+        $previewPos = strpos($html, 'id="builder-preview-pane"');
+
+        $this->assertNotFalse($topBarPos);
+        $this->assertNotFalse($gridPos);
         $this->assertNotFalse($configPos);
-        $this->assertLessThan($configPos, $previewPos);
+        $this->assertNotFalse($previewPos);
+        $this->assertLessThan($gridPos, $topBarPos);
+        $this->assertLessThan($configPos, $gridPos);
+        $this->assertLessThan($previewPos, $configPos);
     }
 
     public function test_dashboard_builder_preview_pane_mirrors_active_widgets_in_real_time(): void
@@ -147,7 +157,7 @@ class DashboardLayoutEditorWidthTest extends TestCase
             ->assertSee('id="preview-canvas-viewport"', false)
             ->assertSee('preview-card-item', false)
             ->assertSee('previewSpanClass', false)
-            ->assertSee('md:grid-cols-3', false);
+            ->assertSee('lg:grid-cols-3', false);
     }
 
     public function test_dashboard_builder_preview_pane_initializes_and_resizes_live_charts(): void
@@ -200,9 +210,20 @@ class DashboardLayoutEditorWidthTest extends TestCase
     {
         $admin = User::factory()->withRole(Role::ADMIN)->create();
 
-        $html = $this->actingAs($admin)->get(route('dashboard.builder'))->assertOk()->getContent();
+        $response = $this->actingAs($admin)->get(route('dashboard.builder'));
 
-        $this->assertMatchesRegularExpression('/preview-card-item.*canvas-card-toolbar.*setWidgetCols\(w, n\).*removeWidget\(index\)/s', $html);
+        $response->assertOk()
+            ->assertSee('Lebar Kolom')
+            ->assertSee('1 Kol')
+            ->assertSee('2 Kol')
+            ->assertSee('3 Kol')
+            ->assertSee('setWidgetCols(index, 1)', false)
+            ->assertSee('setWidgetCols(index, 2)', false)
+            ->assertSee('setWidgetCols(index, 3)', false);
+
+        $html = $response->getContent();
+
+        $this->assertMatchesRegularExpression('/preview-card-item.*canvas-card-toolbar.*setWidgetCols\(index, 1\).*1 Kol.*2 Kol.*3 Kol.*removeWidget\(index\)/s', $html);
         $this->assertStringContainsString('isLockedWidget(w.key)', $html);
         $this->assertStringNotContainsString("widgetKey === 'layout-editor-placeholder'", $html);
         $this->assertSame(1, substr_count($html, '@click="removeWidget(index)"'));
@@ -216,6 +237,7 @@ class DashboardLayoutEditorWidthTest extends TestCase
         $this->actingAs($admin)->get(route('dashboard.builder'))
             ->assertOk()
             ->assertSee('preview-sketch', false)
+            ->assertSee('data-mini-mockup="true"', false)
             ->assertSee('paletteVisual(w.key)', false)
             ->assertSee('paletteVisual(item.key)', false)
             ->assertDontSee('Komponen akan dirender penuh')
@@ -380,27 +402,31 @@ class DashboardLayoutEditorWidthTest extends TestCase
         ]);
     }
 
-    public function test_dashboard_builder_provides_quick_add_drawer_and_card_action_menu(): void
+    public function test_dashboard_builder_studio_dock_provides_search_category_filters_and_omits_legacy_drawers(): void
     {
         $admin = User::factory()->withRole(Role::ADMIN)->create();
 
         $response = $this->actingAs($admin)->get(route('dashboard.builder'));
 
         $response->assertOk()
-            ->assertSee('id="builder-quick-add-trigger"', false)
-            ->assertSee('id="builder-quick-add-drawer"', false)
-            ->assertSee('quickAddWidget', false)
-            ->assertSee('card-action-menu-btn', false)
-            ->assertSee('activeCardMenu', false)
-            ->assertSee('sticky top-2', false);
+            ->assertDontSee('id="builder-quick-add-drawer"', false)
+            ->assertDontSee('id="builder-quick-add-trigger"', false)
+            ->assertDontSee('card-action-menu-btn', false)
+            ->assertDontSee('+ Tambah Cepat')
+            ->assertDontSee('Katalog Penuh')
+            ->assertSee('catalogSearch', false)
+            ->assertSee('catalogFilterCategory', false)
+            ->assertSee('Semua')
+            ->assertSee('KPI')
+            ->assertSee('Aset')
+            ->assertSee('Admin')
+            ->assertSee('addWidget(item.key)', false)
+            ->assertSee('+ Tambah')
+            ->assertSee('Pratinjau Tata Letak')
+            ->assertSee('sticky top-16', false)
+            ->assertSee('lg:sticky lg:top-32', false);
 
         $html = $response->getContent();
-        $drawerPos = strpos($html, 'id="builder-quick-add-drawer"');
-        $viewportPos = strpos($html, 'id="preview-canvas-viewport"');
-
-        $this->assertNotFalse($drawerPos);
-        $this->assertNotFalse($viewportPos);
-        $this->assertLessThan($viewportPos, $drawerPos);
         $this->assertSame(1, substr_count($html, '@click="removeWidget(index)"'));
     }
 }
