@@ -423,10 +423,31 @@ class DashboardLayoutEditorWidthTest extends TestCase
             ->assertSee('addWidget(item.key)', false)
             ->assertSee('+ Tambah')
             ->assertSee('Pratinjau Tata Letak')
-            ->assertSee('sticky top-16', false)
-            ->assertSee('lg:sticky lg:top-32', false);
+            ->assertSee('sticky top-20', false)
+            ->assertSee('lg:sticky lg:top-40', false);
 
         $html = $response->getContent();
         $this->assertSame(1, substr_count($html, '@click="removeWidget(index)"'));
+    }
+
+    public function test_dashboard_builder_renders_obsidian_studio_command_bar_and_high_contrast_canvas(): void
+    {
+        $admin = User::factory()->withRole(Role::ADMIN)->create();
+
+        $response = $this->actingAs($admin)->get(route('dashboard.builder'));
+
+        $response->assertOk()
+            ->assertSee('rounded-2xl border border-slate-800 bg-slate-900 px-4 py-3 text-white shadow-lg ring-1 ring-white/10', false)
+            ->assertSee('bg-indigo-600 text-white font-semibold shadow-sm ring-1 ring-indigo-400/30', false)
+            ->assertSee('paletteThumbClass(item.key)', false)
+            ->assertSee('bg-indigo-50 text-indigo-600 ring-1 ring-indigo-500/15', false)
+            ->assertSee('bg-teal-50 text-teal-700 ring-1 ring-teal-500/15', false)
+            ->assertSee('bg-amber-50 text-amber-700 ring-1 ring-amber-500/15', false)
+            ->assertSee('bg-slate-200/75', false)
+            ->assertSee('radial-gradient(#94a3b8 1.25px, transparent 1.25px)', false)
+            ->assertSee('bg-slate-50/90 px-3.5 py-2.5', false)
+            ->assertSee('bg-slate-900 text-white text-[11px] font-bold', false)
+            ->assertSee('bg-indigo-600 text-white font-semibold shadow-xs', false)
+            ->assertDontSee('font-mono', false);
     }
 }

@@ -235,4 +235,23 @@ class AppLayoutTest extends TestCase
         $this->assertStringContainsString('role="alert"', $staffHtml);
         $this->assertStringContainsString('aria-label="Tutup notifikasi"', $staffHtml);
     }
+
+    public function test_executive_glass_navbar_renders_luxury_breadcrumb_pill_and_status_badge(): void
+    {
+        $admin = User::factory()->withRole(Role::ADMIN)->create(['division_id' => null]);
+
+        $response = $this->actingAs($admin)->get(route('dashboard.builder'));
+
+        $response->assertOk()
+            ->assertSee('bg-white/85', false)
+            ->assertSee('backdrop-blur-md', false)
+            ->assertSee('shadow-[0_1px_3px_0_rgba(15,23,42,0.03)]', false)
+            ->assertSee('bg-slate-900 text-white shadow-xs', false)
+            ->assertSee('id="header-breadcrumb"', false)
+            ->assertSee('rounded-md bg-slate-100/80', false)
+            ->assertSee('id="topbar-context-badge"', false)
+            ->assertSee('bg-gradient-to-b from-white to-slate-50', false)
+            ->assertSee('relative flex h-2 w-2', false)
+            ->assertDontSee('font-mono', false);
+    }
 }

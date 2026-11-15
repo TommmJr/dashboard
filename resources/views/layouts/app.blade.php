@@ -25,7 +25,7 @@
             class="app-content flex min-h-full flex-col overflow-auto transition-all duration-200 ease-in-out"
             :style="`margin-left: ${$store.ui.sidebarExpanded ? '16rem' : '4rem'}`"
         >
-            <header class="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-slate-200/80 bg-white/95 px-5 backdrop-blur-xs sm:px-8">
+            <header class="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-slate-200/80 bg-white/85 px-5 shadow-[0_1px_3px_0_rgba(15,23,42,0.03)] backdrop-blur-md sm:px-8">
                 <div class="flex min-w-0 items-center gap-3">
                     <button type="button"
                             class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a3b8] lg:hidden"
@@ -37,18 +37,33 @@
                             <path d="M4 6h16M4 12h16M4 18h16" stroke-linecap="round" stroke-linejoin="round" />
                         </svg>
                     </button>
-                    <div class="flex min-w-0 items-center gap-3">
-                        <span class="truncate text-base font-semibold tracking-tight text-slate-900">
+                    <div class="flex min-w-0 items-center gap-2.5 sm:gap-3">
+                        <span class="hidden sm:inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-900 text-white shadow-xs ring-1 ring-slate-900/10" aria-hidden="true">
+                            @if (request()->routeIs('dashboard.builder'))
+                                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                    <rect x="3" y="3" width="7" height="7" rx="1.5" />
+                                    <rect x="14" y="3" width="7" height="7" rx="1.5" />
+                                    <rect x="14" y="14" width="7" height="7" rx="1.5" />
+                                    <rect x="3" y="14" width="7" height="7" rx="1.5" />
+                                </svg>
+                            @else
+                                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" />
+                                </svg>
+                            @endif
+                        </span>
+                        <span class="truncate text-[15px] font-bold tracking-tight text-slate-900">
                             @yield('page_heading', 'Dashboard')
                         </span>
                         @hasSection('breadcrumbs')
                             @yield('breadcrumbs')
                         @else
-                            <nav aria-label="Breadcrumb" id="header-breadcrumb" class="hidden sm:flex items-center gap-1.5 border-l border-slate-200 pl-3 text-xs">
-                                <a href="{{ route('dashboard') }}" class="{{ request()->routeIs('dashboard') ? 'font-semibold text-[#0b6175]' : 'text-slate-500 hover:text-[#16a3b8]' }}" @if(request()->routeIs('dashboard')) aria-current="page" @endif>Beranda</a>
+                            <span class="hidden sm:inline-block select-none text-slate-300" aria-hidden="true">/</span>
+                            <nav aria-label="Breadcrumb" id="header-breadcrumb" class="hidden sm:inline-flex items-center gap-1.5 rounded-md bg-slate-100/80 px-2.5 py-1 text-xs font-medium text-slate-600 ring-1 ring-slate-200/60">
+                                <a href="{{ route('dashboard') }}" class="{{ request()->routeIs('dashboard') ? 'font-semibold text-slate-900' : 'text-slate-500 transition-colors hover:text-[#0b6175]' }}" @if(request()->routeIs('dashboard')) aria-current="page" @endif>Beranda</a>
                                 @if (! request()->routeIs('dashboard'))
                                     <span class="text-slate-300" aria-hidden="true">/</span>
-                                    <span class="truncate font-semibold text-[#0b6175]" aria-current="page">@yield('title')</span>
+                                    <span class="truncate font-semibold text-slate-900" aria-current="page">@yield('title')</span>
                                 @endif
                             </nav>
                         @endif
@@ -61,8 +76,11 @@
                         $contextLabel = auth()->user()->division?->name ?? auth()->user()->role?->name;
                     @endphp
                     @if ($contextLabel)
-                        <span id="topbar-context-badge" class="hidden sm:inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600">
-                            <span class="h-1.5 w-1.5 rounded-full bg-[#16a3b8]" aria-hidden="true"></span>
+                        <span id="topbar-context-badge" class="hidden sm:inline-flex items-center gap-2 rounded-full border border-slate-200/90 bg-gradient-to-b from-white to-slate-50 px-3.5 py-1.5 text-xs font-semibold text-slate-800 shadow-2xs ring-1 ring-slate-900/5">
+                            <span class="relative flex h-2 w-2" aria-hidden="true">
+                                <span class="absolute inline-flex h-full w-full animate-ping motion-reduce:animate-none rounded-full bg-emerald-400 opacity-75"></span>
+                                <span class="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
+                            </span>
                             <span>{{ $contextLabel }}</span>
                         </span>
                     @endif
