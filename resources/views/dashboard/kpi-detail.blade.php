@@ -11,61 +11,6 @@
         'indicators' => [],
     ];
 
-    $csvRows = [];
-    if (! empty($fullscreenPayload['indicators'])) {
-        foreach ($fullscreenPayload['indicators'] as $item) {
-            $pctStr = $item['pencapaian'] !== null ? number_format((float) $item['pencapaian'], 1, ',', '') : 'Belum tersedia';
-            $csvRows[] = [
-                'indikator' => $item['indikator'] ?? '',
-                'polaritas' => $item['polaritas'] ?? 'Positif',
-                'satuan' => $item['satuan'] ?? 'Tidak tercatat',
-                'bobot' => $item['bobot'] ?? 'Tidak tercatat',
-                'target' => $item['target_display'] ?? 'Tidak tercatat',
-                'realisasi' => $item['realisasi_display'] ?? 'Tidak tercatat',
-                'pencapaian' => $pctStr,
-                'status' => $item['status'] ?? 'Belum tersedia',
-            ];
-        }
-    } else {
-        $panelMap = [];
-        foreach (($targetRealisasiData['sections'] ?? []) as $section) {
-            foreach (($section['panels'] ?? []) as $panel) {
-                $panelMap[$panel['name']] = $panel;
-            }
-        }
-
-        $sourceRows = $kinerjaDetailData['rows'] ?? [];
-        foreach ($sourceRows as $row) {
-            $name = $row['indikator'] ?? '';
-            $panel = $panelMap[$name] ?? null;
-            $pct = $row['pencapaian'] ?? null;
-            $status = 'Belum tersedia';
-            if ($pct !== null) {
-                $tier = \App\Support\KpiScoreNormalizer::ragTier((float) $pct);
-                $status = match ($tier) {
-                    \App\Support\KpiScoreNormalizer::TIER_TERCAPAI => 'Tercapai',
-                    \App\Support\KpiScoreNormalizer::TIER_HAMPIR => 'Hampir Tercapai',
-                    default => 'Perlu Peningkatan',
-                };
-            }
-            $targetVal = $row['target_display'] ?? ($row['target'] !== null ? $row['target'] : ($panel['numeric']['target'] ?? ($panel['date']['target'] ?? 'Tidak tercatat')));
-            $realisasiVal = $row['realisasi_display'] ?? ($row['realisasi'] !== null ? $row['realisasi'] : ($panel['numeric']['realisasi'] ?? ($panel['date']['realisasi'] ?? 'Tidak tercatat')));
-            $satuanVal = $panel['satuan'] ?? ($row['satuan'] ?? 'Tidak tercatat');
-            $pctStr = $pct !== null ? number_format((float) $pct, 1, ',', '') : ($panel['score']['percent'] !== null ? number_format((float) $panel['score']['percent'], 1, ',', '') : 'Belum tersedia');
-
-            $csvRows[] = [
-                'indikator' => $name,
-                'polaritas' => 'Positif',
-                'satuan' => $satuanVal ?: 'Tidak tercatat',
-                'bobot' => 'Tidak tercatat',
-                'target' => $targetVal,
-                'realisasi' => $realisasiVal,
-                'pencapaian' => $pctStr,
-                'status' => $status,
-            ];
-        }
-    }
-
     $ragCounts = [
         'all' => count($fullscreenPayload['indicators'] ?? []),
         'tercapai' => 0,
@@ -737,12 +682,12 @@ if (typeof window.kpiDetailManager !== 'function') {
                 }
             },
 
-            downloadChartPng() {
+            downloadChartJpg() {
                 if (!fullscreenChartInstance || fullscreenChartInstance.isDisposed() || this.filteredIndicators.length === 0) {
                     return;
                 }
                 const dataUrl = fullscreenChartInstance.getDataURL({
-                    type: 'png',
+                    type: 'jpeg',
                     pixelRatio: 2,
                     backgroundColor: '#ffffff',
                 });
@@ -750,46 +695,14 @@ if (typeof window.kpiDetailManager !== 'function') {
                 const unitSlug = rawUnit.replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'semua-unit';
                 const link = document.createElement('a');
                 link.setAttribute('href', dataUrl);
-                link.setAttribute('download', 'grafik-kinerja-kpi-' + unitSlug + '.png');
+                link.setAttribute('download', 'grafik-kinerja-kpi-' + unitSlug + '.jpg');
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
-            },
-
-            downloadCsv() {
-                const rawData = parseJson('kpiExportData', []);
-                let csv = '\uFEFFsep=;\r\n';
-                csv += 'Indikator;Polaritas;Satuan;Bobot;Target;Realisasi;Skor Pencapaian KPI (Maks 110%);Status\r\n';
-                rawData.forEach(row => {
-                    const clean = (val) => '"' + String(val ?? '').replace(/"/g, '""') + '"';
-                    csv += [
-                        clean(row.indikator),
-                        clean(row.polaritas),
-                        clean(row.satuan),
-                        clean(row.bobot),
-                        clean(row.target),
-                        clean(row.realisasi),
-                        clean(row.pencapaian),
-                        clean(row.status)
-                    ].join(';') + '\r\n';
-                });
-                const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-                const url = URL.createObjectURL(blob);
-                const link = document.createElement('a');
-                link.setAttribute('href', url);
-                link.setAttribute('download', 'Rincian_Kinerja_KPI_' + new Date().toISOString().slice(0, 10) + '.csv');
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                URL.revokeObjectURL(url);
             }
         };
     };
 }
-</script>
-
-<script type="application/json" id="kpiExportData">
-{!! json_encode($csvRows) !!}
 </script>
 
 <script type="application/json" id="kpiFullscreenChartData">
@@ -836,27 +749,14 @@ if (typeof window.kpiDetailManager !== 'function') {
                         <button
                             type="button"
                             id="kpi-fullscreen-download-chart-btn"
-                            @click="downloadChartPng()"
+                            @click="downloadChartJpg()"
                             :disabled="filteredIndicators.length === 0 || !!chartError"
                             class="inline-flex items-center gap-1.5 rounded-lg border border-[#0b6175]/25 bg-[#e6f4f6]/70 px-2.5 py-1.5 text-xs font-semibold text-[#0b6175] transition hover:bg-[#e6f4f6] disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a3b8]/40"
                         >
                             <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
                                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4m4-5 5 5 5-5m-5 5V3" stroke-linecap="round" stroke-linejoin="round"/>
                             </svg>
-                            <span>Unduh PNG</span>
-                        </button>
-
-                        <button
-                            type="button"
-                            id="kpi-fullscreen-download-csv-btn"
-                            @click="downloadCsv()"
-                            class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200/80 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50 hover:text-slate-900 cursor-pointer whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a3b8]/40"
-                        >
-                            <svg class="h-3.5 w-3.5 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" stroke-linecap="round" stroke-linejoin="round"/>
-                                <path d="M14 2v6h6M8 13h8M8 17h8M8 9h2" stroke-linecap="round" stroke-linejoin="round"/>
-                            </svg>
-                            <span>Unduh CSV</span>
+                            <span>Unduh JPG</span>
                         </button>
 
                         <button
@@ -1164,18 +1064,6 @@ if (typeof window.kpiDetailManager !== 'function') {
                         <span>Analitik KPI</span>
                     </a>
                 @endif
-
-                <button
-                    type="button"
-                    id="kpi-detail-download-btn"
-                    @click="downloadCsv()"
-                    class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200/80 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50 hover:text-slate-900 cursor-pointer whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a3b8]/40"
-                >
-                    <svg class="h-3.5 w-3.5 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4m4-5 5 5 5-5m-5 5V3" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
-                    <span>Unduh CSV</span>
-                </button>
 
                 <button
                     type="button"
