@@ -93,6 +93,71 @@ class AssetStockReportTest extends TestCase
         $this->assertTrue($report['totals']->isEmpty());
     }
 
+    public function test_total_per_upt_periode_terbaru_dalam_satu_dataset_mengabaikan_periode_lama(): void
+    {
+        $division = Division::factory()->create();
+        $dataset = $this->readyDataset($division, '2026-11-01 08:00:00');
+
+        $this->assetRow($dataset, 'BANDUNG', 'BANDUNG BARAT', 'Trafo 500/150 KV | Bank', '2026-01-31', 2);
+        $this->assetRow($dataset, 'BANDUNG', 'BANDUNG BARAT', 'Trafo 500/150 KV | MVA', '2026-01-31', 100.5);
+        $this->assetRow($dataset, 'BANDUNG', 'BANDUNG SELATAN', 'Trafo 500/150 KV | Bank', '2026-01-31', 0);
+        $this->assetRow($dataset, 'BANDUNG', 'BANDUNG BARAT', 'Trafo 500/150 KV | Bank', '2026-02-28', 3);
+
+        $report = app(AssetStockReport::class)->totalsByUpt();
+
+        $this->assertSame('2026-02-28', $report['period']);
+        $this->assertCount(1, $report['totals']);
+        $this->assertSame([
+            ['upt' => 'BANDUNG', 'attribute' => 'Trafo 500/150 KV | Bank', 'total' => 3.0],
+        ], $this->totalsAsArray($report));
+    }
+
+    public function test_total_per_upt_mengabaikan_baris_non_aset_dan_upt_lain_di_dataset_non_ready(): void
+    {
+        $division = Division::factory()->create();
+        $ready = $this->readyDataset($division, '2026-11-01 08:00:00');
+        $failed = Dataset::factory()->create([
+            'division_id' => $division->id,
+            'status' => Dataset::STATUS_FAILED,
+            'created_at' => '2026-11-01 09:00:00',
+        ]);
+
+        PerformanceMetric::factory()->create([
+            'metric_name' => 'RST'.KpiReportConverter::NKO_SUFFIX,
+            'dataset_id' => $ready->id,
+            'division_id' => $division->id,
+            'period' => '2026-01-31',
+            'value' => 100,
+        ]);
+        $this->assetRow($failed, 'BOGOR', 'BOGOR', 'Trafo 500/150 KV | Bank', '2026-01-31', 9);
+        $this->assetRow($ready, 'BEKASI', 'BEKASI', 'Trafo 500/150 KV | Bank', '2026-01-31', 4);
+
+        $report = app(AssetStockReport::class)->totalsByUpt();
+
+        $this->assertSame('2026-01-31', $report['period']);
+        $this->assertCount(1, $report['totals']);
+        $this->assertSame([
+            ['upt' => 'BEKASI', 'attribute' => 'Trafo 500/150 KV | Bank', 'total' => 4.0],
+        ], $this->totalsAsArray($report));
+    }
+
+    public function test_total_per_upt_baris_bernilai_nol_tetap_muncul_saat_hanya_ada_baris_nol(): void
+    {
+        // Nol adalah data (belum ada realisasi atau cached zero), bukan null/absen.
+        $division = Division::factory()->create();
+        $dataset = $this->readyDataset($division, '2026-11-01 08:00:00');
+
+        $this->assetRow($dataset, 'BANDUNG', 'BANDUNG BARAT', 'Trafo 500/150 KV | Bank', '2026-01-31', 0);
+
+        $report = app(AssetStockReport::class)->totalsByUpt();
+
+        $this->assertSame('2026-01-31', $report['period']);
+        $this->assertCount(1, $report['totals']);
+        $this->assertSame([
+            ['upt' => 'BANDUNG', 'attribute' => 'Trafo 500/150 KV | Bank', 'total' => 0.0],
+        ], $this->totalsAsArray($report));
+    }
+
     public function test_total_per_upt_memakai_dataset_ready_terbaru_pada_periode_dan_divisi_sama(): void
     {
         // Satu dataset = satu versi. Dua dataset READY pada divisi + periode
