@@ -36,17 +36,13 @@ class RolePermissionSeeder extends Seeder
                 'dataset.view',
                 'audit.view',
                 'audit.view_all',
-                'report.export',
             ],
 
             Role::EDITOR_DASHBOARD => [
                 'dashboard.view',
-                'dashboard.create',
                 'dashboard.update',
-                'dashboard.publish',
                 'dataset.view',
                 'audit.view',
-                'report.export',
             ],
 
             Role::STAFF_DIVISI => [
@@ -54,7 +50,6 @@ class RolePermissionSeeder extends Seeder
                 'dataset.view',
                 'dataset.import',
                 'dataset.update',
-                'report.export',
             ],
         ];
     }

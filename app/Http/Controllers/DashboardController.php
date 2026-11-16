@@ -628,7 +628,7 @@ class DashboardController extends Controller
     /**
      * Data server-side ringan per widget.
      *
-     * @param  array{start_date: ?string, end_date: ?string}  $filters
+     * @param  array{start_date?: ?string, end_date?: ?string, units?: list<string>}  $filters
      */
     private function dataFor(string $key, ?User $user = null, array $filters = []): mixed
     {
@@ -930,7 +930,7 @@ class DashboardController extends Controller
      * menggeser "periode terbaru" ke dalam rentang. Filter unit sengaja TIDAK
      * diterapkan di sini (keputusan user 2026-10-01).
      *
-     * @return Collection<int, object>
+     * @return Collection<int, \stdClass>
      */
     private function nkoRanking(?User $user, ?string $startDate = null, ?string $endDate = null): Collection
     {
@@ -1906,7 +1906,7 @@ class DashboardController extends Controller
      * `metric_name` disintesis dengan akhiran yang sama seperti jalur legacy
      * supaya bentuk objeknya identik dan view tidak perlu tahu sumbernya.
      *
-     * @return Collection<int, object>
+     * @return Collection<int, \stdClass>
      */
     private function nkoRankingStructured(?User $user, ?string $startDate = null, ?string $endDate = null): Collection
     {
@@ -1922,11 +1922,14 @@ class DashboardController extends Controller
         }
 
         return $this->structuredNko->latestForPeriod($divisionId, $period)
-            ->map(fn (array $row): object => (object) [
-                'metric_name' => $row['unit'].KpiReportConverter::NKO_SUFFIX,
-                'nko' => $row['nko'],
-                'unit' => $row['unit'],
-            ])
+            ->map(function (array $row): \stdClass {
+                $item = new \stdClass;
+                $item->metric_name = $row['unit'].KpiReportConverter::NKO_SUFFIX;
+                $item->nko = $row['nko'];
+                $item->unit = $row['unit'];
+
+                return $item;
+            })
             // Batas unit TAMPIL (keputusan 2026-10-12), sama seperti jalur
             // legacy. Diterapkan SETELAH periode + dataset terbaru dipilih,
             // jadi "latest dataset wins" tidak berubah.

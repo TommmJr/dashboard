@@ -6,6 +6,7 @@ use App\Models\Dataset;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use stdClass;
 
 /**
  * Query read-only domain Aset untuk persiapan fase visual.
@@ -46,7 +47,7 @@ class AssetStockReport
      *
      * @param  string|null  $period  Periode Y-m-d; null = periode terbaru.
      * @param  int|null  $divisionId  Batasi ke divisi pemilik data; null = lintas divisi.
-     * @return array{period: ?string, totals: Collection<int, object{upt: string, attribute: string, total: float}>}
+     * @return array{period: ?string, totals: Collection<int, object{upt: string, attribute: string, total: float}&stdClass>}
      */
     public function totalsByUpt(?string $period = null, ?int $divisionId = null): array
     {
@@ -60,7 +61,10 @@ class AssetStockReport
         $period ??= $base()->max('performance_metrics.period');
 
         if ($period === null) {
-            return ['period' => null, 'totals' => collect()];
+            /** @var Collection<int, object{upt: string, attribute: string, total: float}&stdClass> $empty */
+            $empty = collect();
+
+            return ['period' => null, 'totals' => $empty];
         }
 
         $period = Carbon::parse($period)->format('Y-m-d');
@@ -72,19 +76,19 @@ class AssetStockReport
             ->orderBy('performance_metrics.metric_name')
             ->get()
             ->map(function (object $row): object {
-                [$domain, $upt, $ultg, $attribute] = explode(' | ', $row->metric_name, 4) + [null, null, null, null];
+                [$domain, $upt, $ultg, $attribute] = explode(' | ', (string) $row->metric_name, 4) + [null, null, null, null];
 
                 return (object) [
-                    'upt' => $upt,
-                    'attribute' => $attribute,
+                    'upt' => (string) ($upt ?? ''),
+                    'attribute' => (string) ($attribute ?? ''),
                     'value' => (float) $row->value,
                 ];
             })
-            ->filter(fn (object $row): bool => in_array($row->upt, self::CANONICAL_UPTS, true))
+            ->filter(fn (object $row): bool => in_array($row->upt, self::CANONICAL_UPTS, true) && $row->attribute !== '')
             ->groupBy(fn (object $row): string => $row->upt."\0".$row->attribute)
-            ->map(fn (Collection $items): object => (object) [
-                'upt' => $items->first()->upt,
-                'attribute' => $items->first()->attribute,
+            ->map(fn (Collection $items) => (object) [
+                'upt' => (string) $items->first()->upt,
+                'attribute' => (string) $items->first()->attribute,
                 'total' => (float) $items->sum(fn (object $item): float => $item->value),
             ])
             ->values();
@@ -100,7 +104,7 @@ class AssetStockReport
      *
      * @param  string|null  $period  Periode Y-m-d; null = periode terbaru.
      * @param  int|null  $divisionId  Batasi ke divisi pemilik data; null = lintas divisi.
-     * @return array{period: ?string, totals: Collection<int, object{metric_name: string, kelompok: ?string, satuan: ?string, attribute: ?string, total: float}>}
+     * @return array{period: ?string, totals: Collection<int, object{metric_name: string, kelompok: ?string, satuan: ?string, attribute: ?string, total: float}&stdClass>}
      */
     public function totalsByUit(?string $period = null, ?int $divisionId = null): array
     {
@@ -113,7 +117,10 @@ class AssetStockReport
         $period ??= $base()->max('performance_metrics.period');
 
         if ($period === null) {
-            return ['period' => null, 'totals' => collect()];
+            /** @var Collection<int, object{metric_name: string, kelompok: ?string, satuan: ?string, attribute: ?string, total: float}&stdClass> $empty */
+            $empty = collect();
+
+            return ['period' => null, 'totals' => $empty];
         }
 
         $period = Carbon::parse($period)->format('Y-m-d');
@@ -125,19 +132,20 @@ class AssetStockReport
             ->orderBy('performance_metrics.metric_name')
             ->get()
             ->map(function (object $row): object {
-                [$domain, $level, $kelompok, $satuan] = explode(' | ', $row->metric_name, 4) + [null, null, null, null];
+                $metricName = (string) $row->metric_name;
+                [$domain, $level, $kelompok, $satuan] = explode(' | ', $metricName, 4) + [null, null, null, null];
 
                 return (object) [
-                    'metric_name' => $row->metric_name,
+                    'metric_name' => $metricName,
                     'kelompok' => $kelompok,
                     'satuan' => $satuan,
-                    'attribute' => $satuan ? "{$kelompok} | {$satuan}" : $kelompok,
+                    'attribute' => $satuan !== null && $satuan !== '' ? "{$kelompok} | {$satuan}" : $kelompok,
                     'value' => (float) $row->value,
                 ];
             })
             ->groupBy(fn (object $row): string => $row->metric_name)
-            ->map(fn (Collection $items): object => (object) [
-                'metric_name' => $items->first()->metric_name,
+            ->map(fn (Collection $items) => (object) [
+                'metric_name' => (string) $items->first()->metric_name,
                 'kelompok' => $items->first()->kelompok,
                 'satuan' => $items->first()->satuan,
                 'attribute' => $items->first()->attribute,

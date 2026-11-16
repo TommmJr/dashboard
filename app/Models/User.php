@@ -44,12 +44,17 @@ class User extends Authenticatable
     /**
      * Role (peran) user ini. Setiap user punya tepat satu role;
      * null berarti belum di-assign (tidak punya permission apa pun).
+     *
+     * @return BelongsTo<Role, $this>
      */
     public function role(): BelongsTo
     {
         return $this->belongsTo(Role::class);
     }
 
+    /**
+     * @return BelongsTo<Division, $this>
+     */
     public function division(): BelongsTo
     {
         return $this->belongsTo(Division::class);

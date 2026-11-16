@@ -197,7 +197,7 @@ class AssetDualUploadService
                     ];
                 }
 
-                if (! empty($inserts)) {
+                if ($inserts !== []) {
                     foreach (array_chunk($inserts, 500) as $chunk) {
                         PerformanceMetric::insert($chunk);
                     }

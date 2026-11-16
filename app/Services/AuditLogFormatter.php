@@ -148,12 +148,12 @@ class AuditLogFormatter
 
     public static function fieldLabel(string $key): string
     {
-        return static::FIELD_LABELS[$key] ?? Str::headline($key);
+        return self::FIELD_LABELS[$key] ?? Str::headline($key);
     }
 
     public static function actionLabel(string $action): string
     {
-        return static::ACTION_LABELS[$action] ?? $action;
+        return self::ACTION_LABELS[$action] ?? $action;
     }
 
     /**
@@ -168,7 +168,7 @@ class AuditLogFormatter
 
         $base = class_basename($log->auditable_type);
 
-        return (static::OBJECT_LABELS[$base] ?? Str::headline($base)).' #'.$log->auditable_id;
+        return (self::OBJECT_LABELS[$base] ?? Str::headline($base)).' #'.$log->auditable_id;
     }
 
     /**
@@ -215,22 +215,22 @@ class AuditLogFormatter
         }
 
         if (is_array($value)) {
-            return static::humanizeArray($key, $value);
+            return self::humanizeArray($key, $value);
         }
 
         if (is_string($value) && in_array($key, ['widgets', 'validation_report'], true)) {
             $decoded = json_decode($value, true);
             if (is_array($decoded)) {
-                return static::humanizeArray($key, $decoded);
+                return self::humanizeArray($key, $decoded);
             }
         }
 
         if ($key === 'size' && is_numeric($value)) {
-            return static::humanizeBytes((float) $value);
+            return self::humanizeBytes((float) $value);
         }
 
         if (is_string($value)) {
-            return static::humanizeDate($value) ?? $value;
+            return self::humanizeDate($value) ?? $value;
         }
 
         return (string) $value;

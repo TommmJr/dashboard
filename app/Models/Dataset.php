@@ -52,16 +52,25 @@ class Dataset extends Model
         return $query->where('status', DatasetStatus::READY);
     }
 
+    /**
+     * @return BelongsTo<Division, $this>
+     */
     public function division(): BelongsTo
     {
         return $this->belongsTo(Division::class);
     }
 
+    /**
+     * @return BelongsTo<User, $this>
+     */
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
 
+    /**
+     * @return HasMany<PerformanceMetric, $this>
+     */
     public function metrics(): HasMany
     {
         return $this->hasMany(PerformanceMetric::class);
@@ -70,6 +79,8 @@ class Dataset extends Model
     /**
      * Observation KPI terstruktur dari dataset ini (model baru, hidup
      * berdampingan dengan metrics() selama transisi read-model).
+     *
+     * @return HasMany<PerformanceObservation, $this>
      */
     public function observations(): HasMany
     {

@@ -28,7 +28,7 @@ class AssetSheetsSyncService
     /**
      * Jalankan sinkronisasi data aset dari Google Sheets.
      *
-     * @param  bool|User  $dryRunOrUser  Jika true mode dry-run, atau instance User untuk atribusi dataset
+     * @param  bool|User  $dryRun  Jika true mode dry-run, atau instance User untuk atribusi dataset
      * @param  string|null  $period  Periode data eksplisit Y-m-d (opsional)
      * @param  User|null  $user  Pengguna untuk atribusi dataset/audit (opsional, fallback ke Admin)
      * @return array{status: string, period: string, rows_1a: int, rows_1b: int, total_rows: int, dataset: ?Dataset}

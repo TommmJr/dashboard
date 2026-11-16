@@ -249,7 +249,7 @@ class KpiReportConverter
      * dikembalikan sebagai nilai (Throwable) di bawah unitnya, sehingga
      * pemanggil bisa melapor per unit sambil tetap mengimpor unit sehat.
      *
-     * @return array<string, array<int, array{0: string, 1: float, 2: string}>|Throwable> unit => baris, atau Throwable bila sheet gagal
+     * @return array<string, array<int, array{0: string, 1: float, 2: string}>|\Throwable> unit => baris, atau Throwable bila sheet gagal
      */
     public function extractPerUnit(string $sourcePath, string $period): array
     {

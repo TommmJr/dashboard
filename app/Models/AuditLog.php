@@ -66,11 +66,17 @@ class AuditLog extends Model
         'created_at' => 'datetime',
     ];
 
+    /**
+     * @return BelongsTo<User, $this>
+     */
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
 
+    /**
+     * @return MorphTo<Model, $this>
+     */
     public function auditable(): MorphTo
     {
         return $this->morphTo();
@@ -79,6 +85,9 @@ class AuditLog extends Model
     /**
      * Scope query untuk mengecualikan entri granular terstruktur historis
      * dengan tetap mempertahankan baris ber-auditable_type NULL (seperti LOGIN/LOGOUT).
+     *
+     * @param  AuditLogBuilder  $query
+     * @return AuditLogBuilder
      */
     public function scopeCleanAuditTrail($query)
     {
@@ -102,7 +111,8 @@ class AuditLog extends Model
         $request = app('request');
         $resolvedUserId = func_num_args() >= 5 ? $userId : auth()->id();
 
-        return static::create([
+        /** @var static $log */
+        $log = static::create([
             'user_id' => $resolvedUserId,
             'action' => $action,
             'auditable_type' => $auditable?->getMorphClass(),
@@ -112,6 +122,8 @@ class AuditLog extends Model
             'ip' => $request?->ip(),
             'user_agent' => mb_substr((string) ($request?->userAgent() ?? ''), 0, 255),
         ]);
+
+        return $log;
     }
 
     public function update(array $attributes = [], array $options = []): never

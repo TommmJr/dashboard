@@ -2,6 +2,7 @@
 
 namespace App\Models\Builders;
 
+use App\Models\AuditLog;
 use Illuminate\Database\Eloquent\Builder;
 use LogicException;
 
@@ -34,6 +35,8 @@ use LogicException;
  *
  * Batas yang tetap berlaku: DB::table('audit_logs') tidak bisa dijangkau dari
  * kelas ini, sehingga proteksi level DB (grant) tetap menjadi lapisan terakhir.
+ *
+ * @extends Builder<AuditLog>
  */
 class AuditLogBuilder extends Builder
 {

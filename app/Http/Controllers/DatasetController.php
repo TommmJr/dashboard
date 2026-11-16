@@ -93,14 +93,17 @@ class DatasetController extends Controller
      * DB::table + format eksplisit Y-m-d, sama seperti PerformanceChartController:
      * cast 'date' pada model menggeser tanggal saat serialisasi (timezone).
      *
-     * @return Collection<int, string>
+     * @return Collection<int, non-falsy-string>
      */
     private function importedKpiPeriods(User $user)
     {
         $owner = Division::where('slug', 'perencanaan-pengusahaan')->first();
 
         if ($owner === null || ! $this->canImportKpi($user, $owner)) {
-            return collect();
+            /** @var Collection<int, non-falsy-string> $empty */
+            $empty = collect();
+
+            return $empty;
         }
 
         $metricPeriods = DB::table('performance_metrics')

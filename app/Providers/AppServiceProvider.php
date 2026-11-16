@@ -134,14 +134,22 @@ class AppServiceProvider extends ServiceProvider
         Event::listen(
             Login::class,
             fn (Login $event) => AuditLog::record(
-                AuditLog::ACTION_LOGIN, null, null, null, $event->user->id,
+                AuditLog::ACTION_LOGIN,
+                null,
+                null,
+                null,
+                $event->user instanceof User ? $event->user->id : (is_numeric($event->user->getAuthIdentifier()) ? (int) $event->user->getAuthIdentifier() : null),
             ),
         );
 
         Event::listen(
             Logout::class,
             fn (Logout $event) => AuditLog::record(
-                AuditLog::ACTION_LOGOUT, null, null, null, $event->user?->id,
+                AuditLog::ACTION_LOGOUT,
+                null,
+                null,
+                null,
+                $event->user instanceof User ? $event->user->id : (is_numeric($event->user?->getAuthIdentifier()) ? (int) $event->user->getAuthIdentifier() : null),
             ),
         );
 
@@ -189,7 +197,7 @@ class AppServiceProvider extends ServiceProvider
                     null,
                     null,
                     $newValues,
-                    $event->user?->id,
+                    $event->user instanceof User ? $event->user->id : (is_numeric($event->user?->getAuthIdentifier()) ? (int) $event->user->getAuthIdentifier() : null),
                 );
             },
         );

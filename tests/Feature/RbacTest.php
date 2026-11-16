@@ -35,6 +35,62 @@ class RbacTest extends TestCase
         );
     }
 
+    public function test_katalog_dan_matriks_permission_bebas_dari_permission_yatim(): void
+    {
+        $this->seed(RolePermissionSeeder::class);
+
+        $orphanedPermissions = [
+            'report.export',
+            'dashboard.create',
+            'dashboard.delete',
+            'dashboard.publish',
+        ];
+
+        $expectedCatalog = [
+            'user.view',
+            'user.create',
+            'user.update',
+            'user.delete',
+            'dataset.view',
+            'dataset.import',
+            'dataset.update',
+            'dataset.delete',
+            'dashboard.view',
+            'dashboard.update',
+            'audit.view',
+            'audit.view_all',
+        ];
+
+        $this->assertSame($expectedCatalog, Permission::names());
+
+        foreach ($orphanedPermissions as $orphaned) {
+            $this->assertFalse(Permission::exists($orphaned), "Permission yatim {$orphaned} tidak boleh ada di katalog.");
+            $this->assertDatabaseMissing('permissions', ['name' => $orphaned]);
+        }
+
+        $matrix = RolePermissionSeeder::matrix();
+
+        $this->assertSame($expectedCatalog, $matrix[Role::ADMIN]);
+        $this->assertSame([
+            'dashboard.view',
+            'dataset.view',
+            'audit.view',
+            'audit.view_all',
+        ], $matrix[Role::MANAGEMENT]);
+        $this->assertSame([
+            'dashboard.view',
+            'dashboard.update',
+            'dataset.view',
+            'audit.view',
+        ], $matrix[Role::EDITOR_DASHBOARD]);
+        $this->assertSame([
+            'dashboard.view',
+            'dataset.view',
+            'dataset.import',
+            'dataset.update',
+        ], $matrix[Role::STAFF_DIVISI]);
+    }
+
     public function test_admin_memiliki_semua_permission(): void
     {
         $this->seed(RolePermissionSeeder::class);
@@ -57,11 +113,17 @@ class RbacTest extends TestCase
         $editor = Role::where('slug', Role::EDITOR_DASHBOARD)->firstOrFail();
         $permissions = $editor->permissions->pluck('name');
 
+        $this->assertTrue($permissions->contains('dashboard.view'));
         $this->assertTrue($permissions->contains('dashboard.update'));
         $this->assertTrue($permissions->contains('dataset.view'));
+        $this->assertTrue($permissions->contains('audit.view'));
         $this->assertFalse($permissions->contains('dataset.import'));
         $this->assertFalse($permissions->contains('dataset.update'));
         $this->assertFalse($permissions->contains('dataset.delete'));
+        $this->assertFalse($permissions->contains('dashboard.create'));
+        $this->assertFalse($permissions->contains('dashboard.delete'));
+        $this->assertFalse($permissions->contains('dashboard.publish'));
+        $this->assertFalse($permissions->contains('report.export'));
     }
 
     public function test_management_hanya_penonton_dan_penikmat_laporan(): void
@@ -72,8 +134,10 @@ class RbacTest extends TestCase
         $permissions = $management->permissions->pluck('name');
 
         $this->assertTrue($permissions->contains('dashboard.view'));
+        $this->assertTrue($permissions->contains('dataset.view'));
         $this->assertTrue($permissions->contains('audit.view'));
-        $this->assertTrue($permissions->contains('report.export'));
+        $this->assertTrue($permissions->contains('audit.view_all'));
+        $this->assertFalse($permissions->contains('report.export'));
         $this->assertFalse($permissions->contains('dataset.import'));
         $this->assertFalse($permissions->contains('dashboard.update'));
         $this->assertFalse($permissions->contains('user.create'));
@@ -86,12 +150,15 @@ class RbacTest extends TestCase
         $staff = Role::where('slug', Role::STAFF_DIVISI)->firstOrFail();
         $permissions = $staff->permissions->pluck('name');
 
+        $this->assertTrue($permissions->contains('dataset.view'));
         $this->assertTrue($permissions->contains('dataset.import'));
         $this->assertTrue($permissions->contains('dataset.update'));
         $this->assertTrue($permissions->contains('dashboard.view'));
+        $this->assertFalse($permissions->contains('dataset.delete'));
         $this->assertFalse($permissions->contains('dashboard.update'));
         $this->assertFalse($permissions->contains('audit.view'));
         $this->assertFalse($permissions->contains('user.view'));
+        $this->assertFalse($permissions->contains('report.export'));
     }
 
     // Gate permission (otorisasi di backend)

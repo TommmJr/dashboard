@@ -30,6 +30,8 @@ class PerformanceMetric extends Model
      * Catatan: unit_id merujuk ke users.id (siapa pengunggah) dan TETAP
      * dipertahankan untuk audit trail. division_id adalah scope otorisasi
      * per data point — inilah yang dipakai untuk filtering pada chart.
+     *
+     * @return BelongsTo<Division, $this>
      */
     public function division(): BelongsTo
     {
@@ -41,6 +43,8 @@ class PerformanceMetric extends Model
      * - preview data per dataset (halaman show),
      * - eksklusi baris dari chart ketika dataset berstatus ARCHIVED,
      * - cascade delete ketika dataset dihapus permanen oleh admin.
+     *
+     * @return BelongsTo<Dataset, $this>
      */
     public function dataset(): BelongsTo
     {

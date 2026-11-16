@@ -146,8 +146,9 @@ class ReportController extends Controller
         $sheet->getStyle('A1:G1')->getFont()->setBold(true);
 
         foreach ($datasets as $i => $dataset) {
-            $lastUpdated = $dataset->last_metric_updated_at
-                ? Carbon::parse($dataset->last_metric_updated_at)->format('d/m/Y H:i')
+            $rawLastUpdated = $dataset->getAttribute('last_metric_updated_at');
+            $lastUpdated = is_string($rawLastUpdated) && $rawLastUpdated !== ''
+                ? Carbon::parse($rawLastUpdated)->format('d/m/Y H:i')
                 : '-';
 
             $sheet->fromArray([
