@@ -365,8 +365,13 @@ class AssetDualUploadTest extends TestCase
         $this->assertSame(0, Dataset::count());
     }
 
-    public function test_upload_single_file_divisi_lain_tetap_berfungsi_normal(): void
+    public function test_admin_upload_single_file_divisi_generik_tetap_berfungsi_normal(): void
     {
+        $genericDivision = Division::factory()->create([
+            'name' => 'Divisi Generik',
+            'slug' => 'divisi-generik',
+        ]);
+
         $rows = [
             ['metric_name', 'value', 'period'],
             ['Penjualan Tenaga Listrik', '1500.5', '2026-10-31'],
@@ -375,15 +380,16 @@ class AssetDualUploadTest extends TestCase
 
         $file = $this->makeGenericXlsx($rows);
 
-        $response = $this->actingAs($this->otherStaff)->post(route('datasets.store'), [
+        $response = $this->actingAs($this->admin)->post(route('datasets.store'), [
             'file' => $file,
+            'division_id' => $genericDivision->id,
         ]);
 
-        $dataset = Dataset::where('division_id', $this->otherDivision->id)->sole();
+        $dataset = Dataset::where('division_id', $genericDivision->id)->sole();
         $response->assertRedirect(route('datasets.show', $dataset));
 
         $this->assertSame(Dataset::STATUS_READY, $dataset->status->value);
-        $this->assertSame($this->otherDivision->id, $dataset->division_id);
+        $this->assertSame($genericDivision->id, $dataset->division_id);
         $this->assertSame(2, $dataset->metrics()->count());
     }
 }

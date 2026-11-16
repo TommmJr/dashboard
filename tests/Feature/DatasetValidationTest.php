@@ -34,6 +34,8 @@ class DatasetValidationTest extends TestCase
 
     private Division $division;
 
+    private User $admin;
+
     private User $staff;
 
     protected function setUp(): void
@@ -43,7 +45,13 @@ class DatasetValidationTest extends TestCase
         $this->seed(RolePermissionSeeder::class);
         $this->seed(UnitDivisionSeeder::class);
 
-        $this->division = Division::where('slug', 'perencanaan-pengusahaan')->sole();
+        $this->division = Division::factory()->create([
+            'name' => 'Divisi Generik',
+            'slug' => 'divisi-generik',
+        ]);
+        $this->admin = User::factory()->withRole(Role::ADMIN)->create([
+            'division_id' => null,
+        ]);
         $this->staff = User::factory()->withRole(Role::STAFF_DIVISI)->create([
             'division_id' => $this->division->id,
         ]);
@@ -65,7 +73,10 @@ class DatasetValidationTest extends TestCase
         $file = new UploadedFile($path, 'laporan.xlsx',
             'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', null, true);
 
-        $this->actingAs($this->staff)->post(route('datasets.store'), ['file' => $file]);
+        $this->actingAs($this->admin)->post(route('datasets.store'), [
+            'file' => $file,
+            'division_id' => $this->division->id,
+        ]);
 
         return Dataset::sole();
     }

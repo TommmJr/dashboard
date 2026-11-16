@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Http\Controllers\DatasetController;
 use App\Models\AuditLog;
 use App\Models\Permission;
 use App\Models\User;
@@ -12,10 +13,12 @@ use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\LazyLoadingViolationException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -28,6 +31,14 @@ class AppServiceProvider extends ServiceProvider
         $this->registerLoginRateLimiter();
         $this->registerPermissionGates();
         $this->registerAuditListeners();
+        $this->registerSidebarComposer();
+    }
+
+    private function registerSidebarComposer(): void
+    {
+        View::composer('components.sidebar', function ($view): void {
+            $view->with('canUploadAny', DatasetController::canUploadAny(Auth::user()));
+        });
     }
 
     /**

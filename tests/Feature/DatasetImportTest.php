@@ -29,6 +29,10 @@ class DatasetImportTest extends TestCase
 
     private Division $division;
 
+    private Division $genericDivision;
+
+    private User $admin;
+
     private User $staff;
 
     protected function setUp(): void
@@ -39,6 +43,13 @@ class DatasetImportTest extends TestCase
         $this->seed(UnitDivisionSeeder::class);
 
         $this->division = Division::where('slug', 'perencanaan-pengusahaan')->sole();
+        $this->genericDivision = Division::factory()->create([
+            'name' => 'Divisi Generik',
+            'slug' => 'divisi-generik',
+        ]);
+        $this->admin = User::factory()->withRole(Role::ADMIN)->create([
+            'division_id' => null,
+        ]);
         $this->staff = User::factory()->withRole(Role::STAFF_DIVISI)->create([
             'division_id' => $this->division->id,
         ]);
@@ -79,14 +90,17 @@ class DatasetImportTest extends TestCase
         $file = $this->makeXlsx($this->validRows());
         $fileSize = $file->getSize();
 
-        $response = $this->actingAs($this->staff)->post(route('datasets.store'), ['file' => $file]);
+        $response = $this->actingAs($this->admin)->post(route('datasets.store'), [
+            'file' => $file,
+            'division_id' => $this->genericDivision->id,
+        ]);
 
         $dataset = Dataset::sole();
 
         $response->assertRedirect(route('datasets.show', $dataset));
         $this->assertSame(Dataset::STATUS_READY, $dataset->status->value);
-        $this->assertSame($this->division->id, $dataset->division_id);
-        $this->assertSame($this->staff->id, $dataset->user_id);
+        $this->assertSame($this->genericDivision->id, $dataset->division_id);
+        $this->assertSame($this->admin->id, $dataset->user_id);
         $this->assertSame('laporan.xlsx', $dataset->original_name);
 
         // Metadata penyimpanan: nama file tersimpan (dipakai delete/export),
@@ -99,16 +113,19 @@ class DatasetImportTest extends TestCase
         $metric = $dataset->metrics()->where('period', '2026-01-31')->sole();
         $this->assertSame('Penjualan', $metric->metric_name);
         $this->assertEquals(100.5, (float) $metric->value);
-        $this->assertSame($this->division->id, $metric->division_id);
-        $this->assertSame($this->staff->id, $metric->unit_id);
+        $this->assertSame($this->genericDivision->id, $metric->division_id);
+        $this->assertSame($this->admin->id, $metric->unit_id);
     }
 
     public function test_file_non_excel_ditolak_validasi(): void
     {
         $file = UploadedFile::fake()->create('malware.exe', 10, 'application/octet-stream');
 
-        $this->actingAs($this->staff)
-            ->post(route('datasets.store'), ['file' => $file])
+        $this->actingAs($this->admin)
+            ->post(route('datasets.store'), [
+                'file' => $file,
+                'division_id' => $this->genericDivision->id,
+            ])
             ->assertSessionHasErrors('file');
 
         $this->assertSame(0, Dataset::count());
@@ -122,7 +139,10 @@ class DatasetImportTest extends TestCase
             ['', '10', '2026-04-30'],                   // metric_name kosong
         ]));
 
-        $response = $this->actingAs($this->staff)->post(route('datasets.store'), ['file' => $file]);
+        $response = $this->actingAs($this->admin)->post(route('datasets.store'), [
+            'file' => $file,
+            'division_id' => $this->genericDivision->id,
+        ]);
 
         $dataset = Dataset::sole();
         $response->assertRedirect(route('datasets.show', $dataset));
@@ -140,7 +160,10 @@ class DatasetImportTest extends TestCase
             ['', '', ''],
         ]);
 
-        $response = $this->actingAs($this->staff)->post(route('datasets.store'), ['file' => $file]);
+        $response = $this->actingAs($this->admin)->post(route('datasets.store'), [
+            'file' => $file,
+            'division_id' => $this->genericDivision->id,
+        ]);
 
         $dataset = Dataset::sole();
         $response->assertRedirect(route('datasets.show', $dataset));
@@ -163,7 +186,10 @@ class DatasetImportTest extends TestCase
         $zip->close();
         $file = new UploadedFile($path, 'korup.xlsx', 'application/zip', null, true);
 
-        $this->actingAs($this->staff)->post(route('datasets.store'), ['file' => $file]);
+        $this->actingAs($this->admin)->post(route('datasets.store'), [
+            'file' => $file,
+            'division_id' => $this->genericDivision->id,
+        ]);
 
         $dataset = Dataset::sole();
         $this->assertSame(Dataset::STATUS_FAILED, $dataset->status->value);
@@ -214,24 +240,27 @@ class DatasetImportTest extends TestCase
 
     public function test_form_upload_hanya_menampilkan_dropdown_divisi_untuk_admin(): void
     {
-        // Admin: wajib memilih divisi, form menampilkan dropdown semua divisi
-        $admin = User::factory()->withRole(Role::ADMIN)->create(['division_id' => null]);
-        $responseAdmin = $this->actingAs($admin)->get(route('datasets.create'));
+        // Admin: melihat Kartu 1 generik dan dropdown semua divisi
+        $responseAdmin = $this->actingAs($this->admin)->get(route('datasets.create'));
         $responseAdmin->assertOk()
+            ->assertSee('Upload Dataset Generik (3 Kolom)')
             ->assertSee('Divisi Pemilik Data')
             ->assertViewHas('divisions', fn ($divisions) => $divisions->isNotEmpty());
 
-        // Staf berdivisi: terikat ke divisinya sendiri, form tidak menampilkan dropdown
+        // Staf berdivisi: tidak melihat Kartu 1 generik maupun dropdown divisi
         $responseStaff = $this->actingAs($this->staff)->get(route('datasets.create'));
         $responseStaff->assertOk()
+            ->assertDontSee('Upload Dataset Generik (3 Kolom)')
             ->assertDontSee('Divisi Pemilik Data')
-            ->assertSee('Dataset akan tertaut ke divisi Anda')
+            ->assertDontSee('Dataset akan tertaut ke divisi Anda')
+            ->assertSee('Import Laporan KPI (Otomatis)')
             ->assertViewHas('divisions', fn ($divisions) => $divisions->isEmpty());
 
-        // Staf tanpa divisi: non-privileged, form tidak boleh menampilkan dropdown divisi
+        // Staf tanpa divisi: tidak melihat Kartu 1, dropdown divisi, maupun tombol upload
         $staffNoDiv = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => null]);
         $responseStaffNoDiv = $this->actingAs($staffNoDiv)->get(route('datasets.create'));
         $responseStaffNoDiv->assertOk()
+            ->assertDontSee('Upload Dataset Generik (3 Kolom)')
             ->assertDontSee('Divisi Pemilik Data')
             ->assertViewHas('divisions', fn ($divisions) => $divisions->isEmpty());
     }
@@ -274,18 +303,135 @@ class DatasetImportTest extends TestCase
 
     public function test_staf_tidak_bisa_menyelipkan_division_id_lain(): void
     {
-        // Input division_id dari staf DIABAIKAN (rule prohibited): data
-        // selalu tertaut ke divisi staf sendiri — anti scoping bypass.
+        // Non-Admin ditolak fail-closed 403 di POST datasets.store termasuk jika mencoba menyelipkan division_id.
         $otherDivision = Division::factory()->create();
         $file = $this->makeXlsx($this->validRows());
 
         $this->actingAs($this->staff)->post(route('datasets.store'), [
             'file' => $file,
             'division_id' => $otherDivision->id,
-        ])->assertSessionHasErrors('division_id');
+        ])->assertForbidden();
 
         $this->assertSame(0, Dataset::count());
         $this->assertSame(0, PerformanceMetric::count());
+    }
+
+    public function test_staf_perencanaan_pengusahaan_ditolak_403_saat_post_generik_dan_tidak_ada_baris_baru(): void
+    {
+        $file = $this->makeXlsx($this->validRows());
+
+        $response = $this->actingAs($this->staff)->post(route('datasets.store'), [
+            'file' => $file,
+        ]);
+
+        $response->assertForbidden();
+        $this->assertStringContainsString('Gunakan Import Laporan KPI', (string) $response->getContent());
+        $this->assertSame(0, Dataset::count());
+        $this->assertSame(0, PerformanceMetric::count());
+    }
+
+    public function test_staf_managemen_aset_ditolak_403_saat_post_generik_dan_tidak_ada_baris_baru(): void
+    {
+        $assetDivision = Division::where('slug', 'managemen-aset')->sole();
+        $assetStaff = User::factory()->withRole(Role::STAFF_DIVISI)->create([
+            'division_id' => $assetDivision->id,
+        ]);
+
+        $file = $this->makeXlsx($this->validRows());
+
+        $response = $this->actingAs($assetStaff)->post(route('datasets.store'), [
+            'file' => $file,
+        ]);
+
+        $response->assertForbidden();
+        $this->assertStringContainsString('Gunakan Upload Rekapitulasi Data Aset', (string) $response->getContent());
+        $this->assertSame(0, Dataset::count());
+        $this->assertSame(0, PerformanceMetric::count());
+    }
+
+    public function test_staf_divisi_lain_ditolak_403_saat_post_generik_dan_tidak_ada_baris_baru(): void
+    {
+        $genericStaff = User::factory()->withRole(Role::STAFF_DIVISI)->create([
+            'division_id' => $this->genericDivision->id,
+        ]);
+
+        $file = $this->makeXlsx($this->validRows());
+
+        $response = $this->actingAs($genericStaff)->post(route('datasets.store'), [
+            'file' => $file,
+        ]);
+
+        $response->assertForbidden();
+        $this->assertStringContainsString('Hubungi Admin', (string) $response->getContent());
+        $this->assertSame(0, Dataset::count());
+        $this->assertSame(0, PerformanceMetric::count());
+    }
+
+    public function test_admin_ditolak_403_saat_post_generik_ke_perencanaan_pengusahaan(): void
+    {
+        $file = $this->makeXlsx($this->validRows());
+
+        $response = $this->actingAs($this->admin)->post(route('datasets.store'), [
+            'file' => $file,
+            'division_id' => $this->division->id,
+        ]);
+
+        $response->assertForbidden();
+        $this->assertStringContainsString('Gunakan Import Laporan KPI', (string) $response->getContent());
+        $this->assertStringNotContainsString('Hubungi Admin', (string) $response->getContent());
+        $this->assertSame(0, Dataset::count());
+        $this->assertSame(0, PerformanceMetric::count());
+    }
+
+    public function test_ui_upload_dan_sidebar_menghormati_can_upload_any_dan_hanya_admin_melihat_kartu_1(): void
+    {
+        $assetDivision = Division::where('slug', 'managemen-aset')->sole();
+        $assetStaff = User::factory()->withRole(Role::STAFF_DIVISI)->create([
+            'division_id' => $assetDivision->id,
+        ]);
+        $genericStaff = User::factory()->withRole(Role::STAFF_DIVISI)->create([
+            'division_id' => $this->genericDivision->id,
+        ]);
+        $staffNoDiv = User::factory()->withRole(Role::STAFF_DIVISI)->create([
+            'division_id' => null,
+        ]);
+
+        // Staf KPI: tidak melihat Kartu 1, tetapi melihat tombol Upload Dataset & sidebar Upload Data
+        $this->actingAs($this->staff)
+            ->get(route('datasets.create'))
+            ->assertOk()
+            ->assertDontSee('Upload Dataset Generik (3 Kolom)')
+            ->assertSee('Import Laporan KPI (Otomatis)');
+
+        $this->actingAs($this->staff)
+            ->get(route('datasets.index'))
+            ->assertOk()
+            ->assertSee(route('datasets.create'), false);
+
+        // Staf Aset: tidak melihat Kartu 1, melihat Upload Rekapitulasi Data Aset & tombol upload
+        $this->actingAs($assetStaff)
+            ->get(route('datasets.create'))
+            ->assertOk()
+            ->assertDontSee('Upload Dataset Generik (3 Kolom)')
+            ->assertSee('Upload Rekapitulasi Data Aset');
+
+        $this->actingAs($assetStaff)
+            ->get(route('datasets.index'))
+            ->assertOk()
+            ->assertSee(route('datasets.create'), false);
+
+        // Staf divisi non-khusus & staf tanpa divisi: tidak melihat Kartu 1, tidak melihat tombol upload & sidebar Upload Data
+        foreach ([$genericStaff, $staffNoDiv] as $limitedStaff) {
+            $this->actingAs($limitedStaff)
+                ->get(route('datasets.create'))
+                ->assertOk()
+                ->assertDontSee('Upload Dataset Generik (3 Kolom)');
+
+            $this->actingAs($limitedStaff)
+                ->get(route('datasets.index'))
+                ->assertOk()
+                ->assertDontSee(route('datasets.create'), false);
+        }
     }
 
     public function test_staf_tanpa_divisi_ditolak_403_dan_tidak_meninggalkan_data(): void

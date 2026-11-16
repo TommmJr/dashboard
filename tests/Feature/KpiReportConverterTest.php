@@ -105,9 +105,12 @@ class KpiReportConverterTest extends TestCase
         $this->seed(RolePermissionSeeder::class);
         $this->seed(UnitDivisionSeeder::class);
 
-        $division = Division::where('slug', 'perencanaan-pengusahaan')->sole();
-        $staff = User::factory()->withRole(Role::STAFF_DIVISI)->create([
-            'division_id' => $division->id,
+        $division = Division::factory()->create([
+            'name' => 'Divisi Generik',
+            'slug' => 'divisi-generik',
+        ]);
+        $admin = User::factory()->withRole(Role::ADMIN)->create([
+            'division_id' => null,
         ]);
 
         $converter = app(KpiReportConverter::class);
@@ -117,7 +120,10 @@ class KpiReportConverterTest extends TestCase
         $file = new UploadedFile($path, 'kinerja-tjbt.xlsx',
             'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', null, true);
 
-        $this->actingAs($staff)->post(route('datasets.store'), ['file' => $file]);
+        $this->actingAs($admin)->post(route('datasets.store'), [
+            'file' => $file,
+            'division_id' => $division->id,
+        ]);
 
         $dataset = Dataset::sole();
         $this->assertSame(Dataset::STATUS_READY, $dataset->status->value);
@@ -205,19 +211,19 @@ class KpiReportConverterTest extends TestCase
         $this->seed(RolePermissionSeeder::class);
         $this->seed(UnitDivisionSeeder::class);
 
-        $division = Division::where('slug', 'perencanaan-pengusahaan')->sole();
         $admin = User::factory()->withRole(Role::ADMIN)->create(['division_id' => null]);
 
-        $converter = app(KpiReportConverter::class);
-        $rows = $converter->extract($this->makeKpiReport(), '2026-08-31', ['TJBT']);
-        $path = $this->tempFile($converter->write($rows));
+        $file = new UploadedFile(
+            $this->makeKpiReport(),
+            'laporan-kpi-2026-08-31.xlsx',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            null,
+            true,
+        );
 
-        $file = new UploadedFile($path, 'kinerja-tjbt.xlsx',
-            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', null, true);
-
-        $this->actingAs($admin)->post(route('datasets.store'), [
+        $this->actingAs($admin)->post(route('datasets.kpi-import'), [
             'file' => $file,
-            'division_id' => $division->id,
+            'period' => '2026-08-31',
         ]);
 
         // Layout admin operasional saja (§5.5): peringkat dibaca via

@@ -151,7 +151,7 @@
         @endif
 
         {{-- Group 3: DATA DIVISI / MANAJEMEN DATA --}}
-        @if ($authUser && ($authUser->can('dataset.view') || $authUser->can('dataset.import')))
+        @if ($authUser && ($authUser->can('dataset.view') || ($canUploadAny ?? false)))
             <div class="mt-2 border-t border-slate-100">
                 <div x-show="$store.ui.sidebarExpanded" x-transition.opacity class="{{ $groupLabelClass }}">
                     {{ $dataGroupTitle }}
@@ -169,7 +169,7 @@
                     </a>
                 @endcan
 
-                @can('dataset.import')
+                @if ($canUploadAny ?? false)
                     <a href="{{ route('datasets.create') }}"
                        @if ($isDatasetsCreate) aria-current="page" @endif
                        class="{{ $linkBase }} {{ $isDatasetsCreate ? $linkActive : $linkInactive }}">
@@ -178,7 +178,7 @@
                         </svg>
                         <span x-show="$store.ui.sidebarExpanded" x-transition.opacity class="sidebar-label whitespace-nowrap overflow-hidden text-ellipsis">Upload Data</span>
                     </a>
-                @endcan
+                @endif
             </div>
         @endif
 

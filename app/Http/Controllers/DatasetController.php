@@ -49,10 +49,30 @@ class DatasetController extends Controller
         return view('datasets.create', [
             'divisions' => $divisions,
             'user' => $user,
+            'canUploadGeneric' => $user->hasRole(Role::ADMIN),
             'canImportKpi' => $this->canImportKpi($user),
             'kpiPeriods' => $this->importedKpiPeriods($user),
             'canUploadAsset' => $canUploadAsset,
         ]);
+    }
+
+    public static function canUploadAny(?User $user): bool
+    {
+        if ($user === null || ! $user->can('dataset.import')) {
+            return false;
+        }
+
+        if ($user->hasRole(Role::ADMIN)) {
+            return true;
+        }
+
+        if (! $user->hasRole(Role::STAFF_DIVISI) || $user->division_id === null) {
+            return false;
+        }
+
+        $user->loadMissing('division:id,slug');
+
+        return in_array($user->division?->slug, ['perencanaan-pengusahaan', 'managemen-aset', 'data-aset'], true);
     }
 
     private function canImportKpi(User $user, ?Division $owner = null): bool
@@ -118,13 +138,28 @@ class DatasetController extends Controller
 
         if (! $canSelectDivision) {
             abort_if($user->division_id === null, 403, 'Staf tanpa divisi tidak dapat mengunggah dataset.');
+
+            $user->loadMissing('division:id,slug');
+
+            $message = match ($user->division?->slug) {
+                'perencanaan-pengusahaan' => 'Gunakan Import Laporan KPI.',
+                'managemen-aset', 'data-aset' => 'Gunakan Upload Rekapitulasi Data Aset.',
+                default => 'Hubungi Admin.',
+            };
+
+            abort(403, $message);
         }
 
         $assetDivisionId = Division::where('slug', 'managemen-aset')->value('id');
+        $kpiDivisionId = Division::where('slug', 'perencanaan-pengusahaan')->value('id');
 
-        $divisionId = $canSelectDivision
-            ? $request->integer('division_id')
-            : $user->division_id;
+        $divisionId = $request->integer('division_id');
+
+        abort_if(
+            $kpiDivisionId !== null && (int) $divisionId === (int) $kpiDivisionId,
+            403,
+            'Gunakan Import Laporan KPI.',
+        );
 
         $isAssetTarget = ($assetDivisionId !== null && (int) $divisionId === (int) $assetDivisionId);
 
@@ -789,8 +824,9 @@ class DatasetController extends Controller
         }
 
         $datasets = $query->paginate(15)->withQueryString();
+        $canUploadAny = self::canUploadAny($user);
 
-        return view('datasets.index', compact('datasets'));
+        return view('datasets.index', compact('datasets', 'canUploadAny'));
     }
 
     /**

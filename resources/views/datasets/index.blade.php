@@ -75,7 +75,7 @@
     <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div class="flex items-center gap-3">
             <h1 class="text-2xl font-bold tracking-tight text-slate-900">Datasets</h1>
-            @can('dataset.import')
+            @if ($canUploadAny ?? false)
                 <a href="{{ route('datasets.create') }}"
                    class="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white shadow-2xs transition-all hover:bg-primary/90">
                     <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -83,7 +83,7 @@
                     </svg>
                     Upload Dataset
                 </a>
-            @endcan
+            @endif
         </div>
 
         <form method="GET" class="ibs-card flex items-center gap-2.5 px-3 py-1.5">

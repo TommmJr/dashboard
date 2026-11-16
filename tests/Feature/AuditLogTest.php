@@ -44,7 +44,7 @@ class AuditLogTest extends TestCase
         ]);
     }
 
-    private function uploadFile(User $user): Dataset
+    private function uploadFile(User $user, ?int $divisionId = null): Dataset
     {
         $spreadsheet = new Spreadsheet;
         $sheet = $spreadsheet->getActiveSheet();
@@ -61,25 +61,33 @@ class AuditLogTest extends TestCase
         $file = new UploadedFile($path, 'laporan.xlsx',
             'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', null, true);
 
-        $this->actingAs($user)->post(route('datasets.store'), ['file' => $file]);
+        $payload = ['file' => $file];
+        if ($divisionId !== null) {
+            $payload['division_id'] = $divisionId;
+        }
+
+        $this->actingAs($user)->post(route('datasets.store'), $payload);
 
         return Dataset::sole();
     }
 
     public function test_upload_mencatat_create_dan_import_dengan_actor_benar(): void
     {
-        $dataset = $this->uploadFile($this->staff);
+        $genericDivision = Division::factory()->create(['slug' => 'divisi-generik']);
+        $admin = User::factory()->withRole(Role::ADMIN)->create(['division_id' => null]);
+
+        $dataset = $this->uploadFile($admin, $genericDivision->id);
 
         $create = AuditLog::where('action', AuditLog::ACTION_CREATE)
             ->where('auditable_type', Dataset::class)
             ->where('auditable_id', $dataset->id)
             ->sole();
-        $this->assertSame($this->staff->id, $create->user_id);
+        $this->assertSame($admin->id, $create->user_id);
 
         $import = AuditLog::where('action', AuditLog::ACTION_IMPORT)
             ->where('auditable_id', $dataset->id)
             ->sole();
-        $this->assertSame($this->staff->id, $import->user_id);
+        $this->assertSame($admin->id, $import->user_id);
         $this->assertSame(1, $import->new_values['rows_imported']);
     }
 

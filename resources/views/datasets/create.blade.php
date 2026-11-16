@@ -20,10 +20,11 @@
         </div>
     @endif
 
-    {{-- KARTU 1: UPLOAD DATASET STANDAR --}}
+    {{-- KARTU 1: UPLOAD DATASET GENERIK (3 KOLOM, KHUSUS ADMIN) --}}
+    @if ($canUploadGeneric ?? false)
     <div class="ibs-card animate-entrance stagger-1 mt-4 p-6 sm:p-7">
         <div class="flex items-center justify-between border-b border-slate-100 pb-4">
-            <h1 class="ibs-section-title text-base">Upload Dataset</h1>
+            <h1 class="ibs-section-title text-base">Upload Dataset Generik (3 Kolom)</h1>
             <div class="flex items-center gap-1.5">
                 <span class="rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 font-sans text-[10px] font-semibold text-slate-600">.XLSX</span>
                 <span class="rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 font-sans text-[10px] font-semibold text-slate-600">.CSV</span>
@@ -48,11 +49,6 @@
                         @endforeach
                     </select>
                 </div>
-            @else
-                <div class="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50/60 px-3.5 py-2.5 text-xs text-slate-600">
-                    <span class="h-2 w-2 rounded-full bg-primary"></span>
-                    <span>Dataset akan tertaut ke divisi Anda: <strong class="text-slate-800">{{ $user->division?->name ?? 'Pusat' }}</strong></span>
-                </div>
             @endif
 
             <div>
@@ -72,6 +68,13 @@
             </div>
         </form>
     </div>
+    @endif
+
+    @if (! ($canUploadGeneric ?? false) && ! ($canImportKpi ?? false) && ! ($canUploadAsset ?? false))
+        <div class="ibs-card animate-entrance stagger-1 mt-4 p-6 text-center text-xs text-slate-600">
+            Hubungi Admin untuk mengunggah dataset pada divisi Anda.
+        </div>
+    @endif
 
     {{-- KARTU 2: IMPORT LAPORAN KPI OTOMATIS --}}
     @if ($canImportKpi ?? false)
