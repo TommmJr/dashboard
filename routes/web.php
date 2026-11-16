@@ -42,10 +42,12 @@ Route::middleware('auth')->group(function () {
     Route::middleware('can:dashboard.update')->group(function () {
         Route::get('/dashboard/builder', [DashboardController::class, 'builder'])
             ->name('dashboard.builder');
-        Route::put('/dashboard/layout', [DashboardController::class, 'updateLayout'])
-            ->name('dashboard.layout.update');
-        Route::delete('/dashboard/layout', [DashboardController::class, 'resetLayout'])
-            ->name('dashboard.layout.reset');
+        Route::middleware('throttle:layout-mutation')->group(function () {
+            Route::put('/dashboard/layout', [DashboardController::class, 'updateLayout'])
+                ->name('dashboard.layout.update');
+            Route::delete('/dashboard/layout', [DashboardController::class, 'resetLayout'])
+                ->name('dashboard.layout.reset');
+        });
     });
     // Proses logout via POST (bukan GET, supaya aman dari CSRF/clickjacking).
     Route::post('/logout', [AuthController::class, 'destroy'])->name('logout');
@@ -53,13 +55,13 @@ Route::middleware('auth')->group(function () {
     // Jalur data untuk grafik
     // Proteksi permission 'dashboard.view' agar data agregat hanya dapat
     // diakses oleh user yang memang berhak melihat dashboard kinerja.
-    Route::middleware('can:dashboard.view')
-        ->get('/api/performance-data', [PerformanceChartController::class, 'index'])
-        ->name('performance.data');
+    Route::middleware(['can:dashboard.view', 'throttle:chart-api'])->group(function () {
+        Route::get('/api/performance-data', [PerformanceChartController::class, 'index'])
+            ->name('performance.data');
 
-    Route::middleware('can:dashboard.view')
-        ->get('/api/dashboard/custom-chart-data', [CustomChartController::class, 'data'])
-        ->name('api.dashboard.custom-chart-data');
+        Route::get('/api/dashboard/custom-chart-data', [CustomChartController::class, 'data'])
+            ->name('api.dashboard.custom-chart-data');
+    });
 
     // Dataset CRUD. Index/show untuk semua pemegang dataset.view
     Route::middleware('can:dataset.view')->group(function () {
@@ -67,16 +69,18 @@ Route::middleware('auth')->group(function () {
     });
     Route::middleware('can:dataset.import')->group(function () {
         Route::get('/datasets/create', [DatasetController::class, 'create'])->name('datasets.create');
-        Route::post('/datasets', [DatasetController::class, 'store'])->name('datasets.store');
-        // Import dual-file rekapitulasi aset (Tab 1b & Tab 1a) untuk Manajemen Aset.
-        Route::post('/datasets/asset-upload', [DatasetController::class, 'uploadAssetDual'])
-            ->name('datasets.asset-upload');
-        // Sinkronisasi data aset dari Google Sheets (Tab 1b & Tab 1a).
-        Route::post('/datasets/asset-sync', [DatasetController::class, 'syncAssetSheets'])
-            ->name('datasets.asset-sync');
-        // Import 1-klik laporan KPI mentah dari mentor ke satu dataset owner.
-        Route::post('/datasets/import-kpi-report', [DatasetController::class, 'importKpiReport'])
-            ->name('datasets.kpi-import');
+        Route::middleware('throttle:dataset-heavy')->group(function () {
+            Route::post('/datasets', [DatasetController::class, 'store'])->name('datasets.store');
+            // Import dual-file rekapitulasi aset (Tab 1b & Tab 1a) untuk Manajemen Aset.
+            Route::post('/datasets/asset-upload', [DatasetController::class, 'uploadAssetDual'])
+                ->name('datasets.asset-upload');
+            // Sinkronisasi data aset dari Google Sheets (Tab 1b & Tab 1a).
+            Route::post('/datasets/asset-sync', [DatasetController::class, 'syncAssetSheets'])
+                ->name('datasets.asset-sync');
+            // Import 1-klik laporan KPI mentah dari mentor ke satu dataset owner.
+            Route::post('/datasets/import-kpi-report', [DatasetController::class, 'importKpiReport'])
+                ->name('datasets.kpi-import');
+        });
     });
     Route::middleware('can:dataset.view')
         ->get('/datasets/{dataset}', [DatasetController::class, 'show'])

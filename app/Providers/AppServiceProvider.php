@@ -21,6 +21,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
+use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -30,6 +31,7 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->configureLazyLoading();
         $this->registerLoginRateLimiter();
+        $this->registerEndpointRateLimiters();
         $this->registerPermissionGates();
         $this->registerAuditListeners();
         $this->registerSidebarComposer();
@@ -82,6 +84,46 @@ class AppServiceProvider extends ServiceProvider
                 (string) $request->input('email').'|'.$request->ip(),
             );
         });
+    }
+
+    /**
+     * Rate limiter endpoint sensitif berbasis user ID (fallback IP untuk guest)
+     * untuk membatasi penyalahgunaan API grafik, spam mutasi layout, dan DoS
+     * upload/import/sinkronisasi dataset berat.
+     */
+    private function registerEndpointRateLimiters(): void
+    {
+        $limiters = [
+            'chart-api' => 60,
+            'layout-mutation' => 20,
+            'dataset-heavy' => 10,
+        ];
+
+        foreach ($limiters as $name => $maxPerMinute) {
+            RateLimiter::for($name, function (Request $request) use ($maxPerMinute): Limit {
+                $key = (string) ($request->user()?->id ?: $request->ip());
+
+                return Limit::perMinute($maxPerMinute)
+                    ->by($key)
+                    ->response(fn (Request $req, array $headers): SymfonyResponse => $this->rateLimitResponse($req, $headers));
+            });
+        }
+    }
+
+    /**
+     * Respons seragam HTTP 429 berbahasa Indonesia dengan header Retry-After.
+     *
+     * @param  array<string, int|string>  $headers
+     */
+    private function rateLimitResponse(Request $request, array $headers): SymfonyResponse
+    {
+        $message = 'Terlalu banyak permintaan. Silakan coba beberapa saat lagi.';
+
+        if ($request->is('api/*') || $request->expectsJson()) {
+            return response()->json(['message' => $message], 429, $headers);
+        }
+
+        return response($message, 429, $headers);
     }
 
     /**
