@@ -15,10 +15,15 @@ use App\Services\AssetSheetsSyncService;
 use App\Services\PublicDnsResolver;
 use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\UnitDivisionSeeder;
+use Illuminate\Console\Scheduling\Event as ScheduledEvent;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Schedule as ScheduleFacade;
 use Illuminate\Support\Facades\Storage;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
@@ -1297,5 +1302,128 @@ class AssetSheetsSyncTest extends TestCase
             ->sole();
 
         $this->assertGreaterThan(0, $dataset->metrics()->count());
+    }
+
+    public function test_scheduler_registers_aset_sync_with_default_cron_override_and_without_overlapping(): void
+    {
+        $this->assertFalse(config('asset.schedule_enabled'));
+        $this->assertSame('0 6 * * *', config('asset.schedule_cron'));
+
+        $this->artisan('schedule:list')
+            ->expectsOutputToContain('aset:sync')
+            ->assertExitCode(0);
+
+        $this->assertSame(0, Artisan::call('schedule:list', ['--json' => true]));
+        $scheduledItems = json_decode(Artisan::output(), true, 512, JSON_THROW_ON_ERROR);
+        $listedEvent = collect($scheduledItems)->first(
+            fn (array $item): bool => str_contains((string) ($item['command'] ?? ''), 'aset:sync')
+        );
+        $this->assertIsArray($listedEvent);
+        $this->assertSame('0 6 * * *', $listedEvent['expression']);
+
+        /** @var Schedule $schedule */
+        $schedule = app(Schedule::class);
+        $event = collect($schedule->events())->first(
+            fn (ScheduledEvent $item): bool => str_contains((string) $item->command, 'aset:sync')
+        );
+
+        $this->assertInstanceOf(ScheduledEvent::class, $event);
+        $this->assertSame('0 6 * * *', $event->expression);
+        $this->assertTrue($event->withoutOverlapping);
+        $this->assertSame(15, $event->expiresAt);
+
+        config(['asset.schedule_cron' => '15 7 * * *']);
+        ScheduleFacade::clearResolvedInstance(Schedule::class);
+        $this->app->forgetInstance(Schedule::class);
+        require base_path('routes/console.php');
+
+        /** @var Schedule $overriddenSchedule */
+        $overriddenSchedule = app(Schedule::class);
+        $overriddenEvent = collect($overriddenSchedule->events())->first(
+            fn (ScheduledEvent $item): bool => str_contains((string) $item->command, 'aset:sync')
+        );
+
+        $this->assertInstanceOf(ScheduledEvent::class, $overriddenEvent);
+        $this->assertSame('15 7 * * *', $overriddenEvent->expression);
+    }
+
+    public function test_scheduler_skips_aset_sync_and_sends_no_http_when_schedule_disabled(): void
+    {
+        config(['asset.schedule_enabled' => false]);
+        $this->fakeGoogleSheetsResponses();
+
+        try {
+            Carbon::setTestNow('2026-11-16 06:00:00');
+
+            $this->artisan('schedule:run')
+                ->assertExitCode(0);
+
+            /** @var Schedule $schedule */
+            $schedule = app(Schedule::class);
+            $event = collect($schedule->events())->first(
+                fn (ScheduledEvent $item): bool => str_contains((string) $item->command, 'aset:sync')
+            );
+
+            $this->assertInstanceOf(ScheduledEvent::class, $event);
+            $this->assertTrue($event->isDue($this->app));
+            $this->assertFalse($event->filtersPass($this->app));
+
+            Http::assertNothingSent();
+            $this->assertSame(0, Dataset::count());
+            $this->assertSame(0, AuditLog::where('action', AuditLog::ACTION_IMPORT)->count());
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_scheduler_passes_due_and_overlap_checks_when_enabled_and_aset_sync_produces_ready_dataset(): void
+    {
+        config(['asset.schedule_enabled' => true]);
+        $this->fakeGoogleSheetsResponses();
+
+        try {
+            $this->artisan('schedule:list')->assertExitCode(0);
+
+            /** @var Schedule $schedule */
+            $schedule = app(Schedule::class);
+            $event = collect($schedule->events())->first(
+                fn (ScheduledEvent $item): bool => str_contains((string) $item->command, 'aset:sync')
+            );
+
+            $this->assertInstanceOf(ScheduledEvent::class, $event);
+
+            Carbon::setTestNow('2026-11-16 05:59:00');
+            $this->assertFalse($event->isDue($this->app));
+
+            Carbon::setTestNow('2026-11-16 06:00:00');
+            $this->assertTrue($event->isDue($this->app));
+            $this->assertTrue($event->filtersPass($this->app));
+
+            $this->assertTrue($event->mutex->create($event));
+            try {
+                $this->assertFalse($event->filtersPass($this->app));
+            } finally {
+                $event->mutex->forget($event);
+            }
+
+            $this->assertTrue($event->filtersPass($this->app));
+
+            $this->artisan('aset:sync')->assertExitCode(0);
+
+            $dataset = Dataset::where('division_id', $this->assetDivision->id)
+                ->where('status', Dataset::STATUS_READY)
+                ->sole();
+
+            $this->assertNull($dataset->error_message);
+            $this->assertGreaterThan(0, $dataset->metrics()->count());
+            $this->assertTrue(
+                AuditLog::where('auditable_type', Dataset::class)
+                    ->where('auditable_id', $dataset->id)
+                    ->where('action', AuditLog::ACTION_IMPORT)
+                    ->exists()
+            );
+        } finally {
+            Carbon::setTestNow();
+        }
     }
 }
