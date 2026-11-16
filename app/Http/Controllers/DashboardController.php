@@ -17,6 +17,7 @@ use App\Services\AssetStockReport;
 use App\Services\KpiReportConverter;
 use App\Services\StructuredNkoReader;
 use App\Services\TargetRealisasiPerIndicatorReader;
+use App\Support\DatasetFreshness;
 use App\Support\KpiScoreNormalizer;
 use Carbon\Carbon;
 use Illuminate\Database\QueryException;
@@ -150,11 +151,15 @@ class DashboardController extends Controller
             ? $this->buildExecutiveMeta($user, $widgets, $filters)
             : null;
 
+        $kpiFreshness = $executiveMeta['freshness']
+            ?? ($user?->hasRole(Role::ADMIN) ? DatasetFreshness::forKpi() : null);
+
         return view('dashboard.index', [
             'widgets' => $widgets,
             'filters' => $filters,
             'availableUnits' => $this->availableUnits($user),
             'executiveMeta' => $executiveMeta,
+            'kpiFreshness' => $kpiFreshness,
         ]);
     }
 
@@ -187,8 +192,13 @@ class DashboardController extends Controller
             ? round((float) $nkoRows->avg('nko'), 2)
             : null;
 
+        $freshness = DatasetFreshness::forKpi();
+        $hasDateFilter = $filters['start_date'] !== null || $filters['end_date'] !== null;
+
         $period = $ragData['period']
-            ?? $this->latestReadyPeriod($user, $filters['start_date'], $filters['end_date']);
+            ?? (! $hasDateFilter && $freshness['latest_period'] !== null
+                ? $freshness['latest_period']
+                : $this->latestReadyPeriod($user, $filters['start_date'], $filters['end_date']));
 
         $isPrivileged = $this->isPrivileged($user);
         $readyDatasets = DB::table('datasets')
@@ -206,16 +216,9 @@ class DashboardController extends Controller
             ? implode(', ', $filters['units'])
             : (! empty(config('kpi.visible_units')) ? implode(', ', config('kpi.visible_units')) : 'Semua Unit');
 
-        $periodLabel = null;
-        if ($period !== null) {
-            $months = [
-                1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April',
-                5 => 'Mei', 6 => 'Juni', 7 => 'Juli', 8 => 'Agustus',
-                9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember',
-            ];
-            $dt = Carbon::parse($period);
-            $periodLabel = ($months[$dt->month] ?? $dt->format('M')).' '.$dt->year;
-        }
+        $periodLabel = $period !== null
+            ? DatasetFreshness::formatMonthYear($period)
+            : null;
 
         $achievedCount = $summaryData['achieved_count'] ?? null;
         $totalCount = $summaryData['total_count'] ?? null;
@@ -229,6 +232,7 @@ class DashboardController extends Controller
             'total_count' => $totalCount,
             'ready_datasets' => $readyDatasets,
             'has_data' => $averageNko !== null || (($summaryData['has_data'] ?? false) === true),
+            'freshness' => $freshness,
         ];
     }
 
@@ -733,6 +737,7 @@ class DashboardController extends Controller
      *     period: ?string,
      *     period_uit?: ?string,
      *     period_upt?: ?string,
+     *     freshness: array{has_dataset: bool, last_updated_label: string, last_updated_iso: ?string, latest_period: ?string, latest_period_label: string, is_stale: bool, stale_message: ?string},
      *     labels: list<string>,
      *     series: list<array{name: string, data: list<float>}>,
      *     summary: array{total_tower: float, total_transmisi: float, total_trafo: float, source?: string},
@@ -752,6 +757,7 @@ class DashboardController extends Controller
             'transmisi' => [],
             'trafo' => [],
         ];
+        $emptyFreshness = DatasetFreshness::empty('Belum ada data aktif', 'Belum ada dataset aset aktif');
 
         $isPrivileged = $user && (
             $user->hasRole(Role::ADMIN)
@@ -769,6 +775,7 @@ class DashboardController extends Controller
                 'period' => null,
                 'period_uit' => null,
                 'period_upt' => null,
+                'freshness' => $emptyFreshness,
                 'labels' => [],
                 'series' => [],
                 'summary' => $emptySummary,
@@ -783,6 +790,7 @@ class DashboardController extends Controller
                 'period' => null,
                 'period_uit' => null,
                 'period_upt' => null,
+                'freshness' => $emptyFreshness,
                 'labels' => [],
                 'series' => [],
                 'summary' => $emptySummary,
@@ -795,6 +803,7 @@ class DashboardController extends Controller
         $divisionId = $isPrivileged ? null : $user?->division_id;
 
         $report = app(AssetStockReport::class)->totalsByUpt(divisionId: $divisionId);
+        $freshness = DatasetFreshness::forAsset($divisionId, $report['period']);
 
         $upts = $report['totals']->pluck('upt')->unique()->values();
 
@@ -814,6 +823,7 @@ class DashboardController extends Controller
                 'period' => $report['period'],
                 'period_uit' => null,
                 'period_upt' => $report['period'],
+                'freshness' => $freshness,
                 'labels' => [],
                 'series' => [],
                 'summary' => $emptySummary,
@@ -903,6 +913,7 @@ class DashboardController extends Controller
             'period' => $report['period'],
             'period_uit' => $uitReport['period'] ?? $report['period'],
             'period_upt' => $report['period'],
+            'freshness' => $freshness,
             'labels' => $upts->all(),
             'series' => $series,
             'summary' => $summary,

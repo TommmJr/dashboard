@@ -12,6 +12,7 @@ use App\Models\PerformanceMetric;
 use App\Models\PerformanceObservation;
 use App\Models\Role;
 use App\Models\User;
+use Carbon\Carbon;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -1598,5 +1599,215 @@ class DashboardWidgetLayoutTest extends TestCase
             ->assertSee('data-category-filter="tower"', false)
             ->assertSee('data-category-filter="transmisi"', false)
             ->assertSee('data-category-filter="trafo"', false);
+    }
+
+    public function test_header_eksekutif_kpi_menampilkan_indikator_kesegaran_tanpa_peringatan_untuk_periode_bulan_berjalan(): void
+    {
+        Carbon::setTestNow(Carbon::create(2026, 11, 16, 10, 0, 0, 'Asia/Jakarta'));
+
+        try {
+            config(['kpi.read_model' => 'structured']);
+
+            $pengusahaan = Division::factory()->create([
+                'name' => 'Perencanaan Pengusahaan',
+                'slug' => 'perencanaan-pengusahaan',
+            ]);
+            $manset = Division::factory()->create([
+                'name' => 'Managemen Aset',
+                'slug' => 'managemen-aset',
+            ]);
+
+            $dataset = Dataset::factory()->create([
+                'division_id' => $pengusahaan->id,
+                'status' => Dataset::STATUS_READY,
+                'created_at' => Carbon::create(2026, 11, 16, 10, 0, 0, 'Asia/Jakarta'),
+                'updated_at' => Carbon::create(2026, 11, 16, 10, 0, 0, 'Asia/Jakarta'),
+            ]);
+
+            PerformanceMetric::factory()->create([
+                'dataset_id' => $dataset->id,
+                'division_id' => $pengusahaan->id,
+                'metric_name' => 'TJBT | NKO',
+                'value' => 105.5,
+                'period' => '2026-11-30',
+            ]);
+
+            $unit = OrgUnit::create(['name' => 'TJBT']);
+            $indicator = Indicator::create([
+                'org_unit_id' => $unit->id,
+                'name' => 'Indikator Kesegaran Bulan Berjalan',
+                'satuan' => '%',
+                'category' => 'nko',
+                'is_group' => false,
+            ]);
+            PerformanceObservation::create([
+                'dataset_id' => $dataset->id,
+                'indicator_id' => $indicator->id,
+                'org_unit_id' => $unit->id,
+                'division_id' => $pengusahaan->id,
+                'period' => '2026-11-30',
+                'target_value' => 100,
+                'target_type' => 'numeric',
+                'realisasi_value' => 100,
+                'realisasi_type' => 'numeric',
+                'pencapaian' => 1.0,
+                'nilai' => 105.5,
+                'source_sheet' => 'TJBT',
+                'source_row' => 5,
+            ]);
+
+            $management = User::factory()->withRole(Role::MANAGEMENT)->create();
+            $editor = User::factory()->withRole(Role::EDITOR_DASHBOARD)->create();
+            $admin = User::factory()->withRole(Role::ADMIN)->create();
+            $staffPengusahaan = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $pengusahaan->id]);
+            $staffAset = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $manset->id]);
+
+            foreach ([$management, $editor, $admin, $staffPengusahaan] as $actor) {
+                $this->actingAs($actor)
+                    ->get(route('dashboard'))
+                    ->assertOk()
+                    ->assertSee('id="kpi-freshness-indicator"', false)
+                    ->assertSee('Diperbarui 16 Nov 2026, 10.00 WIB')
+                    ->assertDontSee('Data periode berjalan belum tersedia')
+                    ->assertDontSee('Belum ada data aktif');
+            }
+
+            $this->actingAs($staffAset)
+                ->get(route('dashboard'))
+                ->assertOk()
+                ->assertDontSee('id="kpi-freshness-indicator"', false)
+                ->assertDontSee('Diperbarui 16 Nov 2026, 10.00 WIB');
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_header_eksekutif_kpi_menampilkan_peringatan_stale_dan_terisolasi_dari_divisi_aset(): void
+    {
+        Carbon::setTestNow(Carbon::create(2026, 11, 16, 20, 15, 0, 'Asia/Jakarta'));
+
+        try {
+            config(['kpi.read_model' => 'structured']);
+
+            $pengusahaan = Division::factory()->create([
+                'name' => 'Perencanaan Pengusahaan',
+                'slug' => 'perencanaan-pengusahaan',
+            ]);
+            $manset = Division::factory()->create([
+                'name' => 'Managemen Aset',
+                'slug' => 'managemen-aset',
+            ]);
+
+            $kpiDataset = Dataset::factory()->create([
+                'division_id' => $pengusahaan->id,
+                'status' => Dataset::STATUS_READY,
+                'created_at' => Carbon::create(2026, 11, 10, 9, 30, 0, 'Asia/Jakarta'),
+                'updated_at' => Carbon::create(2026, 11, 10, 9, 30, 0, 'Asia/Jakarta'),
+            ]);
+
+            PerformanceMetric::factory()->create([
+                'dataset_id' => $kpiDataset->id,
+                'division_id' => $pengusahaan->id,
+                'metric_name' => 'TJBT | NKO',
+                'value' => 104.2,
+                'period' => '2026-10-31',
+            ]);
+
+            $unit = OrgUnit::create(['name' => 'TJBT']);
+            $indicator = Indicator::create([
+                'org_unit_id' => $unit->id,
+                'name' => 'Indikator Bulan Lalu',
+                'satuan' => '%',
+                'category' => 'nko',
+                'is_group' => false,
+            ]);
+            PerformanceObservation::create([
+                'dataset_id' => $kpiDataset->id,
+                'indicator_id' => $indicator->id,
+                'org_unit_id' => $unit->id,
+                'division_id' => $pengusahaan->id,
+                'period' => '2026-10-31',
+                'target_value' => 100,
+                'target_type' => 'numeric',
+                'realisasi_value' => 100,
+                'realisasi_type' => 'numeric',
+                'pencapaian' => 1.0,
+                'nilai' => 104.2,
+                'source_sheet' => 'TJBT',
+                'source_row' => 5,
+            ]);
+
+            // Dataset Aset READY pada bulan berjalan TIDAK boleh memalsukan kesegaran KPI
+            $asetDataset = Dataset::factory()->create([
+                'division_id' => $manset->id,
+                'status' => Dataset::STATUS_READY,
+                'created_at' => Carbon::create(2026, 11, 16, 20, 15, 0, 'Asia/Jakarta'),
+                'updated_at' => Carbon::create(2026, 11, 16, 20, 15, 0, 'Asia/Jakarta'),
+            ]);
+            PerformanceMetric::factory()->create([
+                'dataset_id' => $asetDataset->id,
+                'division_id' => $manset->id,
+                'metric_name' => 'ASET | BEKASI | BEKASI | Tower 150 KV | SU',
+                'value' => 25,
+                'period' => '2026-11-30',
+            ]);
+
+            $management = User::factory()->withRole(Role::MANAGEMENT)->create();
+            $editor = User::factory()->withRole(Role::EDITOR_DASHBOARD)->create();
+            $admin = User::factory()->withRole(Role::ADMIN)->create();
+            $staffPengusahaan = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $pengusahaan->id]);
+
+            foreach ([$management, $editor, $admin, $staffPengusahaan] as $actor) {
+                $this->actingAs($actor)
+                    ->get(route('dashboard'))
+                    ->assertOk()
+                    ->assertSee('id="kpi-freshness-indicator"', false)
+                    ->assertSee('Diperbarui 10 Nov 2026, 09.30 WIB')
+                    ->assertSee('Data periode berjalan belum tersedia')
+                    ->assertDontSee('Diperbarui 16 Nov 2026, 20.15 WIB')
+                    ->assertDontSee('READY')
+                    ->assertDontSee('ARCHIVED');
+            }
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_header_eksekutif_kpi_menangani_kondisi_kosong_tanpa_dataset_ready_secara_bersih(): void
+    {
+        Carbon::setTestNow(Carbon::create(2026, 11, 16, 10, 0, 0, 'Asia/Jakarta'));
+
+        try {
+            $pengusahaan = Division::factory()->create([
+                'name' => 'Perencanaan Pengusahaan',
+                'slug' => 'perencanaan-pengusahaan',
+            ]);
+
+            Dataset::factory()->create([
+                'division_id' => $pengusahaan->id,
+                'status' => Dataset::STATUS_ARCHIVED,
+            ]);
+
+            $management = User::factory()->withRole(Role::MANAGEMENT)->create();
+            $editor = User::factory()->withRole(Role::EDITOR_DASHBOARD)->create();
+            $admin = User::factory()->withRole(Role::ADMIN)->create();
+            $staffPengusahaan = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $pengusahaan->id]);
+
+            foreach ([$management, $editor, $admin, $staffPengusahaan] as $actor) {
+                $html = $this->actingAs($actor)
+                    ->get(route('dashboard'))
+                    ->assertOk()
+                    ->assertSee('id="kpi-freshness-indicator"', false)
+                    ->assertSee('Belum ada data aktif')
+                    ->assertSee('Belum ada dataset aktif untuk periode berjalan')
+                    ->getContent();
+
+                $visibleHtml = (string) preg_replace('/<script\b[^>]*>.*?<\/script>/is', '', $html);
+                $this->assertStringNotContainsString('—', $visibleHtml);
+                $this->assertDoesNotMatchRegularExpression('/>\s*(?:-|–|—)+\s*</', $visibleHtml);
+            }
+        } finally {
+            Carbon::setTestNow();
+        }
     }
 }

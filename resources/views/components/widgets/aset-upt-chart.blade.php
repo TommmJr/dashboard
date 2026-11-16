@@ -25,6 +25,7 @@
     $summary = $data['summary'] ?? [];
     $tableRows = $data['table_rows'] ?? [];
     $seriesByCategory = $data['series_by_category'] ?? [];
+    $freshness = is_array($data['freshness'] ?? null) ? $data['freshness'] : null;
 
     $chartSlug = preg_replace('/[^a-z0-9]+/i', '-', strtolower($widget['key'] ?? 'aset-upt-chart'));
     $chartId = 'asetUptChart-'.$chartSlug.'-'.($widget['instance'] ?? 0);
@@ -95,19 +96,25 @@
 >
     {{-- Header Bersih Satu Baris --}}
     <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div class="flex flex-wrap items-center gap-2.5">
-            <h3 class="ibs-section-title text-lg font-bold text-slate-900">Kepemilikan Aset UIT JBT</h3>
-            <span class="sr-only">{{ $widget['label'] ?? 'Stok Aset per UPT' }}</span>
-            <span class="inline-flex items-center rounded-full bg-slate-100 border border-slate-200/80 px-2.5 py-0.5 text-xs font-medium text-slate-600">
-                Prototipe Demo
-            </span>
-            <span class="sr-only">Prototipe Demo (Rekapitulasi UPT)</span>
+        <div class="flex min-w-0 flex-col gap-1.5">
+            <div class="flex flex-wrap items-center gap-2.5">
+                <h3 class="ibs-section-title text-lg font-bold text-slate-900">Kepemilikan Aset UIT JBT</h3>
+                <span class="sr-only">{{ $widget['label'] ?? 'Stok Aset per UPT' }}</span>
+                <span class="inline-flex items-center rounded-full bg-slate-100 border border-slate-200/80 px-2.5 py-0.5 text-xs font-medium text-slate-600">
+                    Prototipe Demo
+                </span>
+                <span class="sr-only">Prototipe Demo (Rekapitulasi UPT)</span>
+            </div>
+            <x-data-freshness-badge id="aset-freshness-indicator" :freshness="$freshness" />
         </div>
 
         <div class="flex flex-wrap items-center gap-2">
             @if ($period !== null)
                 <span class="inline-flex items-center rounded-full bg-[#e6f4f6] px-3 py-1 text-xs font-semibold text-[#0b6175]">
                     {{ $formatMonthYear($period) }}
+                </span>
+                <span class="inline-flex items-center rounded-full border border-slate-200/80 bg-white px-2.5 py-0.5 text-[11px] font-medium text-slate-600">
+                    Tab 1a &amp; Tab 1b
                 </span>
                 <span class="sr-only">
                     Periode {{ $period }} Sumber: Rekap Induk UIT (Tab 1a) & Distribusi 8 UPT (Tab 1b)

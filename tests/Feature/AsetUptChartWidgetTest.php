@@ -7,6 +7,7 @@ use App\Models\Division;
 use App\Models\PerformanceMetric;
 use App\Models\Role;
 use App\Models\User;
+use Carbon\Carbon;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -688,5 +689,132 @@ class AsetUptChartWidgetTest extends TestCase
             ->assertSee('UIT JBT')
             ->assertSee('8 UPT')
             ->assertDontSee('TJBT');
+    }
+
+    public function test_widget_aset_menampilkan_kesegaran_data_terbaru_berdampingan_dengan_prototipe_demo_dan_tab_provenance(): void
+    {
+        Carbon::setTestNow(Carbon::create(2026, 11, 16, 14, 25, 0, 'Asia/Jakarta'));
+
+        try {
+            $manset = Division::factory()->create([
+                'name' => 'Managemen Aset',
+                'slug' => 'managemen-aset',
+            ]);
+            $pengusahaan = Division::factory()->create([
+                'name' => 'Perencanaan Pengusahaan',
+                'slug' => 'perencanaan-pengusahaan',
+            ]);
+
+            $stafAset = User::factory()->withRole(Role::STAFF_DIVISI)->create([
+                'division_id' => $manset->id,
+            ]);
+
+            $asetDataset = Dataset::factory()->create([
+                'division_id' => $manset->id,
+                'status' => Dataset::STATUS_READY,
+                'created_at' => Carbon::create(2026, 11, 16, 14, 25, 0, 'Asia/Jakarta'),
+                'updated_at' => Carbon::create(2026, 11, 16, 14, 25, 0, 'Asia/Jakarta'),
+            ]);
+            PerformanceMetric::factory()->create([
+                'metric_name' => 'ASET | BANDUNG | BANDUNG BARAT | Tower 150 KV | SU',
+                'dataset_id' => $asetDataset->id,
+                'division_id' => $manset->id,
+                'period' => '2026-11-30',
+                'value' => 120,
+            ]);
+            $this->seedAsetUitRowsFor($manset, '2026-11-30', [
+                ['Tower 150 KV | SU', 120],
+            ], $asetDataset);
+
+            // Dataset divisi lain tidak memengaruhi kesegaran Aset
+            $kpiDataset = Dataset::factory()->create([
+                'division_id' => $pengusahaan->id,
+                'status' => Dataset::STATUS_READY,
+                'created_at' => Carbon::create(2026, 11, 16, 15, 0, 0, 'Asia/Jakarta'),
+                'updated_at' => Carbon::create(2026, 11, 16, 15, 0, 0, 'Asia/Jakarta'),
+            ]);
+            PerformanceMetric::factory()->create([
+                'metric_name' => 'TJBT | NKO',
+                'dataset_id' => $kpiDataset->id,
+                'division_id' => $pengusahaan->id,
+                'period' => '2026-11-30',
+                'value' => 105.5,
+            ]);
+
+            $this->actingAs($stafAset)
+                ->get(route('dashboard'))
+                ->assertOk()
+                ->assertSee('id="aset-freshness-indicator"', false)
+                ->assertSee('Prototipe Demo')
+                ->assertSee('November 2026')
+                ->assertSee('Tab 1a')
+                ->assertSee('Tab 1b')
+                ->assertSee('Diperbarui 16 Nov 2026, 14.25 WIB')
+                ->assertDontSee('Diperbarui 16 Nov 2026, 15.00 WIB')
+                ->assertDontSee('Data periode berjalan belum tersedia');
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_widget_aset_menampilkan_penanda_stale_saat_periode_aset_tertinggal_dan_aman_saat_kosong(): void
+    {
+        Carbon::setTestNow(Carbon::create(2026, 11, 16, 20, 37, 0, 'Asia/Jakarta'));
+
+        try {
+            $manset = Division::factory()->create([
+                'name' => 'Managemen Aset',
+                'slug' => 'managemen-aset',
+            ]);
+            $stafAset = User::factory()->withRole(Role::STAFF_DIVISI)->create([
+                'division_id' => $manset->id,
+            ]);
+
+            $asetDataset = Dataset::factory()->create([
+                'division_id' => $manset->id,
+                'status' => Dataset::STATUS_READY,
+                'created_at' => Carbon::create(2026, 11, 14, 20, 37, 0, 'Asia/Jakarta'),
+                'updated_at' => Carbon::create(2026, 11, 14, 20, 37, 0, 'Asia/Jakarta'),
+            ]);
+            PerformanceMetric::factory()->create([
+                'metric_name' => 'ASET | BEKASI | BEKASI | Tower 150 KV | SU',
+                'dataset_id' => $asetDataset->id,
+                'division_id' => $manset->id,
+                'period' => '2026-10-31',
+                'value' => 88,
+            ]);
+
+            $staleHtml = $this->actingAs($stafAset)
+                ->get(route('dashboard'))
+                ->assertOk()
+                ->assertSee('id="aset-freshness-indicator"', false)
+                ->assertSee('Prototipe Demo')
+                ->assertSee('Oktober 2026')
+                ->assertSee('Tab 1a')
+                ->assertSee('Tab 1b')
+                ->assertSee('Diperbarui 14 Nov 2026, 20.37 WIB')
+                ->assertSee('Data periode berjalan belum tersedia')
+                ->getContent();
+
+            $visibleStaleHtml = (string) preg_replace('/<script\b[^>]*>.*?<\/script>/is', '', $staleHtml);
+            $this->assertStringNotContainsString('—', $visibleStaleHtml);
+
+            $asetDataset->update(['status' => Dataset::STATUS_ARCHIVED]);
+
+            $html = $this->actingAs($stafAset)
+                ->get(route('dashboard'))
+                ->assertOk()
+                ->assertSee('id="aset-freshness-indicator"', false)
+                ->assertSee('Belum ada data aset.')
+                ->assertSee('Belum ada data aktif')
+                ->assertSee('Belum ada dataset aset aktif')
+                ->getContent();
+
+            $visibleHtml = (string) preg_replace('/<script\b[^>]*>.*?<\/script>/is', '', $html);
+            $this->assertStringNotContainsString('—', $visibleHtml);
+            $this->assertDoesNotMatchRegularExpression('/>\s*(?:-|–|—)+\s*</', $visibleHtml);
+        } finally {
+            Carbon::setTestNow();
+        }
     }
 }

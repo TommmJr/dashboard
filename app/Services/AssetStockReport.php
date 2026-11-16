@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Dataset;
+use App\Support\DatasetFreshness;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -571,6 +572,7 @@ class AssetStockReport
             'period' => $periodResolved,
             'period_uit' => $uitReport['period'] ?? $periodResolved,
             'period_upt' => $periodResolved,
+            'freshness' => DatasetFreshness::forAsset($divisionId, $periodResolved),
             'ownership' => [
                 'parent_code' => 'UIT JBT',
                 'parent_name' => 'Unit Induk Transmisi Jawa Bagian Tengah (UIT JBT)',

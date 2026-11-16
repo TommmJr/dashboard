@@ -25,6 +25,7 @@
     $bayGroups = $data['bay_groups'] ?? [];
     $chartConfig = $data['chart_config'] ?? [];
     $interactiveMatrix = $data['interactive_matrix'] ?? [];
+    $freshness = is_array($data['freshness'] ?? null) ? $data['freshness'] : null;
 
     $formattedPeriod = 'Tidak tercatat';
     if (!empty($data['period'])) {
@@ -96,19 +97,25 @@
 <div class="space-y-5 min-w-0 max-w-full">
     {{-- Header Halaman Ringkas --}}
     <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div class="flex flex-wrap items-center gap-2.5">
-            <h1 class="text-2xl font-bold tracking-tight text-slate-900">Rincian Trafo & Stok Aset</h1>
-            <span class="inline-flex items-center rounded-full bg-slate-100 border border-slate-200/80 px-2.5 py-0.5 text-xs font-medium text-slate-600">
-                Prototipe Demo
-            </span>
-            <span class="inline-flex items-center rounded-full bg-[#e6f4f6] px-2.5 py-0.5 text-xs font-semibold text-[#0b6175]">
-                UIT JBT
-            </span>
-            @if (!empty($data['period']))
-                <span class="inline-flex items-center rounded-full bg-white border border-slate-200/80 px-2.5 py-0.5 text-xs font-medium text-slate-600">
-                    {{ $formattedPeriod }}
+        <div class="flex min-w-0 flex-col gap-1.5">
+            <div class="flex flex-wrap items-center gap-2.5">
+                <h1 class="text-2xl font-bold tracking-tight text-slate-900">Rincian Trafo & Stok Aset</h1>
+                <span class="inline-flex items-center rounded-full bg-slate-100 border border-slate-200/80 px-2.5 py-0.5 text-xs font-medium text-slate-600">
+                    Prototipe Demo
                 </span>
-            @endif
+                <span class="inline-flex items-center rounded-full bg-[#e6f4f6] px-2.5 py-0.5 text-xs font-semibold text-[#0b6175]">
+                    UIT JBT
+                </span>
+                @if (!empty($data['period']))
+                    <span class="inline-flex items-center rounded-full bg-white border border-slate-200/80 px-2.5 py-0.5 text-xs font-medium text-slate-600">
+                        {{ $formattedPeriod }}
+                    </span>
+                    <span class="inline-flex items-center rounded-full border border-slate-200/80 bg-white px-2.5 py-0.5 text-xs font-medium text-slate-600">
+                        Tab 1a &amp; Tab 1b
+                    </span>
+                @endif
+            </div>
+            <x-data-freshness-badge id="asset-detail-freshness-indicator" :freshness="$freshness" />
         </div>
 
         <div class="flex items-center gap-2">

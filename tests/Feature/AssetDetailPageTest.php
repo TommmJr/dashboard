@@ -7,6 +7,7 @@ use App\Models\Division;
 use App\Models\PerformanceMetric;
 use App\Models\Role;
 use App\Models\User;
+use Carbon\Carbon;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -436,5 +437,75 @@ class AssetDetailPageTest extends TestCase
             ->assertSee('200,0', false)
             ->assertSee('50,0', false)
             ->assertDontSee('0 Bank | 0 Unit');
+    }
+
+    public function test_halaman_detail_aset_menampilkan_kesegaran_data_dan_peringatan_periode_tertinggal(): void
+    {
+        Carbon::setTestNow(Carbon::create(2026, 11, 16, 20, 37, 0, 'Asia/Jakarta'));
+
+        try {
+            $division = Division::factory()->create(['name' => 'Managemen Aset', 'slug' => 'managemen-aset']);
+            $user = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $division->id]);
+
+            $staleDataset = Dataset::factory()->create([
+                'division_id' => $division->id,
+                'status' => Dataset::STATUS_READY,
+                'created_at' => Carbon::create(2026, 11, 14, 20, 37, 0, 'Asia/Jakarta'),
+                'updated_at' => Carbon::create(2026, 11, 14, 20, 37, 0, 'Asia/Jakarta'),
+            ]);
+            PerformanceMetric::factory()->create([
+                'metric_name' => 'ASET | BANDUNG | BANDUNG BARAT | Tower 500 KV | SU',
+                'dataset_id' => $staleDataset->id,
+                'division_id' => $division->id,
+                'period' => '2026-10-31',
+                'value' => 100,
+            ]);
+
+            $this->actingAs($user)
+                ->get(route('dashboard.asset-detail'))
+                ->assertOk()
+                ->assertSee('id="asset-detail-freshness-indicator"', false)
+                ->assertSee('Prototipe Demo')
+                ->assertSee('Oktober 2026')
+                ->assertSee('Diperbarui 14 Nov 2026, 20.37 WIB')
+                ->assertSee('Data periode berjalan belum tersedia');
+
+            $freshDataset = Dataset::factory()->create([
+                'division_id' => $division->id,
+                'status' => Dataset::STATUS_READY,
+                'created_at' => Carbon::create(2026, 11, 16, 20, 37, 0, 'Asia/Jakarta'),
+                'updated_at' => Carbon::create(2026, 11, 16, 20, 37, 0, 'Asia/Jakarta'),
+            ]);
+            PerformanceMetric::factory()->create([
+                'metric_name' => 'ASET | BANDUNG | BANDUNG BARAT | Tower 500 KV | SU',
+                'dataset_id' => $freshDataset->id,
+                'division_id' => $division->id,
+                'period' => '2026-11-30',
+                'value' => 105,
+            ]);
+
+            $this->actingAs($user)
+                ->get(route('dashboard.asset-detail'))
+                ->assertOk()
+                ->assertSee('id="asset-detail-freshness-indicator"', false)
+                ->assertSee('November 2026')
+                ->assertSee('Diperbarui 16 Nov 2026, 20.37 WIB')
+                ->assertDontSee('Data periode berjalan belum tersedia');
+
+            Dataset::query()->where('division_id', $division->id)->update(['status' => Dataset::STATUS_ARCHIVED]);
+
+            $html = $this->actingAs($user)
+                ->get(route('dashboard.asset-detail'))
+                ->assertOk()
+                ->assertSee('id="asset-detail-freshness-indicator"', false)
+                ->assertSee('Belum ada data aktif')
+                ->assertSee('Belum ada dataset aset aktif')
+                ->assertDontSee('—')
+                ->getContent();
+
+            $this->assertDoesNotMatchRegularExpression('/>\s*(?:-|–|—)+\s*</', $html);
+        } finally {
+            Carbon::setTestNow();
+        }
     }
 }

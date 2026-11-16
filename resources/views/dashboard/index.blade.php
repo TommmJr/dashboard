@@ -27,20 +27,24 @@
     $execMeta = is_array($executiveMeta ?? null) ? $executiveMeta : [];
     $execUnitLabel = $execMeta['unit_label'] ?? (! empty(config('kpi.visible_units')) ? implode(', ', config('kpi.visible_units')) : 'Semua Unit');
     $execPeriodLabel = $execMeta['period_label'] ?? null;
+    $execFreshness = $execMeta['freshness'] ?? ($kpiFreshness ?? null);
 @endphp
 
 @section('content')
 <div class="mx-auto max-w-7xl min-w-0" @if ($needsPerformanceState) x-data="performanceDashboard(@js($filters ?? []))" x-init="load()" @endif>
     @if ($isKpiDashboard)
         <div id="dashboard-header" class="mb-4 flex min-w-0 flex-col gap-3 lg:flex-row lg:items-center lg:justify-between animate-entrance">
-            <div class="flex min-w-0 flex-wrap items-center gap-2">
-                <h1 class="text-xl font-bold tracking-tight text-primary sm:text-2xl">Kinerja Pengusahaan</h1>
-                <span class="inline-flex items-center rounded-md border border-slate-200 bg-white px-2.5 py-0.5 text-xs font-semibold text-slate-700 whitespace-nowrap">
-                    {{ $execUnitLabel }}
-                </span>
-                <span class="inline-flex items-center rounded-full bg-[#e6f4f6] px-2.5 py-0.5 text-xs font-semibold text-[#0b6175] whitespace-nowrap">
-                    {{ $execPeriodLabel ?? 'Belum tersedia' }}
-                </span>
+            <div class="flex min-w-0 flex-col gap-1.5">
+                <div class="flex min-w-0 flex-wrap items-center gap-2">
+                    <h1 class="text-xl font-bold tracking-tight text-primary sm:text-2xl">Kinerja Pengusahaan</h1>
+                    <span class="inline-flex items-center rounded-md border border-slate-200 bg-white px-2.5 py-0.5 text-xs font-semibold text-slate-700 whitespace-nowrap">
+                        {{ $execUnitLabel }}
+                    </span>
+                    <span class="inline-flex items-center rounded-full bg-[#e6f4f6] px-2.5 py-0.5 text-xs font-semibold text-[#0b6175] whitespace-nowrap">
+                        {{ $execPeriodLabel ?? 'Belum tersedia' }}
+                    </span>
+                </div>
+                <x-data-freshness-badge id="kpi-freshness-indicator" :freshness="$execFreshness" />
             </div>
 
             <div class="flex min-w-0 max-w-full flex-wrap items-center gap-2 lg:shrink-0">
@@ -163,10 +167,13 @@
         </div>
     @else
         <div id="dashboard-header" class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between animate-entrance">
-            <div>
+            <div class="flex min-w-0 flex-col gap-1.5">
                 <h1 class="text-2xl font-extrabold tracking-tight text-primary">
                     {{ $isAdminDashboard ? 'Dashboard Admin' : 'Dashboard' }}
                 </h1>
+                @if ($isAdminDashboard)
+                    <x-data-freshness-badge id="kpi-freshness-indicator" :freshness="$kpiFreshness ?? null" context-label="Dataset KPI" />
+                @endif
             </div>
 
             @if ($isAdminDashboard)
