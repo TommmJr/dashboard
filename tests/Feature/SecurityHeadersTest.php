@@ -109,6 +109,32 @@ class SecurityHeadersTest extends TestCase
         }
     }
 
+    // Halaman login publik juga wajib menyematkan nonce unik per-request pada tag <script>.
+    public function test_csp_nonce_matches_executable_scripts_on_guest_login_page(): void
+    {
+        $loginResponse1 = $this->get(route('login'))->assertOk();
+        $csp1 = (string) $loginResponse1->headers->get('Content-Security-Policy');
+        preg_match("/'nonce-([A-Za-z0-9+\/=_-]+)'/", $csp1, $m1);
+        $nonce1 = $m1[1] ?? '';
+        $this->assertNotSame('', $nonce1);
+
+        $loginResponse2 = $this->get(route('login'))->assertOk();
+        $csp2 = (string) $loginResponse2->headers->get('Content-Security-Policy');
+        preg_match("/'nonce-([A-Za-z0-9+\/=_-]+)'/", $csp2, $m2);
+        $nonce2 = $m2[1] ?? '';
+        $this->assertNotSame('', $nonce2);
+        $this->assertNotSame($nonce1, $nonce2);
+
+        preg_match_all('/<script\b([^>]*)>/i', $loginResponse1->getContent(), $loginScriptTags);
+        $this->assertNotEmpty($loginScriptTags[1]);
+        foreach ($loginScriptTags[1] as $attrs) {
+            if (preg_match('/\btype\s*=\s*["\']application\/json["\']/i', $attrs) === 1) {
+                continue;
+            }
+            $this->assertStringContainsString('nonce="'.$nonce1.'"', $attrs);
+        }
+    }
+
     // Tidak boleh ada atribut inline event handler (onsubmit/onchange/onclick) di HTML ter-render.
     public function test_rendered_pages_have_no_inline_event_handler_attributes(): void
     {
