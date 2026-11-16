@@ -27,8 +27,6 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use PhpOffice\PhpSpreadsheet\IOFactory;
-use PhpOffice\PhpSpreadsheet\Spreadsheet;
-use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Throwable;
 
 class DatasetController extends Controller
@@ -1117,56 +1115,6 @@ class DatasetController extends Controller
         }
 
         return implode(' | ', $deduped);
-    }
-
-    /**
-     * Export baris metric dataset ke .xlsx.
-     * Scoping: ikut aturan show() — seesAllDivisions atau staf divisi sama.
-     * Tidak tercatat di audit log (aksi baca, bukan tulis).
-     */
-    public function export(Dataset $dataset)
-    {
-        $user = Auth::user();
-        abort_unless(
-            $this->seesAllDivisions($user) || ($user->division_id !== null && $user->division_id === $dataset->division_id),
-            403,
-        );
-
-        $metrics = $dataset->metrics()->orderBy('period')->get(['metric_name', 'value', 'period']);
-
-        $spreadsheet = new Spreadsheet;
-        $sheet = $spreadsheet->getActiveSheet();
-        $sheet->setTitle('Data');
-
-        // Header
-        $sheet->fromArray(['No', 'Metric Name', 'Value', 'Period'], null, 'A1');
-        $sheet->getStyle('A1:D1')->getFont()->setBold(true);
-
-        // Rows
-        foreach ($metrics as $i => $metric) {
-            $sheet->fromArray([
-                $i + 1,
-                $metric->metric_name,
-                (float) $metric->value,
-                is_string($metric->period) ? substr($metric->period, 0, 10) : $metric->period->format('Y-m-d'),
-            ], null, 'A'.($i + 2));
-        }
-
-        // Auto-size columns
-        foreach (['A', 'B', 'C', 'D'] as $col) {
-            $sheet->getColumnDimension($col)->setAutoSize(true);
-        }
-
-        $tempPath = tempnam(sys_get_temp_dir(), 'export_').'.xlsx';
-        (new Xlsx($spreadsheet))->save($tempPath);
-        $spreadsheet->disconnectWorksheets();
-
-        $baseName = pathinfo($dataset->original_name, PATHINFO_FILENAME);
-        $filename = $baseName.'-export.xlsx';
-
-        return response()->download($tempPath, $filename, [
-            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        ])->deleteFileAfterSend();
     }
 
     /**

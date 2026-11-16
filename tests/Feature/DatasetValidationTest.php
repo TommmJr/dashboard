@@ -13,6 +13,7 @@ use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\UnitDivisionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Route;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Tests\TestCase;
@@ -157,7 +158,15 @@ class DatasetValidationTest extends TestCase
             ->assertOk()
             ->assertSee('Ringkasan validasi')
             ->assertSee('Kesalahan: 1')
-            ->assertSee('Sesuai: 1');
+            ->assertSee('Sesuai: 1')
+            ->assertSee('id="validation-summary-panel"', false)
+            ->assertDontSee('/export"');
+
+        $this->assertFalse(Route::has('datasets.export'));
+
+        $this->actingAs($this->staff)
+            ->get('/datasets/'.$dataset->id.'/export')
+            ->assertRedirect(route('dashboard'));
     }
 
     public function test_period_datetime_dengan_komponen_jam_diterima_tanggalnya_saja(): void

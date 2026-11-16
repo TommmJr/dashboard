@@ -131,81 +131,9 @@
                         {{ $dataset->error_message }}
                     </div>
                 @endif
-
-                @php
-                    $validationReport = $dataset->validation_report ?? [];
-                    $conflictObservationsQuery = $dataset->observations()->where('period_conflict', true);
-                    $periodConflictCount = is_int($validationReport['period_conflict'] ?? null)
-                        ? $validationReport['period_conflict']
-                        : (int) ($validationReport['period_conflict_count'] ?? 0);
-
-                    if ($periodConflictCount === 0) {
-                        $periodConflictCount = $conflictObservationsQuery->count();
-                    }
-
-                    if ($periodConflictCount === 0 && ! empty($validationReport['period_conflict'])) {
-                        $periodConflictCount = 1;
-                    }
-
-                    $conflictingSheetPeriods = $validationReport['conflicting_sheet_periods']
-                        ?? ($periodConflictCount > 0
-                            ? (clone $conflictObservationsQuery)
-                                ->whereNotNull('sheet_period')
-                                ->distinct()
-                                ->orderBy('sheet_period')
-                                ->pluck('sheet_period')
-                                ->all()
-                            : []);
-                @endphp
-                @if ($dataset->validation_report || $periodConflictCount > 0)
-                    <div class="mt-4 rounded-lg border border-slate-200/90 bg-slate-50/40 p-4 text-xs">
-                        <p class="font-semibold text-slate-800">Ringkasan validasi</p>
-                        <div class="mt-2 flex flex-wrap gap-2 text-2xs">
-                            <span class="inline-flex items-center rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-800">Sesuai: {{ $validationReport['ok'] ?? 0 }}</span>
-                            <span class="inline-flex items-center rounded-md border border-amber-200 bg-amber-50 px-2 py-0.5 font-semibold text-amber-800">Peringatan: {{ $validationReport['warning'] ?? 0 }}</span>
-                            <span class="inline-flex items-center rounded-md border border-rose-200 bg-rose-50 px-2 py-0.5 font-semibold text-rose-800">Kesalahan: {{ $validationReport['fatal'] ?? 0 }}</span>
-                            @if ($periodConflictCount > 0)
-                                <span class="inline-flex items-center rounded-md border border-amber-300 bg-amber-100 px-2 py-0.5 font-semibold text-amber-900">Konflik Periode: {{ $periodConflictCount }}</span>
-                            @endif
-                        </div>
-                        @if ($periodConflictCount > 0)
-                            <div class="mt-2.5 rounded-lg border border-amber-200 bg-amber-50/70 p-3 text-xs text-amber-800">
-                                <p class="font-semibold">Konflik periode banner sheet ({{ $periodConflictCount }} observasi)</p>
-                                <p class="mt-0.5">
-                                    Periode banner sheet berbeda dari periode upload efektif. Data tetap disimpan menggunakan periode upload{{ $conflictingSheetPeriods !== [] ? ' (banner sheet: '.implode(', ', $conflictingSheetPeriods).')' : '' }}.
-                                </p>
-                            </div>
-                        @endif
-                        @if (! empty($validationReport['issues']))
-                            <ul class="mt-3 max-h-40 space-y-1 overflow-y-auto text-xs text-slate-600">
-                                @foreach ($validationReport['issues'] as $issue)
-                                    <li>
-                                        <span class="font-semibold {{ $issue['severity'] === 'FATAL' ? 'text-rose-700' : 'text-amber-700' }}">[{{ $issue['severity'] === 'FATAL' ? 'Kesalahan' : 'Peringatan' }}]</span>
-                                        Baris {{ $issue['row'] }}: {{ $issue['message'] }}
-                                    </li>
-                                @endforeach
-                            </ul>
-                            @if (! empty($validationReport['issues_truncated']))
-                                <p class="mt-1 text-2xs text-slate-400">Hanya menampilkan 50 masalah pertama. Total: {{ ($validationReport['fatal'] ?? 0) + ($validationReport['warning'] ?? 0) }}.</p>
-                            @endif
-                        @endif
-                    </div>
-                @endif
             </div>
 
             <div class="inline-flex flex-wrap items-center gap-2 shrink-0">
-                @can('report.export')
-                    <a href="{{ route('datasets.export', $dataset) }}"
-                       class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200/90 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-2xs transition-all hover:border-slate-300 hover:bg-slate-50">
-                        <svg class="h-3.5 w-3.5 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                            <polyline points="7 10 12 15 17 10"/>
-                            <line x1="12" y1="15" x2="12" y2="3"/>
-                        </svg>
-                        Export
-                    </a>
-                @endcan
-
                 @can('dataset.update')
                     @if ($dataset->status !== \App\Enums\DatasetStatus::ARCHIVED)
                         <form method="POST" action="{{ route('datasets.archive', $dataset) }}"
@@ -245,6 +173,114 @@
                 @endcan
             </div>
         </div>
+
+        @php
+            $validationReport = $dataset->validation_report ?? [];
+            $conflictObservationsQuery = $dataset->observations()->where('period_conflict', true);
+            $periodConflictCount = is_int($validationReport['period_conflict'] ?? null)
+                ? $validationReport['period_conflict']
+                : (int) ($validationReport['period_conflict_count'] ?? 0);
+
+            if ($periodConflictCount === 0) {
+                $periodConflictCount = $conflictObservationsQuery->count();
+            }
+
+            if ($periodConflictCount === 0 && ! empty($validationReport['period_conflict'])) {
+                $periodConflictCount = 1;
+            }
+
+            $conflictingSheetPeriods = $validationReport['conflicting_sheet_periods']
+                ?? ($periodConflictCount > 0
+                    ? (clone $conflictObservationsQuery)
+                        ->whereNotNull('sheet_period')
+                        ->distinct()
+                        ->orderBy('sheet_period')
+                        ->pluck('sheet_period')
+                        ->all()
+                    : []);
+
+            $okCount = (int) ($validationReport['ok'] ?? 0);
+            $warningCount = (int) ($validationReport['warning'] ?? 0);
+            $fatalCount = (int) ($validationReport['fatal'] ?? 0);
+            $issuesList = is_array($validationReport['issues'] ?? null) ? $validationReport['issues'] : [];
+        @endphp
+
+        @if ($dataset->validation_report || $periodConflictCount > 0)
+            <div id="validation-summary-panel"
+                 class="mt-6 border-t border-slate-100 pt-5"
+                 x-data="{ showIssues: true }">
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-500">Ringkasan validasi</h2>
+
+                    <div class="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs tabular-nums">
+                        <span class="inline-flex items-center gap-1.5 font-medium text-slate-700">
+                            <span class="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true"></span>
+                            Sesuai: {{ $okCount }}
+                        </span>
+                        <span class="inline-flex items-center gap-1.5 font-medium {{ $warningCount > 0 ? 'text-amber-800' : 'text-slate-500' }}">
+                            <span class="h-1.5 w-1.5 rounded-full {{ $warningCount > 0 ? 'bg-amber-500' : 'bg-slate-300' }}" aria-hidden="true"></span>
+                            Peringatan: {{ $warningCount }}
+                        </span>
+                        <span class="inline-flex items-center gap-1.5 font-medium {{ $fatalCount > 0 ? 'text-rose-700' : 'text-slate-500' }}">
+                            <span class="h-1.5 w-1.5 rounded-full {{ $fatalCount > 0 ? 'bg-rose-500' : 'bg-slate-300' }}" aria-hidden="true"></span>
+                            Kesalahan: {{ $fatalCount }}
+                        </span>
+                        @if ($periodConflictCount > 0)
+                            <span class="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-0.5 font-medium text-amber-800 ring-1 ring-inset ring-amber-200/80">
+                                <span class="h-1.5 w-1.5 rounded-full bg-amber-500" aria-hidden="true"></span>
+                                Konflik Periode: {{ $periodConflictCount }}
+                            </span>
+                        @endif
+                    </div>
+                </div>
+
+                @if ($periodConflictCount > 0)
+                    <div class="mt-3.5 flex items-start gap-2.5 rounded-xl bg-amber-50/50 px-3.5 py-2.5 text-xs text-amber-900 ring-1 ring-inset ring-amber-200/70">
+                        <svg class="mt-0.5 h-4 w-4 shrink-0 text-amber-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <circle cx="12" cy="12" r="10"/>
+                            <line x1="12" y1="8" x2="12" y2="12"/>
+                            <line x1="12" y1="16" x2="12.01" y2="16"/>
+                        </svg>
+                        <div class="min-w-0">
+                            <p class="font-semibold text-amber-950">Konflik periode banner sheet ({{ $periodConflictCount }} observasi)</p>
+                            <p class="mt-0.5 leading-relaxed text-amber-800">
+                                Periode banner sheet berbeda dari periode upload efektif. Data tetap disimpan menggunakan periode upload{{ $conflictingSheetPeriods !== [] ? ' (banner sheet: '.implode(', ', $conflictingSheetPeriods).')' : '' }}.
+                            </p>
+                        </div>
+                    </div>
+                @endif
+
+                @if (! empty($issuesList))
+                    <div class="mt-3.5 overflow-hidden rounded-xl border border-slate-200/80 bg-white">
+                        <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 bg-slate-50/60 px-3.5 py-2 text-[11px] text-slate-600">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <span class="font-semibold text-slate-700 tabular-nums">Catatan Baris ({{ count($issuesList) }})</span>
+                                @if (! empty($validationReport['issues_truncated']))
+                                    <span class="text-slate-500">Hanya menampilkan 50 masalah pertama. Total: {{ $fatalCount + $warningCount }}.</span>
+                                @endif
+                            </div>
+                            <button type="button"
+                                    @click="showIssues = !showIssues"
+                                    :aria-expanded="showIssues.toString()"
+                                    class="cursor-pointer rounded-md px-2 py-0.5 text-[11px] font-medium text-slate-600 transition hover:bg-slate-200/60 hover:text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+                                <span x-text="showIssues ? 'Sembunyikan' : 'Tampilkan'">Sembunyikan</span>
+                            </button>
+                        </div>
+
+                        <ul x-show="showIssues" class="max-h-44 divide-y divide-slate-100 overflow-y-auto text-xs text-slate-600">
+                            @foreach ($issuesList as $issue)
+                                <li class="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 px-3.5 py-2 transition-colors hover:bg-slate-50/70">
+                                    <span class="shrink-0 font-semibold {{ $issue['severity'] === 'FATAL' ? 'text-rose-700' : 'text-amber-700' }}">[{{ $issue['severity'] === 'FATAL' ? 'Kesalahan' : 'Peringatan' }}]</span>
+                                    <span class="min-w-0 flex-1 text-slate-600">
+                                        <span class="font-medium tabular-nums text-slate-800">Baris {{ $issue['row'] }}:</span> {{ $issue['message'] }}
+                                    </span>
+                                </li>
+                            @endforeach
+                        </ul>
+                    </div>
+                @endif
+            </div>
+        @endif
     </div>
 
     @php

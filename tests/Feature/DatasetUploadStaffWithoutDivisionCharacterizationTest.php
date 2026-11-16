@@ -148,22 +148,6 @@ class DatasetUploadStaffWithoutDivisionCharacterizationTest extends TestCase
         $this->assertDatabaseHas('datasets', ['id' => $dataset->id]);
     }
 
-    public function test_karakterisasi_staf_tanpa_divisi_ditolak_403_mengekspor_dataset(): void
-    {
-        $dataset = Dataset::factory()->create([
-            'division_id' => $this->divisionA->id,
-            'status' => Dataset::STATUS_READY,
-        ]);
-        PerformanceMetric::factory()->create([
-            'dataset_id' => $dataset->id,
-            'division_id' => $this->divisionA->id,
-        ]);
-
-        $this->actingAs($this->staffNoDiv)
-            ->get(route('datasets.export', $dataset))
-            ->assertForbidden();
-    }
-
     public function test_karakterisasi_staf_tanpa_divisi_ditolak_403_mengubah_metric(): void
     {
         $dataset = Dataset::factory()->create([
