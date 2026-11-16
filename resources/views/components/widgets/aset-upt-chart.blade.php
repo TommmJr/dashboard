@@ -133,7 +133,7 @@
             <p class="text-sm font-medium text-slate-600">Belum ada data aset.</p>
         </div>
     @else
-        <script>
+        <script @cspNonce>
             (function () {
                 window.__asetUptConfigs = window.__asetUptConfigs || {};
                 window.__asetUptConfigs[@json($chartId)] = {
@@ -409,7 +409,7 @@
             </div>
         @endif
 
-        <script>
+        <script @cspNonce>
         if (typeof window.asetUptChartWidget !== 'function') {
             window.asetUptChartWidget = function(params) {
                 const chartId = typeof params === 'string' ? params : (params ? params.chartId : '');

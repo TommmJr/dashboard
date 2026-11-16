@@ -117,7 +117,7 @@
                                 Unduh (.xlsx)
                             </a>
                         </div>
-                        <script>
+                        <script @cspNonce>
                             (function () {
                                 var sel = document.getElementById('dataset_select');
                                 var link = document.getElementById('validation_link');

@@ -25,7 +25,7 @@
     }
 @endphp
 
-<script>
+<script @cspNonce>
 if (typeof window.kpiDetailManager !== 'function') {
     window.kpiDetailManager = function() {
         let fullscreenChartInstance = null;

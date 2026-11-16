@@ -41,7 +41,7 @@
             <script type="application/json" id="{{ $dataId }}">
                 @json($ragChartData)
             </script>
-            <script>
+            <script @cspNonce>
             (function() {
                 let chartInstance = null;
                 let attempts = 0;

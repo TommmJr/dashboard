@@ -88,7 +88,7 @@
 
         <form method="GET" class="ibs-card flex items-center gap-2.5 px-3 py-1.5">
             <label for="status" class="text-xs font-medium text-slate-500">Status</label>
-            <select id="status" name="status" onchange="this.form.submit()"
+            <select id="status" name="status" data-auto-submit
                     class="h-8 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary">
                 <option value="">Aktif (Selain Arsip)</option>
                 @foreach (\App\Enums\DatasetStatus::cases() as $case)
@@ -162,7 +162,7 @@
                                     @can('dataset.update')
                                         @if ($dataset->status !== \App\Enums\DatasetStatus::ARCHIVED)
                                             <form method="POST" action="{{ route('datasets.archive', $dataset) }}"
-                                                  onsubmit="return confirm('Arsipkan dataset ini? Data keluar dari chart tetapi tetap tersimpan.');">
+                                                  data-confirm="Arsipkan dataset ini? Data keluar dari chart tetapi tetap tersimpan.">
                                                 @csrf @method('PATCH')
                                                 <button type="submit"
                                                         @click.prevent="openConfirm('Arsipkan Dataset', 'Arsipkan dataset ini? Data keluar dari chart tetapi tetap tersimpan.', '{{ route('datasets.archive', $dataset) }}', 'PATCH', 'Arsipkan', 'bg-amber-600 hover:bg-amber-700 text-white')"
@@ -179,7 +179,7 @@
                                     @endcan
                                     @can('dataset.delete')
                                         <form method="POST" action="{{ route('datasets.destroy', $dataset) }}"
-                                              onsubmit="return confirm('HAPUS PERMANEN dataset ini beserta seluruh baris datanya? Tindakan ini tidak bisa dibatalkan.');">
+                                              data-confirm="HAPUS PERMANEN dataset ini beserta seluruh baris datanya? Tindakan ini tidak bisa dibatalkan.">
                                             @csrf @method('DELETE')
                                             <button type="submit"
                                                     @click.prevent="openConfirm('Hapus Permanen Dataset', 'HAPUS PERMANEN dataset ini beserta seluruh baris datanya? Tindakan ini tidak bisa dibatalkan.', '{{ route('datasets.destroy', $dataset) }}', 'DELETE', 'Hapus Permanen', 'bg-rose-600 hover:bg-rose-700 text-white')"

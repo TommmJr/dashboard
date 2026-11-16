@@ -894,7 +894,7 @@
     </div>
 </div>
 
-<script>
+<script @cspNonce>
 const getAssetPalette = function () {
     const p = window.PLN_CHART_PALETTE || {
         primary: '#0b6175',

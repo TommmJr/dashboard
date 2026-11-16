@@ -325,7 +325,7 @@
     </div>
 </div>
 
-<script>
+<script @cspNonce>
     let performanceChartInstance = null;
 
     function performanceDashboard(initial = {}) {

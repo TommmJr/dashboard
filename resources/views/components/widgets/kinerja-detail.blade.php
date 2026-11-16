@@ -108,7 +108,7 @@
                     <input type="hidden" name="end_date" value="{{ $endDate }}">
                 @endif
                 <label for="kinerja-detail-unit" class="sr-only">Pilih unit</label>
-                <select id="kinerja-detail-unit" name="unit" onchange="this.form.submit()"
+                <select id="kinerja-detail-unit" name="unit" data-auto-submit
                         class="h-8 max-w-full min-w-0 rounded-lg border border-slate-200/80 bg-white px-2.5 text-xs font-medium text-slate-700 focus:border-[#16a3b8] focus:outline-none focus:ring-1 focus:ring-[#16a3b8]">
                     <option value="">Semua unit</option>
                     @foreach ($unitOptions as $unitOption)

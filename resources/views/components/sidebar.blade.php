@@ -257,7 +257,7 @@
                     @endif
                 </div>
             </div>
-            <form method="POST" action="{{ route('logout') }}" onsubmit="return confirm('Yakin ingin logout?');" class="shrink-0">
+            <form method="POST" action="{{ route('logout') }}" data-confirm="Yakin ingin logout?" class="shrink-0">
                 @csrf
                 <button type="submit"
                         aria-label="Keluar"

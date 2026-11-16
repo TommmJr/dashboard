@@ -292,7 +292,7 @@ class PerformanceChartDataTest extends TestCase
         $user = User::factory()->withRole(Role::MANAGEMENT)->create();
         $html = $this->actingAs($user)->get(route('dashboard'))->assertOk()->getContent();
 
-        preg_match_all('#<script>(.*?)</script>#s', $html, $matches);
+        preg_match_all('#<script\b(?![^>]*type=)[^>]*>(.*?)</script>#is', $html, $matches);
 
         $scripts = array_values(array_filter(
             $matches[1] ?? [],

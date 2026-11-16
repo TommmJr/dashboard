@@ -65,7 +65,7 @@
     }
 @endphp
 
-<script>
+<script @cspNonce>
 if (typeof window.targetRealisasiWidget !== 'function') {
     window.targetRealisasiWidget = function(initialItems) {
         return {

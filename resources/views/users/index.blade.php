@@ -120,7 +120,7 @@
                                             </span>
                                         @elseif (! $user->is(auth()->user()))
                                             <form method="POST" action="{{ route('users.destroy', $user) }}"
-                                                  onsubmit="return confirm('Hapus permanen user &quot;{{ addslashes($user->name) }}&quot;? Riwayat dataset yang pernah diunggah akan tetap tersimpan.');">
+                                                  data-confirm="Hapus permanen user &quot;{{ $user->name }}&quot;? Riwayat dataset yang pernah diunggah akan tetap tersimpan.">
                                                 @csrf @method('DELETE')
                                                 <button type="submit"
                                                         class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200/90 bg-white px-2.5 py-1.5 text-xs font-medium text-rose-600 shadow-2xs transition-all duration-150 hover:border-rose-200 hover:bg-rose-50/60 active:bg-rose-100/60">

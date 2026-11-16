@@ -32,7 +32,7 @@
     </div>
 </div>
 
-<script>
+<script @cspNonce>
 if (typeof window.customChartWidget !== 'function') {
     window.customChartWidget = function(config, chartId) {
         let chartInstance = null;

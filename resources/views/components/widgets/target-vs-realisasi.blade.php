@@ -32,7 +32,7 @@
         </p>
     @else
         <div id="{{ $chartId }}" class="mt-4 h-80 w-full sm:h-96"></div>
-        <script>
+        <script @cspNonce>
             window.addEventListener('DOMContentLoaded', () => {
                 const el = document.getElementById(@json($chartId));
                 if (!el || !window.echarts) { return; }

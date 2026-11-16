@@ -96,7 +96,7 @@
 
                                     @can('user.delete')
                                         <form method="POST" action="{{ route('divisions.destroy', $division) }}"
-                                              onsubmit="return confirm('Hapus divisi &quot;{{ addslashes($division->name) }}&quot;?');">
+                                              data-confirm="Hapus divisi &quot;{{ $division->name }}&quot;?">
                                             @csrf @method('DELETE')
                                             <button type="submit"
                                                     class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200/90 bg-white px-2.5 py-1.5 text-xs font-medium text-rose-600 shadow-2xs transition-all duration-150 hover:border-rose-200 hover:bg-rose-50/60 active:bg-rose-100/60">

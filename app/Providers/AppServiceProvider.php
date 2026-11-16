@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\LazyLoadingViolationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
@@ -32,6 +33,14 @@ class AppServiceProvider extends ServiceProvider
         $this->registerPermissionGates();
         $this->registerAuditListeners();
         $this->registerSidebarComposer();
+        $this->registerBladeCspDirective();
+    }
+
+    private function registerBladeCspDirective(): void
+    {
+        Blade::directive('cspNonce', function (): string {
+            return '<?php if ($__cspNonce = \\Illuminate\\Support\\Facades\\Vite::cspNonce()): ?>nonce="<?php echo e($__cspNonce); ?>"<?php endif; ?>';
+        });
     }
 
     private function registerSidebarComposer(): void

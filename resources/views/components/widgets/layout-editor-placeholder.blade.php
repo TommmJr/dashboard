@@ -1002,7 +1002,7 @@
         </div>
     </div>
 
-    <script>
+    <script @cspNonce>
         if (typeof window.dashboardLayoutBuilder !== 'function') {
             window.dashboardLayoutBuilder = function (rawInitial = {}) {
                 let initial = rawInitial;

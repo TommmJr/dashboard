@@ -136,4 +136,18 @@ window.initSafeEChart = function (domElement, options = null, theme = null) {
 window.Alpine = Alpine;
 window.echarts = echarts;
 
+document.addEventListener('submit', (event) => {
+    const form = event.target;
+    if (form instanceof HTMLFormElement && form.dataset.confirm && !window.confirm(form.dataset.confirm)) {
+        event.preventDefault();
+    }
+});
+
+document.addEventListener('change', (event) => {
+    const target = event.target;
+    if (target instanceof HTMLSelectElement && target.hasAttribute('data-auto-submit') && target.form) {
+        target.form.submit();
+    }
+});
+
 Alpine.start();

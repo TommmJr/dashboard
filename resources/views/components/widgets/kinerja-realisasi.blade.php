@@ -109,7 +109,7 @@
             </table>
         </div>
 
-        <script>
+        <script @cspNonce>
             (function() {
                 function init() {
                     const el = document.getElementById(@json($chartId));

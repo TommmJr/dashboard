@@ -34,7 +34,7 @@
         <script type="application/json" id="{{ $dataId }}">
             @json($pencapaianChartData)
         </script>
-        <script>
+        <script @cspNonce>
         (function() {
             let chartInstance = null;
             let attempts = 0;
