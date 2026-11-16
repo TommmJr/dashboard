@@ -995,4 +995,108 @@ class AssetSheetsSyncTest extends TestCase
             ->get(route('datasets.show', $dataset))
             ->assertForbidden();
     }
+
+    public function test_sync_periode_sama_mengarsipkan_dataset_ready_lama_tanpa_menyentuh_periode_atau_divisi_lain(): void
+    {
+        $this->fakeGoogleSheetsResponses();
+
+        $otherDivision = Division::where('slug', 'perencanaan-pengusahaan')->sole();
+        $otherDivisionDataset = Dataset::factory()->create([
+            'division_id' => $otherDivision->id,
+            'status' => Dataset::STATUS_READY,
+        ]);
+        PerformanceMetric::create([
+            'dataset_id' => $otherDivisionDataset->id,
+            'division_id' => $otherDivision->id,
+            'unit_id' => $this->admin->id,
+            'metric_name' => 'TJBT | NKO',
+            'value' => 105.5,
+            'period' => '2026-10-31',
+        ]);
+
+        // 1. Dataset aset READY periode berbeda (2026-09-30) harus tetap READY
+        $septDataset = Dataset::factory()->create([
+            'division_id' => $this->assetDivision->id,
+            'status' => Dataset::STATUS_READY,
+        ]);
+        for ($i = 0; $i < 50; $i++) {
+            PerformanceMetric::create([
+                'dataset_id' => $septDataset->id,
+                'division_id' => $this->assetDivision->id,
+                'unit_id' => $this->admin->id,
+                'metric_name' => "ASET | BANDUNG | BANDUNG BARAT | Metric {$i}",
+                'value' => (float) ($i + 1),
+                'period' => '2026-09-30',
+            ]);
+        }
+
+        // 2. Sync pertama periode 2026-10-31
+        $this->actingAs($this->admin)->post(route('datasets.asset-sync'))
+            ->assertRedirect(route('datasets.index'))
+            ->assertSessionHas('success');
+
+        $firstOctDataset = Dataset::where('division_id', $this->assetDivision->id)
+            ->where('status', Dataset::STATUS_READY)
+            ->whereHas('metrics', fn ($q) => $q->where('period', '2026-10-31'))
+            ->sole();
+
+        // 3. Sync kedua periode 2026-10-31 harus mengarsipkan dataset 2026-10-31 pertama
+        $this->actingAs($this->admin)->post(route('datasets.asset-sync'))
+            ->assertRedirect(route('datasets.index'))
+            ->assertSessionHas('success');
+
+        $secondOctDataset = Dataset::where('division_id', $this->assetDivision->id)
+            ->where('status', Dataset::STATUS_READY)
+            ->whereHas('metrics', fn ($q) => $q->where('period', '2026-10-31'))
+            ->sole();
+
+        $this->assertNotSame($firstOctDataset->id, $secondOctDataset->id);
+        $this->assertSame(Dataset::STATUS_ARCHIVED, $firstOctDataset->fresh()->status->value);
+        $this->assertSame(Dataset::STATUS_READY, $secondOctDataset->fresh()->status->value);
+        $this->assertSame(Dataset::STATUS_READY, $septDataset->fresh()->status->value);
+        $this->assertSame(Dataset::STATUS_READY, $otherDivisionDataset->fresh()->status->value);
+    }
+
+    public function test_sync_gagal_sanity_guard_pada_periode_sama_membuat_failed_dan_pertahankan_ready_lama(): void
+    {
+        $content1a = file_get_contents(base_path('tests/Fixtures/asset_tab1a_sample.csv'));
+        $valid1b = file_get_contents(base_path('tests/Fixtures/asset_tab1b_sample.csv'));
+        $mismatched1b = str_replace(
+            '1,BANDUNG,"BANDUNG BARAT",15,5,2500.0,500.0,-,800,-,2,4,1000.0,1000.0,-,1500,-',
+            '1,BANDUNG,"BANDUNG BARAT",15,5,2500.0,500.0,-,1800,-,2,4,1000.0,1000.0,-,1500,-',
+            $valid1b
+        );
+        $useMismatched1b = false;
+
+        Http::fake([
+            'https://docs.google.com/spreadsheets/d/*/export?format=csv&gid='.config('asset.sheet_gid_1a') => fn () => Http::response($content1a, 200, ['Content-Type' => 'text/csv; charset=utf-8']),
+            'https://docs.google.com/spreadsheets/d/*/export?format=csv&gid='.config('asset.sheet_gid_1b') => function () use (&$useMismatched1b, $mismatched1b, $valid1b) {
+                return Http::response($useMismatched1b ? $mismatched1b : $valid1b, 200, ['Content-Type' => 'text/csv; charset=utf-8']);
+            },
+        ]);
+
+        $this->actingAs($this->admin)->post(route('datasets.asset-sync'))
+            ->assertRedirect(route('datasets.index'))
+            ->assertSessionHas('success');
+
+        $activeDataset = Dataset::where('division_id', $this->assetDivision->id)
+            ->where('status', Dataset::STATUS_READY)
+            ->sole();
+
+        // Sync kedua pada periode yang sama gagal cross-check rekonsiliasi
+        $useMismatched1b = true;
+
+        $response = $this->actingAs($this->admin)
+            ->from(route('datasets.create'))
+            ->post(route('datasets.asset-sync'));
+
+        $response->assertRedirect(route('datasets.create'))
+            ->assertSessionHas('error');
+
+        $failedDataset = Dataset::where('division_id', $this->assetDivision->id)
+            ->where('status', Dataset::STATUS_FAILED)
+            ->sole();
+        $this->assertStringContainsString('Cross-check reconciliation mismatch', (string) $failedDataset->error_message);
+        $this->assertSame(Dataset::STATUS_READY, $activeDataset->fresh()->status->value);
+    }
 }

@@ -501,9 +501,17 @@ class KpiUnitScopeTest extends TestCase
         $this->metric($d4, $division, 'ASET | TJBT | Trafo', 10.0);
     }
 
+    private function kpiDivision(): Division
+    {
+        return Division::firstOrCreate(
+            ['slug' => 'perencanaan-pengusahaan'],
+            ['name' => 'Perencanaan Pengusahaan'],
+        );
+    }
+
     public function test_kpi_card_legacy_metric_count_unit_tampil_ready_datasets_per_divisi(): void
     {
-        $this->mixedKpiFixture($this->division());
+        $this->mixedKpiFixture($this->kpiDivision());
 
         $kpi = $this->actingAs($this->management())->getJson(route('performance.data'))->assertOk()->json('kpi');
 
@@ -518,7 +526,7 @@ class KpiUnitScopeTest extends TestCase
 
     public function test_kpi_card_structured_identik_dengan_legacy(): void
     {
-        $this->mixedKpiFixture($this->division());
+        $this->mixedKpiFixture($this->kpiDivision());
 
         $legacy = $this->actingAs($this->management())->getJson(route('performance.data'))->assertOk()->json('kpi');
 
@@ -532,7 +540,7 @@ class KpiUnitScopeTest extends TestCase
     public function test_kpi_card_rollback_null_menghitung_semua_unit(): void
     {
         config(['kpi.visible_units' => null]);
-        $this->mixedKpiFixture($this->division());
+        $this->mixedKpiFixture($this->kpiDivision());
 
         $kpi = $this->actingAs($this->management())->getJson(route('performance.data'))->assertOk()->json('kpi');
 
@@ -543,7 +551,7 @@ class KpiUnitScopeTest extends TestCase
 
     public function test_kpi_card_staf_divisi_hanya_divisi_sendiri(): void
     {
-        $own = $this->division('Own');
+        $own = $this->kpiDivision();
         $other = $this->division('Other');
 
         $ownDataset = $this->readyDataset($own);

@@ -392,4 +392,104 @@ class AssetDualUploadTest extends TestCase
         $this->assertSame($genericDivision->id, $dataset->division_id);
         $this->assertSame(2, $dataset->metrics()->count());
     }
+
+    public function test_unggah_periode_sama_mengarsipkan_dataset_ready_lama_di_managemen_aset_saja(): void
+    {
+        // Dataset periode berbeda di managemen-aset tetap harus READY
+        $differentPeriodAsset = Dataset::factory()->create([
+            'division_id' => $this->assetDivision->id,
+            'status' => Dataset::STATUS_READY,
+        ]);
+        PerformanceMetric::factory()->create([
+            'dataset_id' => $differentPeriodAsset->id,
+            'division_id' => $this->assetDivision->id,
+            'metric_name' => 'ASET | BEKASI | BEKASI | Trafo 500/150 KV | Bank',
+            'value' => 12.0,
+            'period' => '2026-09-30',
+        ]);
+
+        // Dataset periode sama di divisi lain tidak boleh ikut terarsip
+        $otherDivisionDataset = Dataset::factory()->create([
+            'division_id' => $this->otherDivision->id,
+            'status' => Dataset::STATUS_READY,
+        ]);
+        PerformanceMetric::factory()->create([
+            'dataset_id' => $otherDivisionDataset->id,
+            'division_id' => $this->otherDivision->id,
+            'metric_name' => 'TJBT | NKO',
+            'value' => 105.5,
+            'period' => '2026-10-31',
+        ]);
+
+        // Unggahan pertama untuk periode 2026-10-31
+        $this->actingAs($this->admin)->post(route('datasets.asset-upload'), [
+            'file_1b' => $this->getFixture1b(),
+            'file_1a' => $this->getFixture1a(),
+        ])->assertRedirect();
+
+        $firstOctoberDataset = Dataset::where('division_id', $this->assetDivision->id)
+            ->whereKeyNot($differentPeriodAsset->id)
+            ->sole();
+        $this->assertSame(Dataset::STATUS_READY, $firstOctoberDataset->status->value);
+
+        // Unggahan kedua untuk periode yang sama (2026-10-31)
+        $this->actingAs($this->assetStaff)->post(route('datasets.asset-upload'), [
+            'file_1b' => $this->getFixture1b(),
+            'file_1a' => $this->getFixture1a(),
+        ])->assertRedirect();
+
+        $secondOctoberDataset = Dataset::where('division_id', $this->assetDivision->id)
+            ->where('status', Dataset::STATUS_READY)
+            ->whereHas('metrics', fn ($q) => $q->where('period', '2026-10-31'))
+            ->sole();
+
+        $this->assertNotSame($firstOctoberDataset->id, $secondOctoberDataset->id);
+        $this->assertSame(Dataset::STATUS_ARCHIVED, $firstOctoberDataset->fresh()->status->value);
+        $this->assertSame(Dataset::STATUS_READY, $secondOctoberDataset->fresh()->status->value);
+        $this->assertSame(Dataset::STATUS_READY, $differentPeriodAsset->fresh()->status->value);
+        $this->assertSame(Dataset::STATUS_READY, $otherDivisionDataset->fresh()->status->value);
+
+        // Pastikan hanya ada 1 dataset READY di managemen-aset untuk periode 2026-10-31
+        $readyOctoberCount = Dataset::where('division_id', $this->assetDivision->id)
+            ->where('status', Dataset::STATUS_READY)
+            ->whereHas('metrics', fn ($q) => $q->where('period', '2026-10-31'))
+            ->count();
+        $this->assertSame(1, $readyOctoberCount);
+
+        // Jejak audit pengarsipan tercatat otomatis pada dataset lama
+        $archiveAudit = AuditLog::where('auditable_type', Dataset::class)
+            ->where('auditable_id', $firstOctoberDataset->id)
+            ->where('action', AuditLog::ACTION_UPDATE)
+            ->latest('id')
+            ->first();
+        $this->assertNotNull($archiveAudit);
+        $this->assertSame(Dataset::STATUS_ARCHIVED, $archiveAudit->new_values['status'] ?? null);
+    }
+
+    public function test_unggah_gagal_pada_periode_sama_tidak_mengarsipkan_dataset_ready_lama(): void
+    {
+        $this->actingAs($this->admin)->post(route('datasets.asset-upload'), [
+            'file_1b' => $this->getFixture1b(),
+            'file_1a' => $this->getFixture1a(),
+        ])->assertRedirect();
+
+        $activeDataset = Dataset::where('division_id', $this->assetDivision->id)->sole();
+        $this->assertSame(Dataset::STATUS_READY, $activeDataset->status->value);
+
+        $datasetCountBefore = Dataset::count();
+        $metricCountBefore = PerformanceMetric::count();
+
+        $response = $this->actingAs($this->admin)->post(route('datasets.asset-upload'), [
+            'file_1b' => $this->getFixture1b(),
+            'file_1a' => $this->getCorruptFile(),
+            'period' => '2026-10-31',
+        ]);
+
+        $response->assertRedirect(route('datasets.create'))
+            ->assertSessionHas('error');
+
+        $this->assertSame($datasetCountBefore, Dataset::count());
+        $this->assertSame($metricCountBefore, PerformanceMetric::count());
+        $this->assertSame(Dataset::STATUS_READY, $activeDataset->fresh()->status->value);
+    }
 }

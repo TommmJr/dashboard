@@ -41,7 +41,7 @@ class PerformanceChartScopingTest extends TestCase
 
     private function seedDivisionsAndMetrics(): array
     {
-        $divA = Division::create(['name' => 'Divisi A', 'slug' => 'div-a']);
+        $divA = Division::create(['name' => 'Perencanaan Pengusahaan', 'slug' => 'perencanaan-pengusahaan']);
         $divB = Division::create(['name' => 'Divisi B', 'slug' => 'div-b']);
 
         $nko = function (Division $division, Dataset $dataset, string $unit, string $period, float $value): void {
@@ -165,9 +165,9 @@ class PerformanceChartScopingTest extends TestCase
         $this->assertContains('TJBT', $seriesNames);
         $this->assertContains('TRANS', $seriesNames);
 
-        // KPI scoping sama: dua dataset READY dan delapan baris metric aktif.
-        $this->assertSame(2, $response->json('kpi.ready_datasets'));
-        $this->assertSame(8, $response->json('kpi.metric_count'));
+        // Kartu KPI hanya menghitung divisi perencanaan-pengusahaan (1 dataset READY, 4 baris metrik).
+        $this->assertSame(1, $response->json('kpi.ready_datasets'));
+        $this->assertSame(4, $response->json('kpi.metric_count'));
     }
 
     public function test_editor_dengan_divisi_tetap_melihat_agregat_semua_divisi(): void

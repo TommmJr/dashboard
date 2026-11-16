@@ -387,7 +387,10 @@ class KpiReadModelFlagTest extends TestCase
         config(['kpi.read_model' => 'structured']);
         config(['kpi.visible_units' => ['TJBT']]);
 
-        $division = $this->division('Pengusahaan');
+        $division = Division::firstOrCreate(
+            ['slug' => 'perencanaan-pengusahaan'],
+            ['name' => 'Perencanaan Pengusahaan'],
+        );
         $dataset = Dataset::factory()->create([
             'division_id' => $division->id,
             'status' => Dataset::STATUS_READY,
@@ -428,6 +431,62 @@ class KpiReadModelFlagTest extends TestCase
         // Namun metric_count tetap menghitung 3 baris performance_metrics TJBT (bukan 1 observasi).
         $this->assertSame(1, $payload['kpi']['ready_datasets']);
         $this->assertSame(3, $payload['kpi']['metric_count']);
+    }
+
+    public function test_r1_structured_kpi_card_mengabaikan_dataset_generik_divisi_non_kpi(): void
+    {
+        config(['kpi.read_model' => 'structured']);
+        config(['kpi.visible_units' => ['TJBT']]);
+
+        $kpiDivision = Division::factory()->create([
+            'name' => 'Perencanaan Pengusahaan',
+            'slug' => 'perencanaan-pengusahaan',
+        ]);
+        $assetDivision = Division::factory()->create([
+            'name' => 'Managemen Aset',
+            'slug' => 'managemen-aset',
+        ]);
+
+        $kpiDataset = Dataset::factory()->create([
+            'division_id' => $kpiDivision->id,
+            'status' => Dataset::STATUS_READY,
+        ]);
+        $this->legacyMetric($kpiDataset, $kpiDivision, 'TJBT | Indikator A | target', 100.0, '2026-08-31');
+        $this->legacyMetric($kpiDataset, $kpiDivision, 'TJBT | Indikator A | realisasi', 105.0, '2026-08-31');
+        $this->legacyMetric($kpiDataset, $kpiDivision, 'TJBT | NKO', 99.0, '2026-08-31');
+
+        $unit = OrgUnit::factory()->create(['name' => 'TJBT']);
+        $nkoIndicator = Indicator::factory()->create([
+            'org_unit_id' => $unit->id,
+            'name' => 'NKO',
+            'category' => 'nko',
+            'is_group' => false,
+        ]);
+        PerformanceObservation::factory()->create([
+            'dataset_id' => $kpiDataset->id,
+            'indicator_id' => $nkoIndicator->id,
+            'org_unit_id' => $unit->id,
+            'division_id' => $kpiDivision->id,
+            'period' => '2026-08-31',
+            'nilai' => 107.5,
+        ]);
+
+        // Dataset generik non-ASET pada divisi managemen-aset tidak boleh masuk hitungan kartu KPI
+        $genericAssetDataset = Dataset::factory()->create([
+            'division_id' => $assetDivision->id,
+            'status' => Dataset::STATUS_READY,
+        ]);
+        $this->legacyMetric($genericAssetDataset, $assetDivision, 'TJBT | Generik Non KPI', 50.0, '2026-08-31');
+        $this->legacyMetric($genericAssetDataset, $assetDivision, 'Generik Tanpa Unit', 25.0, '2026-08-31');
+
+        foreach ([Role::ADMIN, Role::MANAGEMENT, Role::EDITOR_DASHBOARD] as $roleSlug) {
+            $user = User::factory()->withRole($roleSlug)->create(['division_id' => null]);
+            $payload = $this->actingAs($user)->getJson(route('performance.data'))->assertOk()->json();
+
+            $this->assertSame(107.5, (float) $payload['kpi']['average_nko']);
+            $this->assertSame(1, $payload['kpi']['ready_datasets']);
+            $this->assertSame(3, $payload['kpi']['metric_count']);
+        }
     }
 
     // ---------------------------------------------------------------- R6 ----

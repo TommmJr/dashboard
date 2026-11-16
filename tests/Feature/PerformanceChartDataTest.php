@@ -70,9 +70,17 @@ class PerformanceChartDataTest extends TestCase
         return $dataset;
     }
 
+    private function kpiDivision(): Division
+    {
+        return Division::firstOrCreate(
+            ['slug' => 'perencanaan-pengusahaan'],
+            ['name' => 'Perencanaan Pengusahaan'],
+        );
+    }
+
     public function test_kontrak_json_berisi_labels_series_kpi(): void
     {
-        $this->datasetWithNko($this->divA, Dataset::STATUS_READY, '2026-01-31', 100, 'RST');
+        $this->datasetWithNko($this->kpiDivision(), Dataset::STATUS_READY, '2026-01-31', 100, 'RST');
         $admin = User::factory()->withRole(Role::ADMIN)->create();
 
         $response = $this->actingAs($admin)->getJson(route('performance.data'))->assertOk();
@@ -196,12 +204,13 @@ class PerformanceChartDataTest extends TestCase
     {
         // Inti perbaikan: nilai target/realisasi bersatuan lain (Rp Juta,
         // Dokumen) tidak boleh masuk rata-rata NKO.
-        $dataset = $this->datasetWithNko($this->divA, Dataset::STATUS_READY, '2026-01-31', 100, 'RST');
+        $kpiDivision = $this->kpiDivision();
+        $dataset = $this->datasetWithNko($kpiDivision, Dataset::STATUS_READY, '2026-01-31', 100, 'RST');
 
         PerformanceMetric::factory()->create([
             'metric_name' => 'RST | c. Usulan Penghapusan ATTB | realisasi',
             'dataset_id' => $dataset->id,
-            'division_id' => $this->divA->id,
+            'division_id' => $kpiDivision->id,
             'period' => '2026-01-31',
             'value' => 181979.53,
         ]);
@@ -218,8 +227,9 @@ class PerformanceChartDataTest extends TestCase
 
     public function test_dataset_archived_dikeluarkan_dari_series_dan_kpi(): void
     {
-        $this->datasetWithNko($this->divA, Dataset::STATUS_READY, '2026-01-31', 100, 'RST');
-        $archived = $this->datasetWithNko($this->divA, Dataset::STATUS_READY, '2026-02-28', 500, 'RST');
+        $kpiDivision = $this->kpiDivision();
+        $this->datasetWithNko($kpiDivision, Dataset::STATUS_READY, '2026-01-31', 100, 'RST');
+        $archived = $this->datasetWithNko($kpiDivision, Dataset::STATUS_READY, '2026-02-28', 500, 'RST');
         $archived->update(['status' => Dataset::STATUS_ARCHIVED]);
 
         $admin = User::factory()->withRole(Role::ADMIN)->create();
@@ -348,5 +358,99 @@ class PerformanceChartDataTest extends TestCase
         $response = $this->actingAs($admin)->getJson(route('performance.data'))->assertOk();
 
         $this->assertEquals(0.0, (float) $response->json('y_axis_min'));
+    }
+
+    public function test_kpi_card_hanya_menghitung_divisi_perencanaan_pengusahaan_untuk_role_privileged(): void
+    {
+        $kpiDivision = Division::factory()->create([
+            'name' => 'Perencanaan Pengusahaan',
+            'slug' => 'perencanaan-pengusahaan',
+        ]);
+        $assetDivision = Division::factory()->create([
+            'name' => 'Managemen Aset',
+            'slug' => 'managemen-aset',
+        ]);
+
+        // 1 dataset READY di divisi perencanaan-pengusahaan (2 baris non-ASET)
+        $kpiDataset = $this->datasetWithNko($kpiDivision, Dataset::STATUS_READY, '2026-10-31', 105.5, 'TJBT');
+        PerformanceMetric::factory()->create([
+            'metric_name' => 'TJBT | Indikator A | realisasi',
+            'dataset_id' => $kpiDataset->id,
+            'division_id' => $kpiDivision->id,
+            'period' => '2026-10-31',
+            'value' => 100.0,
+        ]);
+
+        // Dataset generik READY di divisi non-KPI (managemen-aset dan divisi generik) tidak boleh ikut terhitung
+        $genericAssetDataset = Dataset::factory()->create([
+            'division_id' => $assetDivision->id,
+            'status' => Dataset::STATUS_READY,
+        ]);
+        PerformanceMetric::factory()->create([
+            'metric_name' => 'TJBT | Generik Non KPI',
+            'dataset_id' => $genericAssetDataset->id,
+            'division_id' => $assetDivision->id,
+            'period' => '2026-10-31',
+            'value' => 50.0,
+        ]);
+
+        $otherGenericDataset = Dataset::factory()->create([
+            'division_id' => $this->divB->id,
+            'status' => Dataset::STATUS_READY,
+        ]);
+        PerformanceMetric::factory()->create([
+            'metric_name' => 'RST | Generik Divisi Lain',
+            'dataset_id' => $otherGenericDataset->id,
+            'division_id' => $this->divB->id,
+            'period' => '2026-10-31',
+            'value' => 75.0,
+        ]);
+
+        foreach ([Role::ADMIN, Role::MANAGEMENT, Role::EDITOR_DASHBOARD] as $roleSlug) {
+            $user = User::factory()->withRole($roleSlug)->create(['division_id' => null]);
+            $response = $this->actingAs($user)->getJson(route('performance.data'))->assertOk();
+
+            $this->assertSame(1, $response->json('kpi.ready_datasets'), "Role {$roleSlug} tidak boleh menghitung dataset non-KPI.");
+            $this->assertSame(2, $response->json('kpi.metric_count'), "Role {$roleSlug} tidak boleh menghitung baris metrik non-KPI.");
+        }
+    }
+
+    public function test_kpi_card_fail_closed_nol_jika_divisi_kpi_tidak_ada_atau_staf_divisi_lain(): void
+    {
+        // Tanpa divisi perencanaan-pengusahaan, dataset READY divisi lain harus menghasilkan 0/0 (fail-closed)
+        $assetDivision = Division::factory()->create([
+            'name' => 'Managemen Aset',
+            'slug' => 'managemen-aset',
+        ]);
+        $assetDataset = Dataset::factory()->create([
+            'division_id' => $assetDivision->id,
+            'status' => Dataset::STATUS_READY,
+        ]);
+        PerformanceMetric::factory()->create([
+            'metric_name' => 'Metrik Generik Non Aset',
+            'dataset_id' => $assetDataset->id,
+            'division_id' => $assetDivision->id,
+            'period' => '2026-10-31',
+            'value' => 10.0,
+        ]);
+
+        $admin = User::factory()->withRole(Role::ADMIN)->create(['division_id' => null]);
+        $adminResponse = $this->actingAs($admin)->getJson(route('performance.data'))->assertOk();
+        $this->assertSame(0, $adminResponse->json('kpi.ready_datasets'));
+        $this->assertSame(0, $adminResponse->json('kpi.metric_count'));
+
+        // Bahkan ketika perencanaan-pengusahaan ada, staf divisi lain tetap mendapat 0/0 pada kartu KPI
+        $kpiDivision = Division::factory()->create([
+            'name' => 'Perencanaan Pengusahaan',
+            'slug' => 'perencanaan-pengusahaan',
+        ]);
+        $this->datasetWithNko($kpiDivision, Dataset::STATUS_READY, '2026-10-31', 105.5, 'TJBT');
+
+        $otherStaff = User::factory()->withRole(Role::STAFF_DIVISI)->create([
+            'division_id' => $assetDivision->id,
+        ]);
+        $staffResponse = $this->actingAs($otherStaff)->getJson(route('performance.data'))->assertOk();
+        $this->assertSame(0, $staffResponse->json('kpi.ready_datasets'));
+        $this->assertSame(0, $staffResponse->json('kpi.metric_count'));
     }
 }

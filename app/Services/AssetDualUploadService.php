@@ -203,6 +203,31 @@ class AssetDualUploadService
                     }
                 }
 
+                $effectivePeriods = array_values(array_unique(array_filter(
+                    array_column($inserts, 'period'),
+                    static fn (mixed $value): bool => is_string($value) && $value !== '',
+                )));
+                if ($effectivePeriods === [] && is_string($resolvedPeriod) && $resolvedPeriod !== '') {
+                    $effectivePeriods = [$resolvedPeriod];
+                }
+
+                // Arsipkan dataset READY lama pada divisi managemen-aset dan periode
+                // yang sama secara atomis di dalam transaksi agar tidak menumpuk.
+                $superseded = $effectivePeriods === []
+                    ? collect()
+                    : Dataset::query()
+                        ->where('division_id', $assetDivisionId)
+                        ->where('status', Dataset::STATUS_READY)
+                        ->whereKeyNot($dataset->id)
+                        ->whereHas('metrics', fn ($q) => $q->whereIn('period', $effectivePeriods))
+                        ->lockForUpdate()
+                        ->orderBy('id')
+                        ->get();
+
+                foreach ($superseded as $previous) {
+                    $previous->update(['status' => Dataset::STATUS_ARCHIVED]);
+                }
+
                 // Update status Dataset ke READY
                 $dataset->update([
                     'status' => Dataset::STATUS_READY,
@@ -219,6 +244,7 @@ class AssetDualUploadService
                         'rows_1b' => count($rows1b),
                         'rows_1a' => count($rows1a),
                         'period' => $resolvedPeriod,
+                        'archived_count' => $superseded->count(),
                     ],
                     $uploader->id,
                 );
@@ -228,6 +254,7 @@ class AssetDualUploadService
                     'user_id' => $uploader->id,
                     'total_rows' => count($inserts),
                     'period' => $resolvedPeriod,
+                    'archived_count' => $superseded->count(),
                 ]);
 
                 return [
