@@ -226,7 +226,21 @@
             @endif
         </div>
 
-        <form method="POST" action="{{ route('datasets.asset-sync') }}" x-data="{ syncing: false }" @submit="syncing = true" class="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        @if (($activeAssetSync ?? null) !== null)
+            <div id="asset-sync-active-notice"
+                 role="status"
+                 class="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/25 bg-primary-soft/60 px-4 py-3 text-xs">
+                <div class="flex items-center gap-2.5 text-primary font-medium">
+                    <span class="h-2 w-2 rounded-full bg-accent animate-pulse" aria-hidden="true"></span>
+                    <span>Sinkronisasi data aset sedang diproses ({{ $activeAssetSync->status->label() }}).</span>
+                </div>
+                <a href="{{ route('datasets.index') }}" class="font-semibold text-primary hover:underline">
+                    Pantau di Daftar Dataset
+                </a>
+            </div>
+        @endif
+
+        <form method="POST" action="{{ route('datasets.asset-sync') }}" x-data="{ syncing: {{ ($activeAssetSync ?? null) !== null ? 'true' : 'false' }} }" @submit="syncing = true" class="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             @csrf
             <div class="flex items-center gap-2 text-xs text-slate-600">
                 <span class="h-1.5 w-1.5 rounded-full bg-primary"></span>
@@ -236,6 +250,7 @@
 
             <button type="submit"
                     :disabled="syncing"
+                    @disabled(($activeAssetSync ?? null) !== null)
                     class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-2xs transition-all duration-150 hover:border-primary/40 hover:bg-primary-soft/60 hover:text-primary disabled:cursor-not-allowed disabled:opacity-60">
                 <svg x-show="!syncing" class="h-4 w-4 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/>
@@ -246,8 +261,12 @@
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                     <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
-                <span x-show="!syncing">Tarik &amp; Sinkronkan Data</span>
-                <span x-show="syncing" x-cloak>Menarik &amp; Memvalidasi Data...</span>
+                @if (($activeAssetSync ?? null) !== null)
+                    <span>Sinkronisasi Sedang Berjalan</span>
+                @else
+                    <span x-show="!syncing">Tarik &amp; Sinkronkan Data</span>
+                    <span x-show="syncing" x-cloak>Menarik &amp; Memvalidasi Data...</span>
+                @endif
             </button>
         </form>
     </div>

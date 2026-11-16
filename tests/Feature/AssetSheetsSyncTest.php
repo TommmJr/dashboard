@@ -2,7 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Enums\DatasetStatus;
 use App\Exceptions\AssetSyncException;
+use App\Jobs\SyncAssetSheetsJob;
 use App\Models\AuditLog;
 use App\Models\Dataset;
 use App\Models\Division;
@@ -14,7 +16,9 @@ use App\Services\PublicDnsResolver;
 use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\UnitDivisionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
@@ -881,7 +885,8 @@ class AssetSheetsSyncTest extends TestCase
             ->assertSee('Total Tower SU')
             ->assertSee('Total Transmisi SU kms')
             ->assertSee('Total Kapasitas Trafo MVA')
-            ->assertSee('20.500,00')
+            ->assertSee('20.500,0')
+            ->assertDontSee('20.500,00')
             ->assertSee('Rincian Metrik Data')
             ->assertSee('Detektor, Bukan Generator')
             ->assertSee('Read-Only')
@@ -958,8 +963,9 @@ class AssetSheetsSyncTest extends TestCase
         $response->assertOk()
             ->assertSee('Inspeksi & Analisis Rekonsiliasi Data Sync Aset (UIT JBT vs 8 UPT)')
             ->assertSee('Selisih')
-            ->assertSee('1.500,00')
-            ->assertSee('2,00');
+            ->assertSee('1.500,0')
+            ->assertSee('2,0')
+            ->assertDontSee('1.500,00');
 
         $analysis = $response->viewData('assetAnalysis');
         $this->assertSame(3, $analysis['summary']['mismatched_count']);
@@ -1098,5 +1104,198 @@ class AssetSheetsSyncTest extends TestCase
             ->sole();
         $this->assertStringContainsString('Cross-check reconciliation mismatch', (string) $failedDataset->error_message);
         $this->assertSame(Dataset::STATUS_READY, $activeDataset->fresh()->status->value);
+    }
+
+    public function test_web_sync_endpoint_dispatches_sync_job_to_queue_when_faked_and_creates_uploading_placeholder(): void
+    {
+        Queue::fake();
+
+        $response = $this->actingAs($this->admin)->post(route('datasets.asset-sync'));
+
+        $response->assertRedirect(route('datasets.index'));
+        $response->assertSessionHas('status');
+
+        $placeholder = Dataset::where('division_id', $this->assetDivision->id)
+            ->where('status', Dataset::STATUS_UPLOADING)
+            ->sole();
+
+        $this->assertSame($this->admin->id, $placeholder->user_id);
+        $this->assertSame('Sinkronisasi Google Sheets (Tab 1b + Tab 1a)', $placeholder->original_name);
+
+        Queue::assertPushed(SyncAssetSheetsJob::class, function (SyncAssetSheetsJob $job) use ($placeholder): bool {
+            return $job->datasetId === $placeholder->id
+                && $job->userId === $this->admin->id;
+        });
+
+        // Endpoint JSON mengembalikan HTTP 202 Accepted saat diproses asinkron
+        $placeholder->update(['status' => DatasetStatus::ARCHIVED]);
+
+        $jsonResponse = $this->actingAs($this->admin)->postJson(route('datasets.asset-sync'));
+        $jsonResponse->assertStatus(202)
+            ->assertJsonPath('dataset.status', Dataset::STATUS_UPLOADING);
+    }
+
+    public function test_web_sync_with_database_queue_processes_job_and_transitions_uploading_to_ready(): void
+    {
+        config(['queue.default' => 'database']);
+        $this->fakeGoogleSheetsResponses();
+
+        $response = $this->actingAs($this->admin)->post(route('datasets.asset-sync'));
+
+        $response->assertRedirect(route('datasets.index'));
+        $response->assertSessionHas('status');
+
+        $this->assertSame(1, DB::table('jobs')->count());
+
+        $placeholder = Dataset::where('division_id', $this->assetDivision->id)
+            ->where('status', Dataset::STATUS_UPLOADING)
+            ->sole();
+
+        $this->assertSame(0, PerformanceMetric::count());
+
+        $this->artisan('queue:work', ['--once' => true])
+            ->assertExitCode(0);
+
+        $this->assertSame(0, DB::table('jobs')->count());
+        $this->assertSame(1, Dataset::where('division_id', $this->assetDivision->id)->count());
+
+        $ready = $placeholder->fresh();
+        $this->assertNotNull($ready);
+        $this->assertSame(Dataset::STATUS_READY, $ready->status->value);
+        $this->assertNull($ready->error_message);
+        $this->assertGreaterThan(0, $ready->metrics()->count());
+        $this->assertTrue(
+            AuditLog::where('auditable_type', Dataset::class)
+                ->where('auditable_id', $ready->id)
+                ->where('action', AuditLog::ACTION_IMPORT)
+                ->exists()
+        );
+    }
+
+    public function test_web_sync_prevents_duplicate_dispatch_while_active_sync_is_in_progress(): void
+    {
+        Queue::fake();
+
+        $active = Dataset::factory()->create([
+            'division_id' => $this->assetDivision->id,
+            'user_id' => $this->admin->id,
+            'status' => Dataset::STATUS_UPLOADING,
+            'original_name' => 'Sinkronisasi Google Sheets (Tab 1b + Tab 1a)',
+        ]);
+
+        $response = $this->actingAs($this->admin)
+            ->from(route('datasets.create'))
+            ->post(route('datasets.asset-sync'));
+
+        $response->assertRedirect(route('datasets.index'));
+        $response->assertSessionHas('warning');
+        Queue::assertNothingPushed();
+
+        $this->actingAs($this->admin)
+            ->postJson(route('datasets.asset-sync'))
+            ->assertStatus(409);
+
+        $this->assertSame(Dataset::STATUS_UPLOADING, $active->fresh()->status->value);
+    }
+
+    public function test_web_sync_marks_stale_uploading_placeholder_failed_and_allows_new_dispatch(): void
+    {
+        Queue::fake();
+
+        $stale = Dataset::factory()->create([
+            'division_id' => $this->assetDivision->id,
+            'user_id' => $this->admin->id,
+            'status' => Dataset::STATUS_UPLOADING,
+            'original_name' => 'Sinkronisasi Google Sheets (Tab 1b + Tab 1a)',
+        ]);
+
+        DB::table('datasets')
+            ->where('id', $stale->id)
+            ->update([
+                'created_at' => now()->subMinutes(15),
+                'updated_at' => now()->subMinutes(15),
+            ]);
+
+        $response = $this->actingAs($this->admin)->post(route('datasets.asset-sync'));
+
+        $response->assertRedirect(route('datasets.index'));
+        $response->assertSessionHas('status');
+
+        $this->assertSame(Dataset::STATUS_FAILED, $stale->fresh()->status->value);
+        $this->assertNotNull($stale->fresh()->error_message);
+        Queue::assertPushed(SyncAssetSheetsJob::class);
+    }
+
+    public function test_sync_asset_sheets_job_failed_hook_marks_dataset_failed_with_sanitized_message(): void
+    {
+        $placeholder = Dataset::factory()->create([
+            'division_id' => $this->assetDivision->id,
+            'user_id' => $this->admin->id,
+            'status' => Dataset::STATUS_VALIDATING,
+            'original_name' => 'Sinkronisasi Google Sheets (Tab 1b + Tab 1a)',
+        ]);
+
+        $job = new SyncAssetSheetsJob($placeholder->id, $this->admin->id);
+        $job->failed(new \RuntimeException('Crash accessing https://docs.google.com/spreadsheets/d/'.config('asset.sheet_id').'/export'));
+
+        $fresh = $placeholder->fresh();
+        $this->assertNotNull($fresh);
+        $this->assertSame(Dataset::STATUS_FAILED, $fresh->status->value);
+        $this->assertNotNull($fresh->error_message);
+        $this->assertStringNotContainsString('docs.google.com', (string) $fresh->error_message);
+        $this->assertStringNotContainsString((string) config('asset.sheet_id'), (string) $fresh->error_message);
+    }
+
+    public function test_datasets_index_displays_processing_banner_and_client_friendly_labels_without_technical_jargon(): void
+    {
+        Dataset::factory()->create([
+            'division_id' => $this->assetDivision->id,
+            'user_id' => $this->admin->id,
+            'status' => Dataset::STATUS_UPLOADING,
+            'original_name' => 'Sinkronisasi Google Sheets (Tab 1b + Tab 1a)',
+        ]);
+
+        Dataset::factory()->create([
+            'division_id' => $this->assetDivision->id,
+            'user_id' => $this->admin->id,
+            'status' => Dataset::STATUS_VALIDATING,
+            'original_name' => 'Sinkronisasi Validasi Berjalan',
+        ]);
+
+        $response = $this->actingAs($this->admin)->get(route('datasets.index'));
+
+        $response->assertOk()
+            ->assertSee('id="dataset-processing-banner"', false)
+            ->assertSee(DatasetStatus::UPLOADING->label())
+            ->assertSee(DatasetStatus::VALIDATING->label())
+            ->assertDontSee('queue:work')
+            ->assertDontSee('Laravel Queue')
+            ->assertDontSee('SyncAssetSheetsJob');
+
+        $staffManset = User::factory()->withRole(Role::STAFF_DIVISI)->create([
+            'email' => 'staff_manset_banner@dashboard.local',
+            'division_id' => $this->assetDivision->id,
+        ]);
+
+        $this->actingAs($staffManset)
+            ->get(route('datasets.create'))
+            ->assertOk()
+            ->assertSee('id="asset-sync-active-notice"', false);
+    }
+
+    public function test_cli_aset_sync_executes_synchronously_without_dispatching_queue_job(): void
+    {
+        Queue::fake();
+        $this->fakeGoogleSheetsResponses();
+
+        $this->artisan('aset:sync')->assertExitCode(0);
+
+        Queue::assertNothingPushed();
+
+        $dataset = Dataset::where('division_id', $this->assetDivision->id)
+            ->where('status', Dataset::STATUS_READY)
+            ->sole();
+
+        $this->assertGreaterThan(0, $dataset->metrics()->count());
     }
 }

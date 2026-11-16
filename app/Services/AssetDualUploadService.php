@@ -37,6 +37,8 @@ class AssetDualUploadService
      * @param  UploadedFile|string  $file1a  Berkas Tab 1a (level UIT)
      * @param  User  $uploader  Pengguna yang melakukan unggah
      * @param  string|null  $period  Periode data Y-m-d (opsional, jika null dideteksi otomatis)
+     * @param  Dataset|null  $existingDataset  Record placeholder yang diperbarui alih-alih membuat baru (opsional)
+     * @param  string|null  $displayName  Nama tampilan dataset ramah klien (opsional)
      * @return array{dataset: Dataset, rows_1b: int, rows_1a: int, total_rows: int}
      *
      * @throws InvalidArgumentException
@@ -48,6 +50,8 @@ class AssetDualUploadService
         UploadedFile|string $file1a,
         User $uploader,
         ?string $period = null,
+        ?Dataset $existingDataset = null,
+        ?string $displayName = null,
     ): array {
         // Dynamic division resolution via slug (dilarang hardcode ID)
         $assetDivision = Division::where('slug', 'managemen-aset')->firstOrFail();
@@ -92,6 +96,7 @@ class AssetDualUploadService
             : basename($path1a);
 
         $compositeOriginalName = $safeOriginalName1b.' + '.$safeOriginalName1a;
+        $resolvedOriginalName = $displayName ?? $compositeOriginalName;
         $mimeType = $file1b instanceof UploadedFile ? ($file1b->getMimeType() ?: 'application/octet-stream') : 'application/octet-stream';
         $fileSize = ($file1b instanceof UploadedFile ? $file1b->getSize() : filesize($path1b))
             + ($file1a instanceof UploadedFile ? $file1a->getSize() : filesize($path1a));
@@ -101,7 +106,7 @@ class AssetDualUploadService
         try {
             return DB::transaction(function () use (
                 $file1b, $file1a, $path1b, $path1a, $uploader, $assetDivisionId, $period,
-                $storedName1b, $storedName1a, $compositeOriginalName, $mimeType, $fileSize, &$storedFiles
+                $storedName1b, $storedName1a, $resolvedOriginalName, $mimeType, $fileSize, $existingDataset, &$storedFiles
             ) {
                 // Simpan berkas fisik ke disk local
                 $storedPath1b = 'datasets/'.$storedName1b;
@@ -120,16 +125,23 @@ class AssetDualUploadService
                 }
                 $storedFiles[] = $storedPath1a;
 
-                // Buat record Dataset dengan status awal VALIDATING
-                $dataset = Dataset::create([
+                $datasetAttributes = [
                     'division_id' => $assetDivisionId,
                     'user_id' => $uploader->id,
                     'filename' => $storedName1b,
-                    'original_name' => $compositeOriginalName,
+                    'original_name' => $resolvedOriginalName,
                     'mime_type' => $mimeType,
                     'size' => $fileSize,
                     'status' => Dataset::STATUS_VALIDATING,
-                ]);
+                    'error_message' => null,
+                ];
+
+                if ($existingDataset !== null) {
+                    $existingDataset->update($datasetAttributes);
+                    $dataset = $existingDataset;
+                } else {
+                    $dataset = Dataset::create($datasetAttributes);
+                }
 
                 // Ekstraksi 1a (UIT) terlebih dahulu untuk mendeteksi atau memvalidasi periode
                 $rows1a = $this->reader1a->read($path1a, $period);

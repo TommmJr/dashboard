@@ -558,10 +558,10 @@
                                         {{ $row['kategori'] ?: 'Tidak tercatat' }}
                                     </span>
                                 </td>
-                                <td class="px-4 py-2.5 text-right font-sans tabular-nums text-slate-900">{{ number_format((float) ($row['uit_value'] ?? 0), 2, ',', '.') }}</td>
-                                <td class="px-4 py-2.5 text-right font-sans tabular-nums text-slate-900">{{ number_format((float) ($row['upt_sum'] ?? 0), 2, ',', '.') }}</td>
+                                <td class="px-4 py-2.5 text-right font-sans tabular-nums text-slate-900">{{ number_format((float) ($row['uit_value'] ?? 0), 1, ',', '.') }}</td>
+                                <td class="px-4 py-2.5 text-right font-sans tabular-nums text-slate-900">{{ number_format((float) ($row['upt_sum'] ?? 0), 1, ',', '.') }}</td>
                                 <td class="px-4 py-2.5 text-right font-sans tabular-nums {{ $row['is_matched'] ? 'text-slate-600' : 'font-semibold text-rose-700' }}">
-                                    {{ number_format((float) ($row['delta'] ?? 0), 2, ',', '.') }}
+                                    {{ number_format((float) ($row['delta'] ?? 0), 1, ',', '.') }}
                                 </td>
                                 <td class="px-6 py-2.5 text-right">
                                     <span class="inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[11px] font-medium {{ $row['is_matched'] ? 'border-slate-200 bg-white text-slate-700' : 'border-rose-200 bg-rose-50 text-rose-700' }}">
@@ -610,12 +610,12 @@
                                         @if ($uptCell === null)
                                             <span class="inline-flex items-center rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-500">Tidak tercatat</span>
                                         @else
-                                            {{ number_format((float) $uptCell, 2, ',', '.') }}
+                                            {{ number_format((float) $uptCell, 1, ',', '.') }}
                                         @endif
                                     </td>
                                 @endforeach
                                 <td class="px-4 py-2.5 text-right font-sans font-semibold tabular-nums text-slate-900">
-                                    {{ number_format((float) ($row['upt_sum'] ?? 0), 2, ',', '.') }}
+                                    {{ number_format((float) ($row['upt_sum'] ?? 0), 1, ',', '.') }}
                                 </td>
                             </tr>
                         @endforeach
@@ -660,7 +660,7 @@
                                 </td>
                                 <td class="px-4 py-2.5 font-sans tabular-nums text-slate-600">{{ $formatAssetDate($row['period']) }}</td>
                                 <td class="px-6 py-2.5 text-right font-sans font-semibold tabular-nums text-slate-900">
-                                    {{ number_format((float) ($row['value'] ?? 0), 2, ',', '.') }}
+                                    {{ number_format((float) ($row['value'] ?? 0), 1, ',', '.') }}
                                 </td>
                             </tr>
                         @endforeach
@@ -704,7 +704,7 @@
                         <tr class="transition hover:bg-slate-50/60">
                             <td class="px-6 py-2.5 font-medium text-slate-800">{{ $metric->metric_name }}</td>
                             <td class="px-6 py-2.5 font-sans tabular-nums text-slate-600 text-xs">{{ $formatAssetDate($metric->period) }}</td>
-                            <td class="px-6 py-2.5 text-right font-sans tabular-nums font-semibold text-slate-900">{{ number_format((float) $metric->value, 2, ',', '.') }}</td>
+                            <td class="px-6 py-2.5 text-right font-sans tabular-nums font-semibold text-slate-900">{{ number_format((float) $metric->value, 1, ',', '.') }}</td>
                         </tr>
                     @empty
                         <tr>

@@ -16,6 +16,8 @@ use Throwable;
 
 class AssetSheetsSyncService
 {
+    public const DISPLAY_NAME = 'Sinkronisasi Google Sheets (Tab 1b + Tab 1a)';
+
     private const MAX_REDIRECTS = 3;
 
     public function __construct(
@@ -31,12 +33,17 @@ class AssetSheetsSyncService
      * @param  bool|User  $dryRun  Jika true mode dry-run, atau instance User untuk atribusi dataset
      * @param  string|null  $period  Periode data eksplisit Y-m-d (opsional)
      * @param  User|null  $user  Pengguna untuk atribusi dataset/audit (opsional, fallback ke Admin)
+     * @param  Dataset|null  $targetDataset  Placeholder dataset dari antrean yang diperbarui saat selesai/gagal (opsional)
      * @return array{status: string, period: string, rows_1a: int, rows_1b: int, total_rows: int, dataset: ?Dataset}
      *
      * @throws AssetSyncException
      */
-    public function sync(bool|User $dryRun = false, ?string $period = null, ?User $user = null): array
-    {
+    public function sync(
+        bool|User $dryRun = false,
+        ?string $period = null,
+        ?User $user = null,
+        ?Dataset $targetDataset = null,
+    ): array {
         if ($dryRun instanceof User) {
             $user = $dryRun;
             $dryRun = false;
@@ -56,13 +63,25 @@ class AssetSheetsSyncService
             throw new AssetSyncException('Tidak dapat menemukan pengguna Admin untuk atribusi impor dataset aset.');
         }
 
+        if (! $dryRun && $targetDataset !== null) {
+            $targetDataset->update([
+                'status' => Dataset::STATUS_VALIDATING,
+                'error_message' => null,
+            ]);
+        }
+
         // 3. Konfigurasi kredensial Google Sheets
         $sheetId = (string) config('asset.sheet_id');
         $gid1a = (string) config('asset.sheet_gid_1a');
         $gid1b = (string) config('asset.sheet_gid_1b');
 
         if (empty($sheetId) || empty($gid1a) || empty($gid1b)) {
-            throw new AssetSyncException('Konfigurasi Google Sheets (ASET_SHEET_ID, ASET_SHEET_GID_1A, ASET_SHEET_GID_1B) belum lengkap.');
+            $msg = 'Konfigurasi Google Sheets (ASET_SHEET_ID, ASET_SHEET_GID_1A, ASET_SHEET_GID_1B) belum lengkap.';
+            if (! $dryRun && $targetDataset !== null) {
+                $this->recordFailedDataset((int) $assetDivisionId, $uploader->id, $msg, $targetDataset);
+            }
+
+            throw new AssetSyncException($msg);
         }
 
         $url1a = $this->buildExportUrl($sheetId, $gid1a);
@@ -76,11 +95,11 @@ class AssetSheetsSyncService
                 $raw1a = $this->fetchCsv($url1a);
                 $raw1b = $this->fetchCsv($url1b);
             } catch (AssetSyncException $e) {
-                $this->recordFailedDataset((int) $assetDivisionId, $uploader->id, $e->getMessage());
+                $this->recordFailedDataset((int) $assetDivisionId, $uploader->id, $e->getMessage(), $targetDataset);
                 throw $e;
             } catch (Throwable $e) {
                 $sanitized = AssetSyncException::sanitize($e->getMessage());
-                $this->recordFailedDataset((int) $assetDivisionId, $uploader->id, "Unexpected fetch failure: {$sanitized}");
+                $this->recordFailedDataset((int) $assetDivisionId, $uploader->id, "Unexpected fetch failure: {$sanitized}", $targetDataset);
                 throw $e;
             }
 
@@ -110,7 +129,7 @@ class AssetSheetsSyncService
                 }
             } catch (RuntimeException $e) {
                 $sanitized = AssetSyncException::sanitize($e->getMessage());
-                $this->recordFailedDataset((int) $assetDivisionId, $uploader->id, "Header mismatch or structure failure: {$sanitized}");
+                $this->recordFailedDataset((int) $assetDivisionId, $uploader->id, "Header mismatch or structure failure: {$sanitized}", $targetDataset);
                 throw new AssetSyncException("Sanity guard failure: {$sanitized}", 0, $e);
             }
 
@@ -139,7 +158,7 @@ class AssetSheetsSyncService
                 $retentionPercent = round(($newCount / $priorCount) * 100, 1);
                 $dropPercent = round(100 - $retentionPercent, 1);
                 $msg = "Sanity guard failure: Metric row count dropped by {$dropPercent}% (previous: {$priorCount}, new: {$newCount}). Minimum retention threshold is 80% of prior READY dataset.";
-                $this->recordFailedDataset((int) $assetDivisionId, $uploader->id, $msg);
+                $this->recordFailedDataset((int) $assetDivisionId, $uploader->id, $msg, $targetDataset);
                 throw new AssetSyncException($msg);
             }
 
@@ -147,7 +166,7 @@ class AssetSheetsSyncService
             try {
                 $this->reconcileCrossCheck($rows1a, $rows1b);
             } catch (AssetSyncException $e) {
-                $this->recordFailedDataset((int) $assetDivisionId, $uploader->id, $e->getMessage());
+                $this->recordFailedDataset((int) $assetDivisionId, $uploader->id, $e->getMessage(), $targetDataset);
                 throw $e;
             }
 
@@ -164,7 +183,14 @@ class AssetSheetsSyncService
             }
 
             // 10. Delegasi Ingestion ke AssetDualUploadService
-            $uploadResult = $this->uploadService->upload($temp1b, $temp1a, $uploader, $resolvedPeriod);
+            $uploadResult = $this->uploadService->upload(
+                $temp1b,
+                $temp1a,
+                $uploader,
+                $resolvedPeriod,
+                $targetDataset,
+                self::DISPLAY_NAME,
+            );
 
             return [
                 'status' => 'SUCCESS',
@@ -455,10 +481,21 @@ class AssetSheetsSyncService
     }
 
     /**
-     * Buat record Dataset dengan status STATUS_FAILED dan pesan error yang disanitasi.
+     * Buat atau perbarui record Dataset dengan status STATUS_FAILED dan pesan error yang disanitasi.
      */
-    private function recordFailedDataset(int $divisionId, int $userId, string $errorMessage): Dataset
+    private function recordFailedDataset(int $divisionId, int $userId, string $errorMessage, ?Dataset $targetDataset = null): Dataset
     {
+        $sanitizedMessage = AssetSyncException::sanitize($errorMessage);
+
+        if ($targetDataset !== null) {
+            $targetDataset->update([
+                'status' => Dataset::STATUS_FAILED,
+                'error_message' => $sanitizedMessage,
+            ]);
+
+            return $targetDataset->fresh() ?? $targetDataset;
+        }
+
         return Dataset::create([
             'division_id' => $divisionId,
             'user_id' => $userId,
@@ -467,7 +504,7 @@ class AssetSheetsSyncService
             'mime_type' => 'text/csv',
             'size' => 0,
             'status' => Dataset::STATUS_FAILED,
-            'error_message' => AssetSyncException::sanitize($errorMessage),
+            'error_message' => $sanitizedMessage,
         ]);
     }
 }

@@ -98,6 +98,54 @@
         </form>
     </div>
 
+    {{-- Banner Pemrosesan Berjalan --}}
+    @if (($activeProcessingCount ?? 0) > 0)
+        <div id="dataset-processing-banner"
+             role="status"
+             x-data="{
+                 timerId: null,
+                 startPolling() {
+                     this.timerId = setInterval(async () => {
+                         try {
+                             const res = await fetch(window.location.href, { headers: { 'Accept': 'text/html' } });
+                             if (!res.ok) return;
+                             const html = await res.text();
+                             if (!html.includes('id=&quot;dataset-processing-banner&quot;')) {
+                                 clearInterval(this.timerId);
+                                 window.location.reload();
+                             }
+                         } catch (e) {}
+                     }, 5000);
+                     window.addEventListener('pagehide', () => clearInterval(this.timerId), { once: true });
+                 }
+             }"
+             x-init="startPolling()"
+             class="ibs-card mt-5 flex flex-wrap items-center justify-between gap-3 border-primary/25 bg-primary-soft/60 px-4 py-3">
+            <div class="flex min-w-0 items-center gap-3">
+                <span class="relative flex h-2.5 w-2.5 shrink-0" aria-hidden="true">
+                    <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent opacity-70"></span>
+                    <span class="relative inline-flex h-2.5 w-2.5 rounded-full bg-primary"></span>
+                </span>
+                <div class="min-w-0">
+                    <p class="text-xs font-semibold text-primary tabular-nums">
+                        Pemrosesan data sedang berjalan ({{ $activeProcessingCount }} dataset)
+                    </p>
+                    <p class="text-[11px] text-slate-600">
+                        Halaman diperbarui otomatis setelah validasi selesai.
+                    </p>
+                </div>
+            </div>
+            <a href="{{ route('datasets.index', request()->query()) }}"
+               class="inline-flex items-center gap-1.5 rounded-lg border border-primary/25 bg-white px-3 py-1.5 text-xs font-medium text-primary shadow-2xs transition-colors hover:bg-primary-soft">
+                <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M21 12a9 9 0 1 1-2.64-6.36"/>
+                    <path d="M21 3v6h-6"/>
+                </svg>
+                Muat Ulang
+            </a>
+        </div>
+    @endif
+
     {{-- Tabel Dataset --}}
     <div class="ibs-card animate-entrance stagger-1 mt-6 overflow-hidden">
         <div class="overflow-x-auto">
@@ -160,7 +208,7 @@
                                         Detail
                                     </a>
                                     @can('dataset.update')
-                                        @if ($dataset->status !== \App\Enums\DatasetStatus::ARCHIVED)
+                                        @if (! in_array($dataset->status, [\App\Enums\DatasetStatus::ARCHIVED, \App\Enums\DatasetStatus::UPLOADING, \App\Enums\DatasetStatus::VALIDATING], true))
                                             <form method="POST" action="{{ route('datasets.archive', $dataset) }}"
                                                   data-confirm="Arsipkan dataset ini? Data keluar dari chart tetapi tetap tersimpan.">
                                                 @csrf @method('PATCH')

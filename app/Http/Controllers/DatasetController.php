@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Enums\DatasetStatus;
 use App\Exceptions\AssetSyncException;
+use App\Jobs\SyncAssetSheetsJob;
 use App\Models\AuditLog;
 use App\Models\Dataset;
 use App\Models\Division;
@@ -31,6 +32,8 @@ use Throwable;
 
 class DatasetController extends Controller
 {
+    private const ASSET_SYNC_STALE_MINUTES = 10;
+
     public function create()
     {
         $user = Auth::user()->loadMissing('division');
@@ -45,6 +48,14 @@ class DatasetController extends Controller
         $assetDivision = Division::where('slug', 'managemen-aset')->first();
         $canUploadAsset = $user->hasRole(Role::ADMIN)
             || ($assetDivision !== null && $user->hasRole(Role::STAFF_DIVISI) && $user->division_id !== null && (int) $user->division_id === (int) $assetDivision->id);
+        $activeAssetSync = ($canUploadAsset && $assetDivision !== null)
+            ? Dataset::query()
+                ->where('division_id', $assetDivision->id)
+                ->whereIn('status', [Dataset::STATUS_UPLOADING, Dataset::STATUS_VALIDATING])
+                ->where('updated_at', '>=', now()->subMinutes(self::ASSET_SYNC_STALE_MINUTES))
+                ->latest('id')
+                ->first()
+            : null;
 
         return view('datasets.create', [
             'divisions' => $divisions,
@@ -53,6 +64,7 @@ class DatasetController extends Controller
             'canImportKpi' => $this->canImportKpi($user),
             'kpiPeriods' => $this->importedKpiPeriods($user),
             'canUploadAsset' => $canUploadAsset,
+            'activeAssetSync' => $activeAssetSync,
         ]);
     }
 
@@ -321,9 +333,9 @@ class DatasetController extends Controller
     }
 
     /**
-     * Sinkronisasi data aset dari Google Sheets (Tab 1b & Tab 1a).
+     * Sinkronisasi data aset dari Google Sheets (Tab 1b & Tab 1a) via Laravel Queue.
      */
-    public function syncAssetSheets(Request $request, AssetSheetsSyncService $syncService)
+    public function syncAssetSheets(Request $request)
     {
         $user = Auth::user();
         $assetDivision = Division::where('slug', 'managemen-aset')->first();
@@ -335,19 +347,86 @@ class DatasetController extends Controller
         abort_unless($canSyncAsset, 403, 'Hanya admin atau staf divisi Manajemen Aset yang dapat menyinkronkan dataset Manajemen Aset.');
 
         try {
-            $result = $syncService->sync(dryRun: false, period: null, user: $user);
+            if ($assetDivisionId === null) {
+                throw new AssetSyncException("Divisi 'managemen-aset' tidak ditemukan di database.");
+            }
+
+            // Tandai placeholder yang macet melampaui batas waktu sebagai GAGAL sebelum cek antrean aktif
+            $staleCutoff = now()->subMinutes(self::ASSET_SYNC_STALE_MINUTES);
+            Dataset::query()
+                ->where('division_id', $assetDivisionId)
+                ->whereIn('status', [Dataset::STATUS_UPLOADING, Dataset::STATUS_VALIDATING])
+                ->where('updated_at', '<', $staleCutoff)
+                ->get()
+                ->each(function (Dataset $stale): void {
+                    $stale->update([
+                        'status' => DatasetStatus::FAILED,
+                        'error_message' => 'Sinkronisasi melewati batas waktu pemrosesan. Silakan coba lagi.',
+                    ]);
+                });
+
+            $activeSync = Dataset::query()
+                ->where('division_id', $assetDivisionId)
+                ->whereIn('status', [Dataset::STATUS_UPLOADING, Dataset::STATUS_VALIDATING])
+                ->latest('id')
+                ->first();
+
+            if ($activeSync !== null) {
+                $busyMessage = 'Sinkronisasi data aset masih diproses. Mohon tunggu hingga selesai.';
+
+                if ($request->expectsJson()) {
+                    return response()->json([
+                        'message' => $busyMessage,
+                        'dataset' => $activeSync,
+                    ], 409);
+                }
+
+                return redirect()
+                    ->route('datasets.index')
+                    ->with('warning', $busyMessage);
+            }
+
+            $placeholder = Dataset::create([
+                'division_id' => $assetDivisionId,
+                'user_id' => $user->id,
+                'filename' => 'sync_pending_'.Str::random(16).'.csv',
+                'original_name' => AssetSheetsSyncService::DISPLAY_NAME,
+                'mime_type' => 'text/csv',
+                'size' => 0,
+                'status' => DatasetStatus::UPLOADING,
+            ]);
+
+            SyncAssetSheetsJob::dispatch($placeholder->id, $user->id);
+
+            $freshDataset = $placeholder->fresh();
+            if ($freshDataset !== null && $freshDataset->status === DatasetStatus::READY) {
+                $resolvedPeriod = (string) ($freshDataset->metrics()->value('period') ?? '');
+                $periodLabel = $resolvedPeriod !== '' ? " (Periode: {$resolvedPeriod})" : '';
+
+                if ($request->expectsJson()) {
+                    return response()->json([
+                        'message' => "Sinkronisasi data aset dari Google Sheets berhasil{$periodLabel}.",
+                        'dataset' => $freshDataset,
+                    ], 200);
+                }
+
+                return redirect()
+                    ->route('datasets.index')
+                    ->with('success', "Sinkronisasi data aset dari Google Sheets berhasil{$periodLabel}.");
+            }
+
+            $queuedMessage = 'Permintaan sinkronisasi data aset masuk antrean dan sedang diproses.';
 
             if ($request->expectsJson()) {
                 return response()->json([
-                    'message' => "Sinkronisasi data aset dari Google Sheets berhasil (Periode: {$result['period']}).",
-                    'dataset' => $result['dataset'],
-                    'result' => $result,
-                ], 200);
+                    'message' => $queuedMessage,
+                    'dataset' => $freshDataset ?? $placeholder,
+                ], 202);
             }
 
             return redirect()
                 ->route('datasets.index')
-                ->with('success', "Sinkronisasi data aset dari Google Sheets berhasil (Periode: {$result['period']}).");
+                ->with('status', $queuedMessage);
         } catch (AssetSyncException $e) {
             $errorMessage = AssetSyncException::sanitize($e->getMessage());
 
@@ -807,9 +886,15 @@ class DatasetController extends Controller
             ])
             ->latest();
 
+        $activeProcessingQuery = Dataset::query()
+            ->whereIn('status', [Dataset::STATUS_UPLOADING, Dataset::STATUS_VALIDATING]);
+
         if (! $this->seesAllDivisions($user)) {
             $query->where('division_id', $user->division_id);
+            $activeProcessingQuery->where('division_id', $user->division_id);
         }
+
+        $activeProcessingCount = $activeProcessingQuery->count();
 
         $status = $request->query('status');
         $allowedStatuses = [
@@ -829,7 +914,7 @@ class DatasetController extends Controller
         $datasets = $query->paginate(15)->withQueryString();
         $canUploadAny = self::canUploadAny($user);
 
-        return view('datasets.index', compact('datasets', 'canUploadAny'));
+        return view('datasets.index', compact('datasets', 'canUploadAny', 'activeProcessingCount'));
     }
 
     /**
