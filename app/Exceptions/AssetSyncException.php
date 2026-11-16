@@ -29,9 +29,9 @@ class AssetSyncException extends RuntimeException
             $message
         ) ?? $message;
 
-        // Mask any remaining URLs
+        // Mask any remaining URLs (including IPv6 brackets and userinfo)
         $masked = preg_replace(
-            '#https?://[a-zA-Z0-9.\-_]+[^\s"\'<>]*#i',
+            '#https?://[^\s"\'<>]+#i',
             '[REDACTED_URL]',
             $masked
         ) ?? $masked;

@@ -16,10 +16,13 @@ use Throwable;
 
 class AssetSheetsSyncService
 {
+    private const MAX_REDIRECTS = 3;
+
     public function __construct(
         private readonly AssetDualUploadService $uploadService,
         private readonly AssetStockConverter $converter1b,
         private readonly AssetUitReader $reader1a,
+        private readonly PublicDnsResolver $dnsResolver,
     ) {}
 
     /**
@@ -196,24 +199,108 @@ class AssetSheetsSyncService
     }
 
     /**
-     * Validasi skema, host, dan port URL untuk mencegah SSRF.
+     * Validasi skema, host, port, dan ketiadaan userinfo URL awal untuk mencegah SSRF.
      */
     public function validateUrl(string $url): void
     {
-        $scheme = parse_url($url, PHP_URL_SCHEME);
-        $host = parse_url($url, PHP_URL_HOST);
-        $port = parse_url($url, PHP_URL_PORT);
-
-        if (strtolower((string) $scheme) !== 'https'
-            || strtolower((string) $host) !== 'docs.google.com'
-            || ($port !== null && $port !== 443)
-        ) {
+        if ($this->parseValidHttpsHost($url) !== 'docs.google.com') {
             throw new AssetSyncException('Host atau skema URL tidak diizinkan. Hanya HTTPS ke docs.google.com yang diperbolehkan.');
         }
     }
 
     /**
-     * Eksekusi HTTP GET untuk mengunduh berkas CSV dengan timeout, retry, dan Content-Type check.
+     * Validasi URL tujuan redirect agar hanya mengarah ke docs.google.com atau subdomain *.googleusercontent.com via HTTPS.
+     */
+    private function validateRedirectUrl(string $url): void
+    {
+        $host = $this->parseValidHttpsHost($url);
+
+        if ($host === null || ! $this->isAllowedRedirectHost($host)) {
+            throw new AssetSyncException('Redirect ke host atau skema yang tidak diizinkan.');
+        }
+    }
+
+    private function parseValidHttpsHost(string $url): ?string
+    {
+        if ($url === '' || preg_match('/[\x00-\x20\x7f\\\\]/', $url) === 1) {
+            return null;
+        }
+
+        $parts = parse_url($url);
+        if (! is_array($parts) || isset($parts['user']) || isset($parts['pass'])) {
+            return null;
+        }
+
+        $scheme = strtolower((string) ($parts['scheme'] ?? ''));
+        $port = $parts['port'] ?? null;
+        $host = strtolower(trim((string) ($parts['host'] ?? ''), '.'));
+
+        if ($scheme !== 'https'
+            || $host === ''
+            || ($port !== null && (int) $port !== 443)
+        ) {
+            return null;
+        }
+
+        return $host;
+    }
+
+    private function isAllowedRedirectHost(string $host): bool
+    {
+        if ($host === 'docs.google.com') {
+            return true;
+        }
+
+        if ($host === '' || str_contains($host, '..') || preg_match('/^[a-z0-9.\-]+$/', $host) !== 1) {
+            return false;
+        }
+
+        return strlen($host) > strlen('.googleusercontent.com')
+            && str_ends_with($host, '.googleusercontent.com');
+    }
+
+    private function resolveRedirectTarget(string $currentUrl, string $location): string
+    {
+        if ($location === '' || preg_match('/[\r\n\x00]/', $location) === 1 || str_starts_with($location, '//')) {
+            throw new AssetSyncException('Redirect ke host atau skema yang tidak diizinkan.');
+        }
+
+        if (str_starts_with($location, '/')) {
+            $host = strtolower((string) parse_url($currentUrl, PHP_URL_HOST));
+
+            return "https://{$host}{$location}";
+        }
+
+        return $location;
+    }
+
+    private function resolveAndPinHostIp(string $host): string
+    {
+        $ips = $this->dnsResolver->resolve($host);
+
+        if ($ips === []) {
+            throw new AssetSyncException('Resolusi DNS host tujuan gagal atau tidak menghasilkan alamat IP yang valid.');
+        }
+
+        foreach ($ips as $ip) {
+            if (! $this->dnsResolver->isPublicIp($ip)) {
+                throw new AssetSyncException('Resolusi DNS host tujuan ditolak karena mengarah ke alamat IP non-publik.');
+            }
+        }
+
+        foreach ($ips as $ip) {
+            if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) !== false) {
+                return $ip;
+            }
+        }
+
+        $first = $ips[0];
+
+        return str_contains($first, ':') ? "[{$first}]" : $first;
+    }
+
+    /**
+     * Eksekusi HTTP GET untuk mengunduh berkas CSV dengan validasi redirect, DNS publik, IP pinning, timeout, dan Content-Type check.
      */
     private function fetchCsv(string $url): string
     {
@@ -221,28 +308,58 @@ class AssetSheetsSyncService
 
         $timeout = (int) config('asset.timeout', 15);
         $retries = (int) config('asset.retries', 2);
+        $currentUrl = $url;
+        $response = null;
 
-        try {
-            $response = Http::timeout($timeout)
-                ->connectTimeout(5)
-                ->withOptions([
-                    'allow_redirects' => [
-                        'max' => 3,
-                        'protocols' => ['https'],
-                    ],
-                ])
-                ->retry($retries, 500, function ($exception) {
-                    return $exception instanceof ConnectionException
-                        || ($exception instanceof RequestException && $exception->response->serverError());
-                }, throw: false)
-                ->get($url);
-        } catch (ConnectionException|RequestException $e) {
-            $sanitized = AssetSyncException::sanitize($e->getMessage());
-            throw new AssetSyncException("Gagal menghubungi Google Sheets: {$sanitized}", 0, $e);
+        for ($hop = 0; $hop <= self::MAX_REDIRECTS; $hop++) {
+            if ($hop > 0) {
+                $this->validateRedirectUrl($currentUrl);
+            }
+
+            $host = strtolower((string) parse_url($currentUrl, PHP_URL_HOST));
+            $pinIp = $this->resolveAndPinHostIp($host);
+
+            $options = ['allow_redirects' => false];
+            if (defined('CURLOPT_RESOLVE')) {
+                $options['curl'] = [CURLOPT_RESOLVE => ["{$host}:443:{$pinIp}"]];
+            }
+
+            try {
+                $response = Http::timeout($timeout)
+                    ->connectTimeout(5)
+                    ->withOptions($options)
+                    ->retry($retries, 500, function ($exception) {
+                        return $exception instanceof ConnectionException
+                            || ($exception instanceof RequestException && $exception->response->serverError());
+                    }, throw: false)
+                    ->get($currentUrl);
+            } catch (ConnectionException|RequestException $e) {
+                $sanitized = AssetSyncException::sanitize($e->getMessage());
+                throw new AssetSyncException("Gagal menghubungi Google Sheets: {$sanitized}", 0, $e);
+            }
+
+            if (in_array($response->status(), [301, 302, 303, 307, 308], true)) {
+                if ($hop >= self::MAX_REDIRECTS) {
+                    throw new AssetSyncException('Jumlah HTTP redirect melebihi batas maksimum (3).');
+                }
+
+                $location = trim((string) $response->header('Location'));
+                if ($location === '') {
+                    throw new AssetSyncException('Respons HTTP redirect tidak menyertakan header Location yang valid.');
+                }
+
+                $currentUrl = $this->resolveRedirectTarget($currentUrl, $location);
+                $this->validateRedirectUrl($currentUrl);
+
+                continue;
+            }
+
+            break;
         }
 
-        if ($response->status() !== 200) {
-            throw new AssetSyncException("Gagal mengunduh berkas Google Sheets: HTTP status {$response->status()}.");
+        if ($response === null || $response->status() !== 200) {
+            $status = $response?->status() ?? 0;
+            throw new AssetSyncException("Gagal mengunduh berkas Google Sheets: HTTP status {$status}.");
         }
 
         $contentType = (string) $response->header('Content-Type');

@@ -10,11 +10,13 @@ use App\Models\PerformanceMetric;
 use App\Models\Role;
 use App\Models\User;
 use App\Services\AssetSheetsSyncService;
+use App\Services\PublicDnsResolver;
 use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\UnitDivisionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class AssetSheetsSyncTest extends TestCase
@@ -32,6 +34,12 @@ class AssetSheetsSyncTest extends TestCase
         // Enforce network isolation for every test
         Http::preventStrayRequests();
         Storage::fake('local');
+
+        $this->bindDnsMap([
+            'docs.google.com' => ['142.250.190.46'],
+            'doc-0k-12-sheets.googleusercontent.com' => ['142.250.190.50'],
+            'doc-01-sheets.googleusercontent.com' => ['142.250.190.51'],
+        ]);
 
         $this->seed(RolePermissionSeeder::class);
         $this->seed(UnitDivisionSeeder::class);
@@ -52,6 +60,25 @@ class AssetSheetsSyncTest extends TestCase
             'asset.timeout' => 5,
             'asset.retries' => 1,
         ]);
+    }
+
+    /**
+     * @param  array<string, list<string>>  $hostToIps
+     */
+    private function bindDnsMap(array $hostToIps): void
+    {
+        $this->app->instance(PublicDnsResolver::class, new class($hostToIps) extends PublicDnsResolver
+        {
+            /**
+             * @param  array<string, list<string>>  $hostToIps
+             */
+            public function __construct(private readonly array $hostToIps) {}
+
+            public function resolve(string $host): array
+            {
+                return $this->hostToIps[strtolower($host)] ?? [];
+            }
+        });
     }
 
     private function fakeGoogleSheetsResponses(?string $csv1a = null, ?string $csv1b = null): void
@@ -163,6 +190,326 @@ class AssetSheetsSyncTest extends TestCase
         $this->expectExceptionMessage('Format ID spreadsheet atau GID Google Sheets tidak valid.');
 
         $syncService->buildExportUrl('evil.com@attacker', 'invalid_gid');
+    }
+
+    public function test_aset_sync_menolak_url_dengan_userinfo_atau_port_non_standar(): void
+    {
+        $syncService = app(AssetSheetsSyncService::class);
+
+        foreach ([
+            'https://docs.google.com@evil.com/spreadsheets/d/123/export?format=csv&gid=0',
+            'https://user:pass@docs.google.com/spreadsheets/d/123/export?format=csv&gid=0',
+            'https://docs.google.com:8443/spreadsheets/d/123/export?format=csv&gid=0',
+            'http://docs.google.com/spreadsheets/d/123/export?format=csv&gid=0',
+        ] as $url) {
+            try {
+                $syncService->validateUrl($url);
+                $this->fail("Seharusnya menolak URL: {$url}");
+            } catch (AssetSyncException $e) {
+                $this->assertSame(
+                    'Host atau skema URL tidak diizinkan. Hanya HTTPS ke docs.google.com yang diperbolehkan.',
+                    $e->getMessage(),
+                );
+            }
+        }
+    }
+
+    /**
+     * @return array<string, array{0: string}>
+     */
+    public static function disallowedRedirectTargetProvider(): array
+    {
+        return [
+            'external evil domain' => ['https://evil.com/steal.csv'],
+            'google accounts login' => ['https://accounts.google.com/ServiceLogin'],
+            'bare googleusercontent' => ['https://googleusercontent.com/evil.csv'],
+            'http metadata endpoint' => ['http://169.254.169.254/latest/meta-data/'],
+            'https metadata ip' => ['https://169.254.169.254/latest/meta-data/'],
+            'userinfo host confusion' => ['https://docs.google.com@evil.com/steal.csv'],
+            'backslash parser confusion' => ['https://evil.com\\@docs.google.com/steal.csv'],
+            'protocol relative url' => ['//evil.com/protocol-relative.csv'],
+            'non-standard port' => ['https://docs.google.com:8443/spreadsheets/d/123/export?format=csv'],
+        ];
+    }
+
+    #[DataProvider('disallowedRedirectTargetProvider')]
+    public function test_aset_sync_menolak_http_redirect_ke_host_atau_skema_tidak_diizinkan(string $disallowedTarget): void
+    {
+        Http::fake([
+            'https://docs.google.com/*' => Http::response('', 302, ['Location' => $disallowedTarget]),
+            '*' => Http::response('should never be reached', 200, ['Content-Type' => 'text/csv']),
+        ]);
+
+        $this->artisan('aset:sync')
+            ->assertExitCode(1);
+
+        $failedDataset = Dataset::where('division_id', $this->assetDivision->id)
+            ->where('status', Dataset::STATUS_FAILED)
+            ->sole();
+
+        $this->assertStringContainsString('Redirect', (string) $failedDataset->error_message);
+        $this->assertStringNotContainsString('evil.com', (string) $failedDataset->error_message);
+        $this->assertStringNotContainsString('169.254.169.254', (string) $failedDataset->error_message);
+        $this->assertStringNotContainsString('accounts.google.com', (string) $failedDataset->error_message);
+        $this->assertSame(0, Dataset::where('status', Dataset::STATUS_READY)->count());
+    }
+
+    public function test_aset_sync_menolak_redirect_tanpa_location(): void
+    {
+        Http::fake([
+            'https://docs.google.com/*' => Http::response('', 302),
+        ]);
+
+        $this->artisan('aset:sync')->assertExitCode(1);
+
+        $failedMissing = Dataset::where('division_id', $this->assetDivision->id)
+            ->where('status', Dataset::STATUS_FAILED)
+            ->sole();
+        $this->assertStringContainsString('Location', (string) $failedMissing->error_message);
+        $this->assertSame(0, Dataset::where('status', Dataset::STATUS_READY)->count());
+    }
+
+    public function test_aset_sync_menolak_redirect_melebihi_batas_hop(): void
+    {
+        Http::fake([
+            'https://docs.google.com/*' => Http::response('', 302, [
+                'Location' => 'https://doc-01-sheets.googleusercontent.com/export-hop',
+            ]),
+            'https://doc-01-sheets.googleusercontent.com/*' => Http::response('', 302, [
+                'Location' => 'https://doc-01-sheets.googleusercontent.com/export-hop-2',
+            ]),
+        ]);
+
+        $this->artisan('aset:sync')->assertExitCode(1);
+
+        $failedLoop = Dataset::where('division_id', $this->assetDivision->id)
+            ->where('status', Dataset::STATUS_FAILED)
+            ->sole();
+        $this->assertStringContainsString('batas maksimum', (string) $failedLoop->error_message);
+        $this->assertSame(0, Dataset::where('status', Dataset::STATUS_READY)->count());
+    }
+
+    /**
+     * @return array<string, array{0: string}>
+     */
+    public static function nonPublicIpProvider(): array
+    {
+        return [
+            'ipv4 loopback' => ['127.0.0.1'],
+            'ipv4 loopback upper' => ['127.255.255.254'],
+            'ipv4 rfc1918 10/8' => ['10.0.0.1'],
+            'ipv4 rfc1918 172.16/12' => ['172.16.0.1'],
+            'ipv4 rfc1918 172.31/12' => ['172.31.255.255'],
+            'ipv4 rfc1918 192.168/16' => ['192.168.1.1'],
+            'ipv4 link-local metadata' => ['169.254.169.254'],
+            'ipv4 cgnat lower' => ['100.64.0.1'],
+            'ipv4 cgnat upper' => ['100.127.255.255'],
+            'ipv4 unspecified' => ['0.0.0.0'],
+            'ipv4 multicast' => ['224.0.0.1'],
+            'ipv4 reserved' => ['240.0.0.1'],
+            'ipv6 loopback' => ['::1'],
+            'ipv6 unspecified' => ['::'],
+            'ipv6 link-local' => ['fe80::1'],
+            'ipv6 ula fc00' => ['fc00::1'],
+            'ipv6 ula fd00' => ['fd12:3456::1'],
+            'ipv6 multicast' => ['ff02::1'],
+            'ipv4-mapped loopback' => ['::ffff:127.0.0.1'],
+            'ipv4-mapped metadata' => ['::ffff:169.254.169.254'],
+            'ipv4-mapped rfc1918' => ['::ffff:10.0.0.1'],
+            'ipv4-mapped cgnat' => ['::ffff:100.64.0.1'],
+            'invalid ip string' => ['not-an-ip'],
+        ];
+    }
+
+    #[DataProvider('nonPublicIpProvider')]
+    public function test_public_dns_resolver_memblokir_ip_non_publik(string $ip): void
+    {
+        $resolver = new PublicDnsResolver;
+
+        $this->assertFalse($resolver->isPublicIp($ip), "IP {$ip} seharusnya diblokir.");
+    }
+
+    /**
+     * @return array<string, array{0: string}>
+     */
+    public static function publicIpProvider(): array
+    {
+        return [
+            'google public ipv4' => ['142.250.190.46'],
+            'below 172.16 boundary' => ['172.15.255.255'],
+            'above 172.31 boundary' => ['172.32.0.1'],
+            'below cgnat boundary' => ['100.63.255.255'],
+            'above cgnat boundary' => ['100.128.0.1'],
+            'google public ipv6' => ['2607:f8b0:4005:80b::200e'],
+        ];
+    }
+
+    #[DataProvider('publicIpProvider')]
+    public function test_public_dns_resolver_mengizinkan_ip_publik(string $ip): void
+    {
+        $resolver = new PublicDnsResolver;
+
+        $this->assertTrue($resolver->isPublicIp($ip), "IP publik {$ip} seharusnya diizinkan.");
+    }
+
+    /**
+     * @return array<string, array{0: list<string>}>
+     */
+    public static function nonPublicDnsResolutionProvider(): array
+    {
+        return [
+            'empty dns' => [[]],
+            'loopback ipv4' => [['127.0.0.1']],
+            'metadata ipv4' => [['169.254.169.254']],
+            'cgnat ipv4' => [['100.64.0.5']],
+            'ipv6 loopback' => [['::1']],
+            'ipv4-mapped metadata' => [['::ffff:169.254.169.254']],
+            'mixed public and private' => [['142.250.190.46', '10.0.0.1']],
+        ];
+    }
+
+    /**
+     * @param  list<string>  $resolvedIps
+     */
+    #[DataProvider('nonPublicDnsResolutionProvider')]
+    public function test_aset_sync_menolak_dns_awal_yang_mengarah_ke_ip_non_publik_atau_kosong(array $resolvedIps): void
+    {
+        $this->bindDnsMap(['docs.google.com' => $resolvedIps]);
+        Http::fake();
+
+        $this->artisan('aset:sync')->assertExitCode(1);
+
+        Http::assertNothingSent();
+
+        $failedDataset = Dataset::where('division_id', $this->assetDivision->id)
+            ->where('status', Dataset::STATUS_FAILED)
+            ->sole();
+
+        $this->assertStringContainsString('DNS', (string) $failedDataset->error_message);
+        $this->assertStringNotContainsString('169.254.169.254', (string) $failedDataset->error_message);
+        $this->assertStringNotContainsString('127.0.0.1', (string) $failedDataset->error_message);
+        $this->assertStringNotContainsString('10.0.0.1', (string) $failedDataset->error_message);
+        $this->assertStringNotContainsString('100.64.0.5', (string) $failedDataset->error_message);
+    }
+
+    public function test_aset_sync_menolak_redirect_yang_dns_tujuannya_mengarah_ke_ip_privat(): void
+    {
+        $this->bindDnsMap([
+            'docs.google.com' => ['142.250.190.46'],
+            'doc-01-sheets.googleusercontent.com' => ['192.168.1.10'],
+        ]);
+
+        Http::fake([
+            'https://docs.google.com/*' => Http::response('', 302, [
+                'Location' => 'https://doc-01-sheets.googleusercontent.com/pub/internal.csv',
+            ]),
+            'https://doc-01-sheets.googleusercontent.com/*' => Http::response('should not execute', 200, [
+                'Content-Type' => 'text/csv',
+            ]),
+        ]);
+
+        $this->artisan('aset:sync')->assertExitCode(1);
+
+        Http::assertNotSent(fn ($request) => str_contains($request->url(), 'doc-01-sheets.googleusercontent.com'));
+
+        $failedDataset = Dataset::where('division_id', $this->assetDivision->id)
+            ->where('status', Dataset::STATUS_FAILED)
+            ->sole();
+
+        $this->assertStringContainsString('DNS', (string) $failedDataset->error_message);
+        $this->assertStringNotContainsString('192.168.1.10', (string) $failedDataset->error_message);
+    }
+
+    public function test_aset_sync_menyematkan_ip_resolusi_ke_curl_resolve_dan_mematikan_auto_redirect(): void
+    {
+        $content1a = file_get_contents(base_path('tests/Fixtures/asset_tab1a_sample.csv'));
+        $content1b = file_get_contents(base_path('tests/Fixtures/asset_tab1b_sample.csv'));
+        $capturedOptions = [];
+
+        Http::fake(function ($request, $options) use (&$capturedOptions, $content1a, $content1b) {
+            $capturedOptions[$request->url()] = $options;
+
+            if (str_contains($request->url(), 'docs.google.com')) {
+                return Http::response('', 302, [
+                    'Location' => 'https://doc-01-sheets.googleusercontent.com/pub/sheet.csv',
+                ]);
+            }
+
+            $body = count($capturedOptions) <= 2 ? $content1a : $content1b;
+
+            return Http::response($body, 200, ['Content-Type' => 'text/csv; charset=utf-8']);
+        });
+
+        $this->artisan('aset:sync')->assertExitCode(0);
+
+        $this->assertNotEmpty($capturedOptions);
+        foreach ($capturedOptions as $url => $options) {
+            $this->assertFalse($options['allow_redirects'] ?? true, "Auto redirect harus mati untuk {$url}");
+            $resolveList = $options['curl'][CURLOPT_RESOLVE] ?? [];
+            $this->assertNotEmpty($resolveList, "CURLOPT_RESOLVE harus terisi untuk {$url}");
+
+            if (str_contains($url, 'docs.google.com')) {
+                $this->assertContains('docs.google.com:443:142.250.190.46', $resolveList);
+            } else {
+                $this->assertContains('doc-01-sheets.googleusercontent.com:443:142.250.190.51', $resolveList);
+            }
+        }
+    }
+
+    public function test_web_sync_endpoint_rejects_ssrf_redirect_safely_and_preserves_previous_ready_dataset(): void
+    {
+        $previousReady = Dataset::factory()->create([
+            'division_id' => $this->assetDivision->id,
+            'status' => Dataset::STATUS_READY,
+        ]);
+
+        Http::fake([
+            'https://docs.google.com/*' => Http::response('', 302, [
+                'Location' => 'http://169.254.169.254/latest/meta-data/iam/security-credentials/',
+            ]),
+            '*' => Http::response('metadata', 200),
+        ]);
+
+        $response = $this->actingAs($this->admin)
+            ->from(route('datasets.create'))
+            ->post(route('datasets.asset-sync'));
+
+        $response->assertRedirect(route('datasets.create'));
+        $response->assertSessionHas('error');
+
+        $errorMessage = (string) session('error');
+        $this->assertStringContainsString('Redirect', $errorMessage);
+        $this->assertStringNotContainsString('169.254.169.254', $errorMessage);
+        $this->assertStringNotContainsString(config('asset.sheet_id'), $errorMessage);
+        $this->assertSame(Dataset::STATUS_READY, $previousReady->fresh()->status->value);
+    }
+
+    public function test_aset_sync_mengizinkan_redirect_aman_ke_googleusercontent_dan_relative_path(): void
+    {
+        $content1a = file_get_contents(base_path('tests/Fixtures/asset_tab1a_sample.csv'));
+        $content1b = file_get_contents(base_path('tests/Fixtures/asset_tab1b_sample.csv'));
+
+        Http::fake([
+            'https://docs.google.com/spreadsheets/d/*/export?format=csv&gid='.config('asset.sheet_gid_1a') => Http::response('', 302, [
+                'Location' => '/spreadsheets/d/resolved-rel/export?format=csv&gid=1a',
+            ]),
+            'https://docs.google.com/spreadsheets/d/resolved-rel/export?format=csv&gid=1a' => Http::response('', 307, [
+                'Location' => 'https://doc-0k-12-sheets.googleusercontent.com/pub/tab1a.csv',
+            ]),
+            'https://doc-0k-12-sheets.googleusercontent.com/pub/tab1a.csv' => Http::response($content1a, 200, [
+                'Content-Type' => 'text/csv; charset=utf-8',
+            ]),
+            'https://docs.google.com/spreadsheets/d/*/export?format=csv&gid='.config('asset.sheet_gid_1b') => Http::response('', 302, [
+                'Location' => 'https://doc-0k-12-sheets.googleusercontent.com/pub/tab1b.csv',
+            ]),
+            'https://doc-0k-12-sheets.googleusercontent.com/pub/tab1b.csv' => Http::response($content1b, 200, [
+                'Content-Type' => 'text/csv; charset=utf-8',
+            ]),
+        ]);
+
+        $this->artisan('aset:sync')->assertExitCode(0);
+
+        $this->assertSame(1, Dataset::where('division_id', $this->assetDivision->id)->where('status', Dataset::STATUS_READY)->count());
     }
 
     public function test_aset_sync_menangani_kegagalan_jaringan_500_dan_timeout(): void
