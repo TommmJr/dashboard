@@ -60,24 +60,31 @@ class AssetPipelineRoundTripTest extends TestCase
             'division_id' => $asetDivision->id,
         ])->assertRedirect();
 
-        $this->assertSame(Dataset::STATUS_READY, Dataset::sole()->status->value);
+        $dataset = Dataset::sole();
+        $this->assertSame(Dataset::STATUS_READY, $dataset->status->value);
 
-        $snapshot = app(AssetStockReport::class)->latestSnapshot();
+        $persisted = $dataset->metrics()
+            ->orderBy('metric_name')
+            ->pluck('value', 'metric_name')
+            ->map(fn ($value): float => (float) $value)
+            ->all();
 
-        $this->assertSame('2026-08-31', $snapshot['period']);
-
-        $values = [];
-        foreach ($snapshot['groups'] as $group) {
-            foreach ($group->metrics as $metric) {
-                $values["{$group->upt} | {$group->ultg}"] = $metric->value;
-            }
-        }
-
-        // Nilai sintetis masuk (5, 7) keluar utuh — bukan nol.
+        // Nilai sintetis per-ULTG masuk (5, 7) utuh — bukan nol, dan subtotal dilewati.
         $this->assertSame([
-            'BEKASI | BEKASI' => 5.0,
-            'BEKASI | CIKARANG' => 7.0,
-        ], $values);
+            'ASET | BEKASI | BEKASI | Trafo 500/150 KV | Bank' => 5.0,
+            'ASET | BEKASI | CIKARANG | Trafo 500/150 KV | Bank' => 7.0,
+        ], $persisted);
+
+        $report = app(AssetStockReport::class)->totalsByUpt();
+
+        $this->assertSame('2026-08-31', $report['period']);
+        $this->assertSame([
+            ['upt' => 'BEKASI', 'attribute' => 'Trafo 500/150 KV | Bank', 'total' => 12.0],
+        ], $report['totals']->map(fn (object $t): array => [
+            'upt' => $t->upt,
+            'attribute' => $t->attribute,
+            'total' => $t->total,
+        ])->all());
     }
 
     /**
