@@ -354,6 +354,7 @@
                             </span>
                             <h4 class="ibs-section-title text-slate-900">Pratinjau Tata Letak</h4>
                             <span class="rounded-md border border-slate-200/80 bg-white px-2 py-0.5 text-[11px] font-medium text-slate-600">Kanvas Grid 3 Kolom</span>
+                            <span class="rounded-md border border-amber-200/80 bg-amber-50/90 px-2 py-0.5 text-[11px] font-medium text-amber-800">Pratinjau contoh</span>
                             <span
                                 class="rounded-md border border-[#0b6175]/15 bg-[#e6f4f6]/80 px-2 py-0.5 text-[11px] font-semibold text-[#0b6175] tabular-nums"
                                 x-text="`${activeWidgets.reduce((acc, w) => acc + (parseInt(w.cols, 10) || 3), 0)} Kolom Terpakai`"
@@ -598,32 +599,32 @@
                                                     <div class="flex items-center justify-between text-[11px] font-semibold text-slate-800">
                                                         <span class="flex items-center gap-1.5 truncate">
                                                             <span class="h-2 w-2 rounded-full bg-[#0b6175] shrink-0"></span>
-                                                            1. TJBT (Jawa Bagian Tengah)
+                                                            Unit A
                                                         </span>
-                                                        <span class="rounded bg-[#e6f4f6] px-1.5 py-0.5 font-bold text-[#0b6175] ring-1 ring-[#0b6175]/15 tabular-nums shrink-0">105.5</span>
+                                                        <span class="rounded bg-[#e6f4f6] px-1.5 py-0.5 text-[10px] font-semibold text-[#0b6175] ring-1 ring-[#0b6175]/15 shrink-0">Contoh</span>
                                                     </div>
                                                     <div class="h-2 w-full overflow-hidden rounded-full bg-slate-200/80">
-                                                        <div class="h-full rounded-full bg-[#0b6175]" style="width: 100%;"></div>
+                                                        <div class="h-full rounded-full bg-[#0b6175]" style="width: 82%;"></div>
                                                     </div>
                                                     <div class="flex items-center justify-between text-[11px] font-semibold text-slate-800">
                                                         <span class="flex items-center gap-1.5 truncate">
                                                             <span class="h-2 w-2 rounded-full bg-[#16a3b8] shrink-0"></span>
-                                                            2. TRANS (Transmisi)
+                                                            Unit B
                                                         </span>
-                                                        <span class="rounded bg-cyan-50 px-1.5 py-0.5 font-bold text-cyan-800 ring-1 ring-cyan-600/15 tabular-nums shrink-0">100.7</span>
+                                                        <span class="rounded bg-cyan-50 px-1.5 py-0.5 text-[10px] font-semibold text-cyan-800 ring-1 ring-cyan-600/15 shrink-0">Contoh</span>
                                                     </div>
                                                     <div class="h-2 w-full overflow-hidden rounded-full bg-slate-200/80">
-                                                        <div class="h-full rounded-full bg-[#16a3b8]" style="width: 95%;"></div>
+                                                        <div class="h-full rounded-full bg-[#16a3b8]" style="width: 68%;"></div>
                                                     </div>
                                                     <div class="flex items-center justify-between text-[11px] font-semibold text-slate-700">
                                                         <span class="flex items-center gap-1.5 truncate">
                                                             <span class="h-2 w-2 rounded-full bg-slate-500 shrink-0"></span>
-                                                            3. UPT Semarang
+                                                            Unit C
                                                         </span>
-                                                        <span class="rounded bg-slate-200/75 px-1.5 py-0.5 font-bold text-slate-700 tabular-nums shrink-0">99.4</span>
+                                                        <span class="rounded bg-slate-200/75 px-1.5 py-0.5 text-[10px] font-semibold text-slate-700 shrink-0">Contoh</span>
                                                     </div>
                                                     <div class="h-2 w-full overflow-hidden rounded-full bg-slate-200/80">
-                                                        <div class="h-full rounded-full bg-slate-500" style="width: 88%;"></div>
+                                                        <div class="h-full rounded-full bg-slate-500" style="width: 54%;"></div>
                                                     </div>
                                                 </div>
                                             </template>
@@ -632,8 +633,8 @@
                                             <template x-if="w.key === 'aset-upt-chart'">
                                                 <div class="space-y-2">
                                                     <div class="flex items-center justify-between text-[11px]">
-                                                        <span class="font-bold text-slate-800 truncate">Rekapitulasi 8 UPT</span>
-                                                        <span class="rounded bg-[#e6f4f6] px-1.5 py-0.5 text-[9px] font-bold text-[#0b6175] border border-[#0b6175]/15 tabular-nums shrink-0">1.824 Trafo &bull; 86.420 MVA</span>
+                                                        <span class="font-bold text-slate-800 truncate">Rekapitulasi Aset Unit</span>
+                                                        <span class="rounded bg-[#e6f4f6] px-1.5 py-0.5 text-[9px] font-semibold text-[#0b6175] border border-[#0b6175]/15 shrink-0">Contoh</span>
                                                     </div>
                                                     <svg class="h-16 w-full" viewBox="0 0 240 60" fill="none">
                                                         <line x1="10" y1="52" x2="230" y2="52" stroke="#cbd5e1" stroke-width="1" />
@@ -647,7 +648,7 @@
                                                         <rect x="200" y="26" width="16" height="26" rx="2" fill="#16a3b8" />
                                                     </svg>
                                                     <div class="flex items-center justify-between text-[10px] font-medium text-slate-500 px-2">
-                                                        <span>Smg</span><span>Skr</span><span>Pwt</span><span>Ygy</span>
+                                                        <span>Unit A</span><span>Unit B</span><span>Unit C</span><span>Unit D</span>
                                                     </div>
                                                 </div>
                                             </template>
@@ -661,21 +662,21 @@
                                                     </div>
                                                     <div class="space-y-1.5 text-[11px]">
                                                         <div>
-                                                            <div class="flex justify-between text-slate-700 mb-0.5 tabular-nums">
-                                                                <span class="truncate font-medium">Kesiapan Pembangkit</span>
-                                                                <span class="font-bold text-[#0b6175] shrink-0">98.5% / 100%</span>
+                                                            <div class="flex justify-between text-slate-700 mb-0.5">
+                                                                <span class="truncate font-medium">Indikator Contoh A</span>
+                                                                <span class="font-semibold text-[#0b6175] shrink-0">Contoh</span>
                                                             </div>
                                                             <div class="h-2 w-full rounded-full bg-slate-200/80 overflow-hidden flex">
-                                                                <div class="bg-[#0b6175] h-full rounded-full" style="width: 98.5%;"></div>
+                                                                <div class="bg-[#0b6175] h-full rounded-full" style="width: 78%;"></div>
                                                             </div>
                                                         </div>
                                                         <div>
-                                                            <div class="flex justify-between text-slate-700 mb-0.5 tabular-nums">
-                                                                <span class="truncate font-medium">Keandalan Transmisi</span>
-                                                                <span class="font-bold text-[#0e7490] shrink-0">104.2% / 100%</span>
+                                                            <div class="flex justify-between text-slate-700 mb-0.5">
+                                                                <span class="truncate font-medium">Indikator Contoh B</span>
+                                                                <span class="font-semibold text-[#0e7490] shrink-0">Contoh</span>
                                                             </div>
                                                             <div class="h-2 w-full rounded-full bg-slate-200/80 overflow-hidden flex">
-                                                                <div class="bg-[#16a3b8] h-full rounded-full" style="width: 100%;"></div>
+                                                                <div class="bg-[#16a3b8] h-full rounded-full" style="width: 64%;"></div>
                                                             </div>
                                                         </div>
                                                     </div>
@@ -692,15 +693,15 @@
                                                             <path class="text-[#0b6175]" stroke-dasharray="25, 100" stroke-dashoffset="-65" stroke-width="4.5" stroke-linecap="round" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
                                                             <path class="text-amber-500" stroke-dasharray="10, 100" stroke-dashoffset="-90" stroke-width="4.5" stroke-linecap="round" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
                                                         </svg>
-                                                        <div class="absolute inset-0 flex flex-col items-center justify-center text-center tabular-nums">
-                                                            <span class="text-xs font-bold text-slate-900">105.4</span>
+                                                        <div class="absolute inset-0 flex flex-col items-center justify-center text-center">
+                                                            <span class="text-[10px] font-bold text-slate-800">Contoh</span>
                                                             <span class="text-[8px] font-bold text-slate-500">NKO</span>
                                                         </div>
                                                     </div>
-                                                    <div class="flex flex-1 flex-col justify-center space-y-1 text-[11px] tabular-nums">
-                                                        <div class="flex items-center justify-between"><span class="flex items-center gap-1.5 font-medium text-slate-700 truncate"><span class="h-2 w-2 rounded-full bg-emerald-500 shrink-0"></span>Tercapai</span><span class="font-bold text-emerald-700 shrink-0">16 Indikator</span></div>
-                                                        <div class="flex items-center justify-between"><span class="flex items-center gap-1.5 font-medium text-slate-700 truncate"><span class="h-2 w-2 rounded-full bg-[#0b6175] shrink-0"></span>Hampir</span><span class="font-bold text-[#0b6175] shrink-0">3 Indikator</span></div>
-                                                        <div class="flex items-center justify-between"><span class="flex items-center gap-1.5 font-medium text-slate-700 truncate"><span class="h-2 w-2 rounded-full bg-amber-500 shrink-0"></span>Perhatian</span><span class="font-bold text-amber-700 shrink-0">2 Indikator</span></div>
+                                                    <div class="flex flex-1 flex-col justify-center space-y-1 text-[11px]">
+                                                        <div class="flex items-center justify-between"><span class="flex items-center gap-1.5 font-medium text-slate-700 truncate"><span class="h-2 w-2 rounded-full bg-emerald-500 shrink-0"></span>Tercapai</span><span class="font-semibold text-emerald-700 shrink-0">Contoh</span></div>
+                                                        <div class="flex items-center justify-between"><span class="flex items-center gap-1.5 font-medium text-slate-700 truncate"><span class="h-2 w-2 rounded-full bg-[#0b6175] shrink-0"></span>Hampir</span><span class="font-semibold text-[#0b6175] shrink-0">Contoh</span></div>
+                                                        <div class="flex items-center justify-between"><span class="flex items-center gap-1.5 font-medium text-slate-700 truncate"><span class="h-2 w-2 rounded-full bg-amber-500 shrink-0"></span>Perhatian</span><span class="font-semibold text-amber-700 shrink-0">Contoh</span></div>
                                                     </div>
                                                 </div>
                                             </template>
@@ -710,17 +711,17 @@
                                                 <div class="grid grid-cols-3 gap-1.5 tabular-nums">
                                                     <div class="min-w-0 rounded-lg border border-emerald-200/85 bg-emerald-50/80 px-1.5 py-2 text-center">
                                                         <span class="block truncate text-[8.5px] font-bold uppercase tracking-tight text-emerald-700">Tercapai</span>
-                                                        <span class="text-base font-extrabold text-emerald-950">16</span>
+                                                        <span class="block py-0.5 text-xs font-bold text-emerald-950">Contoh</span>
                                                         <span class="block text-[9px] font-semibold text-emerald-700">&ge; 100%</span>
                                                     </div>
                                                     <div class="min-w-0 rounded-lg border border-amber-200/85 bg-amber-50/80 px-1.5 py-2 text-center">
                                                         <span class="block truncate text-[8.5px] font-bold uppercase tracking-tight text-amber-700">Hampir</span>
-                                                        <span class="text-base font-extrabold text-amber-950">3</span>
+                                                        <span class="block py-0.5 text-xs font-bold text-amber-950">Contoh</span>
                                                         <span class="block text-[9px] font-semibold text-amber-700">95 s.d. 99%</span>
                                                     </div>
                                                     <div class="min-w-0 rounded-lg border border-[#bce3e8] bg-[#e6f4f6]/80 px-1.5 py-2 text-center">
                                                         <span class="block truncate text-[8.5px] font-bold uppercase tracking-tight text-[#0b6175]">Perhatian</span>
-                                                        <span class="text-base font-extrabold text-slate-900">2</span>
+                                                        <span class="block py-0.5 text-xs font-bold text-slate-900">Contoh</span>
                                                         <span class="block text-[9px] font-semibold text-[#0b6175]">&lt; 95%</span>
                                                     </div>
                                                 </div>
@@ -728,20 +729,20 @@
 
                                             {{-- 6. kpi-summary --}}
                                             <template x-if="w.key === 'kpi-summary'">
-                                                <div class="grid grid-cols-3 gap-2 tabular-nums">
+                                                <div class="grid grid-cols-3 gap-2">
                                                     <div class="rounded-lg border border-[#bce3e8] bg-[#e6f4f6]/65 p-2">
                                                         <p class="text-[10px] font-bold uppercase tracking-wide text-[#0b6175] truncate">Rerata NKO</p>
-                                                        <p class="mt-0.5 text-base font-bold text-slate-900">105.4%</p>
-                                                        <div class="mt-1 h-1.5 w-full rounded-full bg-[#bce3e8]/70"><div class="h-full rounded-full bg-[#0b6175]" style="width: 100%;"></div></div>
+                                                        <p class="mt-0.5 text-xs font-bold text-slate-900">Contoh</p>
+                                                        <div class="mt-1.5 h-1.5 w-full rounded-full bg-[#bce3e8]/70"><div class="h-full rounded-full bg-[#0b6175]" style="width: 78%;"></div></div>
                                                     </div>
                                                     <div class="rounded-lg border border-emerald-200/80 bg-emerald-50/70 p-2">
                                                         <p class="text-[10px] font-bold uppercase tracking-wide text-emerald-700 truncate">Indikator</p>
-                                                        <p class="mt-0.5 text-base font-bold text-emerald-950">16 Tercapai</p>
-                                                        <div class="mt-1 h-1.5 w-full rounded-full bg-emerald-200/75"><div class="h-full rounded-full bg-emerald-600" style="width: 80%;"></div></div>
+                                                        <p class="mt-0.5 text-xs font-bold text-emerald-950">Contoh</p>
+                                                        <div class="mt-1.5 h-1.5 w-full rounded-full bg-emerald-200/75"><div class="h-full rounded-full bg-emerald-600" style="width: 68%;"></div></div>
                                                     </div>
                                                     <div class="rounded-lg border border-slate-200/85 bg-white p-2">
                                                         <p class="text-[10px] font-bold uppercase tracking-wide text-slate-500 truncate">Periode</p>
-                                                        <p class="mt-0.5 text-xs font-bold text-slate-900">Agu 2026</p>
+                                                        <p class="mt-0.5 text-xs font-bold text-slate-900">Contoh</p>
                                                         <span class="mt-1 inline-block rounded bg-[#e6f4f6] px-1.5 text-[9px] font-semibold text-[#0b6175]">Final</span>
                                                     </div>
                                                 </div>
@@ -749,20 +750,20 @@
 
                                             {{-- 7. dataset-status --}}
                                             <template x-if="w.key === 'dataset-status'">
-                                                <div class="grid grid-cols-3 gap-2 text-center tabular-nums">
+                                                <div class="grid grid-cols-3 gap-2 text-center">
                                                     <div class="rounded-lg border border-emerald-200/80 bg-emerald-50/70 p-2">
                                                         <span class="block text-[10px] font-bold uppercase tracking-wide text-emerald-700">Status</span>
                                                         <span class="text-sm font-extrabold text-emerald-950">{{ \App\Enums\DatasetStatus::READY->label() }}</span>
-                                                        <span class="block text-[9px] font-semibold text-emerald-700 mt-0.5">12 Dataset</span>
+                                                        <span class="block text-[9px] font-semibold text-emerald-700 mt-0.5">Contoh</span>
                                                     </div>
                                                     <div class="rounded-lg border border-slate-200/85 bg-white p-2">
                                                         <span class="block text-[10px] font-bold uppercase tracking-wide text-slate-500">Baris Data</span>
-                                                        <span class="text-sm font-extrabold text-slate-900">1.420</span>
-                                                        <span class="block text-[9px] font-medium text-slate-500 mt-0.5">Aktif TJBT</span>
+                                                        <span class="text-xs font-bold text-slate-900 mt-0.5 block">Contoh</span>
+                                                        <span class="block text-[9px] font-medium text-slate-500 mt-0.5">Unit contoh</span>
                                                     </div>
                                                     <div class="rounded-lg border border-slate-200/85 bg-white p-2">
                                                         <span class="block text-[10px] font-bold uppercase tracking-wide text-slate-500">Periode</span>
-                                                        <span class="text-xs font-bold text-slate-900 mt-0.5">Agu 2026</span>
+                                                        <span class="text-xs font-bold text-slate-900 mt-0.5 block">Contoh</span>
                                                         <span class="block text-[9px] text-[#0b6175] font-semibold mt-0.5">Terverifikasi</span>
                                                     </div>
                                                 </div>
@@ -770,21 +771,21 @@
 
                                             {{-- 8. pencapaian-nko --}}
                                             <template x-if="w.key === 'pencapaian-nko'">
-                                                <div class="space-y-1.5 tabular-nums">
+                                                <div class="space-y-1.5">
                                                     <div class="flex items-center justify-between text-[11px]">
                                                         <span class="font-bold text-slate-800 truncate">Pencapaian % per Unit</span>
-                                                        <span class="text-[10px] font-bold text-[#0b6175] shrink-0">Rerata 104.2%</span>
+                                                        <span class="text-[10px] font-semibold text-[#0b6175] shrink-0">Contoh</span>
                                                     </div>
                                                     <div class="space-y-1">
                                                         <div class="flex items-center justify-between text-[10px]">
-                                                            <span class="w-16 truncate font-medium text-slate-700">TJBT</span>
-                                                            <div class="h-2 flex-1 mx-2 rounded-full bg-slate-200/80 overflow-hidden"><div class="h-full bg-[#0b6175] rounded-full" style="width: 100%;"></div></div>
-                                                            <span class="font-bold text-[#0b6175] shrink-0">105.5%</span>
+                                                            <span class="w-16 truncate font-medium text-slate-700">Unit A</span>
+                                                            <div class="h-2 flex-1 mx-2 rounded-full bg-slate-200/80 overflow-hidden"><div class="h-full bg-[#0b6175] rounded-full" style="width: 80%;"></div></div>
+                                                            <span class="font-semibold text-[#0b6175] shrink-0">Contoh</span>
                                                         </div>
                                                         <div class="flex items-center justify-between text-[10px]">
-                                                            <span class="w-16 truncate font-medium text-slate-700">TRANS</span>
-                                                            <div class="h-2 flex-1 mx-2 rounded-full bg-slate-200/80 overflow-hidden"><div class="h-full bg-[#16a3b8] rounded-full" style="width: 96%;"></div></div>
-                                                            <span class="font-bold text-[#0e7490] shrink-0">100.7%</span>
+                                                            <span class="w-16 truncate font-medium text-slate-700">Unit B</span>
+                                                            <div class="h-2 flex-1 mx-2 rounded-full bg-slate-200/80 overflow-hidden"><div class="h-full bg-[#16a3b8] rounded-full" style="width: 65%;"></div></div>
+                                                            <span class="font-semibold text-[#0e7490] shrink-0">Contoh</span>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -816,20 +817,20 @@
 
                                             {{-- 10. admin-summary --}}
                                             <template x-if="w.key === 'admin-summary'">
-                                                <div class="grid grid-cols-3 gap-2 tabular-nums">
+                                                <div class="grid grid-cols-3 gap-2">
                                                     <div class="rounded-lg border border-slate-200/85 bg-white p-2">
                                                         <span class="block text-[9px] font-bold uppercase tracking-wider text-slate-500 truncate">Total Dataset</span>
-                                                        <span class="mt-0.5 text-sm font-extrabold text-slate-900">24</span>
-                                                        <span class="block text-[8px] text-emerald-700 font-semibold mt-0.5">22 Siap</span>
+                                                        <span class="mt-0.5 block text-xs font-bold text-slate-900">Contoh</span>
+                                                        <span class="block text-[8px] text-emerald-700 font-semibold mt-0.5">Status siap</span>
                                                     </div>
                                                     <div class="rounded-lg border border-slate-200/85 bg-white p-2">
                                                         <span class="block text-[9px] font-bold uppercase tracking-wider text-slate-500 truncate">Pengguna</span>
-                                                        <span class="mt-0.5 text-sm font-extrabold text-slate-900">18</span>
-                                                        <span class="block text-[8px] text-[#0b6175] font-semibold mt-0.5">4 Peran</span>
+                                                        <span class="mt-0.5 block text-xs font-bold text-slate-900">Contoh</span>
+                                                        <span class="block text-[8px] text-[#0b6175] font-semibold mt-0.5">Peran aktif</span>
                                                     </div>
                                                     <div class="rounded-lg border border-slate-200/85 bg-white p-2">
                                                         <span class="block text-[9px] font-bold uppercase tracking-wider text-slate-500 truncate">Sistem</span>
-                                                        <span class="mt-0.5 text-sm font-extrabold text-emerald-700">Optimal</span>
+                                                        <span class="mt-0.5 block text-xs font-bold text-emerald-700">Optimal</span>
                                                         <span class="block text-[8px] font-medium text-slate-500 mt-0.5">Audit Aman</span>
                                                     </div>
                                                 </div>
@@ -837,7 +838,7 @@
 
                                             {{-- 11. kinerja-detail --}}
                                             <template x-if="w.key === 'kinerja-detail'">
-                                                <div class="overflow-hidden rounded-lg border border-slate-200/85 text-[10px] tabular-nums">
+                                                <div class="overflow-hidden rounded-lg border border-slate-200/85 text-[10px]">
                                                     <div class="grid grid-cols-12 border-b border-slate-200 bg-slate-50 px-2 py-1.5 font-semibold text-slate-600 uppercase tracking-wider">
                                                         <span class="col-span-6 truncate">Indikator Metrik</span>
                                                         <span class="col-span-3 text-right">Target</span>
@@ -845,19 +846,19 @@
                                                     </div>
                                                     <div class="divide-y divide-slate-200/70 bg-white">
                                                         <div class="grid grid-cols-12 px-2 py-1 items-center">
-                                                            <span class="col-span-6 truncate font-medium text-slate-800">Kesiapan Pembangkit</span>
-                                                            <span class="col-span-3 text-right text-slate-500">100.0</span>
-                                                            <span class="col-span-3 text-right font-bold text-[#0b6175]">98.5</span>
+                                                            <span class="col-span-6 truncate font-medium text-slate-800">Indikator Contoh A</span>
+                                                            <span class="col-span-3 text-right text-slate-500">Contoh</span>
+                                                            <span class="col-span-3 text-right font-semibold text-[#0b6175]">Contoh</span>
                                                         </div>
                                                         <div class="grid grid-cols-12 px-2 py-1 items-center bg-slate-50/50">
-                                                            <span class="col-span-6 truncate font-medium text-slate-800">Keandalan Transmisi</span>
-                                                            <span class="col-span-3 text-right text-slate-500">100.0</span>
-                                                            <span class="col-span-3 text-right font-bold text-emerald-700">104.2</span>
+                                                            <span class="col-span-6 truncate font-medium text-slate-800">Indikator Contoh B</span>
+                                                            <span class="col-span-3 text-right text-slate-500">Contoh</span>
+                                                            <span class="col-span-3 text-right font-semibold text-emerald-700">Contoh</span>
                                                         </div>
                                                         <div class="grid grid-cols-12 px-2 py-1 items-center">
-                                                            <span class="col-span-6 truncate font-medium text-slate-800">Efisiensi Operasi</span>
-                                                            <span class="col-span-3 text-right text-slate-500">95.0</span>
-                                                            <span class="col-span-3 text-right font-bold text-[#0e7490]">96.8</span>
+                                                            <span class="col-span-6 truncate font-medium text-slate-800">Indikator Contoh C</span>
+                                                            <span class="col-span-3 text-right text-slate-500">Contoh</span>
+                                                            <span class="col-span-3 text-right font-semibold text-[#0e7490]">Contoh</span>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -865,25 +866,25 @@
 
                                             {{-- 12. kinerja-realisasi --}}
                                             <template x-if="w.key === 'kinerja-realisasi'">
-                                                <div class="space-y-1.5 tabular-nums">
+                                                <div class="space-y-1.5">
                                                     <div class="flex items-center justify-between text-[11px] font-bold text-slate-800">
                                                         <span class="truncate">Realisasi vs Target Bulanan</span>
-                                                        <span class="rounded bg-[#e6f4f6] px-1.5 py-0.5 text-[9px] text-[#0b6175] shrink-0">105.4% Rerata</span>
+                                                        <span class="rounded bg-[#e6f4f6] px-1.5 py-0.5 text-[9px] font-semibold text-[#0b6175] shrink-0">Contoh</span>
                                                     </div>
                                                     <div class="space-y-1 text-[10px]">
                                                         <div>
                                                             <div class="flex justify-between text-slate-700 mb-0.5">
-                                                                <span class="truncate font-medium">Realisasi Operasi</span>
-                                                                <span class="font-bold text-[#0b6175] shrink-0">105.5</span>
+                                                                <span class="truncate font-medium">Realisasi Contoh</span>
+                                                                <span class="font-semibold text-[#0b6175] shrink-0">Contoh</span>
                                                             </div>
-                                                            <div class="h-1.5 w-full rounded-full bg-slate-200/80 overflow-hidden"><div class="h-full bg-[#0b6175] rounded-full" style="width: 100%;"></div></div>
+                                                            <div class="h-1.5 w-full rounded-full bg-slate-200/80 overflow-hidden"><div class="h-full bg-[#0b6175] rounded-full" style="width: 78%;"></div></div>
                                                         </div>
                                                         <div>
                                                             <div class="flex justify-between text-slate-700 mb-0.5">
-                                                                <span class="truncate font-medium">Target Anggaran</span>
-                                                                <span class="font-bold text-[#0e7490] shrink-0">100.0</span>
+                                                                <span class="truncate font-medium">Target Contoh</span>
+                                                                <span class="font-semibold text-[#0e7490] shrink-0">Contoh</span>
                                                             </div>
-                                                            <div class="h-1.5 w-full rounded-full bg-slate-200/80 overflow-hidden"><div class="h-full bg-[#16a3b8] rounded-full" style="width: 95%;"></div></div>
+                                                            <div class="h-1.5 w-full rounded-full bg-slate-200/80 overflow-hidden"><div class="h-full bg-[#16a3b8] rounded-full" style="width: 65%;"></div></div>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -891,30 +892,30 @@
 
                                             {{-- 13. recent-audit --}}
                                             <template x-if="w.key === 'recent-audit'">
-                                                <div class="space-y-1 text-[10px] tabular-nums">
+                                                <div class="space-y-1 text-[10px]">
                                                     <div class="flex items-center justify-between rounded-lg border border-slate-200/80 bg-white p-1.5">
                                                         <div class="flex items-center gap-1.5 truncate">
                                                             <span class="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0"></span>
-                                                            <span class="font-semibold text-slate-800 truncate">admin@dashboard.local</span>
+                                                            <span class="font-semibold text-slate-800 truncate">contoh@domain</span>
                                                             <span class="rounded bg-slate-100 px-1.5 py-0.5 text-[8px] font-semibold text-slate-600 shrink-0">Perbarui</span>
                                                         </div>
-                                                        <span class="text-slate-500 shrink-0 text-[9px]">12:30</span>
+                                                        <span class="text-slate-500 shrink-0 text-[9px]">Contoh</span>
                                                     </div>
                                                     <div class="flex items-center justify-between rounded-lg border border-slate-200/80 bg-white p-1.5">
                                                         <div class="flex items-center gap-1.5 truncate">
                                                             <span class="h-1.5 w-1.5 rounded-full bg-[#16a3b8] shrink-0"></span>
-                                                            <span class="font-semibold text-slate-800 truncate">staf.aset@dashboard.local</span>
+                                                            <span class="font-semibold text-slate-800 truncate">contoh@domain</span>
                                                             <span class="rounded bg-[#e6f4f6] px-1.5 py-0.5 text-[8px] font-semibold text-[#0b6175] shrink-0">Impor</span>
                                                         </div>
-                                                        <span class="text-slate-500 shrink-0 text-[9px]">11:15</span>
+                                                        <span class="text-slate-500 shrink-0 text-[9px]">Contoh</span>
                                                     </div>
                                                     <div class="flex items-center justify-between rounded-lg border border-slate-200/80 bg-white p-1.5">
                                                         <div class="flex items-center gap-1.5 truncate">
                                                             <span class="h-1.5 w-1.5 rounded-full bg-slate-400 shrink-0"></span>
-                                                            <span class="font-semibold text-slate-800 truncate">editor@dashboard.local</span>
+                                                            <span class="font-semibold text-slate-800 truncate">contoh@domain</span>
                                                             <span class="rounded bg-slate-100 px-1.5 py-0.5 text-[8px] font-semibold text-slate-600 shrink-0">Tata Letak</span>
                                                         </div>
-                                                        <span class="text-slate-500 shrink-0 text-[9px]">10:02</span>
+                                                        <span class="text-slate-500 shrink-0 text-[9px]">Contoh</span>
                                                     </div>
                                                 </div>
                                             </template>
@@ -926,14 +927,14 @@
                                                         <div class="flex items-center gap-2 truncate">
                                                             <span class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-rose-100 text-rose-700 font-bold text-[10px]">!</span>
                                                             <div class="min-w-0">
-                                                                <p class="truncate font-bold text-rose-950">laporan_kpi_agustus.xlsx</p>
-                                                                <p class="text-[9px] text-rose-700 truncate">Header sheet tidak valid</p>
+                                                                <p class="truncate font-bold text-rose-950">berkas-contoh.xlsx</p>
+                                                                <p class="text-[9px] text-rose-700 truncate">Contoh catatan validasi</p>
                                                             </div>
                                                         </div>
                                                         <span class="rounded bg-rose-100 px-1.5 py-0.5 font-bold text-rose-800 text-[8px] shrink-0">{{ \App\Enums\DatasetStatus::FAILED->label() }}</span>
                                                     </div>
-                                                    <div class="flex items-center justify-between text-[10px] text-slate-600 px-1 tabular-nums">
-                                                        <span class="truncate">Antrean bersih (1 kendala terarsip)</span>
+                                                    <div class="flex items-center justify-between text-[10px] text-slate-600 px-1">
+                                                        <span class="truncate">Antrean contoh</span>
                                                         <span class="font-semibold text-emerald-700 shrink-0">Aman</span>
                                                     </div>
                                                 </div>
@@ -1934,33 +1935,34 @@
                         if (widget.key === 'trend-chart') {
                             return {
                                 color: ['#0b6175'],
-                                grid: { top: 15, right: 15, bottom: 25, left: 35 },
-                                xAxis: { type: 'category', data: ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu'], axisLabel: { fontSize: 10, color: '#475569' } },
-                                yAxis: { type: 'value', min: 95, axisLabel: { fontSize: 10, color: '#475569' }, splitLine: { lineStyle: { color: '#e2e8f0' } } },
-                                series: [{ data: [98.2, 99.1, 100.4, 101.2, 102.5, 103.8, 104.9, 105.5], type: 'line', smooth: true, areaStyle: { opacity: 0.10 } }]
+                                grid: { top: 15, right: 15, bottom: 25, left: 20 },
+                                tooltip: { show: false },
+                                xAxis: { type: 'category', data: ['P1', 'P2', 'P3', 'P4', 'P5', 'P6'], axisLabel: { fontSize: 10, color: '#475569' } },
+                                yAxis: { type: 'value', min: 0, max: 100, axisLabel: { show: false }, splitLine: { lineStyle: { color: '#e2e8f0' } } },
+                                series: [{ data: [35, 50, 45, 65, 60, 80], type: 'line', smooth: true, areaStyle: { opacity: 0.10 } }]
                             };
                         }
 
                         const chartType = widget.config?.chart_type || 'bar';
                         const isNko = (widget.config?.metric || 'nko_score') === 'nko_score';
-                        const units = ['TJBT', 'Smg', 'Skr', 'Pwt', 'Ygy'];
-                        const values = isNko ? [105.5, 102.3, 101.8, 100.4, 99.8] : [100, 95.2, 98.4, 92.1, 91.5];
+                        const units = ['Unit A', 'Unit B', 'Unit C', 'Unit D'];
+                        const values = isNko ? [75, 60, 50, 40] : [70, 55, 65, 45];
 
                         if (chartType === 'donut') {
                             return {
                                 color: ['#0b6175', '#16a3b8', '#10b981', '#64748b'],
-                                tooltip: { trigger: 'item' },
+                                tooltip: { trigger: 'item', formatter: '{b}' },
                                 series: [{
-                                    name: widget.config?.title || 'Metrik',
+                                    name: widget.config?.title || 'Contoh',
                                     type: 'pie',
                                     radius: ['45%', '70%'],
                                     avoidLabelOverlap: false,
                                     label: { show: false },
                                     data: [
-                                        { value: 105.5, name: 'TJBT' },
-                                        { value: 102.3, name: 'Smg' },
-                                        { value: 101.8, name: 'Skr' },
-                                        { value: 100.4, name: 'Lainnya' }
+                                        { value: 40, name: 'Unit A' },
+                                        { value: 25, name: 'Unit B' },
+                                        { value: 20, name: 'Unit C' },
+                                        { value: 15, name: 'Lainnya' }
                                     ]
                                 }]
                             };
@@ -1968,9 +1970,10 @@
 
                         return {
                             color: ['#0b6175'],
-                            grid: { top: 15, right: 15, bottom: 25, left: 35 },
+                            grid: { top: 15, right: 15, bottom: 25, left: 20 },
+                            tooltip: { show: false },
                             xAxis: { type: 'category', data: units, axisLabel: { fontSize: 10, color: '#475569' } },
-                            yAxis: { type: 'value', axisLabel: { fontSize: 10, color: '#475569' }, splitLine: { lineStyle: { color: '#e2e8f0' } } },
+                            yAxis: { type: 'value', min: 0, max: 100, axisLabel: { show: false }, splitLine: { lineStyle: { color: '#e2e8f0' } } },
                             series: chartType === 'line'
                                 ? [{ data: values, type: 'line', smooth: true, areaStyle: { opacity: 0.12 } }]
                                 : [{ data: values, type: 'bar', barWidth: '45%', itemStyle: { borderRadius: [4, 4, 0, 0] } }]
