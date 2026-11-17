@@ -4,7 +4,13 @@
 
 @section('content')
 <div class="mx-auto max-w-7xl px-4 py-8">
-    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    @if (($isAdmin ?? false) && is_array($systemHealth ?? null))
+        <div class="mb-6">
+            <x-system-health-panel :health="$systemHealth" />
+        </div>
+    @endif
+
+    <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
             <h1 class="text-2xl font-bold tracking-tight text-slate-900">Audit Log</h1>
             @if ($dataOnly ?? false)
@@ -14,36 +20,65 @@
             @endif
         </div>
 
-        <form id="audit-filter" method="GET" class="ibs-card flex flex-wrap items-center gap-2 p-2.5">
-            <div>
+        <form id="audit-filter" method="GET" action="{{ route('audit-logs.index') }}" class="ibs-card flex w-full max-w-full flex-wrap items-center gap-2 p-2.5 lg:w-auto">
+            <div class="relative w-full min-w-0 sm:w-56">
+                <label class="sr-only" for="audit-search-q">Kata kunci</label>
+                <svg class="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                    <circle cx="11" cy="11" r="7" />
+                    <path d="m20 20-3.5-3.5" stroke-linecap="round" />
+                </svg>
+                <input id="audit-search-q"
+                       type="search"
+                       name="q"
+                       value="{{ request('q') }}"
+                       maxlength="100"
+                       placeholder="Cari pengguna, IP, atau detail..."
+                       class="h-8 w-full min-w-0 rounded-lg border border-slate-200 bg-white pl-8 pr-3 text-xs text-slate-700 placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary sm:w-56">
+            </div>
+            <div class="min-w-0">
+                <label class="sr-only" for="entity">Entitas</label>
+                <select id="entity" name="entity" class="h-8 max-w-full rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary">
+                    <option value="">Semua entitas</option>
+                    @foreach (($entityOptions ?? []) as $entityKey => $entityLabel)
+                        <option value="{{ $entityKey }}" @selected(request('entity') === $entityKey)>{{ $entityLabel }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="min-w-0">
                 <label class="sr-only" for="action">Aksi</label>
-                <select id="action" name="action" class="h-8 rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary">
+                <select id="action" name="action" class="h-8 max-w-full rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary">
                     <option value="">Semua aksi</option>
                     @foreach ($actions as $action)
                         <option value="{{ $action }}" @selected(request('action') === $action)>{{ App\Services\AuditLogFormatter::actionLabel($action) }}</option>
                     @endforeach
                 </select>
             </div>
-            <div class="flex items-center gap-1.5">
+            <div class="flex flex-wrap items-center gap-1.5">
                 <label class="sr-only" for="from">Dari</label>
                 <input id="from" type="date" name="from" value="{{ request('from') }}" title="Dari tanggal" class="h-8 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-sans tabular-nums text-slate-700 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary">
                 <span class="text-xs font-medium text-slate-400" aria-hidden="true">s.d.</span>
                 <label class="sr-only" for="to">Sampai</label>
                 <input id="to" type="date" name="to" value="{{ request('to') }}" title="Sampai tanggal" class="h-8 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-sans tabular-nums text-slate-700 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary">
             </div>
-            <button type="submit" class="inline-flex h-8 items-center gap-1.5 rounded-lg bg-primary px-3 text-xs font-semibold text-white shadow-2xs transition-all hover:bg-primary/90">
+            <button type="submit" class="inline-flex h-8 items-center gap-1.5 rounded-lg bg-primary px-3 text-xs font-semibold text-white shadow-2xs transition-all hover:bg-primary/90 cursor-pointer">
                 <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
                 </svg>
                 Filter
             </button>
-            @if(request()->hasAny(['action', 'from', 'to']))
+            @if(request()->hasAny(['q', 'entity', 'action', 'from', 'to']))
                 <a href="{{ route('audit-logs.index') }}" class="inline-flex h-8 items-center rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-600 shadow-2xs hover:bg-slate-50">
                     Reset
                 </a>
             @endif
         </form>
     </div>
+
+    @if ($errors->any())
+        <div class="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs font-medium text-rose-700" role="alert">
+            {{ $errors->first() }}
+        </div>
+    @endif
 
     <div class="ibs-card animate-entrance stagger-1 mt-6 overflow-hidden">
         <div class="overflow-x-auto">
@@ -172,7 +207,7 @@
                         <tr>
                             <td colspan="7" class="px-6 py-10 text-center text-xs text-slate-400">
                                 <p>Belum ada entri audit.</p>
-                                @if (request()->hasAny(['action', 'from', 'to']))
+                                @if (request()->hasAny(['q', 'entity', 'action', 'from', 'to']))
                                     <a href="{{ route('audit-logs.index') }}" class="mt-2 inline-flex items-center rounded-lg border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-700 transition hover:bg-slate-50">
                                         Reset Filter
                                     </a>

@@ -3,6 +3,11 @@
 namespace App\Models\Builders;
 
 use App\Models\AuditLog;
+use App\Models\DashboardLayout;
+use App\Models\Dataset;
+use App\Models\Division;
+use App\Models\PerformanceMetric;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use LogicException;
 
@@ -43,6 +48,84 @@ class AuditLogBuilder extends Builder
     private const PESAN_UBAH = 'Audit log bersifat append-only; entri tidak dapat diubah.';
 
     private const PESAN_HAPUS = 'Audit log bersifat append-only; entri tidak dapat dihapus.';
+
+    /**
+     * Pemetaan kunci filter entitas UI => morph class auditable (null = tanpa model / akun).
+     *
+     * @return array<string, class-string|null>
+     */
+    public static function entityTypeMap(): array
+    {
+        return [
+            'dataset' => Dataset::class,
+            'performance_metric' => PerformanceMetric::class,
+            'user' => User::class,
+            'division' => Division::class,
+            'dashboard_layout' => DashboardLayout::class,
+            'account' => null,
+        ];
+    }
+
+    /**
+     * Escape karakter wildcard LIKE ('!', '%', '_') dengan karakter escape '!'.
+     */
+    public static function escapeLike(string $value): string
+    {
+        return str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $value);
+    }
+
+    /**
+     * Saring entri audit berdasarkan kata kunci bebas secara aman terhadap wildcard LIKE.
+     */
+    public function searchKeyword(?string $keyword): self
+    {
+        $term = trim((string) $keyword);
+        if ($term === '') {
+            return $this;
+        }
+
+        $pattern = '%'.self::escapeLike($term).'%';
+        $numericId = ltrim($term, '#');
+
+        return $this->where(function (self $query) use ($pattern, $numericId): void {
+            $query->whereRaw("action LIKE ? ESCAPE '!'", [$pattern])
+                ->orWhereRaw("auditable_type LIKE ? ESCAPE '!'", [$pattern])
+                ->orWhereRaw("ip LIKE ? ESCAPE '!'", [$pattern])
+                ->orWhereRaw("user_agent LIKE ? ESCAPE '!'", [$pattern])
+                ->orWhereRaw("old_values LIKE ? ESCAPE '!'", [$pattern])
+                ->orWhereRaw("new_values LIKE ? ESCAPE '!'", [$pattern])
+                ->orWhereHas('user', function ($userQuery) use ($pattern): void {
+                    $userQuery->whereRaw("name LIKE ? ESCAPE '!'", [$pattern])
+                        ->orWhereRaw("email LIKE ? ESCAPE '!'", [$pattern]);
+                });
+
+            if ($numericId !== '' && ctype_digit($numericId)) {
+                $query->orWhere('auditable_id', (int) $numericId);
+            }
+        });
+    }
+
+    /**
+     * Saring entri audit berdasarkan jenis entitas yang dipetakan dari whitelist.
+     */
+    public function filterEntity(?string $entity): self
+    {
+        if ($entity === null || $entity === '') {
+            return $this;
+        }
+
+        $map = self::entityTypeMap();
+        if (! array_key_exists($entity, $map)) {
+            return $this;
+        }
+
+        $targetClass = $map[$entity];
+        if ($targetClass === null) {
+            return $this->whereNull('auditable_type');
+        }
+
+        return $this->where('auditable_type', (new $targetClass)->getMorphClass());
+    }
 
     public function update(array $values)
     {

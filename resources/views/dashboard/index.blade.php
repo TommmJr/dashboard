@@ -279,6 +279,12 @@
         <p x-show="error" x-cloak class="-mt-4 mb-4 text-sm font-medium text-red-700" x-text="error" role="alert"></p>
     @endif
 
+    @if ($isAdminDashboard && is_array($systemHealth ?? null))
+        <div class="mb-5">
+            <x-system-health-panel :health="$systemHealth" />
+        </div>
+    @endif
+
     {{-- Widget per role: satu loop generik, urutan & komposisi dari config. --}}
     <div class="grid grid-cols-1 grid-flow-dense gap-4 sm:gap-5 lg:grid-cols-3">
         @if ($isStaffDashboard && count($widgets) === 1 && ($widgets[0]['key'] ?? '') === 'dataset-status')

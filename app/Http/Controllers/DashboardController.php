@@ -16,6 +16,7 @@ use App\Services\AssetStockConverter;
 use App\Services\AssetStockReport;
 use App\Services\KpiReportConverter;
 use App\Services\StructuredNkoReader;
+use App\Services\SystemHealthService;
 use App\Services\TargetRealisasiPerIndicatorReader;
 use App\Support\DatasetFreshness;
 use App\Support\KpiScoreNormalizer;
@@ -77,6 +78,7 @@ class DashboardController extends Controller
     public function __construct(
         private readonly StructuredNkoReader $structuredNko,
         private readonly TargetRealisasiPerIndicatorReader $targetRealisasiPanel,
+        private readonly ?SystemHealthService $systemHealth = null,
     ) {}
 
     /**
@@ -154,12 +156,17 @@ class DashboardController extends Controller
         $kpiFreshness = $executiveMeta['freshness']
             ?? ($user?->hasRole(Role::ADMIN) ? DatasetFreshness::forKpi() : null);
 
+        $systemHealth = $user?->hasRole(Role::ADMIN)
+            ? ($this->systemHealth ?? app(SystemHealthService::class))->snapshot()
+            : null;
+
         return view('dashboard.index', [
             'widgets' => $widgets,
             'filters' => $filters,
             'availableUnits' => $this->availableUnits($user),
             'executiveMeta' => $executiveMeta,
             'kpiFreshness' => $kpiFreshness,
+            'systemHealth' => $systemHealth,
         ]);
     }
 
