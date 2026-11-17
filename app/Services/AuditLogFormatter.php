@@ -59,6 +59,7 @@ class AuditLogFormatter
         'layout_key' => 'Kunci layout',
         'widgets' => 'Daftar widget',
         'role_slug' => 'Peran target',
+        'note' => 'Catatan',
         'org_units_count' => 'Unit organisasi',
         'indicators_count' => 'Indikator terstruktur',
         'observations_count' => 'Observasi terstruktur',
@@ -163,6 +164,17 @@ class AuditLogFormatter
     public static function objectLabel(AuditLog $log): string
     {
         if ($log->auditable_type === null) {
+            $hasPeriod = is_string($log->new_values['period'] ?? $log->old_values['period'] ?? null);
+            $isMutation = in_array($log->action, [
+                AuditLog::ACTION_CREATE,
+                AuditLog::ACTION_UPDATE,
+                AuditLog::ACTION_DELETE,
+            ], true);
+
+            if ($hasPeriod && $isMutation) {
+                return 'Anotasi periode KPI';
+            }
+
             return 'Aktivitas akun';
         }
 

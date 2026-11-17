@@ -22,6 +22,9 @@
     $isStaffDashboard = $currentUser?->role?->slug === \App\Models\Role::STAFF_DIVISI;
     $canAccessKpiDetail = \App\Http\Controllers\DashboardController::canAccessKpiDetail($currentUser);
     $isKpiDashboard = $canAccessKpiDetail && ! $isAdminDashboard;
+    $kpiWidgetKeys = ['kpi-summary', 'trend-chart', 'nko-ranking', 'kinerja-realisasi', 'kinerja-detail', 'target-realisasi-per-indikator', 'pencapaian-nko', 'nko-donut', 'kpi-rag-status', 'custom-chart'];
+    $hasKpiWidget = collect($widgets)->contains(fn (array $w): bool => in_array($w['key'] ?? '', $kpiWidgetKeys, true));
+    $showKpiDictionary = $isKpiDashboard || $hasKpiWidget;
     $needsPerformanceState = ! $isAdminDashboard || collect($widgets)->contains(fn (array $w): bool => in_array($w['key'] ?? '', ['kpi-summary', 'trend-chart'], true));
 
     $execMeta = is_array($executiveMeta ?? null) ? $executiveMeta : [];
@@ -101,6 +104,15 @@
                 @endif
 
                 <div class="flex min-w-0 max-w-full flex-wrap items-center gap-2 lg:shrink-0">
+                    @if ($showKpiDictionary)
+                        <button type="button" id="kpi-dictionary-trigger" @click="$dispatch('open-kpi-dictionary')" class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200/90 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 whitespace-nowrap shadow-2xs transition hover:border-[#0b6175]/40 hover:bg-[#e6f4f6]/50 hover:text-[#0b6175] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1">
+                            <svg class="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                                <path d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            <span>Kamus KPI</span>
+                        </button>
+                    @endif
+
                     @if ($canAccessKpiDetail)
                         <a href="{{ route('dashboard.kpi-detail') }}" class="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white whitespace-nowrap shadow-2xs transition hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-1">
                             <svg class="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
@@ -201,6 +213,11 @@
                             Atur Layout
                         </a>
                     @endcan
+                    @if ($showKpiDictionary)
+                        <button type="button" id="kpi-dictionary-trigger" @click="$dispatch('open-kpi-dictionary')" class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200/90 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 whitespace-nowrap shadow-2xs transition hover:border-[#0b6175]/40 hover:bg-[#e6f4f6]/50 hover:text-[#0b6175] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1">
+                            <span>Kamus KPI</span>
+                        </button>
+                    @endif
                 </div>
             @endif
 
@@ -330,6 +347,10 @@
             </div>
         @endforeach
     </div>
+
+    @if ($showKpiDictionary)
+        <x-kpi-dictionary-drawer />
+    @endif
 </div>
 
 <script @cspNonce>
@@ -343,10 +364,163 @@
             error: '',
             units: [],
             periodLabels: [],
+            annotations: [],
+            annotationFormOpen: false,
+            annotationPeriod: '',
+            annotationNote: '',
+            editingPeriod: null,
+            confirmDeletePeriod: null,
+            annotationSaving: false,
+            annotationError: '',
+            annotationSuccess: '',
             filters: {
                 start_date: initial.start_date ?? '',
                 end_date: initial.end_date ?? '',
                 units: initial.units ?? [],
+            },
+
+            availableAnnotationPeriods() {
+                const monthNames = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+                const map = new Map();
+
+                (Array.isArray(this.periodLabels) ? this.periodLabels : []).forEach((raw) => {
+                    const key = String(raw || '').slice(0, 7);
+                    if (!/^\d{4}-\d{2}$/.test(key) || map.has(key)) {
+                        return;
+                    }
+                    const [year, monthStr] = key.split('-');
+                    const monthLabel = monthNames[Number(monthStr) - 1] || monthStr;
+                    map.set(key, { key, label: `${monthLabel} ${year}` });
+                });
+
+                if (this.editingPeriod && /^\d{4}-\d{2}$/.test(this.editingPeriod) && !map.has(this.editingPeriod)) {
+                    const [year, monthStr] = this.editingPeriod.split('-');
+                    const monthLabel = monthNames[Number(monthStr) - 1] || monthStr;
+                    map.set(this.editingPeriod, { key: this.editingPeriod, label: `${monthLabel} ${year}` });
+                }
+
+                return Array.from(map.values()).sort((a, b) => b.key.localeCompare(a.key));
+            },
+
+            openAnnotationForm() {
+                this.annotationError = '';
+                this.annotationSuccess = '';
+                this.editingPeriod = null;
+                const options = this.availableAnnotationPeriods();
+                this.annotationPeriod = options.length > 0 ? options[0].key : '';
+                this.annotationNote = '';
+                this.annotationFormOpen = true;
+            },
+
+            editAnnotation(item) {
+                this.annotationError = '';
+                this.annotationSuccess = '';
+                this.confirmDeletePeriod = null;
+                this.editingPeriod = item.period;
+                this.annotationPeriod = item.period;
+                this.annotationNote = item.note || '';
+                this.annotationFormOpen = true;
+            },
+
+            closeAnnotationForm() {
+                this.annotationFormOpen = false;
+                this.editingPeriod = null;
+                this.annotationError = '';
+            },
+
+            async saveAnnotation(endpoint) {
+                this.annotationError = '';
+                this.annotationSuccess = '';
+
+                const noteText = String(this.annotationNote || '').trim();
+                if (!this.annotationPeriod) {
+                    this.annotationError = 'Pilih periode terlebih dahulu.';
+                    return;
+                }
+                if (!noteText) {
+                    this.annotationError = 'Catatan periode tidak boleh kosong.';
+                    return;
+                }
+
+                this.annotationSaving = true;
+                try {
+                    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+                    const response = await fetch(endpoint, {
+                        method: 'POST',
+                        headers: {
+                            'Accept': 'application/json',
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': csrfToken,
+                        },
+                        body: JSON.stringify({
+                            period: this.annotationPeriod,
+                            note: noteText,
+                            start_date: this.filters.start_date || null,
+                            end_date: this.filters.end_date || null,
+                        }),
+                    });
+
+                    if (response.status === 401 || response.status === 419) {
+                        window.location.href = "{{ route('login') }}";
+                        return;
+                    }
+
+                    const data = await response.json().catch(() => ({}));
+                    if (!response.ok) {
+                        const firstFieldError = data?.errors ? Object.values(data.errors).flat()[0] : null;
+                        this.annotationError = firstFieldError || data?.message || 'Gagal menyimpan catatan periode.';
+                        return;
+                    }
+
+                    this.annotations = Array.isArray(data.annotations) ? data.annotations : [];
+                    this.annotationSuccess = data.message || 'Catatan periode berhasil disimpan.';
+                    this.annotationFormOpen = false;
+                    this.editingPeriod = null;
+                    this.annotationNote = '';
+                } catch (e) {
+                    this.annotationError = 'Gagal menyimpan catatan periode.';
+                } finally {
+                    this.annotationSaving = false;
+                }
+            },
+
+            async deleteAnnotation(endpoint) {
+                this.annotationError = '';
+                this.annotationSuccess = '';
+                this.annotationSaving = true;
+
+                try {
+                    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+                    const deleteUrl = new URL(endpoint, window.location.origin);
+                    if (this.filters.start_date) deleteUrl.searchParams.set('start_date', this.filters.start_date);
+                    if (this.filters.end_date) deleteUrl.searchParams.set('end_date', this.filters.end_date);
+                    const response = await fetch(deleteUrl, {
+                        method: 'DELETE',
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': csrfToken,
+                        },
+                    });
+
+                    if (response.status === 401 || response.status === 419) {
+                        window.location.href = "{{ route('login') }}";
+                        return;
+                    }
+
+                    const data = await response.json().catch(() => ({}));
+                    if (!response.ok) {
+                        this.annotationError = data?.message || 'Gagal menghapus catatan periode.';
+                        return;
+                    }
+
+                    this.annotations = Array.isArray(data.annotations) ? data.annotations : [];
+                    this.confirmDeletePeriod = null;
+                    this.annotationSuccess = data.message || 'Catatan periode berhasil dihapus.';
+                } catch (e) {
+                    this.annotationError = 'Gagal menghapus catatan periode.';
+                } finally {
+                    this.annotationSaving = false;
+                }
             },
 
             formatNumber(value) {
@@ -422,6 +596,7 @@
                     this.kpi = payload.kpi;
                     this.empty = payload.labels.length === 0;
                     this.periodLabels = payload.labels;
+                    this.annotations = Array.isArray(payload.annotations) ? payload.annotations : [];
 
                     if (!this.empty) {
                         this.$nextTick(() => this.renderChart(payload));

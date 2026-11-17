@@ -7,6 +7,7 @@ use App\Http\Controllers\CustomChartController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DatasetController;
 use App\Http\Controllers\DivisionController;
+use App\Http\Controllers\KpiPeriodAnnotationController;
 use App\Http\Controllers\PerformanceChartController;
 use App\Http\Controllers\PerformanceMetricController;
 use App\Http\Controllers\UserController;
@@ -48,6 +49,13 @@ Route::middleware('auth')->group(function () {
             Route::delete('/dashboard/layout', [DashboardController::class, 'resetLayout'])
                 ->name('dashboard.layout.reset');
         });
+    });
+
+    Route::middleware('throttle:layout-mutation')->group(function () {
+        Route::post('/dashboard/kpi-annotations', [KpiPeriodAnnotationController::class, 'store'])
+            ->name('dashboard.kpi-annotations.store');
+        Route::delete('/dashboard/kpi-annotations/{period}', [KpiPeriodAnnotationController::class, 'destroy'])
+            ->name('dashboard.kpi-annotations.destroy');
     });
     // Proses logout via POST (bukan GET, supaya aman dari CSRF/clickjacking).
     Route::post('/logout', [AuthController::class, 'destroy'])->name('logout');

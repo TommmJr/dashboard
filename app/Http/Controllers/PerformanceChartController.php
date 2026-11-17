@@ -8,6 +8,7 @@ use App\Models\Division;
 use App\Models\Role;
 use App\Models\User;
 use App\Services\AssetStockConverter;
+use App\Services\KpiPeriodAnnotationService;
 use App\Services\KpiReportConverter;
 use App\Services\StructuredNkoReader;
 use Illuminate\Http\Request;
@@ -19,7 +20,10 @@ class PerformanceChartController extends Controller
 {
     use ScopesKpiUnits;
 
-    public function __construct(private readonly StructuredNkoReader $structuredNko) {}
+    public function __construct(
+        private readonly StructuredNkoReader $structuredNko,
+        private readonly KpiPeriodAnnotationService $annotations,
+    ) {}
 
     /**
      * Data agregasi untuk chart dashboard utama.
@@ -154,6 +158,7 @@ class PerformanceChartController extends Controller
                 'ready_datasets' => $readyDatasets,
                 'metric_count' => $metricCount,
             ],
+            'annotations' => $this->annotationsForViewer($user, $filters),
         ]);
     }
 
@@ -194,6 +199,7 @@ class PerformanceChartController extends Controller
                     'ready_datasets' => 0,
                     'metric_count' => 0,
                 ],
+                'annotations' => [],
             ]);
         }
 
@@ -249,7 +255,26 @@ class PerformanceChartController extends Controller
                 'ready_datasets' => $readyDatasets,
                 'metric_count' => $metricCount,
             ],
+            'annotations' => $this->annotationsForViewer($user, $filters),
         ]);
+    }
+
+    /**
+     * Ambil catatan konteks bisnis per periode khusus role yang berhak melihat tren KPI.
+     *
+     * @param  array<string, mixed>  $filters
+     * @return list<array<string, mixed>>
+     */
+    private function annotationsForViewer(User $user, array $filters): array
+    {
+        if (! KpiPeriodAnnotationService::canView($user)) {
+            return [];
+        }
+
+        return $this->annotations->all(
+            is_string($filters['start_date'] ?? null) ? $filters['start_date'] : null,
+            is_string($filters['end_date'] ?? null) ? $filters['end_date'] : null,
+        );
     }
 
     /**

@@ -1025,6 +1025,17 @@ if (typeof window.kpiDetailManager !== 'function') {
             <div id="kpi-detail-actions" class="flex min-w-0 max-w-full flex-wrap items-center gap-2">
                 <button
                     type="button"
+                    id="kpi-dictionary-trigger"
+                    @click="$dispatch('open-kpi-dictionary')"
+                    class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200/90 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs transition hover:border-[#0b6175]/40 hover:bg-[#e6f4f6]/50 hover:text-[#0b6175] cursor-pointer whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a3b8]/40"
+                >
+                    <svg class="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                        <path d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    <span>Kamus KPI</span>
+                </button>
+                <button
+                    type="button"
                     id="kpi-detail-fullscreen-btn"
                     @click="toggleFullscreen()"
                     class="inline-flex items-center gap-1.5 rounded-lg bg-[#0b6175] px-3.5 py-1.5 text-xs font-semibold text-white shadow-xs transition hover:bg-[#094e5e] cursor-pointer whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a3b8]/40"
@@ -1173,5 +1184,7 @@ if (typeof window.kpiDetailManager !== 'function') {
             />
         </div>
     </div>
+
+    <x-kpi-dictionary-drawer />
 </div>
 @endsection

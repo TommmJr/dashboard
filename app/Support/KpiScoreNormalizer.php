@@ -455,4 +455,69 @@ class KpiScoreNormalizer
 
         return [$targetBarPct, $realisasiBarPct, $sign.self::formatNumber(abs($diff), 1, $unitSuffix)];
     }
+
+    /**
+     * Metadata kamus metodologi KPI read-only yang bersumber tunggal dari
+     * konstanta skor resmi dan ambang RAG pada config/kpi.php.
+     *
+     * @return array{
+     *     score_min_label: string,
+     *     score_max_label: string,
+     *     tercapai_min_label: string,
+     *     hampir_min_label: string,
+     *     polarities: list<array{title: string, badge: string, formula: string, summary: string, example: string}>,
+     *     tiers: list<array{key: string, label: string, rule: string, description: string}>
+     * }
+     */
+    public static function dictionaryMeta(): array
+    {
+        $thresholds = self::ragThresholds();
+        $scoreMinLabel = self::formatNumber(self::SCORE_MIN, 1, '%');
+        $scoreMaxLabel = self::formatNumber(self::SCORE_MAX, 1, '%');
+        $tercapaiLabel = self::formatNumber($thresholds['tercapai_min'], 1, '%');
+        $hampirLabel = self::formatNumber($thresholds['hampir_min'], 1, '%');
+
+        return [
+            'score_min_label' => $scoreMinLabel,
+            'score_max_label' => $scoreMaxLabel,
+            'tercapai_min_label' => $tercapaiLabel,
+            'hampir_min_label' => $hampirLabel,
+            'polarities' => [
+                [
+                    'title' => 'Polaritas Positif',
+                    'badge' => 'Semakin tinggi semakin baik',
+                    'formula' => 'Capaian = (Realisasi / Target) x 100%',
+                    'summary' => 'Dipakai pada indikator yang nilainya diharapkan melampaui target untuk mendapatkan skor lebih tinggi.',
+                    'example' => 'Contoh: kesiapan operasi atau efisiensi penyaluran tenaga listrik.',
+                ],
+                [
+                    'title' => 'Polaritas Negatif',
+                    'badge' => 'Semakin rendah semakin baik',
+                    'formula' => 'Capaian = (2 - (Realisasi / Target)) x 100%',
+                    'summary' => 'Dipakai pada indikator yang nilainya diharapkan lebih rendah dari batas target.',
+                    'example' => 'Contoh: frekuensi gangguan transmisi, susut jaringan, atau waktu pemulihan.',
+                ],
+            ],
+            'tiers' => [
+                [
+                    'key' => self::TIER_TERCAPAI,
+                    'label' => 'Tercapai',
+                    'rule' => '>= '.$tercapaiLabel,
+                    'description' => 'Kinerja indikator memenuhi atau melampaui target yang ditetapkan.',
+                ],
+                [
+                    'key' => self::TIER_HAMPIR,
+                    'label' => 'Hampir Tercapai',
+                    'rule' => $hampirLabel.' s.d. < '.$tercapaiLabel,
+                    'description' => 'Kinerja mendekati target namun masih memerlukan pengawalan.',
+                ],
+                [
+                    'key' => self::TIER_PERLU,
+                    'label' => 'Perlu Peningkatan',
+                    'rule' => '< '.$hampirLabel,
+                    'description' => 'Kinerja berada di bawah ambang minimal sehingga membutuhkan tindak lanjut.',
+                ],
+            ],
+        ];
+    }
 }
