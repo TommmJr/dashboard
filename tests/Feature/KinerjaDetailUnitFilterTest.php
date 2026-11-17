@@ -232,12 +232,22 @@ class KinerjaDetailUnitFilterTest extends TestCase
 
         $response = $this->actingAs($this->staffOf($division))->get(route('dashboard.kpi-detail'))->assertOk();
 
-        $response->assertSee('id="kinerja-detail-unit"', false);
-        $response->assertSeeInOrder(['>TJBT<', '>MES<'], false);
+        // Pada /dashboard/kpi-detail (embedded), kontrol filter unit di header widget dihapus.
+        $response->assertDontSee('id="kinerja-detail-unit"', false);
+        $response->assertDontSee('unit=TJBT', false);
 
-        // Link jalan pintas untuk TJBT, plus opsi default "Semua unit".
-        $response->assertSee('unit=TJBT', false);
-        $response->assertSee('Semua unit');
+        // Saat dirender standalone (non-embedded), urutan dropdown tetap TJBT dulu.
+        $standalone = $this->actingAs($this->staffOf($division))->blade(
+            '<x-widgets.kinerja-detail :widget="$widget" :data="$data" :embedded-in-kpi-detail="false" />',
+            [
+                'widget' => ['instance' => 1, 'label' => 'Detail Metrik KPI', 'units' => ['TJBT', 'MES']],
+                'data' => ['period' => '2026-08-31', 'rows' => [['unit' => 'TJBT', 'indikator' => 'I', 'target' => 100, 'realisasi' => 100, 'pencapaian' => 100, 'skor_kpi' => 100]], 'truncated' => false, 'total_rows' => 1],
+            ],
+        );
+        $standalone->assertSee('id="kinerja-detail-unit"', false);
+        $standalone->assertSeeInOrder(['>TJBT<', '>MES<'], false);
+        $standalone->assertSee('unit=TJBT', false);
+        $standalone->assertSee('Semua unit');
     }
 
     public function test_tanpa_data_unit_dropdown_tidak_dirender(): void
@@ -264,13 +274,24 @@ class KinerjaDetailUnitFilterTest extends TestCase
             ->get(route('dashboard.kpi-detail', ['unit' => 'TJBT']))
             ->assertOk();
 
-        $response->assertSee('value="TJBT" selected', false);
+        $response->assertDontSee('id="kinerja-detail-unit"', false);
         $response->assertSee('Detail Metrik KPI');
         $response->assertSee('Skor Pencapaian KPI (Maks 110%)');
         $response->assertSee('Perbandingan Target');
         $response->assertDontSee('Rasio Realisasi Murni');
         $response->assertSee('Indikator A');
         $response->assertDontSee('Indikator B');
+
+        request()->merge(['unit' => 'TJBT']);
+        $standalone = $this->actingAs($this->staffOf($division))->blade(
+            '<x-widgets.kinerja-detail :widget="$widget" :data="$data" :embedded-in-kpi-detail="false" />',
+            [
+                'widget' => ['instance' => 1, 'label' => 'Detail Metrik KPI', 'units' => ['TJBT', 'MES']],
+                'data' => ['period' => '2026-08-31', 'rows' => [['unit' => 'TJBT', 'indikator' => 'Indikator A', 'target' => 200, 'realisasi' => 100, 'pencapaian' => 50, 'skor_kpi' => 50]], 'truncated' => false, 'total_rows' => 1],
+            ],
+        );
+        $standalone->assertSee('value="TJBT" selected', false);
+        request()->replace([]);
     }
 
     public function test_tanggal_metadata_terstruktur_hanya_mengubah_display_di_kedua_read_model(): void

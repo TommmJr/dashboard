@@ -997,27 +997,27 @@ if (typeof window.kpiDetailManager !== 'function') {
         </div>
     </div>
 
-    <div id="kpi-detail-header" class="ibs-card min-w-0 max-w-full rounded-2xl border border-slate-200/80 bg-white px-4 py-3 sm:px-5 sm:py-3.5 shadow-[0_1px_3px_rgba(15,23,42,0.03)]">
+    <div id="kpi-detail-header" class="ibs-card min-w-0 max-w-full rounded-2xl border border-slate-200/80 bg-white px-4 py-3.5 sm:px-5 shadow-[0_1px_3px_0_rgba(15,23,42,0.04),0_4px_12px_-2px_rgba(15,23,42,0.03)]">
         {{-- Tier 1: Executive Identity & Action Cluster --}}
-        <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between min-w-0">
+        <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between min-w-0 pb-3 border-b border-slate-100">
             <div class="flex flex-wrap items-center gap-2.5 sm:gap-3 min-w-0">
                 <a
                     href="{{ route('dashboard') }}"
-                    class="inline-flex items-center gap-1.5 rounded-lg py-1 text-xs font-medium text-slate-500 transition hover:text-slate-900 whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a3b8]/40"
+                    class="inline-flex items-center gap-1.5 rounded-lg py-1 text-xs font-semibold text-slate-500 transition hover:text-[#0b6175] whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a3b8]/40"
                 >
-                    <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                    <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                         <path d="M19 12H5M12 19l-7-7 7-7" stroke-linecap="round" stroke-linejoin="round" />
                     </svg>
                     <span>Ringkasan</span>
                 </a>
                 <span class="hidden sm:block h-4 w-px bg-slate-200" aria-hidden="true"></span>
-                <h1 class="text-lg sm:text-xl font-bold tracking-tight text-slate-900 sm:whitespace-nowrap">Rincian Kinerja KPI</h1>
-                <span class="inline-flex items-center rounded-full bg-[#e6f4f6] px-2.5 py-0.5 text-[11px] font-semibold text-[#0b6175] whitespace-nowrap">
-                    {{ !empty(config('kpi.visible_units')) ? implode(', ', config('kpi.visible_units')) : 'Semua Unit' }}
+                <h1 class="text-lg sm:text-xl font-extrabold tracking-tight text-slate-900 sm:whitespace-nowrap">Rincian Kinerja KPI</h1>
+                <span class="inline-flex items-center rounded-full border border-[#0b6175]/20 bg-[#e6f4f6] px-2.5 py-0.5 text-[11px] font-semibold text-[#0b6175] whitespace-nowrap">
+                    Unit: {{ !empty(config('kpi.visible_units')) ? implode(', ', config('kpi.visible_units')) : 'Semua Unit' }}
                 </span>
                 @if (! empty($fullscreenPayload['period']))
-                    <span class="inline-flex items-center rounded-full border border-slate-200/80 bg-slate-50/70 px-2.5 py-0.5 text-[11px] font-medium text-slate-600 tabular-nums whitespace-nowrap">
-                        Periode {{ $fullscreenPayload['period'] }}
+                    <span class="inline-flex items-center rounded-full border border-slate-200/80 bg-slate-50 px-2.5 py-0.5 text-[11px] font-medium text-slate-600 tabular-nums whitespace-nowrap">
+                        Periode: {{ $fullscreenPayload['period'] }}
                     </span>
                 @endif
             </div>
@@ -1027,7 +1027,7 @@ if (typeof window.kpiDetailManager !== 'function') {
                     type="button"
                     id="kpi-dictionary-trigger"
                     @click="$dispatch('open-kpi-dictionary')"
-                    class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200/90 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs transition hover:border-[#0b6175]/40 hover:bg-[#e6f4f6]/50 hover:text-[#0b6175] cursor-pointer whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a3b8]/40"
+                    class="inline-flex items-center gap-1.5 rounded-xl border border-slate-200/90 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs transition hover:border-[#0b6175]/40 hover:bg-[#e6f4f6]/50 hover:text-[#0b6175] cursor-pointer whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a3b8]/40"
                 >
                     <svg class="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
                         <path d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" stroke-linecap="round" stroke-linejoin="round"/>
@@ -1038,7 +1038,7 @@ if (typeof window.kpiDetailManager !== 'function') {
                     type="button"
                     id="kpi-detail-fullscreen-btn"
                     @click="toggleFullscreen()"
-                    class="inline-flex items-center gap-1.5 rounded-lg bg-[#0b6175] px-3.5 py-1.5 text-xs font-semibold text-white shadow-xs transition hover:bg-[#094e5e] cursor-pointer whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a3b8]/40"
+                    class="inline-flex items-center gap-1.5 rounded-xl bg-[#0b6175] px-4 py-1.5 text-xs font-semibold text-white shadow-xs transition hover:bg-[#094e5e] cursor-pointer whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a3b8]/40"
                     :title="isFullscreen ? 'Keluar Layar Penuh' : 'Mode Layar Penuh'"
                 >
                     <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
@@ -1050,13 +1050,77 @@ if (typeof window.kpiDetailManager !== 'function') {
         </div>
 
         {{-- Tier 2: Single Unified Command Bar --}}
-        <div id="kpi-command-bar" class="mt-3 flex flex-col gap-2.5 border-t border-slate-200/70 pt-2.5 xl:flex-row xl:items-center xl:justify-between min-w-0">
-            <div id="kpi-view-switcher" class="inline-flex min-w-0 max-w-full flex-wrap items-center gap-0.5 rounded-xl border border-slate-200/60 bg-slate-100/90 p-1 text-xs">
+        <div
+            id="kpi-command-bar"
+            @keydown.window="if ($event.key === '/' && !isFullscreen && !$event.ctrlKey && !$event.metaKey && !$event.altKey && !['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName) && !document.activeElement?.isContentEditable) { $event.preventDefault(); $refs.unifiedSearch?.focus(); }"
+            class="mt-3 flex flex-col gap-2.5 xl:flex-row xl:items-center xl:justify-between min-w-0"
+        >
+            <div class="relative w-full xl:max-w-xs shrink-0">
+                <svg class="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <circle cx="11" cy="11" r="7"/>
+                    <path d="m20 20-3.5-3.5" stroke-linecap="round"/>
+                </svg>
+                <input
+                    id="kpi-unified-search"
+                    x-ref="unifiedSearch"
+                    type="search"
+                    x-model="pageSearch"
+                    @input="applyPageFilters()"
+                    placeholder="Cari indikator KPI..."
+                    aria-label="Cari indikator KPI"
+                    class="w-full rounded-xl border border-slate-200/80 bg-slate-50/80 pl-8.5 pr-9 py-1.5 text-xs font-medium text-slate-800 placeholder:text-slate-400 transition hover:bg-slate-100/70 focus:bg-white focus:border-[#0b6175] focus:outline-none focus:ring-2 focus:ring-[#0b6175]/15"
+                />
+                <span class="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 hidden sm:inline-flex items-center rounded border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] font-semibold text-slate-400 shadow-2xs" aria-hidden="true">/</span>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-1.5 text-xs" role="group" aria-label="Filter status capaian KPI">
+                <button
+                    type="button"
+                    @click="setPageRag('all')"
+                    :class="pageRag === 'all' ? 'border-[#0b6175] bg-[#0b6175] text-white font-semibold shadow-2xs' : 'border-slate-200/80 bg-slate-50/80 text-slate-600 font-medium hover:border-slate-300 hover:bg-white'"
+                    class="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 transition cursor-pointer whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a3b8]/40"
+                >
+                    <span>Semua</span>
+                    <span class="rounded-full px-1.5 py-0.5 text-[10.5px] tabular-nums" :class="pageRag === 'all' ? 'bg-white/20 text-white' : 'bg-slate-200/70 text-slate-600'">{{ $ragCounts['all'] }}</span>
+                </button>
+                <button
+                    type="button"
+                    @click="setPageRag('tercapai')"
+                    :class="pageRag === 'tercapai' ? 'border-emerald-600 bg-emerald-50 text-emerald-900 font-semibold ring-1 ring-emerald-600/20 shadow-2xs' : 'border-slate-200/80 bg-slate-50/80 text-slate-600 font-medium hover:border-emerald-200 hover:bg-emerald-50/50 hover:text-emerald-800'"
+                    class="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 transition cursor-pointer whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a3b8]/40"
+                >
+                    <span class="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0"></span>
+                    <span>Tercapai</span>
+                    <span class="rounded-full px-1.5 py-0.5 text-[10.5px] font-semibold tabular-nums" :class="pageRag === 'tercapai' ? 'bg-emerald-200/70 text-emerald-900' : 'bg-emerald-100/70 text-emerald-700'">{{ $ragCounts['tercapai'] }}</span>
+                </button>
+                <button
+                    type="button"
+                    @click="setPageRag('hampir')"
+                    :class="pageRag === 'hampir' ? 'border-amber-600 bg-amber-50 text-amber-900 font-semibold ring-1 ring-amber-600/20 shadow-2xs' : 'border-slate-200/80 bg-slate-50/80 text-slate-600 font-medium hover:border-amber-200 hover:bg-amber-50/50 hover:text-amber-800'"
+                    class="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 transition cursor-pointer whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a3b8]/40"
+                >
+                    <span class="h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0"></span>
+                    <span>Mendekati</span>
+                    <span class="rounded-full px-1.5 py-0.5 text-[10.5px] font-semibold tabular-nums" :class="pageRag === 'hampir' ? 'bg-amber-200/70 text-amber-900' : 'bg-amber-100/70 text-amber-700'">{{ $ragCounts['hampir'] }}</span>
+                </button>
+                <button
+                    type="button"
+                    @click="setPageRag('perlu')"
+                    :class="pageRag === 'perlu' ? 'border-rose-600 bg-rose-50 text-rose-900 font-semibold ring-1 ring-rose-600/20 shadow-2xs' : 'border-slate-200/80 bg-slate-50/80 text-slate-600 font-medium hover:border-rose-200 hover:bg-rose-50/50 hover:text-rose-800'"
+                    class="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 transition cursor-pointer whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a3b8]/40"
+                >
+                    <span class="h-1.5 w-1.5 rounded-full bg-rose-500 shrink-0"></span>
+                    <span>Perlu Perhatian</span>
+                    <span class="rounded-full px-1.5 py-0.5 text-[10.5px] font-semibold tabular-nums" :class="pageRag === 'perlu' ? 'bg-rose-200/70 text-rose-900' : 'bg-rose-100/70 text-rose-700'">{{ $ragCounts['perlu'] }}</span>
+                </button>
+            </div>
+
+            <div id="kpi-view-switcher" class="inline-flex min-w-0 max-w-full flex-wrap items-center gap-0.5 rounded-xl border border-slate-200/70 bg-slate-100/85 p-1 text-xs shrink-0">
                 <button
                     type="button"
                     @click="viewMode = 'split'; $dispatch('kpi-view-changed', 'split')"
                     :class="viewMode === 'split' ? 'bg-white text-[#0b6175] shadow-xs ring-1 ring-slate-900/5 font-semibold' : 'text-slate-600 hover:text-slate-900 font-medium'"
-                    class="pill-tab-transition inline-flex max-w-full items-center gap-1.5 rounded-lg px-3 py-1.5 cursor-pointer sm:whitespace-nowrap text-left"
+                    class="pill-tab-transition inline-flex max-w-full items-center gap-1.5 rounded-lg px-2.5 py-1 cursor-pointer sm:whitespace-nowrap text-left"
                 >
                     <svg class="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
                         <rect x="3" y="3" width="8" height="18" rx="1"/>
@@ -1069,7 +1133,7 @@ if (typeof window.kpiDetailManager !== 'function') {
                     type="button"
                     @click="viewMode = 'cards'; $dispatch('kpi-view-changed', 'cards')"
                     :class="viewMode === 'cards' ? 'bg-white text-[#0b6175] shadow-xs ring-1 ring-slate-900/5 font-semibold' : 'text-slate-600 hover:text-slate-900 font-medium'"
-                    class="pill-tab-transition inline-flex max-w-full items-center gap-1.5 rounded-lg px-3 py-1.5 cursor-pointer sm:whitespace-nowrap text-left"
+                    class="pill-tab-transition inline-flex max-w-full items-center gap-1.5 rounded-lg px-2.5 py-1 cursor-pointer sm:whitespace-nowrap text-left"
                 >
                     <svg class="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
                         <rect x="3" y="3" width="7" height="7" rx="1"/>
@@ -1084,7 +1148,7 @@ if (typeof window.kpiDetailManager !== 'function') {
                     type="button"
                     @click="viewMode = 'table'; $dispatch('kpi-view-changed', 'table')"
                     :class="viewMode === 'table' ? 'bg-white text-[#0b6175] shadow-xs ring-1 ring-slate-900/5 font-semibold' : 'text-slate-600 hover:text-slate-900 font-medium'"
-                    class="pill-tab-transition inline-flex max-w-full items-center gap-1.5 rounded-lg px-3 py-1.5 cursor-pointer sm:whitespace-nowrap text-left"
+                    class="pill-tab-transition inline-flex max-w-full items-center gap-1.5 rounded-lg px-2.5 py-1 cursor-pointer sm:whitespace-nowrap text-left"
                 >
                     <svg class="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
                         <path d="M3 6h18M3 12h18M3 18h18" stroke-linecap="round"/>
@@ -1093,76 +1157,15 @@ if (typeof window.kpiDetailManager !== 'function') {
                     <span class="sr-only">Fokus Tabel Matriks Padat</span>
                 </button>
             </div>
-
-            <div class="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center min-w-0">
-                <div class="flex flex-wrap items-center gap-1.5 text-xs" role="group" aria-label="Filter status capaian KPI">
-                    <button
-                        type="button"
-                        @click="setPageRag('all')"
-                        :class="pageRag === 'all' ? 'border-slate-800 text-slate-900 font-semibold ring-1 ring-slate-900/10 shadow-2xs' : 'border-slate-200/80 text-slate-600 font-medium hover:border-slate-300 hover:bg-slate-50'"
-                        class="inline-flex items-center gap-1.5 rounded-lg border bg-white px-2.5 py-1.5 transition cursor-pointer whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a3b8]/40"
-                    >
-                        <span class="h-1.5 w-1.5 rounded-full bg-slate-400 shrink-0"></span>
-                        <span>Semua</span>
-                        <span class="tabular-nums text-[11px]" :class="pageRag === 'all' ? 'text-slate-700' : 'text-slate-400'">{{ $ragCounts['all'] }}</span>
-                    </button>
-                    <button
-                        type="button"
-                        @click="setPageRag('tercapai')"
-                        :class="pageRag === 'tercapai' ? 'border-emerald-600 text-emerald-950 font-semibold ring-1 ring-emerald-600/20 shadow-2xs' : 'border-slate-200/80 text-slate-600 font-medium hover:border-slate-300 hover:bg-slate-50'"
-                        class="inline-flex items-center gap-1.5 rounded-lg border bg-white px-2.5 py-1.5 transition cursor-pointer whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a3b8]/40"
-                    >
-                        <span class="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0"></span>
-                        <span>Tercapai</span>
-                        <span class="tabular-nums text-[11px]" :class="pageRag === 'tercapai' ? 'text-emerald-800' : 'text-slate-400'">{{ $ragCounts['tercapai'] }}</span>
-                    </button>
-                    <button
-                        type="button"
-                        @click="setPageRag('hampir')"
-                        :class="pageRag === 'hampir' ? 'border-amber-600 text-amber-950 font-semibold ring-1 ring-amber-600/20 shadow-2xs' : 'border-slate-200/80 text-slate-600 font-medium hover:border-slate-300 hover:bg-slate-50'"
-                        class="inline-flex items-center gap-1.5 rounded-lg border bg-white px-2.5 py-1.5 transition cursor-pointer whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a3b8]/40"
-                    >
-                        <span class="h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0"></span>
-                        <span>Mendekati</span>
-                        <span class="tabular-nums text-[11px]" :class="pageRag === 'hampir' ? 'text-amber-800' : 'text-slate-400'">{{ $ragCounts['hampir'] }}</span>
-                    </button>
-                    <button
-                        type="button"
-                        @click="setPageRag('perlu')"
-                        :class="pageRag === 'perlu' ? 'border-rose-600 text-rose-950 font-semibold ring-1 ring-rose-600/20 shadow-2xs' : 'border-slate-200/80 text-slate-600 font-medium hover:border-slate-300 hover:bg-slate-50'"
-                        class="inline-flex items-center gap-1.5 rounded-lg border bg-white px-2.5 py-1.5 transition cursor-pointer whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16a3b8]/40"
-                    >
-                        <span class="h-1.5 w-1.5 rounded-full bg-rose-500 shrink-0"></span>
-                        <span>Perlu Perhatian</span>
-                        <span class="tabular-nums text-[11px]" :class="pageRag === 'perlu' ? 'text-rose-800' : 'text-slate-400'">{{ $ragCounts['perlu'] }}</span>
-                    </button>
-                </div>
-
-                <div class="relative w-full sm:w-60 shrink-0">
-                    <svg class="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                        <circle cx="11" cy="11" r="7"/>
-                        <path d="m20 20-3.5-3.5" stroke-linecap="round"/>
-                    </svg>
-                    <input
-                        id="kpi-unified-search"
-                        type="search"
-                        x-model="pageSearch"
-                        @input="applyPageFilters()"
-                        placeholder="Cari indikator KPI..."
-                        aria-label="Cari indikator KPI"
-                        class="w-full rounded-lg border border-slate-200/80 bg-white pl-8 pr-3 py-1.5 text-xs text-slate-800 placeholder:text-slate-400 transition focus:border-[#0b6175] focus:outline-none focus:ring-2 focus:ring-[#0b6175]/15"
-                    />
-                </div>
-            </div>
         </div>
     </div>
 
-    <div class="grid grid-cols-1 gap-5 lg:grid-cols-12 items-start w-full min-w-0">
+    <div class="grid grid-cols-1 gap-5 lg:grid-cols-12 items-stretch w-full min-w-0">
         <div
             id="kpi-target-realisasi-container"
             x-show="viewMode === 'split' || viewMode === 'cards'"
-            :class="{ 'lg:!col-span-12': viewMode === 'cards', 'hidden': viewMode === 'table' }"
-            class="h-full min-w-0 max-w-full transition-all duration-200 lg:col-span-5 w-full"
+            :class="{ 'lg:!col-span-12 xl:!col-span-12': viewMode === 'cards', 'hidden': viewMode === 'table' }"
+            class="h-full min-w-0 max-w-full transition-all duration-200 lg:col-span-5 xl:col-span-6 w-full animate-entrance stagger-1"
         >
             <x-widgets.target-realisasi-per-indikator
                 :widget="$targetRealisasiWidget"
@@ -1174,8 +1177,8 @@ if (typeof window.kpiDetailManager !== 'function') {
         <div
             id="kinerja-detail"
             x-show="viewMode === 'split' || viewMode === 'table'"
-            :class="{ 'lg:!col-span-12': viewMode === 'table', 'hidden': viewMode === 'cards' }"
-            class="h-full min-w-0 max-w-full transition-all duration-200 lg:col-span-7 w-full"
+            :class="{ 'lg:!col-span-12 xl:!col-span-12': viewMode === 'table', 'hidden': viewMode === 'cards' }"
+            class="h-full min-w-0 max-w-full transition-all duration-200 lg:col-span-7 xl:col-span-6 w-full animate-entrance stagger-2"
         >
             <x-widgets.kinerja-detail
                 :widget="$kinerjaDetailWidget"

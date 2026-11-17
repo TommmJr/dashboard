@@ -89,15 +89,19 @@ if (typeof window.targetRealisasiWidget !== 'function') {
 </script>
 
 <div
-    class="ibs-card min-w-0 max-w-full h-full rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_1px_3px_rgba(15,23,42,0.03)] flex flex-col justify-start"
+    class="ibs-card min-w-0 max-w-full h-full rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_1px_3px_0_rgba(15,23,42,0.04),0_4px_12px_-2px_rgba(15,23,42,0.03)] flex flex-col justify-between"
     x-data="targetRealisasiWidget(JSON.parse(document.getElementById('targetRealisasiItems_{{ $instanceId }}').textContent))"
     @kpi-view-changed.window="viewMode = $event.detail"
     @kpi-page-filter-changed.window="searchQuery = $event.detail.search ?? ''; activeRag = $event.detail.rag ?? 'all'"
 >
+    <div>
     @if ($isEmbedded)
-        <div class="flex items-center justify-between gap-2 pb-3 border-b border-slate-100">
-            <h3 class="ibs-section-title text-sm font-semibold text-slate-900">{{ $widget['label'] ?? 'Target dan Realisasi per Indikator' }}</h3>
-            <span class="text-xs font-medium text-slate-400 tabular-nums" x-text="visibleCount + ' indikator'">{{ $totalCount }} indikator</span>
+        <div class="flex items-start justify-between gap-3 pb-3 border-b border-slate-100">
+            <div class="min-w-0">
+                <h3 class="ibs-section-title text-sm font-bold text-slate-900 tracking-tight">{{ $widget['label'] ?? 'Target dan Realisasi per Indikator' }}</h3>
+                <p class="mt-0.5 text-[11px] text-slate-500">Analisis ketercapaian terhadap batas {{ $tercapaiMinLabel }}%</p>
+            </div>
+            <span class="inline-flex items-center rounded-full border border-slate-200/80 bg-slate-50 px-2.5 py-0.5 text-[11px] font-medium text-slate-600 tabular-nums shrink-0" x-text="visibleCount + ' indikator'">{{ $totalCount }} indikator</span>
         </div>
         @if ($period !== null)
             <span class="sr-only">
@@ -230,14 +234,19 @@ if (typeof window.targetRealisasiWidget !== 'function') {
                     class="relative border-t border-slate-100 pt-4 first:border-0 first:pt-0"
                 >
                     @if (! empty($section['name']))
-                        <h4 class="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400 pb-2.5">{{ $section['name'] }}</h4>
+                        <div class="flex items-center justify-between gap-2 pb-2.5">
+                            <h4 class="text-[11px] font-bold uppercase tracking-[0.07em] text-slate-400">{{ $section['name'] }}</h4>
+                            @if ($loop->first)
+                                <span class="text-[11px] text-slate-400 tabular-nums">Target Acuan: {{ $tercapaiMinLabel }}%</span>
+                            @endif
+                        </div>
                     @endif
 
                     @if (count($chartable) > 0)
                         <div
                             id="{{ $chartId }}"
                             class="grid grid-cols-1 min-w-0"
-                            :class="viewMode === 'cards' ? 'md:grid-cols-2 xl:grid-cols-3 gap-4' : 'grid-cols-1 gap-3'"
+                            :class="viewMode === 'cards' ? 'md:grid-cols-2 xl:grid-cols-3 gap-4' : 'gap-3'"
                         >
                             @foreach ($chartable as $p)
                                 @php
@@ -245,14 +254,20 @@ if (typeof window.targetRealisasiWidget !== 'function') {
                                     $barWidth = max(0, min(100, $pct));
                                     $tier = \App\Support\KpiScoreNormalizer::ragTier($pct);
                                     if ($tier === \App\Support\KpiScoreNormalizer::TIER_TERCAPAI) {
-                                        $barColor = 'bg-emerald-600/85';
+                                        $barColor = 'bg-emerald-500';
                                         $textColor = 'text-emerald-700';
+                                        $pillTheme = 'border-emerald-200/70 bg-emerald-50 text-emerald-700';
+                                        $cardHover = 'hover:border-[#16a3b8]/45';
                                     } elseif ($tier === \App\Support\KpiScoreNormalizer::TIER_HAMPIR) {
-                                        $barColor = 'bg-amber-500/85';
+                                        $barColor = 'bg-amber-500';
                                         $textColor = 'text-amber-700';
+                                        $pillTheme = 'border-amber-200/70 bg-amber-50 text-amber-700';
+                                        $cardHover = 'hover:border-amber-400/50';
                                     } else {
-                                        $barColor = 'bg-rose-500/85';
+                                        $barColor = 'bg-rose-500';
                                         $textColor = 'text-rose-700';
+                                        $pillTheme = 'border-rose-200/70 bg-rose-50 text-rose-700';
+                                        $cardHover = 'hover:border-rose-400/50';
                                     }
                                     $rawTarget = $p['numeric']['target'] ?? ($p['partial_numeric']['target'] ?? null);
                                     $rawRealisasi = $p['numeric']['realisasi'] ?? ($p['partial_numeric']['realisasi'] ?? null);
@@ -277,14 +292,14 @@ if (typeof window.targetRealisasiWidget !== 'function') {
                                 @endphp
                                 <div
                                     x-show="matches('{{ addcslashes($searchHaystack, "'\\") }}', '{{ $tier }}')"
-                                    class="min-w-0 max-w-full flex flex-col justify-between rounded-xl border border-slate-200/80 bg-white px-4 py-3.5 shadow-[0_1px_2px_rgba(15,23,42,0.02)] hover:border-[#0b6175]/35 hover:shadow-xs transition-all"
+                                    class="min-w-0 max-w-full flex flex-col justify-between rounded-xl border border-slate-200/70 bg-slate-50/60 px-3.5 py-3 hover:bg-white {{ $cardHover }} hover:shadow-2xs hover:-translate-y-[1px] transition-all duration-200"
                                     data-indicator-id="{{ $p['indicator_id'] }}"
                                     data-mode="{{ $p['mode'] }}"
                                     title="{{ $tooltip }}"
                                 >
                                     <div class="flex items-start justify-between gap-2.5 min-w-0">
                                         <div class="flex-1 min-w-0">
-                                            <span class="block text-[13px] font-semibold text-slate-900 leading-snug" title="{{ $p['name'] }}">
+                                            <span class="block text-xs font-semibold text-slate-800 leading-snug" title="{{ $p['name'] }}">
                                                 {{ $p['name'] }}
                                             </span>
                                             @if (! empty($cmp['indicator_hint']) && $cmp['indicator_hint'] !== $unitBadge)
@@ -293,52 +308,43 @@ if (typeof window.targetRealisasiWidget !== 'function') {
                                                 </span>
                                             @endif
                                         </div>
-                                        <div class="flex items-center gap-2 shrink-0">
+                                        <div class="flex items-center gap-1.5 shrink-0">
                                             @if (! empty($unitBadge))
-                                                <span class="bg-slate-100/80 text-slate-600 px-2 py-0.5 rounded-md text-[11px] font-medium shrink-0">
+                                                <span class="rounded-md bg-white border border-slate-200/70 px-1.5 py-0.5 text-[10.5px] font-medium text-slate-600 shrink-0">
                                                     {{ $unitBadge }}
                                                 </span>
                                             @endif
-                                            <span class="tabular-nums text-xs font-bold {{ $textColor }}">
+                                            <span class="inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-bold tabular-nums {{ $pillTheme }}">
                                                 {{ $fmtPercent($p['score']['percent']) }}
                                             </span>
                                         </div>
                                     </div>
-                                    <div class="mt-2.5 flex flex-col gap-2 min-w-0">
+                                    <div class="mt-2 flex flex-col gap-1.5 min-w-0">
                                         @if ($p['mode'] === 'numeric' || $targetStr !== 'Tidak tercatat' || $realisasiStr !== 'Tidak tercatat')
-                                            <div class="flex flex-wrap items-start justify-between gap-2 text-xs text-slate-500 tabular-nums">
+                                            <div class="flex flex-wrap items-baseline justify-between gap-2 text-[11px] text-slate-500 tabular-nums">
                                                 <div>
-                                                    <span>Target: <strong class="font-semibold text-slate-800">{{ $targetStr }}</strong></span>
+                                                    <span>Target: <strong class="font-medium text-slate-700">{{ $targetStr }}</strong></span>
                                                     @if (! empty($cmp['target_hint']) && $cmp['target_hint'] !== $unitBadge)
                                                         <span class="block text-[10px] leading-tight text-slate-400">{{ $cmp['target_hint'] }}</span>
                                                     @endif
                                                 </div>
                                                 <div class="text-right">
-                                                    <span>Realisasi: <strong class="font-semibold text-slate-800">{{ $realisasiStr }}</strong></span>
+                                                    <span>Realisasi: <strong class="font-semibold text-slate-900">{{ $realisasiStr }}</strong></span>
                                                     @if (! empty($cmp['realisasi_hint']) && $cmp['realisasi_hint'] !== $unitBadge)
                                                         <span class="block text-[10px] leading-tight text-slate-400">{{ $cmp['realisasi_hint'] }}</span>
                                                     @endif
                                                 </div>
                                             </div>
                                         @endif
-                                        @if ($cmp['target_bar_pct'] !== null && $cmp['realisasi_bar_pct'] !== null)
-                                            <div dir="ltr" class="space-y-1">
-                                                <div class="h-1.5 w-full rounded-full bg-slate-100 overflow-hidden" title="Target: {{ $targetStr }}{{ $satuanStr }}">
-                                                    <div class="h-full rounded-full bg-slate-300" style="width: {{ $cmp['target_bar_pct'] }}%"></div>
-                                                </div>
-                                                <div class="h-1.5 w-full rounded-full bg-slate-100 overflow-hidden" title="Realisasi: {{ $realisasiStr }}{{ $satuanStr }}">
-                                                    <div class="h-full rounded-full {{ $barColor }}" style="width: {{ $cmp['realisasi_bar_pct'] }}%"></div>
-                                                </div>
-                                            </div>
-                                            <div class="flex items-center justify-between text-[10.5px] text-slate-500">
-                                                <span class="text-slate-400">Perbandingan</span>
-                                                <span class="font-medium text-slate-600 tabular-nums">{{ $cmp['diff_label'] }}</span>
-                                            </div>
-                                        @else
-                                            <div class="h-1.5 w-full rounded-full bg-slate-100 overflow-hidden">
-                                                <div class="h-full rounded-full {{ $barColor }}" style="width: {{ $barWidth }}%"></div>
-                                            </div>
-                                        @endif
+                                        <div class="relative h-2 w-full rounded-full bg-slate-200/80 overflow-hidden" title="Capaian: {{ $fmtPercent($p['score']['percent']) }}">
+                                            <div class="h-full rounded-full {{ $barColor }} transition-all duration-500" style="width: {{ round($barWidth, 1) }}%"></div>
+                                        </div>
+                                        <div class="flex items-center justify-between gap-2 pt-0.5 text-[10.5px]">
+                                            <span class="text-slate-400">Status Deviasi:</span>
+                                            <span class="inline-flex items-center rounded-full border px-2 py-0.5 font-semibold tabular-nums {{ $pillTheme }}">
+                                                {{ $cmp['diff_label'] }}
+                                            </span>
+                                        </div>
                                     </div>
                                 </div>
                             @endforeach
@@ -435,6 +441,17 @@ if (typeof window.targetRealisasiWidget !== 'function') {
                     </div>
                 </section>
             @endforeach
+        </div>
+    @endif
+    </div>
+
+    @if ($isEmbedded && ! empty($sections))
+        <div class="mt-4 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500 tabular-nums">
+            <span class="inline-flex items-center gap-1.5">
+                <span class="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0" aria-hidden="true"></span>
+                <span>Ambang Tercapai &ge; {{ $tercapaiMinLabel }}% &bull; Mendekati {{ $hampirMinLabel }}%</span>
+            </span>
+            <span>Skor Maksimal {{ $fmt(\App\Support\KpiScoreNormalizer::SCORE_MAX) }}%</span>
         </div>
     @endif
 </div>
