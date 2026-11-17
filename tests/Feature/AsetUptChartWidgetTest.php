@@ -883,4 +883,100 @@ class AsetUptChartWidgetTest extends TestCase
             Carbon::setTestNow();
         }
     }
+
+    public function test_widget_aset_membedakan_null_tidak_tercatat_dari_nol_dan_menyediakan_filter_periode_historis_ultg_serta_rasio_kapasitas(): void
+    {
+        $manset = Division::factory()->create([
+            'name' => 'Managemen Aset',
+            'slug' => 'managemen-aset',
+        ]);
+        $foreignDiv = Division::factory()->create([
+            'name' => 'Operasi Sistem',
+            'slug' => 'operasi-sistem',
+        ]);
+
+        $stafAset = User::factory()->withRole(Role::STAFF_DIVISI)->create([
+            'division_id' => $manset->id,
+        ]);
+
+        // Periode historis Agustus 2026
+        $this->seedAsetRowsFor($manset, '2026-08-31', [
+            ['BANDUNG', 'BANDUNG BARAT', 'Tower 500 KV | SU', 85.0],
+        ]);
+
+        // Periode terbaru Oktober 2026 dengan kombinasi nilai > 0, nilai eksplisit 0.0, dan UPT kosong (null)
+        $this->seedAsetRowsFor($manset, '2026-10-31', [
+            ['BANDUNG', 'BANDUNG BARAT', 'Tower 500 KV | SU', 120.0],
+            ['BANDUNG', 'BANDUNG SELATAN', 'Transmisi 150 KV | SU | kms', 300.0],
+            ['BANDUNG', 'BANDUNG SELATAN', 'Transmisi 150 KV | SK | kms', 100.0],
+            ['BANDUNG', 'BANDUNG BARAT', 'Trafo 500/150 KV | MVA', 1000.0],
+            ['BANDUNG', 'BANDUNG BARAT', 'Trafo 500/150 KV | Bank', 6.0],
+            ['BANDUNG', 'BANDUNG BARAT', 'Trafo 500/150 KV | Unit/Set', 2.0],
+            ['BEKASI', 'BEKASI', 'Tower 150 KV | SU', 0.0],
+        ]);
+
+        // Dataset divisi asing pada periode lebih baru tidak boleh bocor ke staf aset
+        $this->seedAsetRowsFor($foreignDiv, '2026-12-31', [
+            ['BOGOR', 'BOGOR', 'Tower 500 KV | SU', 9999.0],
+        ]);
+
+        $response = $this->actingAs($stafAset)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('id="aset-widget-period-select"', false)
+            ->assertSee('data-auto-submit', false)
+            ->assertSee('id="aset-widget-capacity-ratios"', false)
+            ->assertSee('id="aset-widget-ultg-drilldown"', false)
+            ->assertSee('Oktober 2026')
+            ->assertSee('Agustus 2026')
+            ->assertSee('BANDUNG BARAT')
+            ->assertSee('BANDUNG SELATAN')
+            ->assertSee('500,0')
+            ->assertSee('166,7')
+            ->assertSee('75,0%')
+            ->assertSee('25,0%')
+            ->assertSee('Tidak tercatat')
+            ->assertDontSee('2026-12-31')
+            ->assertDontSee('font-mono', false);
+
+        $widgets = collect($response->viewData('widgets') ?? []);
+        $widget = $widgets->firstWhere('key', 'aset-upt-chart');
+        $this->assertNotNull($widget);
+
+        $data = $widget['data'];
+        $this->assertSame('2026-10-31', $data['period']);
+        $this->assertSame(['2026-10-31', '2026-08-31'], $data['available_periods']);
+
+        $tableByUpt = collect($data['table_rows'])->keyBy('upt');
+        $this->assertSame(120.0, $tableByUpt['BANDUNG']['tower']);
+        $this->assertSame(400.0, $tableByUpt['BANDUNG']['transmisi']);
+        $this->assertSame(1000.0, $tableByUpt['BANDUNG']['trafo']);
+        // BEKASI memiliki baris Tower eksplisit 0.0, sedangkan Transmisi & Trafo tidak tercatat (null)
+        $this->assertSame(0.0, $tableByUpt['BEKASI']['tower']);
+        $this->assertNull($tableByUpt['BEKASI']['transmisi']);
+        $this->assertNull($tableByUpt['BEKASI']['trafo']);
+        // BOGOR sama sekali tidak tercatat pada divisi managemen-aset
+        $this->assertNull($tableByUpt['BOGOR']['tower']);
+
+        $this->assertCount(2, $data['ultg_by_upt']['BANDUNG']);
+        $this->assertSame(500.0, $data['capacity_ratios']['trafo']['overall']['avg_mva_per_unit']);
+        $this->assertSame(75.0, $data['capacity_ratios']['transmisi']['overall']['su_pct']);
+        $this->assertSame(25.0, $data['capacity_ratios']['transmisi']['overall']['sk_pct']);
+
+        // Filter periode historis valid (?period=2026-08-31)
+        $historicalResponse = $this->actingAs($stafAset)
+            ->get(route('dashboard', ['period' => '2026-08-31']))
+            ->assertOk();
+        $historicalWidget = collect($historicalResponse->viewData('widgets') ?? [])->firstWhere('key', 'aset-upt-chart');
+        $this->assertSame('2026-08-31', $historicalWidget['data']['period']);
+        $historicalTable = collect($historicalWidget['data']['table_rows'])->keyBy('upt');
+        $this->assertSame(85.0, $historicalTable['BANDUNG']['tower']);
+
+        // Filter periode asing/invalid fallback ke periode terbaru milik divisi (2026-10-31)
+        $fallbackResponse = $this->actingAs($stafAset)
+            ->get(route('dashboard', ['period' => '2026-12-31']))
+            ->assertOk();
+        $fallbackWidget = collect($fallbackResponse->viewData('widgets') ?? [])->firstWhere('key', 'aset-upt-chart');
+        $this->assertSame('2026-10-31', $fallbackWidget['data']['period']);
+    }
 }

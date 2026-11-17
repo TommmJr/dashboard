@@ -375,6 +375,19 @@ class ExecutiveDashboardServiceTest extends TestCase
             $this->assertCount(1, $chart['series_by_category']['tower']);
             $this->assertCount(1, $chart['series_by_category']['transmisi']);
             $this->assertCount(1, $chart['series_by_category']['trafo']);
+            $this->assertSame([$period], $chart['available_periods']);
+            $this->assertArrayHasKey('ultg_by_upt', $chart);
+            $this->assertArrayHasKey('capacity_ratios', $chart);
+            $this->assertCount(1, $chart['ultg_by_upt']['BANDUNG']);
+            $this->assertSame([], $chart['ultg_by_upt']['BANDUNG'][0]['attributes'] ? array_keys(array_filter(
+                $chart['ultg_by_upt']['BANDUNG'][0]['attributes'],
+                fn (string $k): bool => str_starts_with($k, 'DIAMETER'),
+                ARRAY_FILTER_USE_KEY,
+            )) : []);
+
+            $rowsByUpt = collect($chart['table_rows'])->keyBy('upt');
+            $this->assertSame(120.0, $rowsByUpt['BANDUNG']['tower']);
+            $this->assertNull($rowsByUpt['BEKASI']['tower']);
         }
     }
 

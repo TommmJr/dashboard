@@ -214,22 +214,25 @@ class ExecutiveDashboardService
     }
 
     /**
-     * Data grafik stok aset per UPT untuk periode terbaru.
+     * Data grafik stok aset per UPT untuk periode terpilih atau terbaru.
      *
      * @return array{
      *     period: ?string,
      *     period_uit: ?string,
      *     period_upt: ?string,
+     *     available_periods: list<string>,
      *     freshness: array{has_dataset: bool, last_updated_label: string, last_updated_iso: ?string, latest_period: ?string, latest_period_label: string, is_stale: bool, stale_message: ?string},
      *     labels: list<string>,
      *     series: list<array{name: string, data: list<float>}>,
      *     summary: array{total_tower: float, total_transmisi: float, total_trafo: float, source?: string},
      *     summary_upt: array{total_tower: float, total_transmisi: float, total_trafo: float},
-     *     table_rows: list<array{upt: string, tower: float, transmisi: float, trafo: float}>,
-     *     series_by_category: array{tower: list<array{name: string, data: list<float>}>, transmisi: list<array{name: string, data: list<float>}>, trafo: list<array{name: string, data: list<float>}>}
+     *     table_rows: list<array{upt: string, tower: ?float, transmisi: ?float, trafo: ?float}>,
+     *     series_by_category: array{tower: list<array{name: string, data: list<float>}>, transmisi: list<array{name: string, data: list<float>}>, trafo: list<array{name: string, data: list<float>}>},
+     *     ultg_by_upt: array<string, list<array<string, mixed>>>,
+     *     capacity_ratios: array<string, mixed>
      * }
      */
-    public function asetUptChart(?User $user): array
+    public function asetUptChart(?User $user, ?string $period = null): array
     {
         $emptyFreshness = DatasetFreshness::empty('Belum ada data aktif', 'Belum ada dataset aset aktif');
 
@@ -250,7 +253,9 @@ class ExecutiveDashboardService
         $divisionId = $isPrivileged ? null : $user?->division_id;
 
         $assetStockReport = app(AssetStockReport::class);
-        $report = $assetStockReport->totalsByUpt(divisionId: $divisionId);
+        $availablePeriods = $assetStockReport->availablePeriods($divisionId);
+        $resolvedPeriod = $assetStockReport->resolveRequestedPeriod($period, $divisionId);
+        $report = $assetStockReport->totalsByUpt($resolvedPeriod, $divisionId);
         $freshness = DatasetFreshness::forAsset($divisionId, $report['period']);
 
         $upts = $report['totals']->pluck('upt')->unique()->values();
@@ -261,7 +266,7 @@ class ExecutiveDashboardService
         )->values();
 
         if ($upts->isEmpty() || $attributes->isEmpty()) {
-            return $this->emptyAsetUptChartPayload($report['period'], $freshness);
+            return $this->emptyAsetUptChartPayload($report['period'], $freshness, $availablePeriods);
         }
 
         $byKey = $report['totals']->keyBy(fn (object $total): string => $total->upt."\0".$total->attribute);
@@ -278,39 +283,38 @@ class ExecutiveDashboardService
         ];
 
         $canonicalUpts = AssetStockReport::CANONICAL_UPTS;
+        $totalsByUptName = $report['totals']->groupBy('upt');
         $tableRows = [];
         $totalTowerUpt = 0.0;
         $totalTransmisiUpt = 0.0;
         $totalTrafoUpt = 0.0;
 
         foreach ($canonicalUpts as $upt) {
-            $uptTower = 0.0;
-            $uptTransmisi = 0.0;
-            $uptTrafo = 0.0;
+            $uptTower = null;
+            $uptTransmisi = null;
+            $uptTrafo = null;
 
-            $index = $upts->search($upt);
-            if ($index !== false) {
-                foreach ($series as $s) {
-                    $val = (float) ($s['data'][$index] ?? 0);
-                    if (Str::startsWith($s['name'], 'Tower ')) {
-                        $uptTower += $val;
-                    } elseif (Str::startsWith($s['name'], 'Transmisi ')) {
-                        $uptTransmisi += $val;
-                    } elseif (Str::startsWith($s['name'], 'Trafo ') && Str::contains($s['name'], 'MVA')) {
-                        $uptTrafo += $val;
-                    }
+            foreach ($totalsByUptName->get($upt, collect()) as $metricRow) {
+                $attrName = (string) $metricRow->attribute;
+                $val = (float) $metricRow->total;
+                if (Str::startsWith($attrName, 'Tower ')) {
+                    $uptTower = ($uptTower ?? 0.0) + $val;
+                } elseif (Str::startsWith($attrName, 'Transmisi ')) {
+                    $uptTransmisi = ($uptTransmisi ?? 0.0) + $val;
+                } elseif (Str::startsWith($attrName, 'Trafo ') && Str::contains($attrName, 'MVA')) {
+                    $uptTrafo = ($uptTrafo ?? 0.0) + $val;
                 }
             }
 
-            $totalTowerUpt += $uptTower;
-            $totalTransmisiUpt += $uptTransmisi;
-            $totalTrafoUpt += $uptTrafo;
+            $totalTowerUpt += $uptTower ?? 0.0;
+            $totalTransmisiUpt += $uptTransmisi ?? 0.0;
+            $totalTrafoUpt += $uptTrafo ?? 0.0;
 
             $tableRows[] = [
                 'upt' => $upt,
-                'tower' => $uptTower,
-                'transmisi' => round($uptTransmisi, 1),
-                'trafo' => round($uptTrafo, 1),
+                'tower' => $uptTower !== null ? round($uptTower, 0) : null,
+                'transmisi' => $uptTransmisi !== null ? round($uptTransmisi, 1) : null,
+                'trafo' => $uptTrafo !== null ? round($uptTrafo, 1) : null,
             ];
         }
 
@@ -338,10 +342,28 @@ class ExecutiveDashboardService
             'source' => $hasUitData ? 'uit' : 'upt',
         ];
 
+        $ultgReport = $assetStockReport->totalsByUltg($report['period'], $divisionId);
+        $ultgByUptFocused = [];
+        foreach ($ultgReport['by_upt'] as $uptKey => $ultgRows) {
+            $ultgByUptFocused[$uptKey] = array_map(function (array $uRow): array {
+                $focusedAttrs = [];
+                foreach ($uRow['attributes'] as $attrKey => $attrVal) {
+                    if (Str::startsWith((string) $attrKey, self::ASET_ATTRIBUTE_PREFIXES)) {
+                        $focusedAttrs[$attrKey] = $attrVal;
+                    }
+                }
+                $uRow['attributes'] = $focusedAttrs;
+
+                return $uRow;
+            }, $ultgRows);
+        }
+        $capacityRatios = $assetStockReport->capacityRatios($report['period'], $divisionId);
+
         return [
             'period' => $report['period'],
             'period_uit' => $uitReport['period'] ?? $report['period'],
             'period_upt' => $report['period'],
+            'available_periods' => $availablePeriods,
             'freshness' => $freshness,
             'labels' => $upts->all(),
             'series' => $series,
@@ -353,6 +375,8 @@ class ExecutiveDashboardService
             ],
             'table_rows' => $tableRows,
             'series_by_category' => $seriesByCategory,
+            'ultg_by_upt' => $ultgByUptFocused,
+            'capacity_ratios' => $capacityRatios,
         ];
     }
 
@@ -586,20 +610,24 @@ class ExecutiveDashboardService
 
     /**
      * @param  array{has_dataset: bool, last_updated_label: string, last_updated_iso: ?string, latest_period: ?string, latest_period_label: string, is_stale: bool, stale_message: ?string}  $freshness
+     * @param  list<string>  $availablePeriods
      * @return array{
      *     period: ?string,
      *     period_uit: ?string,
      *     period_upt: ?string,
+     *     available_periods: list<string>,
      *     freshness: array{has_dataset: bool, last_updated_label: string, last_updated_iso: ?string, latest_period: ?string, latest_period_label: string, is_stale: bool, stale_message: ?string},
      *     labels: list<string>,
      *     series: list<array{name: string, data: list<float>}>,
      *     summary: array{total_tower: float, total_transmisi: float, total_trafo: float},
      *     summary_upt: array{total_tower: float, total_transmisi: float, total_trafo: float},
-     *     table_rows: list<array{upt: string, tower: float, transmisi: float, trafo: float}>,
-     *     series_by_category: array{tower: list<array{name: string, data: list<float>}>, transmisi: list<array{name: string, data: list<float>}>, trafo: list<array{name: string, data: list<float>}>}
+     *     table_rows: list<array{upt: string, tower: ?float, transmisi: ?float, trafo: ?float}>,
+     *     series_by_category: array{tower: list<array{name: string, data: list<float>}>, transmisi: list<array{name: string, data: list<float>}>, trafo: list<array{name: string, data: list<float>}>},
+     *     ultg_by_upt: array<string, list<array<string, mixed>>>,
+     *     capacity_ratios: array<string, mixed>
      * }
      */
-    private function emptyAsetUptChartPayload(?string $period, array $freshness): array
+    private function emptyAsetUptChartPayload(?string $period, array $freshness, array $availablePeriods = []): array
     {
         $emptySummary = [
             'total_tower' => 0.0,
@@ -611,6 +639,7 @@ class ExecutiveDashboardService
             'period' => $period,
             'period_uit' => null,
             'period_upt' => $period,
+            'available_periods' => $availablePeriods,
             'freshness' => $freshness,
             'labels' => [],
             'series' => [],
@@ -621,6 +650,31 @@ class ExecutiveDashboardService
                 'tower' => [],
                 'transmisi' => [],
                 'trafo' => [],
+            ],
+            'ultg_by_upt' => array_fill_keys(AssetStockReport::CANONICAL_UPTS, []),
+            'capacity_ratios' => [
+                'trafo' => [
+                    'overall' => [
+                        'mva' => null,
+                        'unit' => null,
+                        'bank' => null,
+                        'avg_mva_per_unit' => null,
+                        'avg_mva_per_bank' => null,
+                    ],
+                    'by_voltage' => [],
+                    'by_upt' => [],
+                ],
+                'transmisi' => [
+                    'overall' => [
+                        'su_kms' => null,
+                        'sk_kms' => null,
+                        'total_kms' => null,
+                        'su_pct' => null,
+                        'sk_pct' => null,
+                    ],
+                    'by_voltage' => [],
+                    'by_upt' => [],
+                ],
             ],
         ];
     }

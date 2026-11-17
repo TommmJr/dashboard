@@ -509,4 +509,115 @@ class AssetDetailPageTest extends TestCase
             Carbon::setTestNow();
         }
     }
+
+    public function test_halaman_detail_aset_mendukung_filter_periode_historis_drilldown_ultg_rasio_kapasitas_dan_semantik_null_vs_nol(): void
+    {
+        $division = Division::factory()->create(['name' => 'Managemen Aset', 'slug' => 'managemen-aset']);
+        $foreignDivision = Division::factory()->create(['name' => 'Operasi Sistem', 'slug' => 'operasi-sistem']);
+        $user = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $division->id]);
+
+        $dsAug = Dataset::factory()->create([
+            'division_id' => $division->id,
+            'status' => Dataset::STATUS_READY,
+            'created_at' => Carbon::create(2026, 9, 1, 10, 0, 0, 'Asia/Jakarta'),
+        ]);
+        PerformanceMetric::factory()->create([
+            'metric_name' => 'ASET | BANDUNG | BANDUNG BARAT | Trafo 500/150 KV | MVA',
+            'dataset_id' => $dsAug->id,
+            'division_id' => $division->id,
+            'period' => '2026-08-31',
+            'value' => 1500.0,
+        ]);
+        PerformanceMetric::factory()->create([
+            'metric_name' => 'ASET | BANDUNG | BANDUNG BARAT | Trafo 500/150 KV | Unit/Set',
+            'dataset_id' => $dsAug->id,
+            'division_id' => $division->id,
+            'period' => '2026-08-31',
+            'value' => 3.0,
+        ]);
+
+        $dsOct = Dataset::factory()->create([
+            'division_id' => $division->id,
+            'status' => Dataset::STATUS_READY,
+            'created_at' => Carbon::create(2026, 11, 1, 10, 0, 0, 'Asia/Jakarta'),
+        ]);
+        foreach ([
+            ['BANDUNG', 'BANDUNG BARAT', 'Trafo 500/150 KV | MVA', 1000.0],
+            ['BANDUNG', 'BANDUNG BARAT', 'Trafo 500/150 KV | Bank', 6.0],
+            ['BANDUNG', 'BANDUNG BARAT', 'Trafo 500/150 KV | Unit/Set', 2.0],
+            ['BANDUNG', 'BANDUNG SELATAN', 'Transmisi 150 KV | SU | kms', 300.0],
+            ['BANDUNG', 'BANDUNG SELATAN', 'Transmisi 150 KV | SK | kms', 100.0],
+            ['BANDUNG', 'BANDUNG SELATAN', 'Tower 500 KV | SU', 450.0],
+            // BEKASI: MVA ada, tetapi Unit = 0.0 (uji proteksi pembagian dengan nol -> null / Tidak tercatat)
+            ['BEKASI', 'BEKASI', 'Trafo 500/150 KV | MVA', 500.0],
+            ['BEKASI', 'BEKASI', 'Trafo 500/150 KV | Unit/Set', 0.0],
+            ['BEKASI', 'CIKARANG', 'Tower 500 KV | SU', 0.0],
+        ] as [$upt, $ultg, $attr, $val]) {
+            PerformanceMetric::factory()->create([
+                'metric_name' => "ASET | {$upt} | {$ultg} | {$attr}",
+                'dataset_id' => $dsOct->id,
+                'division_id' => $division->id,
+                'period' => '2026-10-31',
+                'value' => $val,
+            ]);
+        }
+
+        // Dataset divisi lain pada periode lebih baru tidak boleh bisa dipilih staf aset
+        $dsForeign = Dataset::factory()->create([
+            'division_id' => $foreignDivision->id,
+            'status' => Dataset::STATUS_READY,
+        ]);
+        PerformanceMetric::factory()->create([
+            'metric_name' => 'ASET | BOGOR | BOGOR | Tower 500 KV | SU',
+            'dataset_id' => $dsForeign->id,
+            'division_id' => $foreignDivision->id,
+            'period' => '2026-12-31',
+            'value' => 8888.0,
+        ]);
+
+        $response = $this->actingAs($user)
+            ->get(route('dashboard.asset-detail'))
+            ->assertOk()
+            ->assertSee('id="asset-detail-period-select"', false)
+            ->assertSee('data-auto-submit', false)
+            ->assertSee('id="asset-capacity-ratios-panel"', false)
+            ->assertSee('id="asset-ultg-drilldown-panel"', false)
+            ->assertSee('Rasio Kapasitas Peralatan')
+            ->assertSee('Drill-Down Level ULTG per UPT')
+            ->assertSee('Oktober 2026')
+            ->assertSee('Agustus 2026')
+            ->assertSee('BANDUNG BARAT')
+            ->assertSee('BANDUNG SELATAN')
+            ->assertSee('CIKARANG')
+            ->assertSee('500,0')
+            ->assertSee('75,0% / 25,0%')
+            ->assertSee('Tidak tercatat')
+            ->assertDontSee('2026-12-31')
+            ->assertDontSee('font-mono', false);
+
+        $viewData = $response->viewData('data');
+        $this->assertSame('2026-10-31', $viewData['period']);
+        $this->assertSame(['2026-10-31', '2026-08-31'], $viewData['available_periods']);
+        $this->assertNull($viewData['capacity_ratios']['trafo']['by_upt']['BEKASI']['avg_mva_per_unit']);
+        $this->assertSame(0.0, $viewData['capacity_ratios']['trafo']['by_upt']['BEKASI']['unit']);
+        $this->assertNull($viewData['capacity_ratios']['trafo']['by_upt']['BOGOR']['mva']);
+
+        $html = $response->getContent();
+        $this->assertStringNotContainsString('|| 0', $html);
+        $this->assertDoesNotMatchRegularExpression('/>\s*(?:-|–|—)+\s*</', $html);
+
+        // Pilih periode historis eksplisit (?period=2026-08-31) dan cek propagasi pada tautan tab seksi
+        $histResponse = $this->actingAs($user)
+            ->get(route('dashboard.asset-detail', ['section' => 'mva', 'period' => '2026-08-31']))
+            ->assertOk()
+            ->assertSee('period=2026-08-31', false)
+            ->assertSee('1.500,0');
+        $this->assertSame('2026-08-31', $histResponse->viewData('data')['period']);
+
+        // Periode asing/invalid fallback ke periode terbaru milik divisi (2026-10-31)
+        $fallbackResponse = $this->actingAs($user)
+            ->get(route('dashboard.asset-detail', ['section' => 'trafo', 'period' => '2026-12-31']))
+            ->assertOk();
+        $this->assertSame('2026-10-31', $fallbackResponse->viewData('data')['period']);
+    }
 }

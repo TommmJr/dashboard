@@ -14,11 +14,11 @@
     ]);
     $canonicalUpts = $data['canonical_upts'] ?? [];
     $summary = $data['summary_totals'] ?? [];
-    $totalTower = (float) ($summary['total_tower'] ?? 0);
-    $totalTransmisi = (float) ($summary['total_transmisi'] ?? 0);
-    $totalTrafoMva = (float) ($summary['total_trafo_mva'] ?? 0);
-    $totalTrafoBank = (float) ($summary['total_trafo_bank'] ?? 0);
-    $totalTrafoUnit = (float) ($summary['total_trafo_unit'] ?? 0);
+    $totalTower = array_key_exists('total_tower', $summary) && $summary['total_tower'] !== null ? (float) $summary['total_tower'] : null;
+    $totalTransmisi = array_key_exists('total_transmisi', $summary) && $summary['total_transmisi'] !== null ? (float) $summary['total_transmisi'] : null;
+    $totalTrafoMva = array_key_exists('total_trafo_mva', $summary) && $summary['total_trafo_mva'] !== null ? (float) $summary['total_trafo_mva'] : null;
+    $totalTrafoBank = array_key_exists('total_trafo_bank', $summary) && $summary['total_trafo_bank'] !== null ? (float) $summary['total_trafo_bank'] : null;
+    $totalTrafoUnit = array_key_exists('total_trafo_unit', $summary) && $summary['total_trafo_unit'] !== null ? (float) $summary['total_trafo_unit'] : null;
     $trafoGroups = $data['trafo_groups'] ?? [];
     $transmisiGroups = $data['transmisi_groups'] ?? [];
     $towerGroups = $data['tower_groups'] ?? [];
@@ -27,70 +27,118 @@
     $interactiveMatrix = $data['interactive_matrix'] ?? [];
     $freshness = is_array($data['freshness'] ?? null) ? $data['freshness'] : null;
 
-    $formattedPeriod = 'Tidak tercatat';
-    if (!empty($data['period'])) {
+    $selectedPeriod = !empty($data['period']) ? (string) $data['period'] : null;
+    $availablePeriods = array_values(array_filter(
+        is_array($data['available_periods'] ?? null)
+            ? $data['available_periods']
+            : ($selectedPeriod !== null ? [$selectedPeriod] : []),
+        fn ($p) => is_string($p) && $p !== ''
+    ));
+
+    $ultgByUpt = is_array($data['ultg_by_upt'] ?? null) ? $data['ultg_by_upt'] : [];
+    $capacityRatios = is_array($data['capacity_ratios'] ?? null) ? $data['capacity_ratios'] : [];
+    $trafoRatios = is_array($capacityRatios['trafo'] ?? null) ? $capacityRatios['trafo'] : [];
+    $transmisiRatios = is_array($capacityRatios['transmisi'] ?? null) ? $capacityRatios['transmisi'] : [];
+    $trafoOverall = is_array($trafoRatios['overall'] ?? null) ? $trafoRatios['overall'] : [];
+    $transmisiOverall = is_array($transmisiRatios['overall'] ?? null) ? $transmisiRatios['overall'] : [];
+    $trafoRatioByVoltage = is_array($trafoRatios['by_voltage'] ?? null) ? $trafoRatios['by_voltage'] : [];
+    $transmisiRatioByVoltage = is_array($transmisiRatios['by_voltage'] ?? null) ? $transmisiRatios['by_voltage'] : [];
+    $trafoRatioByUpt = is_array($trafoRatios['by_upt'] ?? null) ? $trafoRatios['by_upt'] : [];
+    $transmisiRatioByUpt = is_array($transmisiRatios['by_upt'] ?? null) ? $transmisiRatios['by_upt'] : [];
+
+    $formatPeriodLabel = function (?string $rawDate): string {
+        if (! $rawDate) {
+            return 'Tidak tercatat';
+        }
         try {
             $months = [
                 1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April', 5 => 'Mei', 6 => 'Juni',
                 7 => 'Juli', 8 => 'Agustus', 9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember',
             ];
-            $dt = \Carbon\Carbon::parse($data['period']);
-            $formattedPeriod = ($months[$dt->month] ?? $dt->format('M')).' '.$dt->year;
+            $dt = \Carbon\Carbon::parse($rawDate);
+            return ($months[$dt->month] ?? $dt->format('M')).' '.$dt->year;
         } catch (\Throwable $e) {
-            $formattedPeriod = 'Tidak tercatat';
+            return 'Tidak tercatat';
         }
-    }
+    };
 
-    // Helper kalkulasi daya MVA per UPT
+    $formattedPeriod = $formatPeriodLabel($selectedPeriod);
+
+    $formatNullable = function (mixed $val, int $decimals = 1): string {
+        if ($val === null || $val === '' || ! is_numeric($val)) {
+            return 'Tidak tercatat';
+        }
+        return number_format((float) $val, $decimals, ',', '.');
+    };
+
+    $sumNullable = function (iterable $values, int $precision = 1): ?float {
+        $hasValue = false;
+        $sum = 0.0;
+        foreach ($values as $v) {
+            if ($v !== null && $v !== '' && is_numeric($v)) {
+                $hasValue = true;
+                $sum += (float) $v;
+            }
+        }
+        return $hasValue ? round($sum, $precision) : null;
+    };
+
+    $sectionRouteParams = fn (string $sec): array => $selectedPeriod !== null
+        ? ['section' => $sec, 'period' => $selectedPeriod]
+        : ['section' => $sec];
+
+    // Helper kalkulasi daya MVA per UPT (null-preserving)
     $mvaByUpt = [];
     foreach ($canonicalUpts as $upt) {
-        $uptMva = 0.0;
+        $vals = [];
         foreach ($trafoGroups as $tg) {
-            $uptMva += (float) ($tg['by_upt'][$upt]['mva'] ?? 0);
+            $vals[] = $tg['by_upt'][$upt]['mva'] ?? null;
         }
-        $mvaByUpt[$upt] = round($uptMva, 1);
+        $mvaByUpt[$upt] = $sumNullable($vals, 1);
     }
     $rankedMva = $mvaByUpt;
-    arsort($rankedMva);
+    uasort($rankedMva, fn ($a, $b) => ($b ?? -INF) <=> ($a ?? -INF));
 
-    // Helper kalkulasi fisik trafo
+    // Helper kalkulasi fisik trafo (null-preserving)
     $bankByUpt = [];
     $unitByUpt = [];
     foreach ($canonicalUpts as $upt) {
-        $b = 0.0;
-        $u = 0.0;
+        $bankVals = [];
+        $unitVals = [];
         foreach ($trafoGroups as $tg) {
-            $b += (float) ($tg['by_upt'][$upt]['bank'] ?? 0);
-            $u += (float) ($tg['by_upt'][$upt]['unit'] ?? 0);
+            $bankVals[] = $tg['by_upt'][$upt]['bank'] ?? null;
+            $unitVals[] = $tg['by_upt'][$upt]['unit'] ?? null;
         }
-        $bankByUpt[$upt] = round($b, 0);
-        $unitByUpt[$upt] = round($u, 0);
+        $bankByUpt[$upt] = $sumNullable($bankVals, 0);
+        $unitByUpt[$upt] = $sumNullable($unitVals, 0);
     }
 
-    // Helper kalkulasi transmisi
+    // Helper kalkulasi transmisi (null-preserving)
     $transmisiByUpt = [];
     foreach ($canonicalUpts as $upt) {
-        $su = 0.0;
-        $sk = 0.0;
+        $suVals = [];
+        $skVals = [];
         foreach ($transmisiGroups as $tr) {
-            $su += (float) ($tr['by_upt'][$upt]['su_kms'] ?? 0);
-            $sk += (float) ($tr['by_upt'][$upt]['sk_kms'] ?? 0);
+            $suVals[] = $tr['by_upt'][$upt]['su_kms'] ?? null;
+            $skVals[] = $tr['by_upt'][$upt]['sk_kms'] ?? null;
         }
+        $su = $sumNullable($suVals, 1);
+        $sk = $sumNullable($skVals, 1);
         $transmisiByUpt[$upt] = [
-            'su_kms' => round($su, 1),
-            'sk_kms' => round($sk, 1),
-            'total_kms' => round($su + $sk, 1),
+            'su_kms' => $su,
+            'sk_kms' => $sk,
+            'total_kms' => ($su === null && $sk === null) ? null : round(($su ?? 0.0) + ($sk ?? 0.0), 1),
         ];
     }
 
-    // Helper kalkulasi tower
+    // Helper kalkulasi tower (null-preserving)
     $towerByUpt = [];
     foreach ($canonicalUpts as $upt) {
-        $tot = 0.0;
+        $totVals = [];
         foreach ($towerGroups as $tw) {
-            $tot += (float) ($tw['by_upt'][$upt]['total_unit'] ?? 0);
+            $totVals[] = $tw['by_upt'][$upt]['total_unit'] ?? null;
         }
-        $towerByUpt[$upt] = round($tot, 0);
+        $towerByUpt[$upt] = $sumNullable($totVals, 0);
     }
 @endphp
 
@@ -106,7 +154,7 @@
                 <span class="inline-flex items-center rounded-full bg-[#e6f4f6] px-2.5 py-0.5 text-xs font-semibold text-[#0b6175]">
                     UIT JBT
                 </span>
-                @if (!empty($data['period']))
+                @if ($selectedPeriod !== null)
                     <span class="inline-flex items-center rounded-full bg-white border border-slate-200/80 px-2.5 py-0.5 text-xs font-medium text-slate-600">
                         {{ $formattedPeriod }}
                     </span>
@@ -118,8 +166,26 @@
             <x-data-freshness-badge id="asset-detail-freshness-indicator" :freshness="$freshness" />
         </div>
 
-        <div class="flex items-center gap-2">
-            <a href="{{ route('dashboard') }}" class="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition shadow-2xs">
+        <div class="flex flex-wrap items-center gap-2">
+            @if (!empty($availablePeriods))
+                <form method="GET" action="{{ route('dashboard.asset-detail', ['section' => $section]) }}" class="flex items-center">
+                    <label for="asset-detail-period-select" class="sr-only">Pilih periode historis aset</label>
+                    <select
+                        id="asset-detail-period-select"
+                        name="period"
+                        data-auto-submit
+                        aria-label="Pilih periode historis aset"
+                        class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-2xs focus:border-[#0b6175] focus:outline-hidden"
+                    >
+                        @foreach ($availablePeriods as $pOption)
+                            <option value="{{ $pOption }}" @selected($pOption === $selectedPeriod)>
+                                {{ $formatPeriodLabel($pOption) }}
+                            </option>
+                        @endforeach
+                    </select>
+                </form>
+            @endif
+            <a href="{{ $selectedPeriod !== null ? route('dashboard', ['period' => $selectedPeriod]) : route('dashboard') }}" class="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition shadow-2xs">
                 <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
                     <path d="M19 12H5M12 19l-7-7 7-7" stroke-linecap="round" stroke-linejoin="round" />
                 </svg>
@@ -137,14 +203,14 @@
         Distribusi Wilayah Aset UIT JBT pada 8 UPT (Tab 1b)
         {{ $ownership['parent_source'] }}
         {{ $ownership['distribution_scope'] }}
-        @if (!empty($data['period'])) Periode {{ $data['period'] }} @endif
+        @if ($selectedPeriod !== null) Periode {{ $selectedPeriod }} @endif
     </span>
 
     {{-- Toolbar Tunggal: 4 Navigasi Seksi --}}
     <div class="ibs-card min-w-0 max-w-full p-3.5">
         <div class="flex flex-wrap items-center justify-between gap-3">
             <div class="flex flex-wrap items-center gap-1.5">
-                <a href="{{ route('dashboard.asset-detail', ['section' => 'trafo']) }}"
+                <a href="{{ route('dashboard.asset-detail', $sectionRouteParams('trafo')) }}"
                    class="pill-tab-transition inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold {{ $section === 'trafo' ? 'bg-[#0b6175] text-white shadow-2xs' : 'bg-slate-100/80 text-slate-700 hover:bg-slate-200/70' }}">
                     <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
                         <rect x="3" y="6" width="18" height="12" rx="2" />
@@ -152,21 +218,21 @@
                     </svg>
                     Bedah Trafo & Tegangan
                 </a>
-                <a href="{{ route('dashboard.asset-detail', ['section' => 'mva']) }}"
+                <a href="{{ route('dashboard.asset-detail', $sectionRouteParams('mva')) }}"
                    class="pill-tab-transition inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold {{ $section === 'mva' ? 'bg-[#0b6175] text-white shadow-2xs' : 'bg-slate-100/80 text-slate-700 hover:bg-slate-200/70' }}">
                     <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
                         <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" stroke-linecap="round" stroke-linejoin="round" />
                     </svg>
                     Distribusi Daya (MVA)
                 </a>
-                <a href="{{ route('dashboard.asset-detail', ['section' => 'transmisi']) }}"
+                <a href="{{ route('dashboard.asset-detail', $sectionRouteParams('transmisi')) }}"
                    class="pill-tab-transition inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold {{ $section === 'transmisi' ? 'bg-[#0b6175] text-white shadow-2xs' : 'bg-slate-100/80 text-slate-700 hover:bg-slate-200/70' }}">
                     <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
                         <path d="M22 12h-4l-3 9L9 3l-3 9H2" stroke-linecap="round" stroke-linejoin="round" />
                     </svg>
                     Jaringan Transmisi (kms)
                 </a>
-                <a href="{{ route('dashboard.asset-detail', ['section' => 'tower']) }}"
+                <a href="{{ route('dashboard.asset-detail', $sectionRouteParams('tower')) }}"
                    class="pill-tab-transition inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold {{ $section === 'tower' ? 'bg-[#0b6175] text-white shadow-2xs' : 'bg-slate-100/80 text-slate-700 hover:bg-slate-200/70' }}">
                     <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
                         <path d="M12 2v20M6 8h12M4 14h16M8 22l4-20 4 20" stroke-linecap="round" stroke-linejoin="round" />
@@ -187,10 +253,14 @@
                     <span class="rounded-md bg-[#e6f4f6] px-2 py-0.5 text-[11px] font-semibold text-[#0b6175]">MVA</span>
                 </div>
                 <div class="mt-2.5 flex items-baseline gap-1.5">
-                    <span class="ibs-metric-value text-2xl sm:text-3xl" x-data="numberTicker('{{ number_format($totalTrafoMva, 1, ',', '.') }}')" x-text="display">
-                        {{ number_format($totalTrafoMva, 1, ',', '.') }}
-                    </span>
-                    <span class="text-xs font-medium text-slate-500">MVA</span>
+                    @if ($totalTrafoMva === null)
+                        <span class="text-sm font-medium text-slate-400">Tidak tercatat</span>
+                    @else
+                        <span class="ibs-metric-value text-2xl sm:text-3xl" x-data="numberTicker('{{ number_format($totalTrafoMva, 1, ',', '.') }}')" x-text="display">
+                            {{ number_format($totalTrafoMva, 1, ',', '.') }}
+                        </span>
+                        <span class="text-xs font-medium text-slate-500">MVA</span>
+                    @endif
                 </div>
             </div>
 
@@ -200,16 +270,28 @@
                     <span class="ibs-metric-label">Fisik Trafo Terpasang</span>
                     <span class="rounded-md bg-[#e6f4f6] px-2 py-0.5 text-[11px] font-semibold text-[#0b6175]">Bank / Unit</span>
                 </div>
-                <div class="mt-2.5 flex items-baseline gap-1.5">
-                    <span class="ibs-metric-value text-2xl" x-data="numberTicker('{{ number_format($totalTrafoBank, 0, ',', '.') }}')" x-text="display">
-                        {{ number_format($totalTrafoBank, 0, ',', '.') }}
-                    </span>
-                    <span class="text-xs font-medium text-slate-500">Bank</span>
-                    <span class="text-slate-300">/</span>
-                    <span class="ibs-metric-value text-2xl" x-data="numberTicker('{{ number_format($totalTrafoUnit, 0, ',', '.') }}')" x-text="display">
-                        {{ number_format($totalTrafoUnit, 0, ',', '.') }}
-                    </span>
-                    <span class="text-xs font-medium text-slate-500">Unit</span>
+                <div class="mt-2.5 flex flex-wrap items-baseline gap-1.5">
+                    @if ($totalTrafoBank === null && $totalTrafoUnit === null)
+                        <span class="text-sm font-medium text-slate-400">Tidak tercatat</span>
+                    @else
+                        @if ($totalTrafoBank === null)
+                            <span class="text-xs font-medium text-slate-400">Tidak tercatat</span>
+                        @else
+                            <span class="ibs-metric-value text-2xl" x-data="numberTicker('{{ number_format($totalTrafoBank, 0, ',', '.') }}')" x-text="display">
+                                {{ number_format($totalTrafoBank, 0, ',', '.') }}
+                            </span>
+                            <span class="text-xs font-medium text-slate-500">Bank</span>
+                        @endif
+                        <span class="text-slate-300">/</span>
+                        @if ($totalTrafoUnit === null)
+                            <span class="text-xs font-medium text-slate-400">Tidak tercatat</span>
+                        @else
+                            <span class="ibs-metric-value text-2xl" x-data="numberTicker('{{ number_format($totalTrafoUnit, 0, ',', '.') }}')" x-text="display">
+                                {{ number_format($totalTrafoUnit, 0, ',', '.') }}
+                            </span>
+                            <span class="text-xs font-medium text-slate-500">Unit</span>
+                        @endif
+                    @endif
                 </div>
             </div>
 
@@ -220,10 +302,14 @@
                     <span class="rounded-md bg-[#e6f4f6] px-2 py-0.5 text-[11px] font-semibold text-[#0b6175]">kms</span>
                 </div>
                 <div class="mt-2.5 flex items-baseline gap-1.5">
-                    <span class="ibs-metric-value text-2xl sm:text-3xl" x-data="numberTicker('{{ number_format($totalTransmisi, 1, ',', '.') }}')" x-text="display">
-                        {{ number_format($totalTransmisi, 1, ',', '.') }}
-                    </span>
-                    <span class="text-xs font-medium text-slate-500">kms</span>
+                    @if ($totalTransmisi === null)
+                        <span class="text-sm font-medium text-slate-400">Tidak tercatat</span>
+                    @else
+                        <span class="ibs-metric-value text-2xl sm:text-3xl" x-data="numberTicker('{{ number_format($totalTransmisi, 1, ',', '.') }}')" x-text="display">
+                            {{ number_format($totalTransmisi, 1, ',', '.') }}
+                        </span>
+                        <span class="text-xs font-medium text-slate-500">kms</span>
+                    @endif
                 </div>
             </div>
 
@@ -234,11 +320,387 @@
                     <span class="rounded-md bg-[#e6f4f6] px-2 py-0.5 text-[11px] font-semibold text-[#0b6175]">Unit</span>
                 </div>
                 <div class="mt-2.5 flex items-baseline gap-1.5">
-                    <span class="ibs-metric-value text-2xl sm:text-3xl" x-data="numberTicker('{{ number_format($totalTower, 0, ',', '.') }}')" x-text="display">
-                        {{ number_format($totalTower, 0, ',', '.') }}
-                    </span>
-                    <span class="text-xs font-medium text-slate-500">Unit</span>
+                    @if ($totalTower === null)
+                        <span class="text-sm font-medium text-slate-400">Tidak tercatat</span>
+                    @else
+                        <span class="ibs-metric-value text-2xl sm:text-3xl" x-data="numberTicker('{{ number_format($totalTower, 0, ',', '.') }}')" x-text="display">
+                            {{ number_format($totalTower, 0, ',', '.') }}
+                        </span>
+                        <span class="text-xs font-medium text-slate-500">Unit</span>
+                    @endif
                 </div>
+            </div>
+        </div>
+    </div>
+
+    {{-- Panel Rasio Kapasitas Peralatan --}}
+    @php
+        $ovAvgUnit = $trafoOverall['avg_mva_per_unit'] ?? null;
+        $ovAvgBank = $trafoOverall['avg_mva_per_bank'] ?? null;
+        $ovTrafoMva = $trafoOverall['mva'] ?? null;
+        $ovTrafoUnit = $trafoOverall['unit'] ?? null;
+        $ovTrafoBank = $trafoOverall['bank'] ?? null;
+        $ovSuKms = $transmisiOverall['su_kms'] ?? null;
+        $ovSkKms = $transmisiOverall['sk_kms'] ?? null;
+        $ovTotKms = $transmisiOverall['total_kms'] ?? null;
+        $ovSuPct = $transmisiOverall['su_pct'] ?? null;
+        $ovSkPct = $transmisiOverall['sk_pct'] ?? null;
+        $ovSuWidth = $ovSuPct !== null ? max(0.0, min(100.0, (float) $ovSuPct)) : 0.0;
+        $ovSkWidth = $ovSkPct !== null ? max(0.0, min(100.0, (float) $ovSkPct)) : 0.0;
+    @endphp
+    <div id="asset-capacity-ratios-panel" class="ibs-card min-w-0 max-w-full p-4 sm:p-5" x-data="{ ratioTab: 'voltage' }">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-3.5">
+            <div class="flex flex-wrap items-center gap-2">
+                <h2 class="ibs-section-title text-base font-bold text-slate-900">Rasio Kapasitas Peralatan</h2>
+                <span class="rounded-full bg-[#e6f4f6] px-2.5 py-0.5 text-[11px] font-semibold text-[#0b6175]">UIT JBT</span>
+            </div>
+            <div class="inline-flex items-center rounded-xl bg-slate-100/90 p-1 text-xs self-start sm:self-auto">
+                <button
+                    type="button"
+                    @click="ratioTab = 'voltage'"
+                    :class="ratioTab === 'voltage' ? 'bg-white text-[#0b6175] font-semibold shadow-2xs' : 'text-slate-600 hover:text-slate-900 font-medium'"
+                    class="pill-tab-transition cursor-pointer rounded-lg px-3 py-1"
+                >
+                    Per Kelas Tegangan
+                </button>
+                <button
+                    type="button"
+                    @click="ratioTab = 'upt'"
+                    :class="ratioTab === 'upt' ? 'bg-white text-[#0b6175] font-semibold shadow-2xs' : 'text-slate-600 hover:text-slate-900 font-medium'"
+                    class="pill-tab-transition cursor-pointer rounded-lg px-3 py-1"
+                >
+                    Per UPT (8 UPT)
+                </button>
+            </div>
+        </div>
+
+        {{-- Ringkasan UIT JBT --}}
+        <div class="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div class="rounded-xl border border-slate-200/80 bg-slate-50/50 p-4">
+                <div class="flex items-center justify-between gap-2">
+                    <span class="text-xs font-semibold text-slate-700">Rata-rata MVA/Unit &amp; MVA/Bank Trafo</span>
+                    <span class="rounded-md bg-white border border-slate-200/80 px-2 py-0.5 text-[11px] font-semibold text-slate-600">Induk UIT JBT</span>
+                </div>
+                <div class="mt-3 grid grid-cols-2 gap-3 font-sans tabular-nums">
+                    <div>
+                        <div class="text-[11px] text-slate-500">MVA per Unit</div>
+                        @if ($ovAvgUnit === null)
+                            <div class="mt-0.5 text-sm font-normal text-slate-400">Tidak tercatat</div>
+                        @else
+                            <div class="mt-0.5 text-xl font-bold text-slate-900">{{ $formatNullable($ovAvgUnit, 1) }} <span class="text-xs font-medium text-slate-500">MVA/Unit</span></div>
+                        @endif
+                        <div class="mt-0.5 text-[11px] text-slate-500">
+                            Basis: {{ $ovTrafoMva === null ? 'Tidak tercatat' : $formatNullable($ovTrafoMva, 1).' MVA' }} / {{ $ovTrafoUnit === null ? 'Tidak tercatat' : $formatNullable($ovTrafoUnit, 0).' Unit' }}
+                        </div>
+                    </div>
+                    <div>
+                        <div class="text-[11px] text-slate-500">MVA per Bank</div>
+                        @if ($ovAvgBank === null)
+                            <div class="mt-0.5 text-sm font-normal text-slate-400">Tidak tercatat</div>
+                        @else
+                            <div class="mt-0.5 text-xl font-bold text-slate-900">{{ $formatNullable($ovAvgBank, 1) }} <span class="text-xs font-medium text-slate-500">MVA/Bank</span></div>
+                        @endif
+                        <div class="mt-0.5 text-[11px] text-slate-500">
+                            Basis: {{ $ovTrafoBank === null ? 'Tidak tercatat' : $formatNullable($ovTrafoBank, 0).' Bank' }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="rounded-xl border border-slate-200/80 bg-slate-50/50 p-4 flex flex-col justify-between">
+                <div class="flex items-center justify-between gap-2">
+                    <span class="text-xs font-semibold text-slate-700">Proporsi Kabel SK vs Udara SU</span>
+                    <span class="rounded-md bg-white border border-slate-200/80 px-2 py-0.5 text-[11px] font-semibold font-sans tabular-nums text-slate-600">
+                        {{ $ovTotKms === null ? 'Tidak tercatat' : $formatNullable($ovTotKms, 1).' kms' }}
+                    </span>
+                </div>
+                <div class="mt-3 space-y-2.5">
+                    <div class="flex flex-wrap items-center justify-between gap-2 text-xs font-sans tabular-nums">
+                        <span class="inline-flex items-center gap-1.5 text-slate-700">
+                            <span class="h-2.5 w-2.5 rounded-full bg-[#0b6175]"></span>
+                            <span>Saluran Udara (SU):</span>
+                            @if ($ovSuPct === null)
+                                <span class="text-slate-400">Tidak tercatat</span>
+                            @else
+                                <strong class="text-slate-900">{{ $formatNullable($ovSuPct, 1) }}%</strong>
+                                <span class="text-slate-500">({{ $formatNullable($ovSuKms, 1) }} kms)</span>
+                            @endif
+                        </span>
+                        <span class="inline-flex items-center gap-1.5 text-slate-700">
+                            <span class="h-2.5 w-2.5 rounded-full bg-[#16a3b8]"></span>
+                            <span>Saluran Kabel (SK):</span>
+                            @if ($ovSkPct === null)
+                                <span class="text-slate-400">Tidak tercatat</span>
+                            @else
+                                <strong class="text-slate-900">{{ $formatNullable($ovSkPct, 1) }}%</strong>
+                                <span class="text-slate-500">({{ $formatNullable($ovSkKms, 1) }} kms)</span>
+                            @endif
+                        </span>
+                    </div>
+                    <div class="h-2.5 w-full rounded-full bg-slate-200/70 overflow-hidden flex">
+                        @if ($ovSuPct !== null || $ovSkPct !== null)
+                            <div class="h-full bg-[#0b6175]" style="width: {{ $ovSuWidth }}%;"></div>
+                            <div class="h-full bg-[#16a3b8]" style="width: {{ $ovSkWidth }}%;"></div>
+                        @endif
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {{-- Tab 1: Per Kelas Tegangan --}}
+        <div class="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4" x-show="ratioTab === 'voltage'">
+            <div class="rounded-xl border border-slate-200/80 overflow-hidden">
+                <div class="bg-slate-50/70 px-4 py-2.5 border-b border-slate-200/80 text-xs font-semibold text-slate-700">
+                    Rasio Kapasitas Trafo per Tegangan
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-xs">
+                        <thead class="bg-white text-slate-400 uppercase tracking-wider font-semibold border-b border-slate-100">
+                            <tr>
+                                <th class="py-2 px-3 text-left">Tegangan</th>
+                                <th class="py-2 px-3 text-right">MVA</th>
+                                <th class="py-2 px-3 text-right">Unit</th>
+                                <th class="py-2 px-3 text-right">MVA/Unit</th>
+                                <th class="py-2 px-3 text-right">MVA/Bank</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100 bg-white">
+                            @forelse ($trafoRatioByVoltage as $vItem)
+                                <tr class="hover:bg-slate-50/50">
+                                    <td class="py-2 px-3 font-semibold text-slate-800">{{ $vItem['voltage'] ?? $vItem['label'] ?? '' }}</td>
+                                    <td class="py-2 px-3 text-right font-sans tabular-nums text-slate-700">
+                                        @if (($vItem['mva'] ?? null) === null) <span class="text-slate-400 font-normal">Tidak tercatat</span> @else {{ $formatNullable($vItem['mva'], 1) }} @endif
+                                    </td>
+                                    <td class="py-2 px-3 text-right font-sans tabular-nums text-slate-700">
+                                        @if (($vItem['unit'] ?? null) === null) <span class="text-slate-400 font-normal">Tidak tercatat</span> @else {{ $formatNullable($vItem['unit'], 0) }} @endif
+                                    </td>
+                                    <td class="py-2 px-3 text-right font-sans tabular-nums font-semibold text-[#0b6175]">
+                                        @if (($vItem['avg_mva_per_unit'] ?? null) === null) <span class="text-slate-400 font-normal">Tidak tercatat</span> @else {{ $formatNullable($vItem['avg_mva_per_unit'], 1) }} @endif
+                                    </td>
+                                    <td class="py-2 px-3 text-right font-sans tabular-nums font-semibold text-slate-800">
+                                        @if (($vItem['avg_mva_per_bank'] ?? null) === null) <span class="text-slate-400 font-normal">Tidak tercatat</span> @else {{ $formatNullable($vItem['avg_mva_per_bank'], 1) }} @endif
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="5" class="py-4 px-3 text-center text-slate-400">Belum ada data rasio trafo per tegangan.</td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="rounded-xl border border-slate-200/80 overflow-hidden">
+                <div class="bg-slate-50/70 px-4 py-2.5 border-b border-slate-200/80 text-xs font-semibold text-slate-700">
+                    Proporsi SU vs SK per Tegangan
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-xs">
+                        <thead class="bg-white text-slate-400 uppercase tracking-wider font-semibold border-b border-slate-100">
+                            <tr>
+                                <th class="py-2 px-3 text-left">Tegangan</th>
+                                <th class="py-2 px-3 text-right">SU (kms)</th>
+                                <th class="py-2 px-3 text-right">SK (kms)</th>
+                                <th class="py-2 px-3 text-right">Proporsi SU / SK</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100 bg-white">
+                            @forelse ($transmisiRatioByVoltage as $tItem)
+                                @php
+                                    $rSuPct = $tItem['su_pct'] ?? null;
+                                    $rSkPct = $tItem['sk_pct'] ?? null;
+                                @endphp
+                                <tr class="hover:bg-slate-50/50">
+                                    <td class="py-2 px-3 font-semibold text-slate-800">{{ $tItem['voltage'] ?? $tItem['label'] ?? '' }}</td>
+                                    <td class="py-2 px-3 text-right font-sans tabular-nums text-slate-700">
+                                        @if (($tItem['su_kms'] ?? null) === null) <span class="text-slate-400 font-normal">Tidak tercatat</span> @else {{ $formatNullable($tItem['su_kms'], 1) }} @endif
+                                    </td>
+                                    <td class="py-2 px-3 text-right font-sans tabular-nums text-slate-700">
+                                        @if (($tItem['sk_kms'] ?? null) === null) <span class="text-slate-400 font-normal">Tidak tercatat</span> @else {{ $formatNullable($tItem['sk_kms'], 1) }} @endif
+                                    </td>
+                                    <td class="py-2 px-3 text-right font-sans tabular-nums">
+                                        @if ($rSuPct === null && $rSkPct === null)
+                                            <span class="text-slate-400 font-normal">Tidak tercatat</span>
+                                        @else
+                                            <div class="flex items-center justify-end gap-2">
+                                                <div class="hidden sm:flex w-16 h-1.5 rounded-full bg-slate-200/70 overflow-hidden">
+                                                    <div class="h-full bg-[#0b6175]" style="width: {{ max(0.0, min(100.0, (float) ($rSuPct ?? 0))) }}%;"></div>
+                                                    <div class="h-full bg-[#16a3b8]" style="width: {{ max(0.0, min(100.0, (float) ($rSkPct ?? 0))) }}%;"></div>
+                                                </div>
+                                                <span class="text-slate-700">{{ $formatNullable($rSuPct, 1) }}% / {{ $formatNullable($rSkPct, 1) }}%</span>
+                                            </div>
+                                        @endif
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="4" class="py-4 px-3 text-center text-slate-400">Belum ada data rasio transmisi per tegangan.</td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        {{-- Tab 2: Per UPT --}}
+        <div class="mt-4 overflow-x-auto rounded-xl border border-slate-200/80" x-show="ratioTab === 'upt'" x-cloak>
+            <table class="w-full text-xs">
+                <thead class="bg-slate-50/70 text-slate-500 uppercase tracking-wider font-semibold border-b border-slate-200/80">
+                    <tr>
+                        <th class="py-2.5 px-4 text-left">UPT</th>
+                        <th class="py-2.5 px-4 text-right">Trafo (MVA)</th>
+                        <th class="py-2.5 px-4 text-right">Trafo (Unit)</th>
+                        <th class="py-2.5 px-4 text-right">MVA / Unit</th>
+                        <th class="py-2.5 px-4 text-right">SU (kms)</th>
+                        <th class="py-2.5 px-4 text-right">SK (kms)</th>
+                        <th class="py-2.5 px-4 text-right">Proporsi SU / SK</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 bg-white">
+                    @forelse ($canonicalUpts as $upt)
+                        @php
+                            $uTrafo = $trafoRatioByUpt[$upt] ?? [];
+                            $uTrans = $transmisiRatioByUpt[$upt] ?? [];
+                            $uSuPct = $uTrans['su_pct'] ?? null;
+                            $uSkPct = $uTrans['sk_pct'] ?? null;
+                        @endphp
+                        <tr class="hover:bg-slate-50/60">
+                            <td class="py-2 px-4 font-semibold text-slate-800">{{ $upt }}</td>
+                            <td class="py-2 px-4 text-right font-sans tabular-nums text-slate-700">
+                                @if (($uTrafo['mva'] ?? null) === null) <span class="text-slate-400 font-normal">Tidak tercatat</span> @else {{ $formatNullable($uTrafo['mva'], 1) }} @endif
+                            </td>
+                            <td class="py-2 px-4 text-right font-sans tabular-nums text-slate-700">
+                                @if (($uTrafo['unit'] ?? null) === null) <span class="text-slate-400 font-normal">Tidak tercatat</span> @else {{ $formatNullable($uTrafo['unit'], 0) }} @endif
+                            </td>
+                            <td class="py-2 px-4 text-right font-sans tabular-nums font-semibold text-[#0b6175]">
+                                @if (($uTrafo['avg_mva_per_unit'] ?? null) === null) <span class="text-slate-400 font-normal">Tidak tercatat</span> @else {{ $formatNullable($uTrafo['avg_mva_per_unit'], 1) }} @endif
+                            </td>
+                            <td class="py-2 px-4 text-right font-sans tabular-nums text-slate-700">
+                                @if (($uTrans['su_kms'] ?? null) === null) <span class="text-slate-400 font-normal">Tidak tercatat</span> @else {{ $formatNullable($uTrans['su_kms'], 1) }} @endif
+                            </td>
+                            <td class="py-2 px-4 text-right font-sans tabular-nums text-slate-700">
+                                @if (($uTrans['sk_kms'] ?? null) === null) <span class="text-slate-400 font-normal">Tidak tercatat</span> @else {{ $formatNullable($uTrans['sk_kms'], 1) }} @endif
+                            </td>
+                            <td class="py-2 px-4 text-right font-sans tabular-nums">
+                                @if ($uSuPct === null && $uSkPct === null)
+                                    <span class="text-slate-400 font-normal">Tidak tercatat</span>
+                                @else
+                                    <div class="flex items-center justify-end gap-2">
+                                        <div class="hidden sm:flex w-16 h-1.5 rounded-full bg-slate-200/70 overflow-hidden">
+                                            <div class="h-full bg-[#0b6175]" style="width: {{ max(0.0, min(100.0, (float) ($uSuPct ?? 0))) }}%;"></div>
+                                            <div class="h-full bg-[#16a3b8]" style="width: {{ max(0.0, min(100.0, (float) ($uSkPct ?? 0))) }}%;"></div>
+                                        </div>
+                                        <span class="text-slate-700">{{ $formatNullable($uSuPct, 1) }}% / {{ $formatNullable($uSkPct, 1) }}%</span>
+                                    </div>
+                                @endif
+                            </td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="7" class="py-4 px-4 text-center text-slate-400">Belum ada data rasio per UPT.</td>
+                        </tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {{-- Panel Drill-Down Level ULTG per UPT --}}
+    <div
+        id="asset-ultg-drilldown-panel"
+        class="ibs-card min-w-0 max-w-full p-4 sm:p-5"
+        x-data='assetUltgDrilldown(@json($ultgByUpt), @json($canonicalUpts))'
+    >
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-3.5">
+            <div class="flex flex-wrap items-center gap-2">
+                <h2 class="ibs-section-title text-base font-bold text-slate-900">Drill-Down Level ULTG per UPT</h2>
+                <span class="rounded-full bg-[#e6f4f6] px-2.5 py-0.5 text-[11px] font-semibold text-[#0b6175]" x-show="selectedUpt !== ''" x-text="`UPT ${selectedUpt} (${activeUltgRows.length} ULTG)`"></span>
+            </div>
+            <span class="text-[11px] font-medium text-slate-500">Pilih UPT untuk meninjau rincian per ULTG &amp; atribut</span>
+        </div>
+
+        {{-- 8 Canonical UPT Selector Tabs --}}
+        <div class="mt-3.5 flex flex-wrap items-center gap-1.5">
+            @foreach ($canonicalUpts as $uptTab)
+                @php $ultgTabCount = count($ultgByUpt[$uptTab] ?? []); @endphp
+                <button
+                    type="button"
+                    @click='selectUpt(@json($uptTab))'
+                    :class='selectedUpt === @json($uptTab)
+                        ? "bg-[#0b6175] text-white border-[#0b6175] shadow-2xs"
+                        : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"'
+                    class="pill-tab-transition cursor-pointer inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#16a3b8]"
+                >
+                    <span>{{ $uptTab }}</span>
+                    <span
+                        :class='selectedUpt === @json($uptTab) ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600"'
+                        class="rounded-md px-1.5 py-0.5 text-[10px] font-bold font-sans tabular-nums"
+                    >
+                        {{ $ultgTabCount }}
+                    </span>
+                </button>
+            @endforeach
+        </div>
+
+        {{-- Tabel ULTG Breakdown --}}
+        <div class="mt-4 overflow-x-auto rounded-xl border border-slate-200/80">
+            <table class="w-full text-xs">
+                <thead class="bg-slate-50/70 text-slate-500 uppercase tracking-wider font-semibold border-b border-slate-200/80">
+                    <tr>
+                        <th class="py-2.5 px-4 text-left">ULTG</th>
+                        <th class="py-2.5 px-4 text-right">Kapasitas Trafo (MVA)</th>
+                        <th class="py-2.5 px-4 text-right">Fisik Trafo (Bank)</th>
+                        <th class="py-2.5 px-4 text-right">Fisik Trafo (Unit / Set)</th>
+                        <th class="py-2.5 px-4 text-right">Transmisi (kms)</th>
+                        <th class="py-2.5 px-4 text-right">Tower (Unit)</th>
+                        <th class="py-2.5 px-4 text-right">Atribut</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 bg-white">
+                    <template x-for="uRow in activeUltgRows" :key="uRow.ultg">
+                        <tr class="hover:bg-slate-50/60 transition">
+                            <td class="py-2.5 px-4 font-semibold text-slate-800" x-text="uRow.ultg"></td>
+                            <td class="py-2.5 px-4 text-right font-sans tabular-nums" :class="isUnrecorded(uRow.trafo_mva) ? 'text-slate-400' : 'text-slate-700 font-semibold'" x-text="formatNum(uRow.trafo_mva, 1)"></td>
+                            <td class="py-2.5 px-4 text-right font-sans tabular-nums" :class="isUnrecorded(uRow.trafo_bank) ? 'text-slate-400' : 'text-slate-700'" x-text="formatNum(uRow.trafo_bank, 0)"></td>
+                            <td class="py-2.5 px-4 text-right font-sans tabular-nums" :class="isUnrecorded(uRow.trafo_unit) ? 'text-slate-400' : 'text-slate-700'" x-text="formatNum(uRow.trafo_unit, 0)"></td>
+                            <td class="py-2.5 px-4 text-right font-sans tabular-nums" :class="isUnrecorded(uRow.transmisi) ? 'text-slate-400' : 'text-slate-700'" x-text="formatNum(uRow.transmisi, 1)"></td>
+                            <td class="py-2.5 px-4 text-right font-sans tabular-nums" :class="isUnrecorded(uRow.tower) ? 'text-slate-400' : 'text-slate-700'" x-text="formatNum(uRow.tower, 0)"></td>
+                            <td class="py-2.5 px-4 text-right">
+                                <button
+                                    type="button"
+                                    @click="toggleExpand(uRow.ultg)"
+                                    class="cursor-pointer rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-[#0b6175] hover:bg-[#e6f4f6]/60 transition"
+                                    x-text="expandedUltg === uRow.ultg ? 'Tutup' : `Rincian (${Object.keys(uRow.attributes || {}).length})`"
+                                ></button>
+                            </td>
+                        </tr>
+                    </template>
+                    <template x-if="activeUltgRows.length === 0">
+                        <tr>
+                            <td colspan="7" class="py-6 px-4 text-center text-slate-400">
+                                Belum ada data ULTG tercatat untuk UPT yang dipilih.
+                            </td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+        </div>
+
+        {{-- Panel Rincian Atribut ULTG Terpilih --}}
+        <div class="mt-3 rounded-xl border border-[#bce3e8] bg-[#e6f4f6]/35 p-4" x-show="expandedUltg !== '' && expandedAttributes.length > 0" x-cloak>
+            <div class="flex items-center justify-between gap-2 border-b border-[#bce3e8]/80 pb-2 mb-3">
+                <span class="text-xs font-bold text-[#0b6175]" x-text="`Rincian Atribut ULTG ${expandedUltg} (UPT ${selectedUpt})`"></span>
+                <button type="button" @click="expandedUltg = ''" class="cursor-pointer text-[11px] font-semibold text-slate-500 hover:text-slate-800">Tutup</button>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                <template x-for="attr in expandedAttributes" :key="attr.name">
+                    <div class="flex items-center justify-between gap-2 rounded-lg border border-slate-200/80 bg-white px-3 py-2 text-[11px]">
+                        <span class="text-slate-600 truncate" x-text="attr.name"></span>
+                        <span class="font-sans tabular-nums font-semibold text-slate-900 shrink-0" x-text="attr.formatted"></span>
+                    </div>
+                </template>
             </div>
         </div>
     </div>
@@ -309,9 +771,9 @@
             <div class="mt-4 space-y-5">
                 @forelse ($trafoGroups as $tg)
                     @php
-                        $tgTotalMva = (float) ($tg['uit_total']['mva'] ?? $tg['total_upt']['mva'] ?? 0);
-                        $tgTotalBank = (float) ($tg['uit_total']['bank'] ?? $tg['total_upt']['bank'] ?? 0);
-                        $tgTotalUnit = (float) ($tg['uit_total']['unit'] ?? $tg['total_upt']['unit'] ?? 0);
+                        $tgTotalMva = $tg['uit_total']['mva'] ?? $tg['total_upt']['mva'] ?? null;
+                        $tgTotalBank = $tg['uit_total']['bank'] ?? $tg['total_upt']['bank'] ?? null;
+                        $tgTotalUnit = $tg['uit_total']['unit'] ?? $tg['total_upt']['unit'] ?? null;
                         $hasUptBank = (bool) ($tg['has_upt_bank'] ?? true);
                     @endphp
                     <div class="rounded-xl border border-slate-200/80 overflow-hidden">
@@ -321,11 +783,29 @@
                                 <h3 class="text-sm font-semibold text-slate-800">{{ $tg['label'] }} ({{ $tg['voltage'] }})</h3>
                             </div>
                             <div class="flex flex-wrap items-center gap-3 text-xs font-sans tabular-nums text-slate-600">
-                                <span><strong class="text-slate-900">{{ number_format($tgTotalMva, 1, ',', '.') }}</strong> MVA</span>
+                                <span>
+                                    @if ($tgTotalMva === null)
+                                        <span class="text-slate-400">Tidak tercatat</span>
+                                    @else
+                                        <strong class="text-slate-900">{{ number_format((float) $tgTotalMva, 1, ',', '.') }}</strong> MVA
+                                    @endif
+                                </span>
                                 <span class="text-slate-300">|</span>
-                                <span><strong class="text-slate-900">{{ number_format($tgTotalBank, 0, ',', '.') }}</strong> Bank</span>
+                                <span>
+                                    @if ($tgTotalBank === null)
+                                        <span class="text-slate-400">Tidak tercatat</span>
+                                    @else
+                                        <strong class="text-slate-900">{{ number_format((float) $tgTotalBank, 0, ',', '.') }}</strong> Bank
+                                    @endif
+                                </span>
                                 <span class="text-slate-300">|</span>
-                                <span><strong class="text-slate-900">{{ number_format($tgTotalUnit, 0, ',', '.') }}</strong> Unit</span>
+                                <span>
+                                    @if ($tgTotalUnit === null)
+                                        <span class="text-slate-400">Tidak tercatat</span>
+                                    @else
+                                        <strong class="text-slate-900">{{ number_format((float) $tgTotalUnit, 0, ',', '.') }}</strong> Unit
+                                    @endif
+                                </span>
                             </div>
                         </div>
 
@@ -342,28 +822,45 @@
                                 <tbody class="divide-y divide-slate-100 bg-white">
                                     @foreach ($canonicalUpts as $upt)
                                         @php
-                                            $row = $tg['by_upt'][$upt] ?? ['mva' => 0, 'bank' => 0, 'unit' => 0];
-                                            $mvaShare = $tgTotalMva > 0 ? min(100, round(($row['mva'] / $tgTotalMva) * 100, 1)) : 0;
+                                            $row = $tg['by_upt'][$upt] ?? ['mva' => null, 'bank' => null, 'unit' => null];
+                                            $rowMva = $row['mva'] ?? null;
+                                            $rowBank = $row['bank'] ?? null;
+                                            $rowUnit = $row['unit'] ?? null;
+                                            $mvaShare = ($rowMva !== null && $tgTotalMva !== null && (float) $tgTotalMva > 0)
+                                                ? min(100, round(((float) $rowMva / (float) $tgTotalMva) * 100, 1))
+                                                : 0;
                                         @endphp
                                         <tr class="hover:bg-slate-50/60 transition">
                                             <td class="py-2 px-4 font-semibold text-slate-800">{{ $upt }}</td>
                                             <td class="py-2 px-4 text-right font-sans tabular-nums text-slate-700">
-                                                <div class="flex items-center justify-end gap-2.5">
-                                                    <div class="hidden sm:block w-16 h-1.5 rounded-full bg-slate-100 overflow-hidden">
-                                                        <div class="h-full rounded-full bg-[#0b6175]" style="width: {{ $mvaShare }}%;"></div>
+                                                @if ($rowMva === null)
+                                                    <span class="text-slate-400 font-normal">Tidak tercatat</span>
+                                                @else
+                                                    <div class="flex items-center justify-end gap-2.5">
+                                                        <div class="hidden sm:block w-16 h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                                                            <div class="h-full rounded-full bg-[#0b6175]" style="width: {{ $mvaShare }}%;"></div>
+                                                        </div>
+                                                        <span class="min-w-[3.5rem] text-right">{{ number_format((float) $rowMva, 1, ',', '.') }}</span>
                                                     </div>
-                                                    <span class="min-w-[3.5rem] text-right">{{ number_format($row['mva'], 1, ',', '.') }}</span>
-                                                </div>
+                                                @endif
                                             </td>
                                             <td class="py-2 px-4 text-right font-sans tabular-nums text-slate-700">
                                                 @if ($hasUptBank)
-                                                    {{ number_format($row['bank'], 0, ',', '.') }}
+                                                    @if ($rowBank === null)
+                                                        <span class="text-slate-400 font-normal">Tidak tercatat</span>
+                                                    @else
+                                                        {{ number_format((float) $rowBank, 0, ',', '.') }}
+                                                    @endif
                                                 @else
                                                     <span class="text-slate-400">Tidak dirinci</span>
                                                 @endif
                                             </td>
                                             <td class="py-2 px-4 text-right font-sans tabular-nums text-slate-700">
-                                                {{ number_format($row['unit'], 0, ',', '.') }}
+                                                @if ($rowUnit === null)
+                                                    <span class="text-slate-400 font-normal">Tidak tercatat</span>
+                                                @else
+                                                    {{ number_format((float) $rowUnit, 0, ',', '.') }}
+                                                @endif
                                             </td>
                                         </tr>
                                     @endforeach
@@ -372,13 +869,13 @@
                                     <tr>
                                         <td class="py-2.5 px-4 text-left font-bold text-slate-900">TOTAL UIT JBT</td>
                                         <td class="py-2.5 px-4 text-right font-sans tabular-nums font-bold text-slate-900">
-                                            {{ number_format($tgTotalMva, 1, ',', '.') }} MVA
+                                            @if ($tgTotalMva === null) <span class="text-slate-400 font-normal">Tidak tercatat</span> @else {{ number_format((float) $tgTotalMva, 1, ',', '.') }} MVA @endif
                                         </td>
                                         <td class="py-2.5 px-4 text-right font-sans tabular-nums font-bold text-slate-900">
-                                            {{ number_format($tgTotalBank, 0, ',', '.') }} Bank
+                                            @if ($tgTotalBank === null) <span class="text-slate-400 font-normal">Tidak tercatat</span> @else {{ number_format((float) $tgTotalBank, 0, ',', '.') }} Bank @endif
                                         </td>
                                         <td class="py-2.5 px-4 text-right font-sans tabular-nums font-bold text-slate-900">
-                                            {{ number_format($tgTotalUnit, 0, ',', '.') }} Unit
+                                            @if ($tgTotalUnit === null) <span class="text-slate-400 font-normal">Tidak tercatat</span> @else {{ number_format((float) $tgTotalUnit, 0, ',', '.') }} Unit @endif
                                         </td>
                                     </tr>
                                 </tfoot>
@@ -400,18 +897,20 @@
                 <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3 mb-4">
                     <h3 class="ibs-section-title">Saluran Transmisi (SU vs SK)</h3>
                     <span class="rounded-md bg-[#e6f4f6] px-2.5 py-0.5 text-xs font-semibold font-sans tabular-nums text-[#0b6175]">
-                        {{ number_format($totalTransmisi, 1, ',', '.') }} kms
+                        {{ $totalTransmisi === null ? 'Tidak tercatat' : number_format($totalTransmisi, 1, ',', '.').' kms' }}
                     </span>
                 </div>
                 <div class="space-y-4">
                     @foreach ($transmisiGroups as $tr)
                         @php
-                            $trTotalKms = (float) ($tr['uit_total']['total_kms'] ?? $tr['total_upt']['total_kms'] ?? 0);
+                            $trTotalKms = $tr['uit_total']['total_kms'] ?? $tr['total_upt']['total_kms'] ?? null;
                         @endphp
                         <div class="rounded-xl border border-slate-100 overflow-hidden">
                             <div class="bg-slate-50/70 px-3.5 py-2 text-xs font-semibold text-slate-700 flex justify-between">
                                 <span>{{ $tr['label'] }} ({{ $tr['voltage'] }})</span>
-                                <span class="font-sans tabular-nums font-bold text-slate-900">{{ number_format($trTotalKms, 1, ',', '.') }} kms</span>
+                                <span class="font-sans tabular-nums font-bold text-slate-900">
+                                    {{ $trTotalKms === null ? 'Tidak tercatat' : number_format((float) $trTotalKms, 1, ',', '.').' kms' }}
+                                </span>
                             </div>
                             <div class="overflow-x-auto">
                                 <table class="w-full text-xs">
@@ -425,12 +924,18 @@
                                     </thead>
                                     <tbody class="divide-y divide-slate-100">
                                         @foreach ($canonicalUpts as $upt)
-                                            @php $r = $tr['by_upt'][$upt] ?? ['su_kms' => 0, 'sk_kms' => 0, 'total_kms' => 0]; @endphp
+                                            @php $r = $tr['by_upt'][$upt] ?? ['su_kms' => null, 'sk_kms' => null, 'total_kms' => null]; @endphp
                                             <tr class="hover:bg-slate-50/50">
                                                 <td class="py-1.5 px-3 font-medium text-slate-700">{{ $upt }}</td>
-                                                <td class="py-1.5 px-3 text-right font-sans tabular-nums text-slate-600">{{ number_format($r['su_kms'], 1, ',', '.') }}</td>
-                                                <td class="py-1.5 px-3 text-right font-sans tabular-nums text-slate-600">{{ number_format($r['sk_kms'], 1, ',', '.') }}</td>
-                                                <td class="py-1.5 px-3 text-right font-sans tabular-nums font-semibold text-slate-800">{{ number_format($r['total_kms'], 1, ',', '.') }}</td>
+                                                <td class="py-1.5 px-3 text-right font-sans tabular-nums text-slate-600">
+                                                    @if (($r['su_kms'] ?? null) === null) <span class="text-slate-400 font-normal">Tidak tercatat</span> @else {{ number_format((float) $r['su_kms'], 1, ',', '.') }} @endif
+                                                </td>
+                                                <td class="py-1.5 px-3 text-right font-sans tabular-nums text-slate-600">
+                                                    @if (($r['sk_kms'] ?? null) === null) <span class="text-slate-400 font-normal">Tidak tercatat</span> @else {{ number_format((float) $r['sk_kms'], 1, ',', '.') }} @endif
+                                                </td>
+                                                <td class="py-1.5 px-3 text-right font-sans tabular-nums font-semibold text-slate-800">
+                                                    @if (($r['total_kms'] ?? null) === null) <span class="text-slate-400 font-normal">Tidak tercatat</span> @else {{ number_format((float) $r['total_kms'], 1, ',', '.') }} @endif
+                                                </td>
                                             </tr>
                                         @endforeach
                                     </tbody>
@@ -446,18 +951,20 @@
                 <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3 mb-4">
                     <h3 class="ibs-section-title">Tower Transmisi per Tegangan</h3>
                     <span class="rounded-md bg-[#e6f4f6] px-2.5 py-0.5 text-xs font-semibold font-sans tabular-nums text-[#0b6175]">
-                        {{ number_format($totalTower, 0, ',', '.') }} Unit
+                        {{ $totalTower === null ? 'Tidak tercatat' : number_format($totalTower, 0, ',', '.').' Unit' }}
                     </span>
                 </div>
                 <div class="space-y-4">
                     @foreach ($towerGroups as $tw)
                         @php
-                            $twTotalUnit = (float) ($tw['uit_total']['total_unit'] ?? $tw['total_upt']['total_unit'] ?? 0);
+                            $twTotalUnit = $tw['uit_total']['total_unit'] ?? $tw['total_upt']['total_unit'] ?? null;
                         @endphp
                         <div class="rounded-xl border border-slate-100 overflow-hidden">
                             <div class="bg-slate-50/70 px-3.5 py-2 text-xs font-semibold text-slate-700 flex justify-between">
                                 <span>{{ $tw['label'] }} ({{ $tw['voltage'] }})</span>
-                                <span class="font-sans tabular-nums font-bold text-slate-900">{{ number_format($twTotalUnit, 0, ',', '.') }} Unit</span>
+                                <span class="font-sans tabular-nums font-bold text-slate-900">
+                                    {{ $twTotalUnit === null ? 'Tidak tercatat' : number_format((float) $twTotalUnit, 0, ',', '.').' Unit' }}
+                                </span>
                             </div>
                             <div class="overflow-x-auto">
                                 <table class="w-full text-xs">
@@ -471,12 +978,18 @@
                                     </thead>
                                     <tbody class="divide-y divide-slate-100">
                                         @foreach ($canonicalUpts as $upt)
-                                            @php $r = $tw['by_upt'][$upt] ?? ['su_unit' => 0, 'sk_unit' => 0, 'total_unit' => 0]; @endphp
+                                            @php $r = $tw['by_upt'][$upt] ?? ['su_unit' => null, 'sk_unit' => null, 'total_unit' => null]; @endphp
                                             <tr class="hover:bg-slate-50/50">
                                                 <td class="py-1.5 px-3 font-medium text-slate-700">{{ $upt }}</td>
-                                                <td class="py-1.5 px-3 text-right font-sans tabular-nums text-slate-600">{{ number_format($r['su_unit'], 0, ',', '.') }}</td>
-                                                <td class="py-1.5 px-3 text-right font-sans tabular-nums text-slate-600">{{ number_format($r['sk_unit'], 0, ',', '.') }}</td>
-                                                <td class="py-1.5 px-3 text-right font-sans tabular-nums font-semibold text-slate-800">{{ number_format($r['total_unit'], 0, ',', '.') }}</td>
+                                                <td class="py-1.5 px-3 text-right font-sans tabular-nums text-slate-600">
+                                                    @if (($r['su_unit'] ?? null) === null) <span class="text-slate-400 font-normal">Tidak tercatat</span> @else {{ number_format((float) $r['su_unit'], 0, ',', '.') }} @endif
+                                                </td>
+                                                <td class="py-1.5 px-3 text-right font-sans tabular-nums text-slate-600">
+                                                    @if (($r['sk_unit'] ?? null) === null) <span class="text-slate-400 font-normal">Tidak tercatat</span> @else {{ number_format((float) $r['sk_unit'], 0, ',', '.') }} @endif
+                                                </td>
+                                                <td class="py-1.5 px-3 text-right font-sans tabular-nums font-semibold text-slate-800">
+                                                    @if (($r['total_unit'] ?? null) === null) <span class="text-slate-400 font-normal">Tidak tercatat</span> @else {{ number_format((float) $r['total_unit'], 0, ',', '.') }} @endif
+                                                </td>
                                             </tr>
                                         @endforeach
                                     </tbody>
@@ -501,7 +1014,7 @@
                 <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3 mb-3">
                     <h2 class="ibs-section-title">Peringkat Daya per UPT</h2>
                     <span class="inline-flex items-center rounded-md bg-[#e6f4f6] px-2.5 py-0.5 text-[11px] font-semibold font-sans tabular-nums text-[#0b6175]">
-                        {{ number_format($totalTrafoMva, 1, ',', '.') }} MVA
+                        {{ $totalTrafoMva === null ? 'Tidak tercatat' : number_format($totalTrafoMva, 1, ',', '.').' MVA' }}
                     </span>
                 </div>
                 <div
@@ -548,28 +1061,45 @@
                         $tg500 = $trafoGroupByVoltage->get('500/150 kV');
                         $tg150_70 = $trafoGroupByVoltage->get('150/70 kV');
                         $tg150_20 = $trafoGroupByVoltage->get('150/20 kV');
+                        $tot500 = $tg500['uit_total']['mva'] ?? $tg500['total_upt']['mva'] ?? null;
+                        $tot150_70 = $tg150_70['uit_total']['mva'] ?? $tg150_70['total_upt']['mva'] ?? null;
+                        $tot150_20 = $tg150_20['uit_total']['mva'] ?? $tg150_20['total_upt']['mva'] ?? null;
                     @endphp
                     <tbody class="divide-y divide-slate-100 bg-white">
                         @foreach ($rankedMva as $upt => $totMva)
                             @php
-                                $mva500 = (float) ($tg500['by_upt'][$upt]['mva'] ?? 0);
-                                $mva150_70 = (float) ($tg150_70['by_upt'][$upt]['mva'] ?? 0);
-                                $mva150_20 = (float) ($tg150_20['by_upt'][$upt]['mva'] ?? 0);
-                                $pct = $totalTrafoMva > 0 ? min(100, round(($totMva / $totalTrafoMva) * 100, 1)) : 0;
+                                $mva500 = $tg500['by_upt'][$upt]['mva'] ?? null;
+                                $mva150_70 = $tg150_70['by_upt'][$upt]['mva'] ?? null;
+                                $mva150_20 = $tg150_20['by_upt'][$upt]['mva'] ?? null;
+                                $pct = ($totMva !== null && $totalTrafoMva !== null && $totalTrafoMva > 0)
+                                    ? min(100, round(((float) $totMva / $totalTrafoMva) * 100, 1))
+                                    : null;
                             @endphp
                             <tr class="hover:bg-slate-50/60 transition">
                                 <td class="py-2.5 px-4 font-semibold text-slate-800">{{ $upt }}</td>
-                                <td class="py-2.5 px-4 text-right font-sans tabular-nums text-slate-700">{{ number_format($mva500, 1, ',', '.') }}</td>
-                                <td class="py-2.5 px-4 text-right font-sans tabular-nums text-slate-700">{{ number_format($mva150_70, 1, ',', '.') }}</td>
-                                <td class="py-2.5 px-4 text-right font-sans tabular-nums text-slate-700">{{ number_format($mva150_20, 1, ',', '.') }}</td>
-                                <td class="py-2.5 px-4 text-right font-sans tabular-nums font-bold text-slate-900">{{ number_format($totMva, 1, ',', '.') }}</td>
+                                <td class="py-2.5 px-4 text-right font-sans tabular-nums text-slate-700">
+                                    @if ($mva500 === null) <span class="text-slate-400 font-normal">Tidak tercatat</span> @else {{ number_format((float) $mva500, 1, ',', '.') }} @endif
+                                </td>
+                                <td class="py-2.5 px-4 text-right font-sans tabular-nums text-slate-700">
+                                    @if ($mva150_70 === null) <span class="text-slate-400 font-normal">Tidak tercatat</span> @else {{ number_format((float) $mva150_70, 1, ',', '.') }} @endif
+                                </td>
+                                <td class="py-2.5 px-4 text-right font-sans tabular-nums text-slate-700">
+                                    @if ($mva150_20 === null) <span class="text-slate-400 font-normal">Tidak tercatat</span> @else {{ number_format((float) $mva150_20, 1, ',', '.') }} @endif
+                                </td>
+                                <td class="py-2.5 px-4 text-right font-sans tabular-nums font-bold text-slate-900">
+                                    @if ($totMva === null) <span class="text-slate-400 font-normal">Tidak tercatat</span> @else {{ number_format((float) $totMva, 1, ',', '.') }} @endif
+                                </td>
                                 <td class="py-2.5 px-4 text-right font-sans tabular-nums">
-                                    <div class="flex items-center justify-end gap-2.5">
-                                        <div class="w-16 h-1.5 rounded-full bg-slate-100 overflow-hidden">
-                                            <div class="h-full rounded-full bg-[#0b6175]" style="width: {{ $pct }}%;"></div>
+                                    @if ($pct === null)
+                                        <span class="text-slate-400 font-normal">Tidak tercatat</span>
+                                    @else
+                                        <div class="flex items-center justify-end gap-2.5">
+                                            <div class="w-16 h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                                                <div class="h-full rounded-full bg-[#0b6175]" style="width: {{ $pct }}%;"></div>
+                                            </div>
+                                            <span class="font-semibold text-slate-700 min-w-[2.75rem] text-right">{{ number_format($pct, 1, ',', '.') }}%</span>
                                         </div>
-                                        <span class="font-semibold text-slate-700 min-w-[2.75rem] text-right">{{ $pct }}%</span>
-                                    </div>
+                                    @endif
                                 </td>
                             </tr>
                         @endforeach
@@ -578,18 +1108,20 @@
                         <tr>
                             <td class="py-2.5 px-4 text-left font-bold text-slate-900">TOTAL UIT JBT</td>
                             <td class="py-2.5 px-4 text-right font-sans tabular-nums font-bold text-slate-900">
-                                {{ number_format((float) ($tg500['uit_total']['mva'] ?? $tg500['total_upt']['mva'] ?? 0), 1, ',', '.') }}
+                                @if ($tot500 === null) <span class="text-slate-400 font-normal">Tidak tercatat</span> @else {{ number_format((float) $tot500, 1, ',', '.') }} @endif
                             </td>
                             <td class="py-2.5 px-4 text-right font-sans tabular-nums font-bold text-slate-900">
-                                {{ number_format((float) ($tg150_70['uit_total']['mva'] ?? $tg150_70['total_upt']['mva'] ?? 0), 1, ',', '.') }}
+                                @if ($tot150_70 === null) <span class="text-slate-400 font-normal">Tidak tercatat</span> @else {{ number_format((float) $tot150_70, 1, ',', '.') }} @endif
                             </td>
                             <td class="py-2.5 px-4 text-right font-sans tabular-nums font-bold text-slate-900">
-                                {{ number_format((float) ($tg150_20['uit_total']['mva'] ?? $tg150_20['total_upt']['mva'] ?? 0), 1, ',', '.') }}
+                                @if ($tot150_20 === null) <span class="text-slate-400 font-normal">Tidak tercatat</span> @else {{ number_format((float) $tot150_20, 1, ',', '.') }} @endif
                             </td>
                             <td class="py-2.5 px-4 text-right font-sans tabular-nums font-bold text-slate-900">
-                                {{ number_format($totalTrafoMva, 1, ',', '.') }} MVA
+                                @if ($totalTrafoMva === null) <span class="text-slate-400 font-normal">Tidak tercatat</span> @else {{ number_format($totalTrafoMva, 1, ',', '.') }} MVA @endif
                             </td>
-                            <td class="py-2.5 px-4 text-right font-sans tabular-nums font-bold text-slate-900">100,0%</td>
+                            <td class="py-2.5 px-4 text-right font-sans tabular-nums font-bold text-slate-900">
+                                {{ $totalTrafoMva === null ? 'Tidak tercatat' : '100,0%' }}
+                            </td>
                         </tr>
                     </tfoot>
                 </table>
@@ -609,7 +1141,7 @@
                 <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3 mb-3">
                     <h2 class="ibs-section-title">Panjang Saluran per UPT</h2>
                     <span class="inline-flex items-center rounded-md bg-[#e6f4f6] px-2.5 py-0.5 text-[11px] font-semibold font-sans tabular-nums text-[#0b6175]">
-                        {{ number_format($totalTransmisi, 1, ',', '.') }} kms
+                        {{ $totalTransmisi === null ? 'Tidak tercatat' : number_format($totalTransmisi, 1, ',', '.').' kms' }}
                     </span>
                 </div>
                 <div
@@ -641,12 +1173,14 @@
 
             @foreach ($transmisiGroups as $tr)
                 @php
-                    $trTotKms = (float) ($tr['uit_total']['total_kms'] ?? $tr['total_upt']['total_kms'] ?? 0);
+                    $trTotKms = $tr['uit_total']['total_kms'] ?? $tr['total_upt']['total_kms'] ?? null;
                 @endphp
                 <div class="rounded-xl border border-slate-200/80 overflow-hidden">
                     <div class="flex items-center justify-between bg-slate-50/70 px-4 py-2.5 border-b border-slate-200/80">
                         <span class="text-xs font-semibold text-slate-800">{{ $tr['label'] }} ({{ $tr['voltage'] }})</span>
-                        <span class="text-xs font-sans tabular-nums font-bold text-slate-900">{{ number_format($trTotKms, 1, ',', '.') }} kms</span>
+                        <span class="text-xs font-sans tabular-nums font-bold text-slate-900">
+                            {{ $trTotKms === null ? 'Tidak tercatat' : number_format((float) $trTotKms, 1, ',', '.').' kms' }}
+                        </span>
                     </div>
                     <div class="overflow-x-auto">
                         <table class="w-full text-xs">
@@ -662,21 +1196,34 @@
                             <tbody class="divide-y divide-slate-100">
                                 @foreach ($canonicalUpts as $upt)
                                     @php
-                                        $r = $tr['by_upt'][$upt] ?? ['su_kms' => 0, 'sk_kms' => 0, 'total_kms' => 0];
-                                        $share = $trTotKms > 0 ? min(100, round(($r['total_kms'] / $trTotKms) * 100, 1)) : 0;
+                                        $r = $tr['by_upt'][$upt] ?? ['su_kms' => null, 'sk_kms' => null, 'total_kms' => null];
+                                        $rTot = $r['total_kms'] ?? null;
+                                        $share = ($rTot !== null && $trTotKms !== null && (float) $trTotKms > 0)
+                                            ? min(100, round(((float) $rTot / (float) $trTotKms) * 100, 1))
+                                            : null;
                                     @endphp
                                     <tr class="hover:bg-slate-50/50">
                                         <td class="py-2 px-4 font-medium text-slate-800">{{ $upt }}</td>
-                                        <td class="py-2 px-4 text-right font-sans tabular-nums text-slate-600">{{ number_format($r['su_kms'], 1, ',', '.') }}</td>
-                                        <td class="py-2 px-4 text-right font-sans tabular-nums text-slate-600">{{ number_format($r['sk_kms'], 1, ',', '.') }}</td>
-                                        <td class="py-2 px-4 text-right font-sans tabular-nums font-bold text-slate-800">{{ number_format($r['total_kms'], 1, ',', '.') }}</td>
+                                        <td class="py-2 px-4 text-right font-sans tabular-nums text-slate-600">
+                                            @if (($r['su_kms'] ?? null) === null) <span class="text-slate-400 font-normal">Tidak tercatat</span> @else {{ number_format((float) $r['su_kms'], 1, ',', '.') }} @endif
+                                        </td>
+                                        <td class="py-2 px-4 text-right font-sans tabular-nums text-slate-600">
+                                            @if (($r['sk_kms'] ?? null) === null) <span class="text-slate-400 font-normal">Tidak tercatat</span> @else {{ number_format((float) $r['sk_kms'], 1, ',', '.') }} @endif
+                                        </td>
+                                        <td class="py-2 px-4 text-right font-sans tabular-nums font-bold text-slate-800">
+                                            @if ($rTot === null) <span class="text-slate-400 font-normal">Tidak tercatat</span> @else {{ number_format((float) $rTot, 1, ',', '.') }} @endif
+                                        </td>
                                         <td class="py-2 px-4 text-right font-sans tabular-nums">
-                                            <div class="flex items-center justify-end gap-2">
-                                                <div class="w-14 h-1.5 rounded-full bg-slate-100 overflow-hidden">
-                                                    <div class="h-full rounded-full bg-[#16a3b8]" style="width: {{ $share }}%;"></div>
+                                            @if ($share === null)
+                                                <span class="text-slate-400 font-normal">Tidak tercatat</span>
+                                            @else
+                                                <div class="flex items-center justify-end gap-2">
+                                                    <div class="w-14 h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                                                        <div class="h-full rounded-full bg-[#16a3b8]" style="width: {{ $share }}%;"></div>
+                                                    </div>
+                                                    <span class="text-slate-600 min-w-[2.5rem] text-right">{{ number_format($share, 1, ',', '.') }}%</span>
                                                 </div>
-                                                <span class="text-slate-600 min-w-[2.5rem] text-right">{{ $share }}%</span>
-                                            </div>
+                                            @endif
                                         </td>
                                     </tr>
                                 @endforeach
@@ -700,7 +1247,7 @@
                 <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3 mb-3">
                     <h2 class="ibs-section-title">Sebaran Tower per UPT</h2>
                     <span class="inline-flex items-center rounded-md bg-[#e6f4f6] px-2.5 py-0.5 text-[11px] font-semibold font-sans tabular-nums text-[#0b6175]">
-                        {{ number_format($totalTower, 0, ',', '.') }} Unit
+                        {{ $totalTower === null ? 'Tidak tercatat' : number_format($totalTower, 0, ',', '.').' Unit' }}
                     </span>
                 </div>
                 <div
@@ -732,12 +1279,14 @@
 
             @foreach ($towerGroups as $tw)
                 @php
-                    $twTotUnit = (float) ($tw['uit_total']['total_unit'] ?? $tw['total_upt']['total_unit'] ?? 0);
+                    $twTotUnit = $tw['uit_total']['total_unit'] ?? $tw['total_upt']['total_unit'] ?? null;
                 @endphp
                 <div class="rounded-xl border border-slate-200/80 overflow-hidden">
                     <div class="flex items-center justify-between bg-slate-50/70 px-4 py-2.5 border-b border-slate-200/80">
                         <span class="text-xs font-semibold text-slate-800">{{ $tw['label'] }} ({{ $tw['voltage'] }})</span>
-                        <span class="text-xs font-sans tabular-nums font-bold text-slate-900">{{ number_format($twTotUnit, 0, ',', '.') }} Unit</span>
+                        <span class="text-xs font-sans tabular-nums font-bold text-slate-900">
+                            {{ $twTotUnit === null ? 'Tidak tercatat' : number_format((float) $twTotUnit, 0, ',', '.').' Unit' }}
+                        </span>
                     </div>
                     <div class="overflow-x-auto">
                         <table class="w-full text-xs">
@@ -753,21 +1302,34 @@
                             <tbody class="divide-y divide-slate-100">
                                 @foreach ($canonicalUpts as $upt)
                                     @php
-                                        $r = $tw['by_upt'][$upt] ?? ['su_unit' => 0, 'sk_unit' => 0, 'total_unit' => 0];
-                                        $share = $twTotUnit > 0 ? min(100, round(($r['total_unit'] / $twTotUnit) * 100, 1)) : 0;
+                                        $r = $tw['by_upt'][$upt] ?? ['su_unit' => null, 'sk_unit' => null, 'total_unit' => null];
+                                        $rTot = $r['total_unit'] ?? null;
+                                        $share = ($rTot !== null && $twTotUnit !== null && (float) $twTotUnit > 0)
+                                            ? min(100, round(((float) $rTot / (float) $twTotUnit) * 100, 1))
+                                            : null;
                                     @endphp
                                     <tr class="hover:bg-slate-50/50">
                                         <td class="py-2 px-4 font-medium text-slate-800">{{ $upt }}</td>
-                                        <td class="py-2 px-4 text-right font-sans tabular-nums text-slate-600">{{ number_format($r['su_unit'], 0, ',', '.') }}</td>
-                                        <td class="py-2 px-4 text-right font-sans tabular-nums text-slate-600">{{ number_format($r['sk_unit'], 0, ',', '.') }}</td>
-                                        <td class="py-2 px-4 text-right font-sans tabular-nums font-bold text-slate-800">{{ number_format($r['total_unit'], 0, ',', '.') }}</td>
+                                        <td class="py-2 px-4 text-right font-sans tabular-nums text-slate-600">
+                                            @if (($r['su_unit'] ?? null) === null) <span class="text-slate-400 font-normal">Tidak tercatat</span> @else {{ number_format((float) $r['su_unit'], 0, ',', '.') }} @endif
+                                        </td>
+                                        <td class="py-2 px-4 text-right font-sans tabular-nums text-slate-600">
+                                            @if (($r['sk_unit'] ?? null) === null) <span class="text-slate-400 font-normal">Tidak tercatat</span> @else {{ number_format((float) $r['sk_unit'], 0, ',', '.') }} @endif
+                                        </td>
+                                        <td class="py-2 px-4 text-right font-sans tabular-nums font-bold text-slate-800">
+                                            @if ($rTot === null) <span class="text-slate-400 font-normal">Tidak tercatat</span> @else {{ number_format((float) $rTot, 0, ',', '.') }} @endif
+                                        </td>
                                         <td class="py-2 px-4 text-right font-sans tabular-nums">
-                                            <div class="flex items-center justify-end gap-2">
-                                                <div class="w-14 h-1.5 rounded-full bg-slate-100 overflow-hidden">
-                                                    <div class="h-full rounded-full bg-[#0b6175]" style="width: {{ $share }}%;"></div>
+                                            @if ($share === null)
+                                                <span class="text-slate-400 font-normal">Tidak tercatat</span>
+                                            @else
+                                                <div class="flex items-center justify-end gap-2">
+                                                    <div class="w-14 h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                                                        <div class="h-full rounded-full bg-[#0b6175]" style="width: {{ $share }}%;"></div>
+                                                    </div>
+                                                    <span class="text-slate-600 min-w-[2.5rem] text-right">{{ number_format($share, 1, ',', '.') }}%</span>
                                                 </div>
-                                                <span class="text-slate-600 min-w-[2.5rem] text-right">{{ $share }}%</span>
-                                            </div>
+                                            @endif
                                         </td>
                                     </tr>
                                 @endforeach
@@ -879,13 +1441,25 @@
                             <td class="py-2 px-4 text-center font-sans text-slate-500" x-text="item.unit || 'Tidak tercatat'"></td>
                             <template x-if="selectedUpt === 'all'">
                                 <template x-for="upt in upts" :key="upt">
-                                    <td class="py-2 px-3 text-right font-sans tabular-nums text-slate-700" x-text="formatNumber(item.values[upt] || 0)"></td>
+                                    <td
+                                        class="py-2 px-3 text-right font-sans tabular-nums"
+                                        :class="isUnrecorded(item.values ? item.values[upt] : null) ? 'text-slate-400 font-normal' : 'text-slate-700'"
+                                        x-text="formatNumber(item.values ? item.values[upt] : null)"
+                                    ></td>
                                 </template>
                             </template>
                             <template x-if="selectedUpt !== 'all'">
-                                <td class="py-2 px-4 text-right font-sans tabular-nums text-slate-700" x-text="formatNumber(item.values[selectedUpt] || 0)"></td>
+                                <td
+                                    class="py-2 px-4 text-right font-sans tabular-nums"
+                                    :class="isUnrecorded(item.values ? item.values[selectedUpt] : null) ? 'text-slate-400 font-normal' : 'text-slate-700'"
+                                    x-text="formatNumber(item.values ? item.values[selectedUpt] : null)"
+                                ></td>
                             </template>
-                            <td class="py-2 px-4 text-right font-sans tabular-nums font-bold text-slate-900" x-text="formatNumber(item.total)"></td>
+                            <td
+                                class="py-2 px-4 text-right font-sans tabular-nums"
+                                :class="isUnrecorded(item.total) ? 'text-slate-400 font-normal' : 'font-bold text-slate-900'"
+                                x-text="formatNumber(item.total)"
+                            ></td>
                         </tr>
                     </template>
                     <template x-if="filteredRows.length === 0">
@@ -917,6 +1491,60 @@ const getAssetPalette = function () {
         donut: [p.primary, p.accent, '#52b2bf', '#84cdd6', p.softTeal, '#64748b', '#94a3b8', p.targetSlate],
     };
 };
+
+// Component 0: ULTG Drill-Down Panel
+if (typeof window.assetUltgDrilldown !== 'function') {
+    window.assetUltgDrilldown = function(ultgByUpt, canonicalUpts) {
+        const ultgMap = ultgByUpt || {};
+        const uptList = Array.isArray(canonicalUpts) ? canonicalUpts : [];
+        const defaultUpt = uptList.find(u => Array.isArray(ultgMap[u]) && ultgMap[u].length > 0) || uptList[0] || '';
+
+        return {
+            selectedUpt: defaultUpt,
+            expandedUltg: '',
+
+            get activeUltgRows() {
+                if (!this.selectedUpt) return [];
+                const rows = ultgMap[this.selectedUpt];
+                return Array.isArray(rows) ? rows : [];
+            },
+
+            get expandedAttributes() {
+                if (!this.expandedUltg) return [];
+                const row = this.activeUltgRows.find(r => r.ultg === this.expandedUltg);
+                if (!row || !row.attributes || typeof row.attributes !== 'object') return [];
+                return Object.entries(row.attributes)
+                    .sort((a, b) => a[0].localeCompare(b[0]))
+                    .map(([name, val]) => ({
+                        name: name,
+                        formatted: this.formatNum(val, val !== null && val !== undefined && Number(val) % 1 !== 0 ? 1 : 0),
+                    }));
+            },
+
+            selectUpt(upt) {
+                this.selectedUpt = upt;
+                this.expandedUltg = '';
+            },
+
+            toggleExpand(ultg) {
+                this.expandedUltg = this.expandedUltg === ultg ? '' : ultg;
+            },
+
+            isUnrecorded(val) {
+                return val === null || val === undefined || val === '';
+            },
+
+            formatNum(val, decimals = 1) {
+                if (this.isUnrecorded(val)) return 'Tidak tercatat';
+                const num = Number(val);
+                if (isNaN(num)) return 'Tidak tercatat';
+                return decimals > 0
+                    ? num.toLocaleString('id-ID', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
+                    : num.toLocaleString('id-ID');
+            },
+        };
+    };
+}
 
 // Component 1: Trafo Charts
 if (typeof window.assetTrafoCharts !== 'function') {
@@ -959,24 +1587,33 @@ if (typeof window.assetTrafoCharts !== 'function') {
                 let series = [];
 
                 if (this.viewMode === 'total') {
-                    const maxVal = mvaSeries.length ? Math.max(...mvaSeries.map(Number)) : 0;
+                    const numericVals = mvaSeries.map(v => (v === null || v === undefined ? 0 : Number(v)));
+                    const maxVal = numericVals.length ? Math.max(...numericVals) : 0;
                     series = [{
                         name: 'Total Kapasitas (MVA)',
                         type: 'bar',
-                        data: mvaSeries.map(v => ({
-                            value: v,
-                            itemStyle: {
-                                color: Number(v) === maxVal && maxVal > 0 ? pal.primary : pal.softTeal,
-                                borderRadius: [6, 6, 0, 0]
-                            }
-                        })),
+                        data: mvaSeries.map(v => {
+                            const isRecorded = v !== null && v !== undefined && v !== '';
+                            const numVal = isRecorded ? Number(v) : 0;
+                            return {
+                                value: numVal,
+                                isRecorded: isRecorded,
+                                itemStyle: {
+                                    color: numVal === maxVal && maxVal > 0 ? pal.primary : pal.softTeal,
+                                    borderRadius: [6, 6, 0, 0]
+                                }
+                            };
+                        }),
                         barMaxWidth: 36,
                     }];
                 } else {
                     series = voltageBreakdown.map((item, idx) => ({
                         name: item.name,
                         type: 'bar',
-                        data: item.data,
+                        data: (item.data || []).map(v => ({
+                            value: (v === null || v === undefined || v === '') ? 0 : Number(v),
+                            isRecorded: v !== null && v !== undefined && v !== '',
+                        })),
                         itemStyle: {
                             color: pal.series[idx % pal.series.length],
                             borderRadius: [6, 6, 0, 0]
@@ -994,10 +1631,13 @@ if (typeof window.assetTrafoCharts !== 'function') {
                             if (!params || !params.length) return '';
                             let html = '<div class="font-bold text-slate-800 border-b border-slate-100 pb-1 mb-1 text-xs">UPT ' + params[0].name + '</div>';
                             params.forEach(item => {
-                                const val = Number(item.value).toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+                                const isRecorded = item.data && item.data.isRecorded !== false && item.value !== null && item.value !== undefined;
+                                const valDisplay = isRecorded
+                                    ? Number(item.value).toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' MVA'
+                                    : '<span class="text-slate-400 font-normal">Tidak tercatat</span>';
                                 html += '<div class="flex items-center justify-between gap-4 py-0.5 text-xs text-slate-600">'
                                     + '<span class="flex items-center gap-1.5">' + item.marker + ' ' + item.seriesName + '</span>'
-                                    + '<span class="font-bold font-sans tabular-nums text-slate-900">' + val + ' MVA</span>'
+                                    + '<span class="font-bold font-sans tabular-nums text-slate-900">' + valDisplay + '</span>'
                                     + '</div>';
                             });
                             return html;
@@ -1037,15 +1677,38 @@ if (typeof window.assetTrafoCharts !== 'function') {
                 physicalInstance = chart;
 
                 const pal = getAssetPalette();
-                const bankData = upts.map(u => bankByUpt[u] || 0);
-                const unitData = upts.map(u => unitByUpt[u] || 0);
+                const bankData = upts.map(u => {
+                    const raw = bankByUpt ? bankByUpt[u] : null;
+                    const isRecorded = raw !== null && raw !== undefined && raw !== '';
+                    return { value: isRecorded ? Number(raw) : 0, isRecorded: isRecorded };
+                });
+                const unitData = upts.map(u => {
+                    const raw = unitByUpt ? unitByUpt[u] : null;
+                    const isRecorded = raw !== null && raw !== undefined && raw !== '';
+                    return { value: isRecorded ? Number(raw) : 0, isRecorded: isRecorded };
+                });
 
                 const option = {
                     animation: true,
                     animationDuration: 650,
                     tooltip: {
                         trigger: 'axis',
-                        axisPointer: { type: 'shadow' }
+                        axisPointer: { type: 'shadow' },
+                        formatter: function(params) {
+                            if (!params || !params.length) return '';
+                            let html = '<div class="font-bold text-slate-800 border-b border-slate-100 pb-1 mb-1 text-xs">UPT ' + params[0].name + '</div>';
+                            params.forEach(item => {
+                                const isRecorded = item.data && item.data.isRecorded !== false && item.value !== null && item.value !== undefined;
+                                const valDisplay = isRecorded
+                                    ? Number(item.value).toLocaleString('id-ID')
+                                    : '<span class="text-slate-400 font-normal">Tidak tercatat</span>';
+                                html += '<div class="flex items-center justify-between gap-4 py-0.5 text-xs text-slate-600">'
+                                    + '<span class="flex items-center gap-1.5">' + item.marker + ' ' + item.seriesName + '</span>'
+                                    + '<span class="font-bold font-sans tabular-nums text-slate-900">' + valDisplay + '</span>'
+                                    + '</div>';
+                            });
+                            return html;
+                        }
                     },
                     legend: {
                         top: 5,
@@ -1094,6 +1757,7 @@ if (typeof window.assetMvaCharts !== 'function') {
     window.assetMvaCharts = function(mvaByUpt, totalTrafoMva) {
         let rankedInstance = null;
         let donutInstance = null;
+        const hasTotalMva = totalTrafoMva !== null && totalTrafoMva !== undefined && Number(totalTrafoMva) > 0;
 
         return {
             initCharts() {
@@ -1117,9 +1781,13 @@ if (typeof window.assetMvaCharts !== 'function') {
                 rankedInstance = chart;
 
                 const pal = getAssetPalette();
-                const pairs = Object.entries(mvaByUpt || {}).sort((a, b) => a[1] - b[1]);
+                const pairs = Object.entries(mvaByUpt || {}).sort((a, b) => {
+                    const av = (a[1] === null || a[1] === undefined) ? -1 : Number(a[1]);
+                    const bv = (b[1] === null || b[1] === undefined) ? -1 : Number(b[1]);
+                    return av - bv;
+                });
                 const uptNames = pairs.map(p => p[0]);
-                const rawVals = pairs.map(p => Number(p[1]));
+                const rawVals = pairs.map(p => (p[1] === null || p[1] === undefined) ? 0 : Number(p[1]));
                 const maxVal = rawVals.length ? Math.max(...rawVals) : 0;
 
                 const option = {
@@ -1131,8 +1799,15 @@ if (typeof window.assetMvaCharts !== 'function') {
                         formatter: function(params) {
                             if (!params || !params.length) return '';
                             const item = params[0];
+                            const isRecorded = item.data && item.data.isRecorded !== false;
+                            if (!isRecorded) {
+                                return `<div class="p-1 text-xs font-sans">
+                                    <span class="font-bold text-slate-800">UPT ${item.name}</span><br/>
+                                    <span class="text-slate-400">Tidak tercatat</span>
+                                </div>`;
+                            }
                             const val = Number(item.value).toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
-                            const pct = totalTrafoMva > 0 ? ((Number(item.value) / totalTrafoMva) * 100).toFixed(1) : 0;
+                            const pct = hasTotalMva ? ((Number(item.value) / Number(totalTrafoMva)) * 100).toFixed(1) : '0.0';
                             return `<div class="p-1 text-xs font-sans tabular-nums">
                                 <span class="font-bold text-slate-800">UPT ${item.name}</span><br/>
                                 <span class="text-[#0b6175] font-bold">${val} MVA</span> (${pct}%)
@@ -1156,18 +1831,26 @@ if (typeof window.assetMvaCharts !== 'function') {
                     series: [{
                         name: 'Kapasitas MVA',
                         type: 'bar',
-                        data: rawVals.map(v => ({
-                            value: v,
-                            itemStyle: {
-                                color: v === maxVal && maxVal > 0 ? pal.primary : pal.softTeal,
-                                borderRadius: [0, 6, 6, 0]
-                            }
-                        })),
+                        data: pairs.map(([, raw]) => {
+                            const isRecorded = raw !== null && raw !== undefined && raw !== '';
+                            const v = isRecorded ? Number(raw) : 0;
+                            return {
+                                value: v,
+                                isRecorded: isRecorded,
+                                itemStyle: {
+                                    color: v === maxVal && maxVal > 0 ? pal.primary : pal.softTeal,
+                                    borderRadius: [0, 6, 6, 0]
+                                }
+                            };
+                        }),
                         barMaxWidth: 20,
                         label: {
                             show: true,
                             position: 'right',
-                            formatter: function(p) { return Number(p.value).toLocaleString('id-ID'); },
+                            formatter: function(p) {
+                                if (p.data && p.data.isRecorded === false) return 'Tidak tercatat';
+                                return Number(p.value).toLocaleString('id-ID');
+                            },
                             fontSize: 10,
                             fontFamily: 'Plus Jakarta Sans, Inter, sans-serif',
                             color: '#475569'
@@ -1187,7 +1870,10 @@ if (typeof window.assetMvaCharts !== 'function') {
                 donutInstance = chart;
 
                 const pal = getAssetPalette();
-                const pieData = Object.entries(mvaByUpt || {}).map(([name, val]) => ({ name, value: val }));
+                const pieData = Object.entries(mvaByUpt || {}).map(([name, val]) => {
+                    const isRecorded = val !== null && val !== undefined && val !== '';
+                    return { name: name, value: isRecorded ? Number(val) : 0, isRecorded: isRecorded };
+                });
 
                 const option = {
                     animation: true,
@@ -1195,10 +1881,17 @@ if (typeof window.assetMvaCharts !== 'function') {
                     tooltip: {
                         trigger: 'item',
                         formatter: function(item) {
+                            const isRecorded = item.data && item.data.isRecorded !== false;
+                            if (!isRecorded) {
+                                return `<div class="p-1 text-xs font-sans">
+                                    <span class="font-bold text-slate-800">UPT ${item.name}</span><br/>
+                                    <span class="text-slate-400">Tidak tercatat</span>
+                                </div>`;
+                            }
                             const val = Number(item.value).toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
                             return `<div class="p-1 text-xs font-sans tabular-nums">
                                 <span class="font-bold text-slate-800">UPT ${item.name}</span><br/>
-                                <span class="text-slate-600">${val} MVA (${item.percent}%)</span>
+                                <span class="text-slate-600">${val} MVA (${item.percent ?? 0}%)</span>
                             </div>`;
                         }
                     },
@@ -1251,15 +1944,38 @@ if (typeof window.assetTransmisiCharts !== 'function') {
 
                 const pal = getAssetPalette();
                 const upts = Object.keys(transmisiByUpt || {});
-                const suData = upts.map(u => transmisiByUpt[u]?.su_kms || 0);
-                const skData = upts.map(u => transmisiByUpt[u]?.sk_kms || 0);
+                const suData = upts.map(u => {
+                    const raw = transmisiByUpt[u]?.su_kms;
+                    const isRecorded = raw !== null && raw !== undefined && raw !== '';
+                    return { value: isRecorded ? Number(raw) : 0, isRecorded: isRecorded };
+                });
+                const skData = upts.map(u => {
+                    const raw = transmisiByUpt[u]?.sk_kms;
+                    const isRecorded = raw !== null && raw !== undefined && raw !== '';
+                    return { value: isRecorded ? Number(raw) : 0, isRecorded: isRecorded };
+                });
 
                 const option = {
                     animation: true,
                     animationDuration: 650,
                     tooltip: {
                         trigger: 'axis',
-                        axisPointer: { type: 'shadow' }
+                        axisPointer: { type: 'shadow' },
+                        formatter: function(params) {
+                            if (!params || !params.length) return '';
+                            let html = '<div class="font-bold text-slate-800 border-b border-slate-100 pb-1 mb-1 text-xs">UPT ' + params[0].name + '</div>';
+                            params.forEach(item => {
+                                const isRecorded = item.data && item.data.isRecorded !== false && item.value !== null && item.value !== undefined;
+                                const valDisplay = isRecorded
+                                    ? Number(item.value).toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' kms'
+                                    : '<span class="text-slate-400 font-normal">Tidak tercatat</span>';
+                                html += '<div class="flex items-center justify-between gap-4 py-0.5 text-xs text-slate-600">'
+                                    + '<span class="flex items-center gap-1.5">' + item.marker + ' ' + item.seriesName + '</span>'
+                                    + '<span class="font-bold font-sans tabular-nums text-slate-900">' + valDisplay + '</span>'
+                                    + '</div>';
+                            });
+                            return html;
+                        }
                     },
                     legend: { top: 5, textStyle: { fontSize: 11, color: pal.axisText } },
                     grid: { top: 45, bottom: 40, left: '4%', right: '4%', containLabel: true },
@@ -1308,10 +2024,15 @@ if (typeof window.assetTransmisiCharts !== 'function') {
                 voltageInstance = chart;
 
                 const pal = getAssetPalette();
-                const pieData = (transmisiGroups || []).map(tg => ({
-                    name: tg.voltage,
-                    value: Number(tg.uit_total?.total_kms ?? tg.total_upt?.total_kms ?? 0)
-                }));
+                const pieData = (transmisiGroups || []).map(tg => {
+                    const raw = tg.uit_total?.total_kms ?? tg.total_upt?.total_kms ?? null;
+                    const isRecorded = raw !== null && raw !== undefined && raw !== '';
+                    return {
+                        name: tg.voltage,
+                        value: isRecorded ? Number(raw) : 0,
+                        isRecorded: isRecorded,
+                    };
+                });
 
                 const option = {
                     animation: true,
@@ -1319,10 +2040,17 @@ if (typeof window.assetTransmisiCharts !== 'function') {
                     tooltip: {
                         trigger: 'item',
                         formatter: function(item) {
+                            const isRecorded = item.data && item.data.isRecorded !== false;
+                            if (!isRecorded) {
+                                return `<div class="p-1 text-xs font-sans">
+                                    <span class="font-bold text-slate-800">${item.name}</span><br/>
+                                    <span class="text-slate-400">Tidak tercatat</span>
+                                </div>`;
+                            }
                             const val = Number(item.value).toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
                             return `<div class="p-1 text-xs font-sans tabular-nums">
                                 <span class="font-bold text-slate-800">${item.name}</span><br/>
-                                <span class="text-slate-600">${val} kms (${item.percent}%)</span>
+                                <span class="text-slate-600">${val} kms (${item.percent ?? 0}%)</span>
                             </div>`;
                         }
                     },
@@ -1379,7 +2107,11 @@ if (typeof window.assetTowerCharts !== 'function') {
                 const series = (towerGroups || []).map((tw, idx) => ({
                     name: tw.voltage,
                     type: 'bar',
-                    data: upts.map(u => tw.by_upt?.[u]?.total_unit || 0),
+                    data: upts.map(u => {
+                        const raw = tw.by_upt?.[u]?.total_unit;
+                        const isRecorded = raw !== null && raw !== undefined && raw !== '';
+                        return { value: isRecorded ? Number(raw) : 0, isRecorded: isRecorded };
+                    }),
                     barMaxWidth: 20,
                     itemStyle: {
                         color: pal.series[idx % pal.series.length],
@@ -1392,7 +2124,22 @@ if (typeof window.assetTowerCharts !== 'function') {
                     animationDuration: 650,
                     tooltip: {
                         trigger: 'axis',
-                        axisPointer: { type: 'shadow' }
+                        axisPointer: { type: 'shadow' },
+                        formatter: function(params) {
+                            if (!params || !params.length) return '';
+                            let html = '<div class="font-bold text-slate-800 border-b border-slate-100 pb-1 mb-1 text-xs">UPT ' + params[0].name + '</div>';
+                            params.forEach(item => {
+                                const isRecorded = item.data && item.data.isRecorded !== false && item.value !== null && item.value !== undefined;
+                                const valDisplay = isRecorded
+                                    ? Number(item.value).toLocaleString('id-ID') + ' Unit'
+                                    : '<span class="text-slate-400 font-normal">Tidak tercatat</span>';
+                                html += '<div class="flex items-center justify-between gap-4 py-0.5 text-xs text-slate-600">'
+                                    + '<span class="flex items-center gap-1.5">' + item.marker + ' ' + item.seriesName + '</span>'
+                                    + '<span class="font-bold font-sans tabular-nums text-slate-900">' + valDisplay + '</span>'
+                                    + '</div>';
+                            });
+                            return html;
+                        }
                     },
                     legend: { top: 5, textStyle: { fontSize: 11, color: pal.axisText } },
                     grid: { top: 45, bottom: 40, left: '4%', right: '4%', containLabel: true },
@@ -1424,7 +2171,10 @@ if (typeof window.assetTowerCharts !== 'function') {
                 pieInstance = chart;
 
                 const pal = getAssetPalette();
-                const pieData = Object.entries(towerByUpt || {}).map(([name, val]) => ({ name, value: val }));
+                const pieData = Object.entries(towerByUpt || {}).map(([name, val]) => {
+                    const isRecorded = val !== null && val !== undefined && val !== '';
+                    return { name: name, value: isRecorded ? Number(val) : 0, isRecorded: isRecorded };
+                });
 
                 const option = {
                     animation: true,
@@ -1432,10 +2182,17 @@ if (typeof window.assetTowerCharts !== 'function') {
                     tooltip: {
                         trigger: 'item',
                         formatter: function(item) {
+                            const isRecorded = item.data && item.data.isRecorded !== false;
+                            if (!isRecorded) {
+                                return `<div class="p-1 text-xs font-sans">
+                                    <span class="font-bold text-slate-800">UPT ${item.name}</span><br/>
+                                    <span class="text-slate-400">Tidak tercatat</span>
+                                </div>`;
+                            }
                             const val = Number(item.value).toLocaleString('id-ID');
                             return `<div class="p-1 text-xs font-sans tabular-nums">
                                 <span class="font-bold text-slate-800">UPT ${item.name}</span><br/>
-                                <span class="text-slate-600">${val} Unit (${item.percent}%)</span>
+                                <span class="text-slate-600">${val} Unit (${item.percent ?? 0}%)</span>
                             </div>`;
                         }
                     },
@@ -1478,10 +2235,14 @@ if (typeof window.assetInteractiveMatrix !== 'function') {
             selectedUpt: 'all',
             search: '',
 
+            isUnrecorded(val) {
+                return val === undefined || val === null || val === '';
+            },
+
             formatNumber(val) {
-                if (val === undefined || val === null || val === '') return '0';
+                if (this.isUnrecorded(val)) return 'Tidak tercatat';
                 const n = Number(val);
-                if (isNaN(n)) return val;
+                if (isNaN(n)) return String(val);
                 return n % 1 !== 0
                     ? n.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
                     : n.toLocaleString('id-ID');

@@ -84,6 +84,7 @@ class DashboardController extends Controller
         $filters = [
             'start_date' => $this->dateOrNull($request->query('start_date')),
             'end_date' => $this->dateOrNull($request->query('end_date')),
+            'period' => $this->dateOrNull($request->query('period')),
             'units' => array_values(array_filter(
                 (array) $request->query('unit', []),
                 fn ($unit): bool => is_string($unit) && $unit !== '',
@@ -363,7 +364,7 @@ class DashboardController extends Controller
     /**
      * Data server-side ringan per widget.
      *
-     * @param  array{start_date?: ?string, end_date?: ?string, units?: list<string>}  $filters
+     * @param  array{start_date?: ?string, end_date?: ?string, period?: ?string, units?: list<string>}  $filters
      */
     private function dataFor(string $key, ?User $user = null, array $filters = []): mixed
     {
@@ -371,7 +372,7 @@ class DashboardController extends Controller
             'kpi-summary' => $this->kpiSummary($user, $filters['start_date'] ?? null, $filters['end_date'] ?? null),
             'kpi-rag-status' => $this->kpiRagStatus($user, $filters['start_date'] ?? null, $filters['end_date'] ?? null),
             'nko-ranking' => $this->nkoRanking($user, $filters['start_date'] ?? null, $filters['end_date'] ?? null),
-            'aset-upt-chart' => $this->asetUptChart($user),
+            'aset-upt-chart' => $this->asetUptChart($user, $filters['period'] ?? null),
             'recent-audit' => $this->recentAudit($user),
             'failed-datasets' => $this->failedDatasets(),
             'admin-summary' => $this->adminSummary(),
@@ -417,9 +418,9 @@ class DashboardController extends Controller
     /**
      * @return array<string, mixed>
      */
-    private function asetUptChart(?User $user): array
+    private function asetUptChart(?User $user, ?string $period = null): array
     {
-        return $this->executiveDashboard->asetUptChart($user);
+        return $this->executiveDashboard->asetUptChart($user, $period);
     }
 
     /**

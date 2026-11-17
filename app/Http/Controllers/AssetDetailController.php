@@ -49,7 +49,9 @@ class AssetDetailController extends Controller
         }
 
         $divisionId = $user->division_id;
-        $data = $assetStockReport->detailedBreakdown(divisionId: $divisionId);
+        $requestedPeriod = is_string($request->query('period')) ? $request->query('period') : null;
+        $resolvedPeriod = $assetStockReport->resolveRequestedPeriod($requestedPeriod, $divisionId);
+        $data = $assetStockReport->detailedBreakdown(period: $resolvedPeriod, divisionId: $divisionId);
         $ownership = $data['ownership'] ?? [
             'parent_code' => 'UIT JBT',
             'parent_name' => 'Unit Induk Transmisi Jawa Bagian Tengah (UIT JBT)',
