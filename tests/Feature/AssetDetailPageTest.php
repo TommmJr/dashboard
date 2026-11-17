@@ -451,7 +451,7 @@ class AssetDetailPageTest extends TestCase
                 'division_id' => $division->id,
                 'status' => Dataset::STATUS_READY,
                 'created_at' => Carbon::create(2026, 11, 14, 20, 37, 0, 'Asia/Jakarta'),
-                'updated_at' => Carbon::create(2026, 11, 14, 20, 37, 0, 'Asia/Jakarta'),
+                'updated_at' => Carbon::create(2026, 11, 16, 23, 59, 0, 'Asia/Jakarta'),
             ]);
             PerformanceMetric::factory()->create([
                 'metric_name' => 'ASET | BANDUNG | BANDUNG BARAT | Tower 500 KV | SU',
@@ -468,7 +468,8 @@ class AssetDetailPageTest extends TestCase
                 ->assertSee('Prototipe Demo')
                 ->assertSee('Oktober 2026')
                 ->assertSee('Diperbarui 14 Nov 2026, 20.37 WIB')
-                ->assertSee('Data periode berjalan belum tersedia');
+                ->assertDontSee('Diperbarui 16 Nov 2026, 23.59 WIB')
+                ->assertSee('Data periode berjalan belum diperbarui');
 
             $freshDataset = Dataset::factory()->create([
                 'division_id' => $division->id,
@@ -490,7 +491,7 @@ class AssetDetailPageTest extends TestCase
                 ->assertSee('id="asset-detail-freshness-indicator"', false)
                 ->assertSee('November 2026')
                 ->assertSee('Diperbarui 16 Nov 2026, 20.37 WIB')
-                ->assertDontSee('Data periode berjalan belum tersedia');
+                ->assertDontSee('Data periode berjalan belum diperbarui');
 
             Dataset::query()->where('division_id', $division->id)->update(['status' => Dataset::STATUS_ARCHIVED]);
 

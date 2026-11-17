@@ -751,7 +751,7 @@ class AsetUptChartWidgetTest extends TestCase
                 ->assertSee('Tab 1b')
                 ->assertSee('Diperbarui 16 Nov 2026, 14.25 WIB')
                 ->assertDontSee('Diperbarui 16 Nov 2026, 15.00 WIB')
-                ->assertDontSee('Data periode berjalan belum tersedia');
+                ->assertDontSee('Data periode berjalan belum diperbarui');
         } finally {
             Carbon::setTestNow();
         }
@@ -793,7 +793,7 @@ class AsetUptChartWidgetTest extends TestCase
                 ->assertSee('Tab 1a')
                 ->assertSee('Tab 1b')
                 ->assertSee('Diperbarui 14 Nov 2026, 20.37 WIB')
-                ->assertSee('Data periode berjalan belum tersedia')
+                ->assertSee('Data periode berjalan belum diperbarui')
                 ->getContent();
 
             $visibleStaleHtml = (string) preg_replace('/<script\b[^>]*>.*?<\/script>/is', '', $staleHtml);
@@ -813,6 +813,72 @@ class AsetUptChartWidgetTest extends TestCase
             $visibleHtml = (string) preg_replace('/<script\b[^>]*>.*?<\/script>/is', '', $html);
             $this->assertStringNotContainsString('—', $visibleHtml);
             $this->assertDoesNotMatchRegularExpression('/>\s*(?:-|–|—)+\s*</', $visibleHtml);
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_kesegaran_aset_memakai_created_at_desc_id_desc_dan_terisolasi_ke_slug_managemen_aset(): void
+    {
+        Carbon::setTestNow(Carbon::create(2026, 11, 17, 8, 30, 0, 'Asia/Jakarta'));
+
+        try {
+            $manset = Division::factory()->create([
+                'name' => 'Managemen Aset',
+                'slug' => 'managemen-aset',
+            ]);
+            $otherDivision = Division::factory()->create([
+                'name' => 'Engineer',
+                'slug' => 'engineer',
+            ]);
+
+            $asetDataset = Dataset::factory()->create([
+                'division_id' => $manset->id,
+                'status' => Dataset::STATUS_READY,
+                'created_at' => Carbon::create(2026, 11, 12, 9, 37, 0, 'Asia/Jakarta'),
+                'updated_at' => Carbon::create(2026, 11, 17, 8, 20, 0, 'Asia/Jakarta'),
+            ]);
+            PerformanceMetric::factory()->create([
+                'metric_name' => 'ASET | BEKASI | BEKASI | Tower 150 KV | SU',
+                'dataset_id' => $asetDataset->id,
+                'division_id' => $manset->id,
+                'period' => '2026-10-31',
+                'value' => 88,
+            ]);
+
+            // Dataset ber-prefix ASET milik divisi lain tidak boleh memalsukan kesegaran Aset untuk privileged role
+            $foreignDataset = Dataset::factory()->create([
+                'division_id' => $otherDivision->id,
+                'status' => Dataset::STATUS_READY,
+                'created_at' => Carbon::create(2026, 11, 17, 8, 25, 0, 'Asia/Jakarta'),
+                'updated_at' => Carbon::create(2026, 11, 17, 8, 25, 0, 'Asia/Jakarta'),
+            ]);
+            PerformanceMetric::factory()->create([
+                'metric_name' => 'ASET | BANDUNG | BANDUNG BARAT | Tower 150 KV | SU',
+                'dataset_id' => $foreignDataset->id,
+                'division_id' => $otherDivision->id,
+                'period' => '2026-11-30',
+                'value' => 99,
+            ]);
+
+            $stafAset = User::factory()->withRole(Role::STAFF_DIVISI)->create([
+                'division_id' => $manset->id,
+            ]);
+            $admin = User::factory()->withRole(Role::ADMIN)->create([
+                'division_id' => null,
+            ]);
+            $this->mountAsetWidgetForTest();
+
+            foreach ([$stafAset, $admin] as $actor) {
+                $this->actingAs($actor)
+                    ->get(route('dashboard'))
+                    ->assertOk()
+                    ->assertSee('id="aset-freshness-indicator"', false)
+                    ->assertSee('Diperbarui 12 Nov 2026, 09.37 WIB')
+                    ->assertSee('Data periode berjalan belum diperbarui')
+                    ->assertDontSee('Diperbarui 17 Nov 2026, 08.20 WIB')
+                    ->assertDontSee('Diperbarui 17 Nov 2026, 08.25 WIB');
+            }
         } finally {
             Carbon::setTestNow();
         }

@@ -30,9 +30,9 @@
                 <path d="M12 7.5V12l3 1.75" stroke-linecap="round" stroke-linejoin="round" />
             </svg>
             @if ($hasDataset && is_string($lastUpdatedIso) && $lastUpdatedIso !== '')
-                <time datetime="{{ $lastUpdatedIso }}" class="truncate">{{ $lastUpdatedLabel }}</time>
+                <time datetime="{{ $lastUpdatedIso }}" class="break-words sm:whitespace-nowrap">{{ $lastUpdatedLabel }}</time>
             @else
-                <span class="truncate">{{ $lastUpdatedLabel }}</span>
+                <span class="break-words sm:whitespace-nowrap">{{ $lastUpdatedLabel }}</span>
             @endif
         </span>
 

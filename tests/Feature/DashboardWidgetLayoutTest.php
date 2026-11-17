@@ -1668,7 +1668,7 @@ class DashboardWidgetLayoutTest extends TestCase
                     ->assertOk()
                     ->assertSee('id="kpi-freshness-indicator"', false)
                     ->assertSee('Diperbarui 16 Nov 2026, 10.00 WIB')
-                    ->assertDontSee('Data periode berjalan belum tersedia')
+                    ->assertDontSee('Data periode berjalan belum diperbarui')
                     ->assertDontSee('Belum ada data aktif');
             }
 
@@ -1763,7 +1763,7 @@ class DashboardWidgetLayoutTest extends TestCase
                     ->assertOk()
                     ->assertSee('id="kpi-freshness-indicator"', false)
                     ->assertSee('Diperbarui 10 Nov 2026, 09.30 WIB')
-                    ->assertSee('Data periode berjalan belum tersedia')
+                    ->assertSee('Data periode berjalan belum diperbarui')
                     ->assertDontSee('Diperbarui 16 Nov 2026, 20.15 WIB')
                     ->assertDontSee('READY')
                     ->assertDontSee('ARCHIVED');
@@ -1806,6 +1806,78 @@ class DashboardWidgetLayoutTest extends TestCase
                 $this->assertStringNotContainsString('—', $visibleHtml);
                 $this->assertDoesNotMatchRegularExpression('/>\s*(?:-|–|—)+\s*</', $visibleHtml);
             }
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_kesegaran_kpi_memakai_created_at_desc_id_desc_bukan_updated_at_pada_tanggal_berjalan(): void
+    {
+        Carbon::setTestNow(Carbon::create(2026, 11, 17, 8, 30, 0, 'Asia/Jakarta'));
+
+        try {
+            $pengusahaan = Division::factory()->create([
+                'name' => 'Perencanaan Pengusahaan',
+                'slug' => 'perencanaan-pengusahaan',
+            ]);
+
+            $olderTouched = Dataset::factory()->create([
+                'division_id' => $pengusahaan->id,
+                'status' => Dataset::STATUS_READY,
+                'created_at' => Carbon::create(2026, 11, 10, 9, 30, 0, 'Asia/Jakarta'),
+                'updated_at' => Carbon::create(2026, 11, 17, 8, 25, 0, 'Asia/Jakarta'),
+            ]);
+            PerformanceMetric::factory()->create([
+                'dataset_id' => $olderTouched->id,
+                'division_id' => $pengusahaan->id,
+                'metric_name' => 'TJBT | NKO',
+                'value' => 104.0,
+                'period' => '2026-10-31',
+            ]);
+
+            $newerCurrent = Dataset::factory()->create([
+                'division_id' => $pengusahaan->id,
+                'status' => Dataset::STATUS_READY,
+                'created_at' => Carbon::create(2026, 11, 17, 8, 15, 0, 'Asia/Jakarta'),
+                'updated_at' => Carbon::create(2026, 11, 17, 8, 15, 0, 'Asia/Jakarta'),
+            ]);
+            PerformanceMetric::factory()->create([
+                'dataset_id' => $newerCurrent->id,
+                'division_id' => $pengusahaan->id,
+                'metric_name' => 'TJBT | NKO',
+                'value' => 106.0,
+                'period' => '2026-11-30',
+            ]);
+
+            $management = User::factory()->withRole(Role::MANAGEMENT)->create();
+
+            $this->actingAs($management)
+                ->get(route('dashboard'))
+                ->assertOk()
+                ->assertSee('Diperbarui 17 Nov 2026, 08.15 WIB')
+                ->assertDontSee('Diperbarui 17 Nov 2026, 08.25 WIB')
+                ->assertDontSee('Data periode berjalan belum diperbarui');
+
+            // Tie created_at yang sama harus memilih id lebih besar dan tetap memakai created_at
+            $tieFirst = Dataset::factory()->create([
+                'division_id' => $pengusahaan->id,
+                'status' => Dataset::STATUS_READY,
+                'created_at' => Carbon::create(2026, 11, 17, 8, 20, 0, 'Asia/Jakarta'),
+                'updated_at' => Carbon::create(2026, 11, 17, 8, 29, 0, 'Asia/Jakarta'),
+            ]);
+            $tieSecond = Dataset::factory()->create([
+                'division_id' => $pengusahaan->id,
+                'status' => Dataset::STATUS_READY,
+                'created_at' => Carbon::create(2026, 11, 17, 8, 20, 0, 'Asia/Jakarta'),
+                'updated_at' => Carbon::create(2026, 11, 17, 8, 20, 0, 'Asia/Jakarta'),
+            ]);
+            $this->assertGreaterThan($tieFirst->id, $tieSecond->id);
+
+            $this->actingAs($management)
+                ->get(route('dashboard'))
+                ->assertOk()
+                ->assertSee('Diperbarui 17 Nov 2026, 08.20 WIB')
+                ->assertDontSee('Diperbarui 17 Nov 2026, 08.29 WIB');
         } finally {
             Carbon::setTestNow();
         }

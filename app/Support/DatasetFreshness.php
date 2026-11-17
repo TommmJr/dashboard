@@ -18,6 +18,11 @@ final class DatasetFreshness
 {
     public const TIMEZONE = 'Asia/Jakarta';
 
+    public const STALE_PERIOD_MESSAGE = 'Data periode berjalan belum diperbarui';
+
+    /** @var array<int, string> */
+    private const ASSET_DIVISION_SLUGS = ['managemen-aset', 'data-aset'];
+
     /** @var array<int, string> */
     private const MONTHS_LONG = [
         1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April',
@@ -66,10 +71,9 @@ final class DatasetFreshness
                     ->whereColumn('performance_metrics.dataset_id', 'datasets.id')
                     ->where('performance_metrics.metric_name', 'like', AssetStockConverter::PREFIX.'%');
             })
-            ->orderByDesc('updated_at')
             ->orderByDesc('created_at')
             ->orderByDesc('id')
-            ->first(['id', 'created_at', 'updated_at']);
+            ->first(['id', 'created_at']);
 
         if ($dataset === null) {
             return self::empty('Belum ada data aktif', 'Belum ada dataset aktif untuk periode berjalan');
@@ -92,11 +96,11 @@ final class DatasetFreshness
 
         $latestPeriod = self::maxPeriod($obsPeriod, $metricPeriod);
 
-        return self::build($dataset, $latestPeriod, 'Data periode berjalan belum tersedia');
+        return self::build($dataset, $latestPeriod, self::STALE_PERIOD_MESSAGE);
     }
 
     /**
-     * Hitung metadata kesegaran dataset Manajemen Aset (terisolasi dari dataset KPI).
+     * Hitung metadata kesegaran dataset Manajemen Aset (terisolasi per divisi Aset).
      *
      * @return array{
      *     has_dataset: bool,
@@ -110,37 +114,41 @@ final class DatasetFreshness
      */
     public static function forAsset(?int $divisionId, ?string $resolvedPeriod = null): array
     {
+        $targetDivisionIds = self::resolveAssetDivisionIds($divisionId);
+        if ($targetDivisionIds === []) {
+            return self::empty('Belum ada data aktif', 'Belum ada dataset aset aktif');
+        }
+
         $dataset = Dataset::query()
             ->where('status', DatasetStatus::READY)
-            ->when($divisionId !== null, fn ($query) => $query->where('division_id', $divisionId))
+            ->whereIn('division_id', $targetDivisionIds)
             ->whereExists(function ($query): void {
                 $query->select(DB::raw(1))
                     ->from('performance_metrics')
                     ->whereColumn('performance_metrics.dataset_id', 'datasets.id')
                     ->where('performance_metrics.metric_name', 'like', AssetStockConverter::PREFIX.'%');
             })
-            ->orderByDesc('updated_at')
             ->orderByDesc('created_at')
             ->orderByDesc('id')
-            ->first(['id', 'created_at', 'updated_at']);
+            ->first(['id', 'created_at']);
 
         if ($dataset === null) {
             return self::empty('Belum ada data aktif', 'Belum ada dataset aset aktif');
         }
 
-        $latestPeriod = $resolvedPeriod;
+        $latestPeriod = $divisionId !== null ? $resolvedPeriod : null;
         if ($latestPeriod === null) {
             $rawMax = DB::table('performance_metrics')
                 ->join('datasets', 'datasets.id', '=', 'performance_metrics.dataset_id')
                 ->where('datasets.status', Dataset::STATUS_READY)
                 ->where('performance_metrics.metric_name', 'like', AssetStockConverter::PREFIX.'%')
-                ->when($divisionId !== null, fn ($query) => $query->where('datasets.division_id', $divisionId))
+                ->whereIn('datasets.division_id', $targetDivisionIds)
                 ->max('performance_metrics.period');
 
             $latestPeriod = is_string($rawMax) && $rawMax !== '' ? $rawMax : null;
         }
 
-        return self::build($dataset, $latestPeriod, 'Data periode berjalan belum tersedia');
+        return self::build($dataset, $latestPeriod, self::STALE_PERIOD_MESSAGE);
     }
 
     /**
@@ -230,7 +238,7 @@ final class DatasetFreshness
      */
     private static function build(Dataset $dataset, ?string $latestPeriod, string $staleMessage): array
     {
-        $timestamp = $dataset->updated_at ?? $dataset->created_at;
+        $timestamp = $dataset->created_at;
         $wib = $timestamp instanceof CarbonInterface
             ? $timestamp->copy()->timezone(self::TIMEZONE)
             : Carbon::now(self::TIMEZONE);
@@ -246,6 +254,38 @@ final class DatasetFreshness
             'is_stale' => $isStale,
             'stale_message' => $isStale ? $staleMessage : null,
         ];
+    }
+
+    /**
+     * Isolasi ID divisi Aset: prioritaskan slug kanonis `managemen-aset`,
+     * dengan fallback aman ke `data-aset` hanya untuk test historis.
+     *
+     * @return list<int>
+     */
+    private static function resolveAssetDivisionIds(?int $divisionId): array
+    {
+        if ($divisionId !== null) {
+            $isAssetDivision = Division::query()
+                ->whereKey($divisionId)
+                ->whereIn('slug', self::ASSET_DIVISION_SLUGS)
+                ->exists();
+
+            return $isAssetDivision ? [$divisionId] : [];
+        }
+
+        $primaryId = Division::query()
+            ->where('slug', 'managemen-aset')
+            ->value('id');
+
+        if ($primaryId !== null) {
+            return [(int) $primaryId];
+        }
+
+        $legacyId = Division::query()
+            ->where('slug', 'data-aset')
+            ->value('id');
+
+        return $legacyId !== null ? [(int) $legacyId] : [];
     }
 
     private static function maxPeriod(mixed $first, mixed $second): ?string
