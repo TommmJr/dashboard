@@ -1,7 +1,6 @@
 @props(['widget' => [], 'data' => null, 'embeddedInKpiDetail' => false])
 
-{{-- Widget detail metrik KPI per unit/indikator (server-side).
-     Quiet Luxury Financial Ledger table dengan inline achievement micro-bars.
+{{-- Widget detail metrik KPI per unit/indikator (Executive Matrix Ledger).
      Data dihitung dari laporan KPI untuk periode terpilih. --}}
 @php
     $isEmbedded = (bool) ($embeddedInKpiDetail ?? false);
@@ -18,28 +17,19 @@
     $displayRows = $isLimited ? $rows->take($limit) : $rows;
     $currentRouteName = request()->routeIs('dashboard.kpi-detail') ? 'dashboard.kpi-detail' : 'dashboard';
 
-    // Daftar SEMUA unit di data (termasuk yang barisnya terpotong cap 50),
-    // dipakai untuk dropdown pemilih unit. Payload reader tidak ditambah key.
     $unitOptions = array_values(array_filter(
         (array) ($widget['units'] ?? []),
         fn ($unit): bool => is_string($unit) && $unit !== '',
     ));
 
-    // Filter yang sedang aktif dibaca langsung dari request: komponen ini
-    // hanya menerima `widget` + `data`, bukan variabel $filters halaman.
     $startDate = request('start_date');
     $endDate = request('end_date');
     $requestedUnit = request('unit');
 
-    // Unit terpilih hanya bila ada di daftar; kalau tidak, tidak ada highlight
-    // (perilaku default tetap berlaku).
     $selectedUnit = is_string($requestedUnit) && in_array($requestedUnit, $unitOptions, true)
         ? $requestedUnit
         : null;
 
-    // ponytail: format Indonesia (desimal koma, ribuan titik). Nilai bulat tampil
-    // bulat (100,00 → 100, 100,0% → 100%); pecahan asli tetap maks 2 desimal
-    // (105,50 → 105,5).
     $fmt = fn ($value, int $decimals = 1, string $suffix = ''): string => \App\Support\KpiScoreNormalizer::formatNumber(
         $value !== null ? (float) $value : null,
         $decimals,
@@ -56,6 +46,7 @@
             'indikator' => (string) ($row['indikator'] ?? ''),
             'unit' => (string) ($row['unit'] ?? ''),
             'tier' => $tier,
+            'score' => $skorKpiVal !== null ? (float) $skorKpiVal : null,
         ];
     })->values()->all();
 @endphp
@@ -65,11 +56,23 @@
 </script>
 
 <div
-    class="ibs-card min-w-0 max-w-full h-full rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_1px_3px_0_rgba(15,23,42,0.04),0_4px_12px_-2px_rgba(15,23,42,0.03)] flex flex-col justify-between"
+    class="ibs-card min-w-0 max-w-full h-full p-5 flex flex-col justify-between"
     x-data="{
         tableSearch: '',
         tableRag: 'all',
+        tableSort: 'default',
         rows: JSON.parse(document.getElementById('kinerjaDetailItems_{{ $instanceId }}')?.textContent || '[]'),
+        init() {
+            const params = new URLSearchParams(window.location.search);
+            const ragParam = params.get('rag');
+            if (['all', 'tercapai', 'hampir', 'perlu'].includes(ragParam)) {
+                this.tableRag = ragParam;
+            }
+            const qParam = params.get('search');
+            if (qParam) {
+                this.tableSearch = qParam;
+            }
+        },
         matches(indikator, unit, tier) {
             return (this.tableRag === 'all' || this.tableRag === tier) &&
                 (this.tableSearch.trim() === '' || (indikator + ' ' + unit).toLowerCase().includes(this.tableSearch.trim().toLowerCase()));
@@ -78,7 +81,7 @@
             return this.rows.filter(r => this.matches(r.indikator, r.unit, r.tier)).length;
         }
     }"
-    @kpi-page-filter-changed.window="tableSearch = $event.detail.search ?? ''; tableRag = $event.detail.rag ?? 'all'"
+    @kpi-page-filter-changed.window="tableSearch = $event.detail.search ?? ''; tableRag = $event.detail.rag ?? 'all'; tableSort = $event.detail.sort ?? 'default'"
 >
     <div class="min-w-0 flex-1 flex flex-col">
     <div class="flex flex-wrap items-center justify-between gap-2 @if ($isEmbedded) pb-3 border-b border-slate-100 @endif">
@@ -86,9 +89,9 @@
             <div class="min-w-0">
                 <div class="flex flex-wrap items-center gap-2">
                     <h3 class="ibs-section-title text-sm font-bold text-slate-900 tracking-tight">{{ $widget['label'] ?? 'Detail Metrik KPI' }}</h3>
-                    <span class="inline-flex items-center rounded-full border border-slate-200/80 bg-slate-50 px-2 py-0.5 text-[11px] font-medium text-slate-600 tabular-nums" x-text="visibleRowCount + ' baris'">{{ $displayRows->count() }} baris</span>
+                    <span class="inline-flex items-center rounded-full border border-slate-200/80 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold text-slate-700 tabular-nums" x-text="visibleRowCount + ' baris'">{{ $displayRows->count() }} baris</span>
                 </div>
-                <p class="mt-0.5 text-[11px] text-slate-500">Tampilan matriks komparatif terhadap target</p>
+                <p class="mt-0.5 text-[11px] text-slate-500">Matriks komparatif terhadap target (klik baris untuk membuka panel inspeksi)</p>
                 <span class="sr-only">Periode {{ $period ?? 'Belum tersedia' }}</span>
             </div>
         @else
@@ -101,9 +104,6 @@
         @endif
 
         @if (! $isEmbedded && ! empty($unitOptions))
-            {{-- Form GET: halaman dimuat ulang supaya widget server-side lain
-                 (kinerja-realisasi, target vs realisasi) ikut unit yang sama.
-                 Filter tanggal dibawa agar tidak hilang saat pindah unit. --}}
             <form method="GET" action="{{ route($currentRouteName) }}" class="flex min-w-0 max-w-full flex-wrap items-center gap-2">
                 @if (is_string($startDate) && $startDate !== '')
                     <input type="hidden" name="start_date" value="{{ $startDate }}">
@@ -122,8 +122,6 @@
                 <noscript>
                     <button type="submit" class="h-8 rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700">Tampilkan</button>
                 </noscript>
-                {{-- Jalan pintas supaya pembaca non-developer langsung menjangkau
-                     TJBT (di urutan pertama daftar). --}}
                 @php
                     $primaryUnit = !empty(config('kpi.visible_units')) ? config('kpi.visible_units')[0] : 'TJBT';
                 @endphp
@@ -140,7 +138,7 @@
     </div>
 
     @if ($rows->isEmpty())
-        <p class="mt-4 rounded-xl border border-slate-200/70 bg-slate-50/70 p-5 text-sm text-slate-600">
+        <p class="mt-4 rounded-xl border border-dashed border-slate-200 bg-slate-50/70 p-6 text-center text-sm text-slate-600">
             Belum ada data metrik pada periode ini.
         </p>
     @else
@@ -204,16 +202,16 @@
             </div>
         @endif
 
-        <div class="relative w-full min-w-0 overflow-x-auto mt-3.5 rounded-xl border border-slate-200/80 flex-1">
+        <div class="relative w-full min-w-0 overflow-x-auto mt-3.5 rounded-2xl border border-slate-200/80 flex-1">
             <table class="w-full text-xs">
-                <thead class="bg-slate-50/80 text-[10px] text-slate-500 font-semibold uppercase tracking-[0.04em] border-b border-slate-200/80">
+                <thead class="sticky top-0 z-10 bg-slate-50/95 backdrop-blur-xs text-[10.5px] text-slate-500 font-semibold uppercase tracking-[0.05em] border-b border-slate-200/80">
                     <tr>
-                        <th class="py-2.5 px-2 text-left">Unit</th>
-                        <th class="py-2.5 px-2.5 text-left">Indikator</th>
-                        <th class="py-2.5 px-1.5 text-right">Target</th>
-                        <th class="py-2.5 px-1.5 text-right">Realisasi</th>
-                        <th class="py-2.5 px-2 text-right leading-tight">Skor Pencapaian KPI (Maks 110%)</th>
-                        <th class="py-2.5 px-2 text-right leading-tight">
+                        <th class="py-3 px-2.5 text-left">Unit</th>
+                        <th class="py-3 px-3 text-left">Indikator</th>
+                        <th class="py-3 px-2 text-right">Target</th>
+                        <th class="py-3 px-2 text-right">Realisasi</th>
+                        <th class="py-3 px-2.5 text-right leading-tight">Skor Pencapaian KPI (Maks 110%)</th>
+                        <th class="py-3 px-3 text-right leading-tight">
                             <div class="inline-flex flex-col items-end gap-0.5">
                                 <span>Perbandingan Target</span>
                                 <span class="inline-flex items-center gap-1.5 text-[9.5px] font-medium normal-case tracking-normal text-slate-400">
@@ -224,7 +222,7 @@
                         </th>
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-slate-100/90">
+                <tbody class="divide-y divide-slate-100/90 bg-white">
                     @foreach ($displayRows as $row)
                         @php
                             $skorKpiVal = array_key_exists('skor_kpi', $row) ? $row['skor_kpi'] : ($row['pencapaian'] ?? null);
@@ -268,35 +266,38 @@
                         @endphp
                         <tr
                             x-show="matches('{{ addcslashes($row['indikator'], "'\\") }}', '{{ addcslashes($row['unit'], "'\\") }}', '{{ $tier }}')"
-                            class="hover:bg-slate-50/75 transition-colors group"
+                            @if ($isEmbedded)
+                                @click="$dispatch('open-kpi-inspector-by-name', { indikator: '{{ addcslashes($row['indikator'], "'\\") }}', unit: '{{ addcslashes($row['unit'], "'\\") }}' })"
+                            @endif
+                            class="transition-colors group {{ $isEmbedded ? 'cursor-pointer hover:bg-[#e6f4f6]/35' : 'hover:bg-slate-50/75' }}"
                         >
-                            <td class="py-2.5 px-2 whitespace-nowrap align-top">
-                                <span class="inline-flex items-center rounded-full border border-slate-200/60 bg-slate-100/90 px-1.5 py-0.5 text-[10.5px] font-semibold text-slate-700">{{ $row['unit'] }}</span>
+                            <td class="py-3 px-2.5 whitespace-nowrap align-top">
+                                <span class="inline-flex items-center rounded-md border border-slate-200/70 bg-slate-50 px-2 py-0.5 text-[10.5px] font-semibold text-slate-700">{{ $row['unit'] }}</span>
                             </td>
                             <td class="py-2.5 px-3 text-slate-800">{{ $row['indikator'] }}@if (! empty($cmp['indicator_hint']))<div class="mt-0.5 text-[10.5px] leading-tight text-slate-400">{{ $cmp['indicator_hint'] }}</div>@endif</td>
-                            <td class="py-2.5 px-1.5 text-right tabular-nums align-top">
+                            <td class="py-3 px-2 text-right tabular-nums align-top">
                                 <div class="{{ $targetDisplay === 'Tidak tercatat' ? 'text-xs font-normal text-slate-400' : 'font-medium text-slate-600' }}">{{ $targetDisplay }}</div>
                                 @if (! empty($cmp['target_hint']) && $targetDisplay !== 'Tidak tercatat')
                                     <div class="mt-0.5 text-[10px] leading-tight text-slate-400">{{ $cmp['target_hint'] }}</div>
                                 @endif
                             </td>
-                            <td class="py-2.5 px-1.5 text-right tabular-nums align-top">
+                            <td class="py-3 px-2 text-right tabular-nums align-top">
                                 <div class="{{ $realisasiDisplay === 'Tidak tercatat' ? 'text-xs font-normal text-slate-400' : 'font-semibold text-slate-900' }}">{{ $realisasiDisplay }}</div>
                                 @if (! empty($cmp['realisasi_hint']) && $realisasiDisplay !== 'Tidak tercatat')
                                     <div class="mt-0.5 text-[10px] leading-tight text-slate-400">{{ $cmp['realisasi_hint'] }}</div>
                                 @endif
                             </td>
-                            <td class="py-2.5 px-2 text-right align-top">
+                            <td class="py-3 px-2.5 text-right align-top">
                                 <div class="flex flex-col items-end">
                                     <span class="tabular-nums {{ $skorDisplay === 'Tidak tercatat' ? 'text-xs font-normal text-slate-400' : 'font-bold text-slate-900' }}">{{ $skorDisplay }}</span>
                                     @if ($skorKpiVal !== null)
-                                        <div class="mt-1.5 h-1.5 w-14 rounded-full bg-slate-100 overflow-hidden">
+                                        <div class="mt-1.5 h-1.5 w-16 rounded-full bg-slate-100 overflow-hidden">
                                             <div class="h-full rounded-full {{ $barColor }}" style="width: {{ round($barWidth, 1) }}%"></div>
                                         </div>
                                     @endif
                                 </div>
                             </td>
-                            <td class="py-2.5 px-2 text-right align-top">
+                            <td class="py-3 px-3 text-right align-top">
                                 @if ($cmp['target_bar_pct'] !== null && $cmp['realisasi_bar_pct'] !== null)
                                     <div class="inline-flex flex-col items-end gap-1">
                                         <div dir="ltr" class="w-16 space-y-1">
@@ -317,7 +318,7 @@
                     @endforeach
                     @if ($isEmbedded)
                         <tr x-show="visibleRowCount === 0" x-cloak>
-                            <td colspan="6" class="py-8 px-4 text-center text-xs text-slate-500">
+                            <td colspan="6" class="py-10 px-4 text-center text-xs text-slate-500">
                                 Tidak ada indikator yang sesuai dengan filter.
                             </td>
                         </tr>
@@ -349,11 +350,7 @@
                     </a>
                 @endif
                 @if (! request()->routeIs('dashboard.kpi-detail') && \App\Http\Controllers\DashboardController::canAccessKpiDetail(auth()->user()))
-                    <a href="{{ route('dashboard.kpi-detail', array_filter([
-                        'unit' => $selectedUnit,
-                        'start_date' => is_string($startDate) ? $startDate : null,
-                        'end_date' => is_string($endDate) ? $endDate : null,
-                    ])) }}" class="font-semibold text-[#0b6175] hover:underline inline-flex items-center gap-1">
+                    <a href="{{ route('dashboard.kpi-detail') }}" class="font-semibold text-[#0b6175] hover:underline inline-flex items-center gap-1">
                         Halaman Rincian KPI &rarr;
                     </a>
                 @endif

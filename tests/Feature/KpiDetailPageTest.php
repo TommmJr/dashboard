@@ -557,7 +557,7 @@ class KpiDetailPageTest extends TestCase
             ->assertSee('id="kpi-fullscreen-workspace"', false)
             ->assertSee('Visualisasi Grafik Capaian Indikator Kinerja')
             ->assertSee('id="kpi-fullscreen-echart-canvas"', false)
-            ->assertSee('style="width: 100%; height: 500px; min-height: 440px;"', false)
+            ->assertSee('style="width: 100%; height: clamp(300px, calc(100dvh - 345px), 560px);"', false)
             ->assertSee('id="kpi-fullscreen-download-chart-btn"', false)
             ->assertSee('id="kpi-fullscreen-close-btn"', false)
             ->assertSee('id="kpi-fullscreen-search"', false)

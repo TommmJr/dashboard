@@ -93,10 +93,13 @@
                                 }
                             }));
 
+                            const chartFont = window.PLN_PENGUSAHAAN_FONT || "'Geist', 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif";
+
                             chartInstance.setOption({
                                 animation: true,
                                 animationDuration: 650,
                                 animationEasing: "cubicOut",
+                                textStyle: { fontFamily: chartFont },
                                 tooltip: {
                                     trigger: "item",
                                     formatter: "{b}: {c} unit ({d}%)"

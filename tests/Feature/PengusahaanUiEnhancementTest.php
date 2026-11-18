@@ -82,6 +82,7 @@ class PengusahaanUiEnhancementTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('id="target-realisasi-toolbar"', false);
+        $response->assertSee('id="target-realisasi-search"', false);
         $response->assertSee('data-rag-filter="tercapai"', false);
         $response->assertSee('data-indicator-id="'.$indicator->id.'"', false);
         // Menggunakan assertSeeText agar tidak gagal karena tag <strong> atau format HTML
@@ -182,5 +183,71 @@ class PengusahaanUiEnhancementTest extends TestCase
         $detailResponse->assertSee('Beranda');
         $detailResponse->assertSee('id="header-breadcrumb"', false);
         $detailResponse->assertSee('markLine', false);
+    }
+
+    public function test_tipografi_geist_dan_redesign_hanya_diterapkan_pada_dashboard_pengusahaan(): void
+    {
+        $adminRole = Role::where('slug', Role::ADMIN)->firstOrFail();
+        $admin = User::factory()->create([
+            'role_id' => $adminRole->id,
+            'division_id' => null,
+        ]);
+
+        $asetDivision = Division::factory()->create([
+            'name' => 'Managemen Aset',
+            'slug' => 'managemen-aset',
+        ]);
+        $staffRole = Role::where('slug', Role::STAFF_DIVISI)->firstOrFail();
+        $asetStaff = User::factory()->create([
+            'role_id' => $staffRole->id,
+            'division_id' => $asetDivision->id,
+        ]);
+
+        $managementRole = Role::where('slug', Role::MANAGEMENT)->firstOrFail();
+        $management = User::factory()->create([
+            'role_id' => $managementRole->id,
+            'division_id' => null,
+        ]);
+
+        // Dashboard Pengusahaan (Staff Pengusahaan, Management, dan halaman Rincian KPI) memakai .font-pengusahaan
+        $this->actingAs($this->staffUser)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('font-pengusahaan', false)
+            ->assertSee('setChartStyle', false)
+            ->assertSee('toggleTargetLine', false);
+
+        $this->actingAs($management)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('font-pengusahaan', false)
+            ->assertSee('applyPeriodPreset', false)
+            ->assertSee('aria-label="Pilih unit"', false)
+            ->assertSee('if (payload.labels.length <= 1)', false)
+            ->assertDontSee('<label for="unit"', false);
+
+        $this->actingAs($this->staffUser)
+            ->get(route('dashboard.kpi-detail'))
+            ->assertOk()
+            ->assertSee('font-pengusahaan', false)
+            ->assertSee('id="kpi-indicator-inspector"', false)
+            ->assertSee('toggleSpotlight', false)
+            ->assertSee('toggleFocusMode', false)
+            ->assertSee('toggleStudioTheme', false)
+            ->assertSee('h-dvh w-screen', false)
+            ->assertSee('@fullscreenchange.window', false)
+            ->assertSee('id="kpi-page-sort"', false)
+            ->assertSee('id="kpi-fullscreen-sort"', false);
+
+        // Dashboard Admin dan Manajemen Aset TIDAK menerima .font-pengusahaan maupun layout Pengusahaan
+        $this->actingAs($admin)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertDontSee('font-pengusahaan', false);
+
+        $this->actingAs($asetStaff)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertDontSee('font-pengusahaan', false);
     }
 }

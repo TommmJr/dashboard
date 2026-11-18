@@ -89,12 +89,14 @@ if (typeof window.customChartWidget !== 'function') {
                             ? '-'
                             : Number(v).toLocaleString('id-ID', { maximumFractionDigits: 1 });
                         const escHtml = (s) => String(s ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+                        const chartFont = window.PLN_PENGUSAHAAN_FONT || "'Geist', 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif";
                         let option = {};
                         if (data.chart_type === 'donut') {
                             option = {
                                 animation: true,
                                 animationDuration: 650,
                                 animationEasing: 'cubicOut',
+                                textStyle: { fontFamily: chartFont },
                                 color: [palette.primary, palette.accent, palette.softTeal, palette.rag.tercapai, palette.rag.waspada, palette.targetSlate],
                                 tooltip: { trigger: 'item', formatter: (p) => `${escHtml(p.name)}: ${fmtTooltipNumber(p.value)}` },
                                 legend: { bottom: 0, textStyle: { color: palette.axisText, fontSize: 11 } },
@@ -112,6 +114,7 @@ if (typeof window.customChartWidget !== 'function') {
                                 animation: true,
                                 animationDuration: 650,
                                 animationEasing: 'cubicOut',
+                                textStyle: { fontFamily: chartFont },
                                 tooltip: { trigger: 'axis', valueFormatter: fmtTooltipNumber },
                                 grid: { left: '3%', right: '4%', bottom: '10%', containLabel: true },
                                 xAxis: {

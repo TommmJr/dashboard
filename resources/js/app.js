@@ -46,6 +46,9 @@ window.PLN_CHART_PALETTE = {
     },
 };
 
+// Tipografi scoped khusus ECharts Dashboard Pengusahaan (Geist self-hosted).
+window.PLN_PENGUSAHAAN_FONT = "'Geist', 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif";
+
 export const CHART_COLORS = {
     primary: window.PLN_CHART_PALETTE.primary,
     accent: window.PLN_CHART_PALETTE.accent,
@@ -69,8 +72,11 @@ Alpine.data('numberTicker', (targetVal, duration = 500) => ({
         if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
             return;
         }
-        const strVal = String(targetVal ?? '').trim();
-        if (!strVal) return;
+        const rawStr = String(targetVal ?? '').trim();
+        if (!rawStr) return;
+
+        const hasPercent = rawStr.endsWith('%');
+        const strVal = hasPercent ? rawStr.slice(0, -1).trim() : rawStr;
 
         // Parse numerical value safely (supporting Indonesian 1.234,56 or standard 1234.56)
         const cleanStr = strVal.replace(/\./g, '').replace(',', '.');
@@ -91,19 +97,22 @@ Alpine.data('numberTicker', (targetVal, duration = 500) => ({
             const ease = 1 - Math.pow(1 - progress, 3);
             const current = startVal + (num - startVal) * ease;
 
+            let formatted;
             if (hasDecimals) {
-                this.display = current.toLocaleString('id-ID', {
+                formatted = current.toLocaleString('id-ID', {
                     minimumFractionDigits: decimalDigits,
                     maximumFractionDigits: decimalDigits,
                 });
             } else {
-                this.display = Math.round(current).toLocaleString('id-ID');
+                formatted = Math.round(current).toLocaleString('id-ID');
             }
+
+            this.display = hasPercent ? `${formatted}%` : formatted;
 
             if (progress < 1) {
                 requestAnimationFrame(animate);
             } else {
-                this.display = strVal;
+                this.display = rawStr;
             }
         };
 
