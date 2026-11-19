@@ -353,7 +353,11 @@ class PerformanceMetricEditTest extends TestCase
             ->assertDontSee(route('performance_metrics.edit', $this->metricA), false)
             ->assertDontSee('>Edit<', false)
             ->assertDontSee('id="asset-sync-reconciliation-inspector"', false)
-            ->assertDontSee('Inspeksi & Analisis Rekonsiliasi Data Sync Aset');
+            ->assertDontSee('Rekonsiliasi Data Aset');
+        $this->assertMatchesRegularExpression(
+            '/<details\b[^>]*id="dataset-raw-metrics-details"[^>]*\bopen\b/i',
+            (string) $response->getContent(),
+        );
 
         $this->assertFalse($response->viewData('isAssetDataset'));
         $this->assertNull($response->viewData('assetAnalysis'));

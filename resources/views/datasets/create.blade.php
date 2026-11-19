@@ -149,49 +149,58 @@
     </div>
     @endif
 
-    {{-- KARTU 3: IMPORT REKAPITULASI DATA ASET (TAB 1B & TAB 1A) --}}
+    {{-- KARTU 3: UNGGAH MANUAL REKAPITULASI DATA ASET (8 UPT & INDUK UIT JBT) --}}
     @if ($canUploadAsset ?? false)
     <div class="ibs-card animate-entrance stagger-3 mt-6 p-6 sm:p-7">
         <div class="flex items-center justify-between border-b border-slate-100 pb-4">
-            <h2 class="ibs-section-title text-base">Upload Rekapitulasi Data Aset</h2>
-            <div class="flex items-center gap-1.5">
+            <div>
+                <h2 class="ibs-section-title text-base">Upload Rekapitulasi Data Aset</h2>
+                <p class="mt-1 text-xs text-slate-500">Unggah sepasang berkas Excel atau CSV untuk data 8 UPT dan Induk UIT JBT.</p>
+            </div>
+            <div class="flex shrink-0 items-center gap-1.5">
                 <span class="rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 font-sans text-[10px] font-semibold text-slate-600">.XLSX</span>
                 <span class="rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 font-sans text-[10px] font-semibold text-slate-600">.CSV</span>
             </div>
         </div>
 
-        <form method="POST" action="{{ route('datasets.asset-upload') }}" enctype="multipart/form-data" class="mt-5 flex flex-col gap-4">
+        <form method="POST" action="{{ route('datasets.asset-upload') }}" enctype="multipart/form-data" x-data="{ uploading: false }" @submit="uploading = true" class="mt-5 flex flex-col gap-4">
             @csrf
 
             <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                     <label for="file_1b" class="block text-xs font-semibold uppercase tracking-wider text-slate-500">
-                        Tab 1b (Level UPT)
+                        Data Rincian 8 UPT
                     </label>
                     <div class="mt-1.5">
-                        <x-dropzone name="file_1b" accept=".xlsx,.csv" required />
+                        <x-dropzone name="file_1b" id="file_1b" accept=".xlsx,.csv" required />
                     </div>
                 </div>
 
                 <div>
                     <label for="file_1a" class="block text-xs font-semibold uppercase tracking-wider text-slate-500">
-                        Tab 1a (Level UIT JBT)
+                        Data Induk UIT JBT
                     </label>
                     <div class="mt-1.5">
-                        <x-dropzone name="file_1a" accept=".xlsx,.csv" required />
+                        <x-dropzone name="file_1a" id="file_1a" accept=".xlsx,.csv" required />
                     </div>
                 </div>
             </div>
 
             <div class="flex justify-end pt-2">
                 <button type="submit"
-                        class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-2xs transition-all duration-150 hover:border-primary/40 hover:bg-primary-soft/60 hover:text-primary">
-                    <svg class="h-4 w-4 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        :disabled="uploading"
+                        class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-2xs transition-all duration-150 hover:border-primary/40 hover:bg-primary-soft/60 hover:text-primary disabled:cursor-not-allowed disabled:opacity-60">
+                    <svg x-show="!uploading" class="h-4 w-4 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
                         <polyline points="17 8 12 3 7 8"/>
                         <line x1="12" y1="3" x2="12" y2="15"/>
                     </svg>
-                    Upload &amp; Impor Aset
+                    <svg x-show="uploading" x-cloak class="h-4 w-4 animate-spin text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span x-show="!uploading">Upload &amp; Impor Aset</span>
+                    <span x-show="uploading" x-cloak>Mengunggah &amp; Memvalidasi...</span>
                 </button>
             </div>
         </form>
@@ -215,12 +224,12 @@
         <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-4">
             <div class="flex flex-wrap items-center gap-2.5">
                 <h2 class="ibs-section-title text-base">Sinkronisasi Data Aset (Google Sheets)</h2>
-                <span class="rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-slate-600">
-                    Sinkronisasi Baca Saja<span class="sr-only"> VIEW-ONLY SYNC</span>
+                <span class="rounded-md border border-primary/20 bg-primary-soft px-2.5 py-0.5 text-[10px] font-semibold text-primary">
+                    Otomatis
                 </span>
             </div>
             @if ($formattedTargetMonth !== '')
-                <span class="rounded-md border border-primary/20 bg-primary-soft px-2.5 py-1 text-xs font-semibold text-primary tabular-nums">
+                <span class="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700 tabular-nums">
                     {{ $formattedTargetMonth }}
                 </span>
             @endif
@@ -242,16 +251,20 @@
 
         <form method="POST" action="{{ route('datasets.asset-sync') }}" x-data="{ syncing: {{ ($activeAssetSync ?? null) !== null ? 'true' : 'false' }} }" @submit="syncing = true" class="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             @csrf
-            <div class="flex items-center gap-2 text-xs text-slate-600">
-                <span class="h-1.5 w-1.5 rounded-full bg-primary"></span>
-                <span>Tab 1b (UPT) &amp; Tab 1a (UIT JBT)</span>
-                <a href="{{ route('datasets.index') }}" class="font-medium text-primary hover:underline">Lihat Daftar Dataset</a>
+            <div class="min-w-0 space-y-1 text-xs text-slate-600">
+                <p class="flex items-center gap-2">
+                    <span class="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" aria-hidden="true"></span>
+                    <span>Tarik data aset terbaru Induk UIT JBT dan 8 UPT dari Google Sheets.</span>
+                </p>
+                <p class="pl-3.5">
+                    <a href="{{ route('datasets.index') }}" class="font-medium text-primary hover:underline">Lihat Daftar Dataset</a>
+                </p>
             </div>
 
             <button type="submit"
                     :disabled="syncing"
                     @disabled(($activeAssetSync ?? null) !== null)
-                    class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-2xs transition-all duration-150 hover:border-primary/40 hover:bg-primary-soft/60 hover:text-primary disabled:cursor-not-allowed disabled:opacity-60">
+                    class="inline-flex shrink-0 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-2xs transition-all duration-150 hover:border-primary/40 hover:bg-primary-soft/60 hover:text-primary disabled:cursor-not-allowed disabled:opacity-60">
                 <svg x-show="!syncing" class="h-4 w-4 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/>
                     <path d="M12 12v9"/>

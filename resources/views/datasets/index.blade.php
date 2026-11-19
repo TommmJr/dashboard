@@ -167,7 +167,7 @@
                             <td class="px-4 py-3 font-medium text-slate-900">
                                 <div class="flex flex-wrap items-center gap-2">
                                     <a href="{{ route('datasets.show', $dataset) }}" class="font-medium text-slate-900 transition-colors hover:text-primary">
-                                        {{ $dataset->original_name }}
+                                        {{ $dataset->displayOriginalName() }}
                                     </a>
                                     @if ($dataset->is_asset_dataset ?? false)
                                         <span class="inline-flex items-center gap-1 rounded-md border border-primary/20 bg-primary-soft px-1.5 py-0.5 text-[10px] font-semibold text-primary">

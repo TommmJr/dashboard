@@ -840,8 +840,12 @@ class AssetSheetsSyncTest extends TestCase
             ->get(route('datasets.create'))
             ->assertOk()
             ->assertSee('Sinkronisasi Data Aset (Google Sheets)')
-            ->assertSee('VIEW-ONLY SYNC')
-            ->assertSee(route('datasets.asset-sync'));
+            ->assertSee('Data Rincian 8 UPT')
+            ->assertSee('Data Induk UIT JBT')
+            ->assertSee(route('datasets.asset-sync'))
+            ->assertDontSee('VIEW-ONLY SYNC')
+            ->assertDontSee('Tab 1a')
+            ->assertDontSee('Tab 1b');
 
         // 2. Staf Divisi Manajemen Aset melihat kartu sinkronisasi
         $staffManset = User::factory()->withRole(Role::STAFF_DIVISI)->create([
@@ -853,8 +857,12 @@ class AssetSheetsSyncTest extends TestCase
             ->get(route('datasets.create'))
             ->assertOk()
             ->assertSee('Sinkronisasi Data Aset (Google Sheets)')
-            ->assertSee('VIEW-ONLY SYNC')
-            ->assertSee(route('datasets.asset-sync'));
+            ->assertSee('Data Rincian 8 UPT')
+            ->assertSee('Data Induk UIT JBT')
+            ->assertSee(route('datasets.asset-sync'))
+            ->assertDontSee('VIEW-ONLY SYNC')
+            ->assertDontSee('Tab 1a')
+            ->assertDontSee('Tab 1b');
 
         // 3. Staf Divisi Perencanaan Pengusahaan TIDAK melihat kartu sinkronisasi
         $staffPengusahaan = User::factory()->withRole(Role::STAFF_DIVISI)->create([
@@ -866,6 +874,8 @@ class AssetSheetsSyncTest extends TestCase
             ->get(route('datasets.create'))
             ->assertOk()
             ->assertDontSee('Sinkronisasi Data Aset (Google Sheets)')
+            ->assertDontSee('Data Rincian 8 UPT')
+            ->assertDontSee('Data Induk UIT JBT')
             ->assertDontSee('VIEW-ONLY SYNC')
             ->assertDontSee(route('datasets.asset-sync'));
     }
@@ -884,15 +894,18 @@ class AssetSheetsSyncTest extends TestCase
             ->get(route('datasets.show', $dataset));
 
         $response->assertOk()
-            ->assertSee('Inspeksi & Analisis Rekonsiliasi Data Sync Aset (UIT JBT vs 8 UPT)')
-            ->assertSee('Total Baris Sync UIT + UPT')
-            ->assertSee('Status Rekonsiliasi Sinkron')
+            ->assertSee('Rekonsiliasi Data Aset UIT JBT vs 8 UPT')
+            ->assertSee('Total Baris Data')
+            ->assertSee('Status Rekonsiliasi')
             ->assertSee('Total Tower UIT vs 8 UPT')
             ->assertSee('Total Transmisi kms UIT vs 8 UPT')
             ->assertSee('Total Trafo MVA UIT vs 8 UPT')
             ->assertSee('Rekonsiliasi UIT vs 8 UPT')
-            ->assertSee('Matriks Distribusi 8 UPT (Tab 1b)')
-            ->assertSee('Rekap Induk UIT (Tab 1a)')
+            ->assertSee('Distribusi 8 UPT')
+            ->assertSee('Rekap Induk UIT')
+            ->assertSee('Induk UIT JBT')
+            ->assertSee('Akumulasi 8 UPT')
+            ->assertSee('Sinkronisasi Google Sheets')
             ->assertSee('Rekonsiliasi Sinkron')
             ->assertSee('BANDUNG')
             ->assertSee('BEKASI')
@@ -911,7 +924,30 @@ class AssetSheetsSyncTest extends TestCase
             ->assertSee('Rincian Metrik Data')
             ->assertSee('Detektor, Bukan Generator')
             ->assertSee('Read-Only')
+            ->assertSee('<details', false)
+            ->assertSee('id="dataset-raw-metrics-details"', false)
+            ->assertDontSee('application/octet-stream')
+            ->assertDontSee('Tab 1a')
+            ->assertDontSee('Tab 1b')
+            ->assertDontSee('TAB 1A')
+            ->assertDontSee('TAB 1B')
+            ->assertDontSee('Total Baris Sync')
+            ->assertDontSee('Data Sync Aset')
             ->assertDontSee('>Edit<', false);
+
+        $this->assertSame('application/octet-stream', $dataset->mime_type);
+        $this->assertDoesNotMatchRegularExpression(
+            '/<details\b[^>]*id="dataset-raw-metrics-details"[^>]*\bopen\b/i',
+            (string) $response->getContent(),
+        );
+
+        $pageResponse = $this->actingAs($this->admin)
+            ->get(route('datasets.show', ['dataset' => $dataset, 'page' => 2]))
+            ->assertOk();
+        $this->assertMatchesRegularExpression(
+            '/<details\b[^>]*id="dataset-raw-metrics-details"[^>]*\bopen\b/i',
+            (string) $pageResponse->getContent(),
+        );
 
         $this->assertTrue($response->viewData('isAssetDataset'));
 
@@ -982,7 +1018,7 @@ class AssetSheetsSyncTest extends TestCase
             ->get(route('datasets.show', $dataset));
 
         $response->assertOk()
-            ->assertSee('Inspeksi & Analisis Rekonsiliasi Data Sync Aset (UIT JBT vs 8 UPT)')
+            ->assertSee('Rekonsiliasi Data Aset UIT JBT vs 8 UPT')
             ->assertSee('Selisih')
             ->assertSee('1.500,0')
             ->assertSee('2,0')
@@ -1807,5 +1843,100 @@ class AssetSheetsSyncTest extends TestCase
         $this->artisan('aset:sync')
             ->expectsOutputToContain('Cross-check reconciliation mismatch')
             ->assertExitCode(1);
+    }
+
+    public function test_dataset_show_and_index_map_file_type_and_hide_technical_jargon_without_mutating_database(): void
+    {
+        config(['asset.dataset_name' => 'Rekap Aset UIT JBT']);
+
+        $staffManset = User::factory()->withRole(Role::STAFF_DIVISI)->create([
+            'division_id' => $this->assetDivision->id,
+        ]);
+
+        $syncedDataset = Dataset::factory()->create([
+            'division_id' => $this->assetDivision->id,
+            'user_id' => $staffManset->id,
+            'status' => Dataset::STATUS_READY,
+            'original_name' => 'Sinkronisasi Google Sheets (Tab 1b + Tab 1a)',
+            'mime_type' => 'application/octet-stream',
+            'filename' => 'synced_asset_check.csv',
+        ]);
+        PerformanceMetric::create([
+            'dataset_id' => $syncedDataset->id,
+            'division_id' => $this->assetDivision->id,
+            'unit_id' => $staffManset->id,
+            'metric_name' => 'ASET | UIT | Tower 500 KV | SU',
+            'value' => 100.0,
+            'period' => '2026-10-31',
+        ]);
+
+        $xlsxDataset = Dataset::factory()->create([
+            'division_id' => $this->assetDivision->id,
+            'user_id' => $staffManset->id,
+            'status' => Dataset::STATUS_READY,
+            'original_name' => 'aset_upt.xlsx + aset_uit.xlsx',
+            'mime_type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'filename' => 'manual_asset_check.xlsx',
+        ]);
+        PerformanceMetric::create([
+            'dataset_id' => $xlsxDataset->id,
+            'division_id' => $this->assetDivision->id,
+            'unit_id' => $staffManset->id,
+            'metric_name' => 'ASET | BANDUNG | BANDUNG BARAT | Tower 500 KV | SU | Unit',
+            'value' => 100.0,
+            'period' => '2026-10-31',
+        ]);
+
+        $csvDataset = Dataset::factory()->create([
+            'division_id' => $this->assetDivision->id,
+            'user_id' => $staffManset->id,
+            'status' => Dataset::STATUS_READY,
+            'original_name' => 'aset_upt.csv + aset_uit.csv',
+            'mime_type' => 'text/csv',
+            'filename' => 'manual_asset_check.csv',
+        ]);
+        PerformanceMetric::create([
+            'dataset_id' => $csvDataset->id,
+            'division_id' => $this->assetDivision->id,
+            'unit_id' => $staffManset->id,
+            'metric_name' => 'ASET | BEKASI | BEKASI | Tower 500 KV | SU | Unit',
+            'value' => 50.0,
+            'period' => '2026-10-31',
+        ]);
+
+        $this->actingAs($staffManset)
+            ->get(route('datasets.index'))
+            ->assertOk()
+            ->assertSee('Rekap Aset UIT JBT')
+            ->assertDontSee('Tab 1a')
+            ->assertDontSee('Tab 1b')
+            ->assertDontSee('application/octet-stream');
+
+        $this->actingAs($staffManset)
+            ->get(route('datasets.show', $syncedDataset))
+            ->assertOk()
+            ->assertSee('Rekap Aset UIT JBT')
+            ->assertSee('Sinkronisasi Google Sheets')
+            ->assertDontSee('application/octet-stream')
+            ->assertDontSee('Tab 1a')
+            ->assertDontSee('Tab 1b');
+
+        $this->actingAs($staffManset)
+            ->get(route('datasets.show', $xlsxDataset))
+            ->assertOk()
+            ->assertSee('Excel (.xlsx)')
+            ->assertDontSee('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+
+        $this->actingAs($staffManset)
+            ->get(route('datasets.show', $csvDataset))
+            ->assertOk()
+            ->assertSee('CSV (.csv)')
+            ->assertDontSee('text/csv');
+
+        // Kontrak database mentah tetap terjaga apa adanya
+        $this->assertSame('application/octet-stream', $syncedDataset->fresh()->mime_type);
+        $this->assertSame('Sinkronisasi Google Sheets (Tab 1b + Tab 1a)', $syncedDataset->fresh()->original_name);
+        $this->assertSame('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', $xlsxDataset->fresh()->mime_type);
+        $this->assertSame('text/csv', $csvDataset->fresh()->mime_type);
     }
 }

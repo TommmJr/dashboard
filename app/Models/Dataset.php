@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\DatasetStatus;
 use App\Models\Concerns\Auditable;
+use App\Services\AssetSheetsSyncService;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -85,5 +86,71 @@ class Dataset extends Model
     public function observations(): HasMany
     {
         return $this->hasMany(PerformanceObservation::class);
+    }
+
+    /**
+     * Nama tampilan dataset yang bersih dari label teknis historis tanpa mengubah nilai DB.
+     */
+    public function displayOriginalName(): string
+    {
+        $trimmed = trim((string) $this->original_name);
+
+        if ($trimmed === '') {
+            return 'Tidak tercatat';
+        }
+
+        if (in_array($trimmed, AssetSheetsSyncService::LEGACY_DISPLAY_NAMES, true)) {
+            return AssetSheetsSyncService::fallbackDatasetName();
+        }
+
+        return $trimmed;
+    }
+
+    /**
+     * Petakan MIME type penyimpanan menjadi label sumber atau format yang mudah dipahami pengguna.
+     */
+    public function sourceTypeLabel(bool $isAssetDataset = false): string
+    {
+        $mime = strtolower(trim((string) $this->mime_type));
+        $name = strtolower(trim((string) $this->original_name));
+        $filename = strtolower(trim((string) $this->filename));
+        $ext = strtolower((string) pathinfo($filename !== '' ? $filename : $name, PATHINFO_EXTENSION));
+        $isAssetScope = $isAssetDataset || in_array($this->division?->slug, ['managemen-aset', 'data-aset'], true);
+
+        if (str_contains($name, 'sinkronisasi google sheets') || str_starts_with($filename, 'sync_pending_')) {
+            return 'Sinkronisasi Google Sheets';
+        }
+
+        if ($mime === 'application/octet-stream') {
+            if ($isAssetScope) {
+                return 'Sinkronisasi Google Sheets';
+            }
+
+            return match ($ext) {
+                'xlsx' => 'Excel (.xlsx)',
+                'xls' => 'Excel (.xls)',
+                'csv' => 'CSV (.csv)',
+                default => 'Berkas Data',
+            };
+        }
+
+        if (in_array($mime, ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/zip'], true)) {
+            return 'Excel (.xlsx)';
+        }
+
+        if ($mime === 'application/vnd.ms-excel') {
+            return 'Excel (.xls)';
+        }
+
+        if (in_array($mime, ['text/csv', 'application/csv', 'text/plain'], true)) {
+            return 'CSV (.csv)';
+        }
+
+        return match ($ext) {
+            'xlsx' => 'Excel (.xlsx)',
+            'xls' => 'Excel (.xls)',
+            'csv' => 'CSV (.csv)',
+            default => 'Tidak tercatat',
+        };
     }
 }

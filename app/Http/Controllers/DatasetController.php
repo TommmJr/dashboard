@@ -275,10 +275,10 @@ class DatasetController extends Controller
             }
 
             $messages = [
-                'file_1b.required' => 'Berkas Tab 1b (level UPT) wajib diunggah untuk divisi Manajemen Aset.',
-                'file.required' => 'Berkas Tab 1b (level UPT) wajib diunggah untuk divisi Manajemen Aset.',
-                'file_1a.required' => 'Berkas Tab 1a (level UIT JBT) wajib diunggah untuk divisi Manajemen Aset.',
-                'file_uit.required' => 'Berkas Tab 1a (level UIT JBT) wajib diunggah untuk divisi Manajemen Aset.',
+                'file_1b.required' => 'Berkas Data Rincian 8 UPT wajib diunggah untuk divisi Manajemen Aset.',
+                'file.required' => 'Berkas Data Rincian 8 UPT wajib diunggah untuk divisi Manajemen Aset.',
+                'file_1a.required' => 'Berkas Data Induk UIT JBT wajib diunggah untuk divisi Manajemen Aset.',
+                'file_uit.required' => 'Berkas Data Induk UIT JBT wajib diunggah untuk divisi Manajemen Aset.',
             ];
 
             $request->validate($rules, $messages);
@@ -996,7 +996,7 @@ class DatasetController extends Controller
             403,
         );
 
-        $dataset->load(['division:id,name', 'user:id,name']);
+        $dataset->load(['division:id,name,slug', 'user:id,name']);
         $metrics = $dataset->metrics()->orderBy('period')->paginate(20);
         $hasObservations = $dataset->observations()->exists();
 
@@ -1046,7 +1046,7 @@ class DatasetController extends Controller
                 $uitRows[] = [
                     'metric_name' => $name,
                     'kelompok' => $kelompok,
-                    'satuan' => $satuan !== '' ? $satuan : '-',
+                    'satuan' => $satuan !== '' ? $satuan : 'Tidak tercatat',
                     'label' => $remainder,
                     'kategori' => $kategori,
                     'value' => round($value, 2),
@@ -1187,7 +1187,7 @@ class DatasetController extends Controller
             $isMatched = abs($delta) <= $tolerance + 0.0001;
             $reconciliation[] = [
                 'label' => $spec['label'],
-                'uit_label' => $spec['label'].' (Tab 1a)',
+                'uit_label' => $spec['label'].' (Induk UIT JBT)',
                 'upt_label' => $spec['label'].' (Akumulasi 8 UPT)',
                 'kategori' => $spec['kategori'],
                 'is_summary' => true,

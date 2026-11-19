@@ -1,6 +1,11 @@
 @extends('layouts.app')
 
-@section('title', 'Dataset: '.$dataset->original_name)
+@php
+    $displayDatasetName = $dataset->displayOriginalName();
+    $displayFileType = $dataset->sourceTypeLabel((bool) ($isAssetDataset ?? false));
+@endphp
+
+@section('title', 'Dataset: '.$displayDatasetName)
 
 @section('content')
 <div class="mx-auto max-w-7xl px-4 py-8" x-data="{
@@ -86,7 +91,7 @@
     <div class="ibs-card animate-entrance stagger-1 mt-4 p-6">
         <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div class="min-w-0 flex-1">
-                <h1 class="text-2xl font-bold tracking-tight text-slate-900 break-words">{{ $dataset->original_name }}</h1>
+                <h1 class="text-2xl font-bold tracking-tight text-slate-900 break-words">{{ $displayDatasetName }}</h1>
                 <dl class="mt-4 grid grid-cols-2 gap-x-8 gap-y-3 text-xs sm:grid-cols-3">
                     <div>
                         <dt class="font-semibold text-slate-500 uppercase tracking-wider text-2xs">Divisi</dt>
@@ -114,7 +119,7 @@
                     </div>
                     <div>
                         <dt class="font-semibold text-slate-500 uppercase tracking-wider text-2xs">Tipe File</dt>
-                        <dd class="mt-0.5 font-sans text-slate-800 break-all">{{ $dataset->mime_type }}</dd>
+                        <dd class="mt-0.5 font-sans font-medium text-slate-800">{{ $displayFileType }}</dd>
                     </div>
                     <div>
                         <dt class="font-semibold text-slate-500 uppercase tracking-wider text-2xs">Diunggah</dt>
@@ -297,7 +302,7 @@
         };
     @endphp
 
-    {{-- Inspeksi & Analisis Rekonsiliasi Data Sync Aset (UIT JBT vs 8 UPT) --}}
+    {{-- Inspeksi & Analisis Rekonsiliasi Data Aset (UIT JBT vs 8 UPT) --}}
     @if (! empty($isAssetDataset) && ! empty($assetAnalysis))
         @php
             $assetSummary = $assetAnalysis['summary'];
@@ -370,8 +375,7 @@
                  }">
             <div class="flex flex-col gap-2 border-b border-slate-100 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                    <h2 class="ibs-section-title text-base">Rekonsiliasi Data Aset UIT vs 8 UPT</h2>
-                    <span class="sr-only">Inspeksi &amp; Analisis Rekonsiliasi Data Sync Aset (UIT JBT vs 8 UPT)</span>
+                    <h2 class="ibs-section-title text-base">Rekonsiliasi Data Aset UIT JBT vs 8 UPT</h2>
                 </div>
                 <span class="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-semibold {{ $assetSummary['mismatched_count'] === 0 ? 'border-emerald-200 bg-emerald-50/70 text-emerald-800' : 'border-rose-200 bg-rose-50/70 text-rose-800' }}">
                     <span class="h-1.5 w-1.5 rounded-full {{ $assetSummary['mismatched_count'] === 0 ? 'bg-emerald-500' : 'bg-rose-500' }}"></span>
@@ -405,15 +409,15 @@
 
                 <div class="grid grid-cols-1 divide-y divide-slate-100 bg-white sm:grid-cols-2 lg:grid-cols-5 sm:divide-y-0 sm:divide-x">
                     <div class="px-5 py-4">
-                        <div class="ibs-metric-label uppercase tracking-wider text-[10px]">Total Baris Sync UIT + UPT</div>
+                        <div class="ibs-metric-label uppercase tracking-wider text-[10px]">Total Baris Data</div>
                         <div class="ibs-metric-value mt-1.5 text-lg">{{ number_format($assetSummary['total_sync_rows'], 0, ',', '.') }}</div>
                         <div class="mt-1 text-[11px] text-slate-500 tabular-nums">
-                            {{ number_format($assetSummary['uit_row_count'], 0, ',', '.') }} UIT · {{ number_format($assetSummary['upt_row_count'], 0, ',', '.') }} UPT
+                            {{ number_format($assetSummary['uit_row_count'], 0, ',', '.') }} Induk UIT JBT · {{ number_format($assetSummary['upt_row_count'], 0, ',', '.') }} 8 UPT
                         </div>
                     </div>
 
                     <div class="px-5 py-4">
-                        <div class="ibs-metric-label uppercase tracking-wider text-[10px]">Status Rekonsiliasi Sinkron</div>
+                        <div class="ibs-metric-label uppercase tracking-wider text-[10px]">Status Rekonsiliasi</div>
                         <div class="ibs-metric-value mt-1.5 flex items-center gap-2 text-lg">
                             <span class="h-2 w-2 rounded-full {{ $assetSummary['mismatched_count'] === 0 ? 'bg-emerald-500' : 'bg-rose-500' }}"></span>
                             <span>{{ $assetSummary['matched_count'] }} / {{ $assetSummary['reconciled_count'] }}</span>
@@ -469,24 +473,29 @@
                 <div class="flex flex-wrap items-center justify-between gap-3">
                     <div class="inline-flex flex-wrap items-center gap-1 rounded-xl border border-slate-200/80 bg-slate-100/70 p-1" role="tablist">
                         <button type="button"
+                                role="tab"
+                                :aria-selected="(activeTab === 'reconciliation').toString()"
                                 @click="activeTab = 'reconciliation'"
                                 :class="activeTab === 'reconciliation' ? 'bg-white text-primary shadow-2xs ring-1 ring-slate-200/80' : 'text-slate-600 hover:text-slate-900'"
                                 class="pill-tab-transition inline-flex items-center rounded-lg px-3 py-1.5 text-xs font-semibold">
                             Rekonsiliasi UIT vs 8 UPT
                         </button>
                         <button type="button"
+                                role="tab"
+                                :aria-selected="(activeTab === 'matrix').toString()"
                                 @click="activeTab = 'matrix'"
                                 :class="activeTab === 'matrix' ? 'bg-white text-primary shadow-2xs ring-1 ring-slate-200/80' : 'text-slate-600 hover:text-slate-900'"
                                 class="pill-tab-transition inline-flex items-center rounded-lg px-3 py-1.5 text-xs font-semibold">
-                            Matriks Distribusi 8 UPT
+                            Distribusi 8 UPT
                         </button>
                         <button type="button"
+                                role="tab"
+                                :aria-selected="(activeTab === 'uit').toString()"
                                 @click="activeTab = 'uit'"
                                 :class="activeTab === 'uit' ? 'bg-white text-primary shadow-2xs ring-1 ring-slate-200/80' : 'text-slate-600 hover:text-slate-900'"
                                 class="pill-tab-transition inline-flex items-center rounded-lg px-3 py-1.5 text-xs font-semibold">
                             Rekap Induk UIT
                         </button>
-                        <span class="sr-only">Matriks Distribusi 8 UPT (Tab 1b) Rekap Induk UIT (Tab 1a)</span>
                     </div>
 
                     <div class="w-full sm:w-64">
@@ -543,9 +552,9 @@
                         <tr>
                             <th class="px-6 py-2.5">Atribut / Ringkasan</th>
                             <th class="px-4 py-2.5">Kategori</th>
-                            <th class="px-4 py-2.5 text-right">Induk UIT (Tab 1a)</th>
-                            <th class="px-4 py-2.5 text-right">Akumulasi 8 UPT (Tab 1b)</th>
-                            <th class="px-4 py-2.5 text-right">Delta</th>
+                            <th class="px-4 py-2.5 text-right">Induk UIT JBT</th>
+                            <th class="px-4 py-2.5 text-right">Akumulasi 8 UPT</th>
+                            <th class="px-4 py-2.5 text-right">Selisih</th>
                             <th class="px-6 py-2.5 text-right">Status</th>
                         </tr>
                     </thead>
@@ -595,7 +604,7 @@
                 </table>
             </div>
 
-            {{-- Tab 2: Matriks Distribusi 8 UPT (Tab 1b) --}}
+            {{-- Distribusi 8 UPT --}}
             <div x-show="activeTab === 'matrix'" x-cloak class="overflow-x-auto">
                 <table class="min-w-full divide-y divide-slate-100 text-xs">
                     <thead class="bg-slate-50/80 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
@@ -643,7 +652,7 @@
                 </table>
             </div>
 
-            {{-- Tab 3: Rekap Induk UIT (Tab 1a) --}}
+            {{-- Rekap Induk UIT --}}
             <div x-show="activeTab === 'uit'" x-cloak class="overflow-x-auto">
                 <table class="min-w-full divide-y divide-slate-100 text-xs">
                     <thead class="bg-slate-50/80 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
@@ -690,45 +699,58 @@
         </section>
     @endif
 
-    {{-- Tabel Metrik Data (Read-Only) --}}
-    <div class="ibs-card animate-entrance stagger-3 mt-6 overflow-hidden">
-        <div class="flex flex-col gap-2 border-b border-slate-100 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
-            <div class="flex items-center gap-2">
-                <h2 class="ibs-section-title text-base">Rincian Metrik Data</h2>
+    {{-- Panel Lipat Rincian Metrik Data Mentah (Read-Only) --}}
+    <details id="dataset-raw-metrics-details"
+             class="group ibs-card animate-entrance stagger-3 mt-6 overflow-hidden"
+             @if (! ($isAssetDataset ?? false) || request()->filled('page')) open @endif>
+        <summary class="flex cursor-pointer list-none flex-wrap items-center justify-between gap-2 px-6 py-4 select-none transition hover:bg-slate-50/70 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#16a3b8] [&::-webkit-details-marker]:hidden">
+            <span class="flex min-w-0 flex-wrap items-center gap-2.5">
+                <svg class="h-4 w-4 shrink-0 text-[#0b6175] transition-transform duration-200 -rotate-90 group-open:rotate-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <path d="m6 9 6 6 6-6" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                <span class="ibs-section-title text-base">Rincian Metrik Data</span>
                 <span class="rounded-md bg-slate-100 px-2 py-0.5 font-sans text-[11px] font-medium tabular-nums text-slate-600">
                     {{ number_format($metrics->total(), 0, ',', '.') }} baris
                 </span>
                 <span class="sr-only">Single Source of Truth: Detektor, Bukan Generator</span>
-            </div>
-            <span class="inline-flex items-center rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600">
-                Sinkronisasi Baca Saja<span class="sr-only"> Read-Only</span>
             </span>
-        </div>
-        <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-slate-100 text-xs">
-                <thead class="bg-slate-50/80 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                    <tr>
-                        <th class="px-6 py-3">Nama Metrik / Atribut</th>
-                        <th class="px-6 py-3">Periode</th>
-                        <th class="px-6 py-3 text-right">Nilai</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100 bg-white">
-                    @forelse ($metrics as $metric)
-                        <tr class="transition hover:bg-slate-50/60">
-                            <td class="px-6 py-2.5 font-medium text-slate-800">{{ $metric->metric_name }}</td>
-                            <td class="px-6 py-2.5 font-sans tabular-nums text-slate-600 text-xs">{{ $formatAssetDate($metric->period) }}</td>
-                            <td class="px-6 py-2.5 text-right font-sans tabular-nums font-semibold text-slate-900">{{ number_format((float) $metric->value, 1, ',', '.') }}</td>
-                        </tr>
-                    @empty
+            <span class="inline-flex items-center gap-2.5">
+                <span class="inline-flex items-center rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600">
+                    Data Hanya Baca<span class="sr-only"> Read-Only</span>
+                </span>
+                <span class="text-xs font-semibold text-primary group-open:hidden">Buka data mentah</span>
+                <span class="hidden text-xs font-semibold text-slate-500 group-open:inline">Tutup data mentah</span>
+            </span>
+        </summary>
+        <div class="border-t border-slate-100">
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-slate-100 text-xs">
+                    <thead class="bg-slate-50/80 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
                         <tr>
-                            <td colspan="3" class="px-6 py-8 text-center text-xs text-slate-400">Belum ada baris data terimpor.</td>
+                            <th class="px-6 py-3">Nama Metrik / Atribut</th>
+                            <th class="px-6 py-3">Periode</th>
+                            <th class="px-6 py-3 text-right">Nilai</th>
                         </tr>
-                    @endforelse
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100 bg-white">
+                        @forelse ($metrics as $metric)
+                            <tr class="transition hover:bg-slate-50/60">
+                                <td class="px-6 py-2.5 font-medium text-slate-800">{{ $metric->metric_name }}</td>
+                                <td class="px-6 py-2.5 font-sans tabular-nums text-slate-600 text-xs">{{ $formatAssetDate($metric->period) }}</td>
+                                <td class="px-6 py-2.5 text-right font-sans tabular-nums font-semibold text-slate-900">{{ number_format((float) $metric->value, 1, ',', '.') }}</td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="3" class="px-6 py-8 text-center text-xs text-slate-400">Belum ada baris data terimpor.</td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+            @if ($metrics->hasPages())
+                <div class="border-t border-slate-100 px-6 py-4">{{ $metrics->fragment('dataset-raw-metrics-details')->links() }}</div>
+            @endif
         </div>
-        <div class="border-t border-slate-100 px-6 py-4">{{ $metrics->links() }}</div>
-    </div>
+    </details>
 </div>
 @endsection
