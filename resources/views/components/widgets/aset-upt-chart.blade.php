@@ -210,121 +210,178 @@
             ? \App\Services\AssetSheetsSyncService::fallbackDatasetName()
             : null);
 
-    // Ringkasan eksekutif 1 kalimat otomatis
-    $topTrafoLeader = collect($rankingsByCategory['trafo'])->first(fn (array $r): bool => $r['is_recorded'] && ($r['value'] ?? 0) > 0);
-    $topTransmisiLeader = collect($rankingsByCategory['transmisi'])->first(fn (array $r): bool => $r['is_recorded'] && ($r['value'] ?? 0) > 0);
-    $topTowerLeader = collect($rankingsByCategory['tower'])->first(fn (array $r): bool => $r['is_recorded'] && ($r['value'] ?? 0) > 0);
-
-    $leaderClause = '';
-    if ($topTrafoLeader !== null && $topTrafoLeader['share_num'] !== null) {
-        $leaderClause = ' dengan porsi kapasitas trafo terbesar berada di UPT '.$topTrafoLeader['upt'].' ('.$topTrafoLeader['share_pct'].' dari total induk)';
-    } elseif ($topTransmisiLeader !== null && $topTransmisiLeader['share_num'] !== null) {
-        $leaderClause = ' dengan jaringan transmisi terpanjang di UPT '.$topTransmisiLeader['upt'].' ('.$topTransmisiLeader['share_pct'].' dari total induk)';
-    } elseif ($topTowerLeader !== null && $topTowerLeader['share_num'] !== null) {
-        $leaderClause = ' dengan konsentrasi tower terbanyak di UPT '.$topTowerLeader['upt'].' ('.$topTowerLeader['share_pct'].' dari total induk)';
-    }
-
-    $periodDisplay = $period !== null ? $formatMonthYear($period) : 'periode berjalan';
     $canAccessDetail = \App\Http\Controllers\AssetDetailController::canAccessAssetDetail($currentUser);
 @endphp
 
 <div
-    class="space-y-5 min-w-0 max-w-full font-aset"
+    class="space-y-4 min-w-0 max-w-full font-aset"
     @if (! $labels->isEmpty() && ! $series->isEmpty())
         x-data='asetUptChartWidget(@json($chartId))'
         x-init="init()"
     @endif
 >
-    {{-- Lapis 1: Header Eksekutif & Ringkasan Otomatis --}}
-    <div id="aset-executive-header" class="ibs-card p-5 sm:p-6">
-        <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div class="min-w-0 flex-1 space-y-2">
-                <div class="flex flex-wrap items-center gap-2.5">
-                    <h2 class="ibs-section-title text-lg sm:text-xl font-bold text-slate-900">Ringkasan Aset UIT JBT</h2>
-                    <span class="sr-only">{{ $widget['label'] ?? 'Stok Aset per UPT' }}</span>
+    {{-- Lapis 1: Header Ringkas + Pita 3 Angka Otoritatif Induk UIT JBT --}}
+    <div class="ibs-card min-w-0 max-w-full overflow-hidden">
+        <div id="aset-executive-header" class="px-5 py-3.5 sm:px-6 sm:py-4">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div class="min-w-0 flex flex-wrap items-center gap-2.5">
+                    <h2 class="ibs-section-title text-lg font-bold text-slate-900">Ringkasan Aset UIT JBT</h2>
+                    <span class="sr-only">{{ $widget['label'] ?? 'Stok Aset per UPT' }} ({!! 'Unit Induk Transmisi Jawa Bagian Tengah' !!})</span>
                     @if ($period !== null)
-                        <span class="inline-flex items-center rounded-full bg-[#e6f4f6] px-3 py-0.5 text-xs font-semibold text-[#0b6175]">
-                            {{ $formatMonthYear($period) }}
-                        </span>
-                        <span class="sr-only">Periode {{ $period }}</span>
+                        <span class="sr-only">Periode {{ $period }} ({{ $formatMonthYear($period) }})</span>
                     @endif
+                    <span class="inline-flex items-center rounded-md border border-slate-200/80 bg-slate-50 px-2.5 py-0.5 text-[11px] font-semibold text-slate-600">
+                        Total Induk UIT JBT
+                    </span>
                 </div>
 
-                @if (! $labels->isEmpty() && ! $series->isEmpty())
-                    <p id="aset-auto-summary" class="text-xs sm:text-sm leading-relaxed text-slate-600 max-w-4xl">
-                        Per <strong class="font-semibold text-slate-800">{{ $periodDisplay }}</strong>, Unit Induk Transmisi Jawa Bagian Tengah mengelola kapasitas trafo
-                        <strong class="font-semibold text-slate-800 tabular-nums">{{ $totalTrafo !== null ? number_format($totalTrafo, 1, ',', '.').' MVA' : 'Tidak tercatat' }}</strong>,
-                        jaringan transmisi
-                        <strong class="font-semibold text-slate-800 tabular-nums">{{ $totalTransmisi !== null ? number_format($totalTransmisi, 1, ',', '.').' kms' : 'Tidak tercatat' }}</strong>,
-                        dan
-                        <strong class="font-semibold text-slate-800 tabular-nums">{{ $totalTower !== null ? number_format($totalTower, 0, ',', '.').' Unit' : 'Tidak tercatat' }}</strong>
-                        konstruksi tower{{ $leaderClause }}.
-                    </p>
-                @endif
+                <div class="flex flex-wrap items-center gap-2 sm:shrink-0">
+                    @if (! empty($availablePeriods))
+                        <form method="GET" action="{{ route('dashboard') }}" class="flex items-center">
+                            <label for="aset-widget-period-select" class="sr-only">Pilih periode historis aset</label>
+                            <select
+                                id="aset-widget-period-select"
+                                name="period"
+                                data-auto-submit
+                                aria-label="Pilih periode historis aset"
+                                class="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs focus:border-[#0b6175] focus:outline-hidden"
+                            >
+                                @foreach ($availablePeriods as $pOption)
+                                    <option value="{{ $pOption }}" @selected($pOption === $period)>
+                                        {{ $formatMonthYear($pOption) }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </form>
+                    @endif
 
-                <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5 pt-0.5 text-xs text-slate-600">
+                    @if ($canAccessDetail)
+                        <a
+                            id="aset-widget-fullscreen-link"
+                            href="{{ route('dashboard.asset-detail', array_filter(['section' => 'trafo', 'period' => $period, 'fullscreen' => 1], fn ($v) => $v !== null && $v !== '')) }}"
+                            class="inline-flex w-full sm:w-auto items-center justify-center gap-1.5 rounded-xl bg-[#0b6175] px-3.5 py-2 text-xs font-semibold text-white hover:bg-[#094e5e] transition shadow-2xs whitespace-nowrap focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#16a3b8]"
+                        >
+                            <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                                <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" stroke-linecap="round" stroke-linejoin="round" />
+                            </svg>
+                            <span>Buka Layar Penuh</span>
+                        </a>
+                    @endif
+                </div>
+            </div>
+        </div>
+
+        @if (! $labels->isEmpty() && ! $series->isEmpty())
+            <div id="aset-hero-strip" class="border-t border-slate-100 bg-white">
+                <div class="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-slate-100">
+                    {{-- Metrik 1: Kapasitas Trafo --}}
+                    <div class="px-5 py-4 sm:px-6">
+                        <div class="flex items-center justify-between gap-2">
+                            <div class="flex items-center gap-2">
+                                <div class="flex h-7 w-7 items-center justify-center rounded-lg bg-[#e6f4f6] text-[#0b6175]">
+                                    <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                                        <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" stroke-linecap="round" stroke-linejoin="round" />
+                                    </svg>
+                                </div>
+                                <span class="ibs-metric-label">Kapasitas Trafo</span>
+                            </div>
+                            <span class="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
+                                MVA
+                            </span>
+                        </div>
+                        <div class="mt-2.5 flex flex-wrap items-baseline gap-2">
+                            @if ($totalTrafo === null)
+                                <span class="text-sm font-medium text-slate-400">Tidak tercatat</span>
+                            @else
+                                <span class="ibs-metric-value text-2xl tabular-nums" x-data="numberTicker('{{ number_format($totalTrafo, 1, ',', '.') }}')" x-text="display">
+                                    {{ number_format($totalTrafo, 1, ',', '.') }}
+                                </span>
+                                <span class="text-xs font-semibold text-slate-500">MVA</span>
+                                @if ($trafoBank !== null || $trafoUnit !== null)
+                                    <span class="inline-flex items-center rounded-md bg-[#e6f4f6]/80 px-2 py-0.5 text-[11px] font-semibold text-[#0b6175] tabular-nums">
+                                        {{ $trafoBank !== null ? number_format($trafoBank, 0, ',', '.').' Bank' : 'Tidak tercatat' }}
+                                        /
+                                        {{ $trafoUnit !== null ? number_format($trafoUnit, 0, ',', '.').' Unit' : 'Tidak tercatat' }}
+                                    </span>
+                                @endif
+                            @endif
+                        </div>
+                    </div>
+
+                    {{-- Metrik 2: Jaringan Transmisi --}}
+                    <div class="px-5 py-4 sm:px-6">
+                        <div class="flex items-center justify-between gap-2">
+                            <div class="flex items-center gap-2">
+                                <div class="flex h-7 w-7 items-center justify-center rounded-lg bg-[#e6f4f6] text-[#0b6175]">
+                                    <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                                        <path d="M22 12h-4l-3 9L9 3l-3 9H2" stroke-linecap="round" stroke-linejoin="round" />
+                                    </svg>
+                                </div>
+                                <span class="ibs-metric-label">Jaringan Transmisi</span>
+                            </div>
+                            <span class="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
+                                kms
+                            </span>
+                        </div>
+                        <div class="mt-2.5 flex items-baseline gap-2">
+                            @if ($totalTransmisi === null)
+                                <span class="text-sm font-medium text-slate-400">Tidak tercatat</span>
+                            @else
+                                <span class="ibs-metric-value text-2xl tabular-nums" x-data="numberTicker('{{ number_format($totalTransmisi, 1, ',', '.') }}')" x-text="display">
+                                    {{ number_format($totalTransmisi, 1, ',', '.') }}
+                                </span>
+                                <span class="text-xs font-semibold text-slate-500">kms</span>
+                            @endif
+                        </div>
+                    </div>
+
+                    {{-- Metrik 3: Konstruksi Tower --}}
+                    <div class="px-5 py-4 sm:px-6">
+                        <div class="flex items-center justify-between gap-2">
+                            <div class="flex items-center gap-2">
+                                <div class="flex h-7 w-7 items-center justify-center rounded-lg bg-[#e6f4f6] text-[#0b6175]">
+                                    <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                                        <path d="M12 2v20M6 8h12M4 14h16M8 22l4-20 4 20" stroke-linecap="round" stroke-linejoin="round" />
+                                    </svg>
+                                </div>
+                                <span class="ibs-metric-label">Konstruksi Tower</span>
+                            </div>
+                            <span class="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
+                                Unit
+                            </span>
+                        </div>
+                        <div class="mt-2.5 flex items-baseline gap-2">
+                            @if ($totalTower === null)
+                                <span class="text-sm font-medium text-slate-400">Tidak tercatat</span>
+                            @else
+                                <span class="ibs-metric-value text-2xl tabular-nums" x-data="numberTicker('{{ number_format($totalTower, 0, ',', '.') }}')" x-text="display">
+                                    {{ number_format($totalTower, 0, ',', '.') }}
+                                </span>
+                                <span class="text-xs font-semibold text-slate-500">Unit</span>
+                            @endif
+                        </div>
+                    </div>
+                </div>
+            </div>
+        @endif
+
+        @if ($sourceName !== null || is_array($freshness))
+            <div id="aset-metadata-footer" class="border-t border-slate-100 bg-slate-50/60 px-5 py-2.5 sm:px-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between text-xs text-slate-600">
+                <div class="min-w-0 flex flex-wrap items-center gap-2">
                     @if ($sourceName !== null)
-                        <span id="aset-source-name" class="inline-flex items-center gap-1.5 rounded-full border border-slate-200/90 bg-white px-2.5 py-0.5 text-xs font-medium text-slate-700">
+                        <span id="aset-source-name" class="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
                             <svg class="h-3.5 w-3.5 shrink-0 text-[#0b6175]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
                                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke-linecap="round" stroke-linejoin="round" />
                                 <path d="M14 2v6h6M8 13h8M8 17h5" stroke-linecap="round" stroke-linejoin="round" />
                             </svg>
-                            <span>Sumber data: <strong class="font-semibold text-slate-900">{{ $sourceName }}</strong></span>
+                            <span>Sumber data: <strong class="font-semibold text-slate-800">{{ $sourceName }}</strong></span>
                         </span>
                     @endif
-
-                    <x-data-freshness-badge id="aset-freshness-indicator" :freshness="$freshness" />
-
-                    @can('dataset.view')
-                        @if (\Illuminate\Support\Facades\Route::has('datasets.index'))
-                            <a
-                                href="{{ route('datasets.index') }}"
-                                class="inline-flex items-center gap-1 font-semibold text-[#0b6175] hover:text-[#16a3b8] transition focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#16a3b8] rounded-md"
-                            >
-                                <span>Kelola Dataset</span>
-                                <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                                    <path d="M5 12h14m-6-6 6 6-6 6" stroke-linecap="round" stroke-linejoin="round" />
-                                </svg>
-                            </a>
-                        @endif
-                    @endcan
                 </div>
-            </div>
 
-            <div class="flex flex-wrap items-center gap-2 sm:shrink-0">
-                @if (! empty($availablePeriods))
-                    <form method="GET" action="{{ route('dashboard') }}" class="flex items-center">
-                        <label for="aset-widget-period-select" class="sr-only">Pilih periode historis aset</label>
-                        <select
-                            id="aset-widget-period-select"
-                            name="period"
-                            data-auto-submit
-                            aria-label="Pilih periode historis aset"
-                            class="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs focus:border-[#0b6175] focus:outline-hidden"
-                        >
-                            @foreach ($availablePeriods as $pOption)
-                                <option value="{{ $pOption }}" @selected($pOption === $period)>
-                                    {{ $formatMonthYear($pOption) }}
-                                </option>
-                            @endforeach
-                        </select>
-                    </form>
-                @endif
-
-                @if ($canAccessDetail)
-                    <a
-                        id="aset-widget-fullscreen-link"
-                        href="{{ route('dashboard.asset-detail', array_filter(['section' => 'trafo', 'period' => $period, 'fullscreen' => 1], fn ($v) => $v !== null && $v !== '')) }}"
-                        class="inline-flex w-full sm:w-auto items-center justify-center gap-1.5 rounded-xl bg-[#0b6175] px-3.5 py-2 text-xs font-semibold text-white hover:bg-[#094e5e] transition shadow-2xs whitespace-nowrap focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#16a3b8]"
-                    >
-                        <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-                            <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" stroke-linecap="round" stroke-linejoin="round" />
-                        </svg>
-                        <span>Buka Layar Penuh</span>
-                    </a>
-                @endif
+                <x-data-freshness-badge id="aset-freshness-indicator" :freshness="$freshness" class="sm:justify-end" />
             </div>
-        </div>
+        @endif
     </div>
 
     @if ($labels->isEmpty() || $series->isEmpty())
@@ -354,126 +411,17 @@
             })();
         </script>
 
-        {{-- Lapis 2: Unified Induk UIT JBT Hero Strip --}}
-        <div id="aset-hero-strip" class="ibs-card min-w-0 max-w-full overflow-hidden">
-            <div class="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-slate-100">
-                {{-- Metrik 1: Kapasitas Trafo --}}
-                <div class="p-5">
-                    <div class="flex items-center justify-between gap-2">
-                        <div class="flex items-center gap-2.5">
-                            <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-[#e6f4f6] text-[#0b6175]">
-                                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-                                    <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" stroke-linecap="round" stroke-linejoin="round" />
-                                </svg>
-                            </div>
-                            <span class="ibs-metric-label">Kapasitas Trafo</span>
-                        </div>
-                        <span class="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
-                            MVA
-                        </span>
-                    </div>
-                    <div class="mt-3 flex flex-wrap items-baseline gap-2">
-                        @if ($totalTrafo === null)
-                            <span class="text-sm font-medium text-slate-400">Tidak tercatat</span>
-                        @else
-                            <span class="ibs-metric-value text-2xl sm:text-3xl tabular-nums" x-data="numberTicker('{{ number_format($totalTrafo, 1, ',', '.') }}')" x-text="display">
-                                {{ number_format($totalTrafo, 1, ',', '.') }}
-                            </span>
-                            <span class="text-xs font-semibold text-slate-500">MVA</span>
-                            @if ($trafoBank !== null || $trafoUnit !== null)
-                                <span class="inline-flex items-center rounded-md bg-[#e6f4f6]/80 px-2 py-0.5 text-[11px] font-semibold text-[#0b6175] tabular-nums">
-                                    {{ $trafoBank !== null ? number_format($trafoBank, 0, ',', '.').' Bank' : 'Tidak tercatat' }}
-                                    /
-                                    {{ $trafoUnit !== null ? number_format($trafoUnit, 0, ',', '.').' Unit' : 'Tidak tercatat' }}
-                                </span>
-                            @endif
-                        @endif
-                    </div>
-                    <p class="mt-1.5 text-[11px] text-slate-500">Daya terpasang gardu induk (mega volt ampere)</p>
+        {{-- Lapis 2: 1 Grafik Batang Utama Selebar 100% --}}
+        <div id="aset-upt-chart-card" class="ibs-card min-w-0 max-w-full p-5 sm:px-6">
+            <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between border-b border-slate-100 pb-3.5">
+                <div class="min-w-0 flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                    <h3 class="ibs-section-title text-base font-bold text-slate-900">Sebaran 8 Wilayah UPT</h3>
+                    <span class="rounded-md bg-[#e6f4f6] px-2 py-0.5 text-[11px] font-semibold text-[#0b6175]" x-text="activeUnit"></span>
+                    <span class="text-xs text-slate-500">Unit Pelaksana Transmisi (terurut menurun)</span>
                 </div>
 
-                {{-- Metrik 2: Jaringan Transmisi --}}
-                <div class="p-5">
-                    <div class="flex items-center justify-between gap-2">
-                        <div class="flex items-center gap-2.5">
-                            <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-[#e6f4f6] text-[#0b6175]">
-                                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-                                    <path d="M22 12h-4l-3 9L9 3l-3 9H2" stroke-linecap="round" stroke-linejoin="round" />
-                                </svg>
-                            </div>
-                            <span class="ibs-metric-label">Jaringan Transmisi</span>
-                        </div>
-                        <span class="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
-                            kms
-                        </span>
-                    </div>
-                    <div class="mt-3 flex items-baseline gap-2">
-                        @if ($totalTransmisi === null)
-                            <span class="text-sm font-medium text-slate-400">Tidak tercatat</span>
-                        @else
-                            <span class="ibs-metric-value text-2xl sm:text-3xl tabular-nums" x-data="numberTicker('{{ number_format($totalTransmisi, 1, ',', '.') }}')" x-text="display">
-                                {{ number_format($totalTransmisi, 1, ',', '.') }}
-                            </span>
-                            <span class="text-xs font-semibold text-slate-500">kms</span>
-                        @endif
-                    </div>
-                    <p class="mt-1.5 text-[11px] text-slate-500">Panjang penghantar aktif (kilometer sirkuit)</p>
-                </div>
-
-                {{-- Metrik 3: Konstruksi Tower --}}
-                <div class="p-5">
-                    <div class="flex items-center justify-between gap-2">
-                        <div class="flex items-center gap-2.5">
-                            <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-[#e6f4f6] text-[#0b6175]">
-                                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-                                    <path d="M12 2v20M6 8h12M4 14h16M8 22l4-20 4 20" stroke-linecap="round" stroke-linejoin="round" />
-                                </svg>
-                            </div>
-                            <span class="ibs-metric-label">Konstruksi Tower</span>
-                        </div>
-                        <span class="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
-                            Unit
-                        </span>
-                    </div>
-                    <div class="mt-3 flex items-baseline gap-2">
-                        @if ($totalTower === null)
-                            <span class="text-sm font-medium text-slate-400">Tidak tercatat</span>
-                        @else
-                            <span class="ibs-metric-value text-2xl sm:text-3xl tabular-nums" x-data="numberTicker('{{ number_format($totalTower, 0, ',', '.') }}')" x-text="display">
-                                {{ number_format($totalTower, 0, ',', '.') }}
-                            </span>
-                            <span class="text-xs font-semibold text-slate-500">Unit</span>
-                        @endif
-                    </div>
-                    <p class="mt-1.5 text-[11px] text-slate-500">Menara penopang jaringan (unit fisik terpasang)</p>
-                </div>
-            </div>
-
-            <div class="border-t border-slate-100 bg-slate-50/70 px-5 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600">
-                <div class="flex items-center gap-2">
-                    <span class="inline-flex items-center rounded-md bg-[#e6f4f6] px-2 py-0.5 text-[11px] font-semibold text-[#0b6175]">
-                        Total Induk UIT JBT
-                    </span>
-                    <span>Angka otoritatif tingkat induk yang dicatat terpisah dan terisolasi dari penjumlahan 8 wilayah UPT.</span>
-                </div>
-            </div>
-        </div>
-
-        {{-- Lapis 3: Split Visual Canvas (70% Grafik Utama + 30% Peringkat Interaktif 8 UPT) --}}
-        <div id="aset-split-canvas" class="ibs-card min-w-0 max-w-full p-5">
-            <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between border-b border-slate-100 pb-4">
-                <div class="min-w-0 space-y-1">
-                    <div class="flex flex-wrap items-center gap-2.5">
-                        <h3 class="ibs-section-title text-base font-bold text-slate-900">Sebaran 8 Wilayah UPT</h3>
-                        <span class="rounded-md bg-[#e6f4f6] px-2 py-0.5 text-[11px] font-semibold text-[#0b6175]" x-text="activeUnit"></span>
-                    </div>
-                    <p class="text-xs text-slate-500">
-                        Perbandingan kapasitas dan panjang jaringan antar 8 Unit Pelaksana Transmisi (UPT) terhadap Total Induk UIT JBT.
-                    </p>
-                </div>
-
-                {{-- Pemilih Kategori --}}
-                <div class="inline-flex flex-wrap sm:flex-nowrap shrink-0 max-w-full items-center gap-1 rounded-xl bg-slate-100/90 p-1 text-xs self-start lg:self-auto" role="tablist" aria-label="Pilih kategori aset">
+                {{-- Pemilih Kategori Satu Baris --}}
+                <div class="grid grid-cols-3 sm:inline-flex sm:flex-nowrap w-full sm:w-auto shrink-0 max-w-full items-center gap-1 rounded-xl bg-slate-100/90 p-1 text-[11px] sm:text-xs self-start lg:self-auto" role="tablist" aria-label="Pilih kategori aset">
                     <button
                         type="button"
                         role="tab"
@@ -483,9 +431,10 @@
                         :class="activeCategory === 'trafo'
                             ? 'bg-white text-[#0b6175] font-semibold shadow-2xs'
                             : 'text-slate-600 hover:text-slate-900 font-medium'"
-                        class="pill-tab-transition cursor-pointer whitespace-nowrap rounded-lg px-3 py-1.5 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#16a3b8]"
+                        class="pill-tab-transition cursor-pointer whitespace-nowrap text-center rounded-lg px-2 sm:px-3 py-1.5 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#16a3b8]"
                     >
-                        Kapasitas Trafo (MVA)
+                        <span class="sm:hidden">Trafo</span>
+                        <span class="hidden sm:inline">Kapasitas Trafo (MVA)</span>
                     </button>
                     <button
                         type="button"
@@ -496,9 +445,10 @@
                         :class="activeCategory === 'transmisi'
                             ? 'bg-white text-[#0b6175] font-semibold shadow-2xs'
                             : 'text-slate-600 hover:text-slate-900 font-medium'"
-                        class="pill-tab-transition cursor-pointer whitespace-nowrap rounded-lg px-3 py-1.5 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#16a3b8]"
+                        class="pill-tab-transition cursor-pointer whitespace-nowrap text-center rounded-lg px-2 sm:px-3 py-1.5 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#16a3b8]"
                     >
-                        Jaringan Transmisi (kms)
+                        <span class="sm:hidden">Transmisi</span>
+                        <span class="hidden sm:inline">Jaringan Transmisi (kms)</span>
                     </button>
                     <button
                         type="button"
@@ -509,173 +459,47 @@
                         :class="activeCategory === 'tower'
                             ? 'bg-white text-[#0b6175] font-semibold shadow-2xs'
                             : 'text-slate-600 hover:text-slate-900 font-medium'"
-                        class="pill-tab-transition cursor-pointer whitespace-nowrap rounded-lg px-3 py-1.5 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#16a3b8]"
+                        class="pill-tab-transition cursor-pointer whitespace-nowrap text-center rounded-lg px-2 sm:px-3 py-1.5 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#16a3b8]"
                     >
-                        Sebaran Tower (Unit)
+                        <span class="sm:hidden">Tower</span>
+                        <span class="hidden sm:inline">Sebaran Tower (Unit)</span>
                     </button>
                 </div>
             </div>
 
-            <div class="mt-4 grid grid-cols-1 lg:grid-cols-10 gap-6 items-stretch min-w-0">
-                {{-- Sisi Kiri (70%): Kanvas ECharts Utama --}}
-                <div class="lg:col-span-7 min-w-0 max-w-full overflow-hidden relative flex flex-col justify-between">
-                    <div
-                        x-show="chartState === 'loading'"
-                        class="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-slate-50/80 animate-pulse"
-                        aria-hidden="true"
-                    >
-                        <span class="text-xs font-medium text-slate-500">Memuat visualisasi sebaran UPT...</span>
-                    </div>
-
-                    <div
-                        x-show="chartState === 'error'"
-                        x-cloak
-                        class="flex h-[360px] min-h-[360px] flex-col items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-6 text-center"
-                    >
-                        <p class="text-xs font-semibold text-slate-700">Grafik belum dapat dimuat pada peramban ini.</p>
-                        <button
-                            type="button"
-                            @click="retryChart()"
-                            class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
-                        >
-                            Muat Ulang Grafik
-                        </button>
-                    </div>
-
-                    <div
-                        id="{{ $chartId }}"
-                        data-chart-id="aset-upt-chart"
-                        x-show="chartState !== 'error'"
-                        class="w-full max-w-full overflow-hidden h-[360px] min-h-[360px]"
-                        style="width: 100%; height: 360px; min-height: 360px;"
-                    ></div>
-                </div>
-
-                {{-- Sisi Kanan (30%): Peringkat Interaktif 8 UPT --}}
+            <div class="mt-3.5 min-w-0 max-w-full overflow-hidden relative">
                 <div
-                    id="aset-upt-ranking"
-                    class="lg:col-span-3 min-w-0 max-w-full flex flex-col justify-between border-t lg:border-t-0 lg:border-l border-slate-100 pt-4 lg:pt-0 lg:pl-5"
+                    x-show="chartState === 'loading'"
+                    class="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-slate-50/80 animate-pulse"
+                    aria-hidden="true"
                 >
-                    <div class="flex items-center justify-between pb-2.5 border-b border-slate-100">
-                        <span class="text-xs font-bold uppercase tracking-wider text-slate-700">Peringkat 8 UPT</span>
-                        <span class="text-[11px] font-semibold text-slate-500">% terhadap Induk</span>
-                    </div>
-
-                    @foreach (['trafo' => 'MVA', 'transmisi' => 'kms', 'tower' => 'Unit'] as $catKey => $unitLabel)
-                        <ol
-                            class="mt-2.5 space-y-1.5 flex-1 flex flex-col justify-between"
-                            data-ranking-category="{{ $catKey }}"
-                            @if ($catKey !== $defaultCategory) x-cloak @endif
-                            x-show="activeCategory === '{{ $catKey }}'"
-                        >
-                            @foreach ($rankingsByCategory[$catKey] as $rItem)
-                                <li>
-                                    <button
-                                        type="button"
-                                        data-ranking-upt="{{ $rItem['upt'] }}"
-                                        @mouseenter="focusUpt(@js($rItem['upt']))"
-                                        @mouseleave="blurUpt()"
-                                        @focus="focusUpt(@js($rItem['upt']))"
-                                        @blur="blurUpt()"
-                                        @click="togglePin(@js($rItem['upt']))"
-                                        :aria-pressed="pinnedUpt === @js($rItem['upt']) ? 'true' : 'false'"
-                                        :class="activeUpt === @js($rItem['upt'])
-                                            ? 'bg-[#e6f4f6]/70 border-[#16a3b8]/50'
-                                            : 'bg-transparent border-transparent hover:bg-slate-50'"
-                                        class="w-full cursor-pointer rounded-lg border px-2.5 py-1.5 text-left transition focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#16a3b8]"
-                                    >
-                                        <div class="flex items-center justify-between gap-2 text-xs">
-                                            <div class="flex items-center gap-2 min-w-0">
-                                                <span class="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-[11px] font-bold tabular-nums {{ $rItem['rank'] === 1 ? 'bg-[#0b6175] text-white' : ($rItem['rank'] <= 3 ? 'bg-[#e6f4f6] text-[#0b6175]' : 'bg-slate-100 text-slate-600') }}">
-                                                    {{ $rItem['rank'] }}
-                                                </span>
-                                                <span class="font-semibold text-slate-800 truncate">{{ $rItem['upt'] }}</span>
-                                            </div>
-                                            <div class="flex items-baseline gap-2 shrink-0 tabular-nums">
-                                                @if ($rItem['is_recorded'])
-                                                    <span class="font-semibold text-slate-900">{{ $rItem['formatted'] }}</span>
-                                                    <span class="text-[11px] font-medium text-slate-500 w-12 text-right">{{ $rItem['share_pct'] }}</span>
-                                                @else
-                                                    <span class="text-[11px] font-normal text-slate-400">Tidak tercatat</span>
-                                                @endif
-                                            </div>
-                                        </div>
-                                        <div class="mt-1.5 h-1.5 w-full rounded-full bg-slate-100 overflow-hidden">
-                                            @if ($rItem['is_recorded'])
-                                                <div
-                                                    class="h-full rounded-full transition-all duration-300 {{ $rItem['rank'] === 1 ? 'bg-[#0b6175]' : ($rItem['rank'] <= 3 ? 'bg-[#16a3b8]' : 'bg-[#bce3e8]') }}"
-                                                    style="width: {{ $rItem['bar_width'] }}%;"
-                                                ></div>
-                                            @endif
-                                        </div>
-                                    </button>
-                                </li>
-                            @endforeach
-                        </ol>
-                    @endforeach
+                    <span class="text-xs font-medium text-slate-500">Memuat visualisasi sebaran UPT...</span>
                 </div>
+
+                <div
+                    x-show="chartState === 'error'"
+                    x-cloak
+                    class="flex h-[360px] min-h-[360px] flex-col items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-6 text-center"
+                >
+                    <p class="text-xs font-semibold text-slate-700">Grafik belum dapat dimuat pada peramban ini.</p>
+                    <button
+                        type="button"
+                        @click="retryChart()"
+                        class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                    >
+                        Muat Ulang Grafik
+                    </button>
+                </div>
+
+                <div
+                    id="{{ $chartId }}"
+                    data-chart-id="aset-upt-chart"
+                    x-show="chartState !== 'error'"
+                    class="w-full max-w-full overflow-hidden h-[360px] min-h-[360px]"
+                    style="width: 100%; height: 360px; min-height: 360px;"
+                ></div>
             </div>
         </div>
-
-        {{-- Lapis 4: 4 Kartu Pintas Dimensi Eksplorasi --}}
-        @if ($canAccessDetail)
-            @php
-                $shortcutCards = [
-                    [
-                        'section' => 'trafo',
-                        'title' => 'Bedah Trafo & Tegangan',
-                        'metric' => ($trafoBank !== null && $trafoUnit !== null)
-                            ? number_format($trafoBank, 0, ',', '.').' Bank / '.number_format($trafoUnit, 0, ',', '.').' Unit'
-                            : ($totalTrafo !== null ? number_format($totalTrafo, 1, ',', '.').' MVA' : 'Tidak tercatat'),
-                        'desc' => 'Komposisi unit, bank, dan rasio kapasitas per level tegangan',
-                    ],
-                    [
-                        'section' => 'mva',
-                        'title' => 'Distribusi Daya (MVA)',
-                        'metric' => $totalTrafo !== null ? number_format($totalTrafo, 1, ',', '.').' MVA' : 'Tidak tercatat',
-                        'desc' => 'Sebaran kapasitas daya terpasang antar 8 wilayah UPT & ULTG',
-                    ],
-                    [
-                        'section' => 'transmisi',
-                        'title' => 'Jaringan Transmisi (kms)',
-                        'metric' => $totalTransmisi !== null ? number_format($totalTransmisi, 1, ',', '.').' kms' : 'Tidak tercatat',
-                        'desc' => 'Proporsi saluran udara (SU) dan saluran kabel (SK) per tegangan',
-                    ],
-                    [
-                        'section' => 'tower',
-                        'title' => 'Sebaran Tower (Unit)',
-                        'metric' => $totalTower !== null ? number_format($totalTower, 0, ',', '.').' Unit' : 'Tidak tercatat',
-                        'desc' => 'Konstruksi menara transmisi 500 kV, 150 kV, dan 70 kV per wilayah',
-                    ],
-                ];
-            @endphp
-            <div id="aset-explore-shortcuts" class="space-y-2.5">
-                <div class="flex items-center justify-between px-0.5">
-                    <h3 class="text-xs font-bold uppercase tracking-wider text-slate-600">Eksplorasi Dimensi Aset</h3>
-                    <span class="text-xs text-slate-500">Pilih dimensi untuk rincian tegangan dan ULTG</span>
-                </div>
-                <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3.5">
-                    @foreach ($shortcutCards as $card)
-                        <a
-                            href="{{ route('dashboard.asset-detail', array_filter(['section' => $card['section'], 'period' => $period], fn ($v) => $v !== null && $v !== '')) }}"
-                            data-shortcut-section="{{ $card['section'] }}"
-                            class="ibs-card group flex flex-col justify-between p-4 transition hover:border-[#16a3b8] hover:shadow-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#16a3b8]"
-                        >
-                            <div>
-                                <div class="flex items-center justify-between gap-2">
-                                    <span class="text-sm font-bold text-slate-900 group-hover:text-[#0b6175] transition">{{ $card['title'] }}</span>
-                                    <svg class="h-4 w-4 shrink-0 text-slate-400 group-hover:text-[#0b6175] group-hover:translate-x-0.5 transition" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                                        <path d="M5 12h14m-6-6 6 6-6 6" stroke-linecap="round" stroke-linejoin="round" />
-                                    </svg>
-                                </div>
-                                <p class="mt-1.5 text-base font-bold text-[#0b6175] tabular-nums">{{ $card['metric'] }}</p>
-                                <p class="mt-1 text-xs text-slate-500 leading-relaxed">{{ $card['desc'] }}</p>
-                            </div>
-                        </a>
-                    @endforeach
-                </div>
-            </div>
-        @endif
 
         <script @cspNonce>
         if (typeof window.asetUptChartWidget !== 'function') {
@@ -706,8 +530,6 @@
                 return {
                     chartId: chartId,
                     activeCategory: config.defaultCategory || 'trafo',
-                    activeUpt: '',
-                    pinnedUpt: '',
                     chartState: 'loading',
 
                     get activeUnit() {
@@ -723,41 +545,7 @@
 
                     setCategory(cat) {
                         this.activeCategory = cat;
-                        this.pinnedUpt = '';
-                        this.activeUpt = '';
                         this.updateChart();
-                    },
-
-                    focusUpt(upt) {
-                        this.activeUpt = upt;
-                        this.syncHighlight(upt);
-                    },
-
-                    blurUpt() {
-                        this.activeUpt = this.pinnedUpt;
-                        this.syncHighlight(this.pinnedUpt);
-                    },
-
-                    togglePin(upt) {
-                        this.pinnedUpt = this.pinnedUpt === upt ? '' : upt;
-                        this.activeUpt = this.pinnedUpt;
-                        this.syncHighlight(this.pinnedUpt);
-                    },
-
-                    syncHighlight(targetUpt) {
-                        if (!chartInstance) return;
-                        try {
-                            chartInstance.dispatchAction({ type: 'downplay', seriesIndex: 0 });
-                            if (targetUpt) {
-                                const idx = currentOrderedUpts.indexOf(targetUpt);
-                                if (idx !== -1) {
-                                    chartInstance.dispatchAction({ type: 'highlight', seriesIndex: 0, dataIndex: idx });
-                                    chartInstance.dispatchAction({ type: 'showTip', seriesIndex: 0, dataIndex: idx });
-                                }
-                            }
-                        } catch (e) {
-                            // Abaikan jika kanvas sedang transisi
-                        }
                     },
 
                     retryChart() {
@@ -796,24 +584,6 @@
                                 this.chartState = 'error';
                                 return;
                             }
-
-                            chartInstance.off('mouseover');
-                            chartInstance.off('mouseout');
-                            chartInstance.off('click');
-
-                            chartInstance.on('mouseover', (p) => {
-                                if (p && p.name) {
-                                    this.activeUpt = p.name;
-                                }
-                            });
-                            chartInstance.on('mouseout', () => {
-                                this.activeUpt = this.pinnedUpt;
-                            });
-                            chartInstance.on('click', (p) => {
-                                if (p && p.name) {
-                                    this.togglePin(p.name);
-                                }
-                            });
 
                             if (typeof ResizeObserver === 'function' && !resizeObserver) {
                                 resizeObserver = new ResizeObserver(() => {
@@ -880,20 +650,17 @@
                         const ordered = isCompactViewport ? [...rankedRows].reverse() : rankedRows;
                         currentOrderedUpts = ordered.map(r => r.upt);
 
-                        const activeUptNow = this.activeUpt;
                         const self = this;
 
                         const barData = ordered.map(r => {
-                            const isSelected = activeUptNow && activeUptNow === r.upt;
                             return {
                                 name: r.upt,
                                 value: r.is_recorded && r.value !== null ? Number(r.value) : 0,
                                 isRecorded: Boolean(r.is_recorded),
+                                formatted: r.formatted,
                                 sharePct: r.share_pct,
                                 itemStyle: {
-                                    color: !r.is_recorded
-                                        ? '#e2e8f0'
-                                        : (isSelected ? p.accent : p.primary),
+                                    color: !r.is_recorded ? '#e2e8f0' : p.primary,
                                     borderRadius: isCompactViewport ? [0, 6, 6, 0] : [6, 6, 0, 0],
                                 },
                             };
@@ -919,7 +686,8 @@
                         const valueAxis = {
                             type: 'value',
                             min: 0,
-                            name: unit,
+                            name: isCompactViewport ? '' : unit,
+                            splitNumber: isCompactViewport ? 3 : 5,
                             nameTextStyle: {
                                 color: p.axisText,
                                 fontSize: 11,
@@ -927,6 +695,8 @@
                                 padding: [0, 0, 4, 0],
                             },
                             axisLabel: {
+                                show: !isCompactViewport,
+                                hideOverlap: true,
                                 color: p.axisText,
                                 fontSize: 11,
                             },
@@ -985,10 +755,10 @@
                             },
                             legend: { show: false },
                             grid: {
-                                top: 32,
-                                bottom: 28,
+                                top: 36,
+                                bottom: 24,
                                 left: '2%',
-                                right: '3%',
+                                right: isCompactViewport ? '16%' : '3%',
                                 containLabel: true
                             },
                             xAxis: isCompactViewport ? valueAxis : categoryAxis,
@@ -999,8 +769,29 @@
                             series: [{
                                 name: unit,
                                 type: 'bar',
-                                barMaxWidth: 36,
+                                barMaxWidth: 44,
                                 data: barData,
+                                label: {
+                                    show: true,
+                                    position: isCompactViewport ? 'right' : 'top',
+                                    distance: 6,
+                                    color: '#0f172a',
+                                    fontSize: isCompactViewport ? 10 : 11,
+                                    fontWeight: 600,
+                                    fontFamily: chartFont,
+                                    formatter: function (params) {
+                                        const d = params && params.data ? params.data : {};
+                                        if (!d.isRecorded) {
+                                            return 'Tidak tercatat';
+                                        }
+                                        if (d.formatted) {
+                                            return d.formatted;
+                                        }
+                                        return decimals > 0
+                                            ? Number(d.value || 0).toLocaleString('id-ID', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
+                                            : Number(d.value || 0).toLocaleString('id-ID');
+                                    },
+                                },
                                 emphasis: {
                                     focus: 'self',
                                     itemStyle: {

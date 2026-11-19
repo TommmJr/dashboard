@@ -549,7 +549,8 @@ class AsetUptChartWidgetTest extends TestCase
         }
 
         $html->assertSee('Total Induk UIT JBT', false)
-            ->assertSee('id="aset-upt-ranking"', false)
+            ->assertSee('id="aset-upt-chart-card"', false)
+            ->assertDontSee('id="aset-upt-ranking"', false)
             ->assertDontSee('Total Rekapitulasi', false)
             ->assertSee('680', false)
             ->assertSee('340', false)
@@ -1010,7 +1011,9 @@ class AsetUptChartWidgetTest extends TestCase
             ->assertOk()
             ->assertSee('id="aset-executive-header"', false)
             ->assertSee('Ringkasan Aset UIT JBT')
-            ->assertSee('id="aset-auto-summary"', false)
+            ->assertDontSee('id="aset-auto-summary"', false)
+            ->assertDontSee('Kelola Dataset')
+            ->assertSee('id="aset-metadata-footer"', false)
             ->assertSee('id="aset-source-name"', false)
             ->assertSee('REKAP ASET UIT JBT')
             ->assertSee('id="aset-widget-fullscreen-link"', false)
@@ -1052,7 +1055,11 @@ class AsetUptChartWidgetTest extends TestCase
             ->assertSee('653 Bank')
             ->assertSee('569 Unit')
             ->assertSee('13.259,4')
-            ->assertSee('19.447');
+            ->assertSee('19.447')
+            ->assertDontSee('Daya terpasang gardu induk')
+            ->assertDontSee('Panjang penghantar aktif')
+            ->assertDontSee('Menara penopang jaringan')
+            ->assertDontSee('Angka otoritatif tingkat induk yang dicatat terpisah');
     }
 
     public function test_empat_kartu_pintas_mengarah_ke_section_detail_aset(): void
@@ -1067,15 +1074,15 @@ class AsetUptChartWidgetTest extends TestCase
         $this->actingAs($stafAset)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('id="aset-explore-shortcuts"', false)
-            ->assertSee('Bedah Trafo & Tegangan')
-            ->assertSee('Distribusi Daya (MVA)')
-            ->assertSee('Jaringan Transmisi (kms)')
-            ->assertSee('Sebaran Tower (Unit)')
-            ->assertSee('data-shortcut-section="trafo"', false)
-            ->assertSee('data-shortcut-section="mva"', false)
-            ->assertSee('data-shortcut-section="transmisi"', false)
-            ->assertSee('data-shortcut-section="tower"', false);
+            ->assertSee('id="aset-upt-chart-card"', false)
+            ->assertSee('Kapasitas Trafo')
+            ->assertSee('Jaringan Transmisi')
+            ->assertSee('Sebaran Tower')
+            ->assertDontSee('id="aset-upt-ranking"', false)
+            ->assertDontSee('Peringkat 8 UPT')
+            ->assertDontSee('id="aset-explore-shortcuts"', false)
+            ->assertDontSee('Eksplorasi Dimensi Aset')
+            ->assertDontSee('data-shortcut-section=', false);
     }
 
     public function test_widget_aset_bebas_jargon_dan_placeholder_strip(): void
