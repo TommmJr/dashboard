@@ -44,8 +44,8 @@
     $chartSlug = preg_replace('/[^a-z0-9]+/i', '-', strtolower($widget['key'] ?? 'aset-upt-chart'));
     $chartId = 'asetUptChart-'.$chartSlug.'-'.($widget['instance'] ?? 0);
     $donutId = 'asetUptDonut-'.$chartSlug.'-'.($widget['instance'] ?? 0);
-    // Palet monokromatik Teal/Slate selaras dengan window.PLN_CHART_PALETTE
-    $palette = ['#0b6175', '#16a3b8', '#52b2bf', '#bce3e8', '#94a3b8', '#cbd5e1'];
+    // Palet kategorikal kontras tinggi khusus grafik ECharts agar antar seri mudah dibedakan secara visual
+    $palette = ['#0b6175', '#f59e0b', '#2563eb', '#10b981', '#7c3aed', '#e11d48', '#ea580c', '#64748b'];
 
     $formatMonthYear = function (?string $rawDate): string {
         if (! $rawDate) {
@@ -192,6 +192,16 @@
                         <path d="M7 12h2m6 0h2M12 9v6" stroke-linecap="round" stroke-linejoin="round" />
                     </svg>
                     Rincian Trafo & Aset
+                </a>
+                <a
+                    id="aset-widget-fullscreen-link"
+                    href="{{ route('dashboard.asset-detail', array_filter(['section' => 'trafo', 'period' => $period, 'fullscreen' => 1], fn ($v) => $v !== null && $v !== '')) }}"
+                    class="inline-flex items-center gap-1.5 rounded-xl bg-[#0b6175] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#094e5e] transition shadow-2xs whitespace-nowrap focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#16a3b8]"
+                >
+                    <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                        <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
+                    <span>Layar Penuh</span>
                 </a>
             @endif
         </div>
@@ -987,14 +997,14 @@
                                 }).sort((a, b) => b.value - a.value);
 
                                 const donutPalette = [
-                                    p.primary,
-                                    p.accent,
-                                    '#52b2bf',
-                                    '#84cdd6',
-                                    p.softTeal,
+                                    '#0b6175',
+                                    '#f59e0b',
+                                    '#2563eb',
+                                    '#10b981',
+                                    '#7c3aed',
+                                    '#e11d48',
+                                    '#ea580c',
                                     '#64748b',
-                                    '#94a3b8',
-                                    p.targetSlate,
                                 ];
 
                                 const donutOption = {

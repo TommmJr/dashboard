@@ -620,4 +620,70 @@ class AssetDetailPageTest extends TestCase
             ->assertOk();
         $this->assertSame('2026-10-31', $fallbackResponse->viewData('data')['period']);
     }
+
+    public function test_halaman_detail_aset_menyediakan_fullscreen_studio_terpadu_dan_payload_empat_tab(): void
+    {
+        $division = Division::factory()->create(['name' => 'Managemen Aset', 'slug' => 'managemen-aset']);
+        $user = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $division->id]);
+
+        $this->seedAsetSampleData($division);
+
+        foreach (['trafo', 'mva', 'transmisi', 'tower'] as $section) {
+            $response = $this->actingAs($user)
+                ->get(route('dashboard.asset-detail', ['section' => $section]))
+                ->assertOk()
+                ->assertSee('id="asset-detail-fullscreen-btn"', false)
+                ->assertSee('id="asset-fullscreen-workspace"', false)
+                ->assertSee('id="assetFullscreenStudioData"', false)
+                ->assertSee('id="asset-fullscreen-induk-ribbon"', false)
+                ->assertSee('id="asset-studio-tab-trafo"', false)
+                ->assertSee('id="asset-studio-tab-mva"', false)
+                ->assertSee('id="asset-studio-tab-transmisi"', false)
+                ->assertSee('id="asset-studio-tab-tower"', false)
+                ->assertSee('id="asset-fullscreen-upt-bar"', false)
+                ->assertSee('id="asset-fullscreen-search"', false)
+                ->assertSee('id="asset-fullscreen-echart-canvas"', false)
+                ->assertSee('id="asset-fullscreen-download-png-btn"', false)
+                ->assertSee('id="asset-fullscreen-close-btn"', false)
+                ->assertSee('EKSPLORASI ASET UIT JBT', false)
+                ->assertSee('Kepemilikan Induk UIT JBT', false)
+                ->assertSee('Tidak ada atribut atau unit yang cocok.', false)
+                ->assertDontSee('setUptFilter', false)
+                ->assertDontSee('activeUptFilter', false)
+                ->assertDontSee('asset-upt-filter', false)
+                ->assertDontSee('font-mono', false)
+                ->assertDontSee('—', false);
+
+            $html = $response->getContent();
+            $this->assertStringNotContainsString('|| 0', $html);
+            $this->assertDoesNotMatchRegularExpression('/>\s*(?:-|–|—)+\s*</', $html);
+        }
+    }
+
+    public function test_widget_beranda_aset_menampilkan_pintasan_layar_penuh_hanya_untuk_staf_aset(): void
+    {
+        $asetDiv = Division::factory()->create(['name' => 'Managemen Aset', 'slug' => 'managemen-aset']);
+        $pengusahaanDiv = Division::factory()->create(['name' => 'Perencanaan Pengusahaan', 'slug' => 'perencanaan-pengusahaan']);
+        $stafAset = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $asetDiv->id]);
+        $stafPengusahaan = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $pengusahaanDiv->id]);
+        $admin = User::factory()->withRole(Role::ADMIN)->create(['division_id' => null]);
+
+        $this->seedAsetSampleData($asetDiv);
+
+        $this->actingAs($stafAset)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('id="aset-widget-fullscreen-link"', false)
+            ->assertSee('fullscreen=1', false);
+
+        $this->actingAs($admin)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertDontSee('id="aset-widget-fullscreen-link"', false);
+
+        $this->actingAs($stafPengusahaan)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertDontSee('id="aset-widget-fullscreen-link"', false);
+    }
 }

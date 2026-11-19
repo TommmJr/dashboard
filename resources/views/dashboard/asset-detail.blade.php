@@ -140,9 +140,36 @@
         }
         $towerByUpt[$upt] = $sumNullable($totVals, 0);
     }
+
+    $fullscreenStudioPayload = [
+        'period' => $selectedPeriod,
+        'formatted_period' => $formattedPeriod,
+        'ownership' => $ownership,
+        'summary_totals' => [
+            'total_trafo_mva' => $totalTrafoMva,
+            'total_trafo_bank' => $totalTrafoBank,
+            'total_trafo_unit' => $totalTrafoUnit,
+            'total_transmisi' => $totalTransmisi,
+            'total_tower' => $totalTower,
+        ],
+        'canonical_upts' => $canonicalUpts,
+        'trafo_groups' => $trafoGroups,
+        'transmisi_groups' => $transmisiGroups,
+        'tower_groups' => $towerGroups,
+        'ultg_by_upt' => $ultgByUpt,
+        'capacity_ratios' => $capacityRatios,
+        'interactive_matrix' => $interactiveMatrix,
+        'mva_by_upt' => $mvaByUpt,
+        'bank_by_upt' => $bankByUpt,
+        'unit_by_upt' => $unitByUpt,
+        'transmisi_by_upt' => $transmisiByUpt,
+        'tower_by_upt' => $towerByUpt,
+    ];
 @endphp
 
 <div class="space-y-5 min-w-0 max-w-full">
+    <x-asset-fullscreen-studio :payload="$fullscreenStudioPayload" :initial-section="$section" />
+
     {{-- Header Halaman Ringkas --}}
     <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div class="flex min-w-0 flex-col gap-1.5">
@@ -191,6 +218,18 @@
                 </svg>
                 Kembali ke Beranda
             </a>
+            <button
+                type="button"
+                id="asset-detail-fullscreen-btn"
+                @click="$dispatch('open-asset-fullscreen', { tab: @js($section) })"
+                class="inline-flex items-center gap-1.5 rounded-xl bg-[#0b6175] px-4 py-2 text-xs font-semibold text-white shadow-xs hover:bg-[#094e5e] transition cursor-pointer whitespace-nowrap focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#16a3b8]"
+                title="Buka Mode Layar Penuh Eksplorasi Aset UIT JBT"
+            >
+                <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                    <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                <span>Layar Penuh</span>
+            </button>
         </div>
     </div>
 
@@ -1485,10 +1524,13 @@ const getAssetPalette = function () {
         gridLine: '#f1f5f9',
         axisText: '#64748b',
     };
+    const categorical = ['#0b6175', '#f59e0b', '#2563eb', '#10b981', '#7c3aed', '#e11d48', '#ea580c', '#64748b'];
     return {
         ...p,
-        series: [p.primary, p.accent, '#52b2bf', p.softTeal, '#94a3b8', p.targetSlate],
-        donut: [p.primary, p.accent, '#52b2bf', '#84cdd6', p.softTeal, '#64748b', '#94a3b8', p.targetSlate],
+        accent: '#f59e0b',
+        softTeal: '#2563eb',
+        series: categorical,
+        donut: categorical,
     };
 };
 
@@ -1741,7 +1783,7 @@ if (typeof window.assetTrafoCharts !== 'function') {
                             type: 'bar',
                             data: unitData,
                             barMaxWidth: 24,
-                            itemStyle: { color: pal.softTeal, borderRadius: [6, 6, 0, 0] }
+                            itemStyle: { color: pal.accent, borderRadius: [6, 6, 0, 0] }
                         }
                     ]
                 };

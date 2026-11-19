@@ -192,9 +192,9 @@ class AsetUptChartWidgetTest extends TestCase
             ]
         );
 
-        // Series ke-6 memakai warna ke-6 dari palet monokromatik Teal/Slate.
+        // Series ke-1 dan ke-6 memakai warna dari palet kategorikal kontras tinggi.
         $html->assertSee('"color":"#0b6175"', false)
-            ->assertSee('"color":"#cbd5e1"', false);
+            ->assertSee('"color":"#e11d48"', false);
     }
 
     public function test_menampilkan_status_kosong_tanpa_data(): void
