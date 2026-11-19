@@ -16,9 +16,16 @@ use Throwable;
 
 class AssetSheetsSyncService
 {
-    public const DISPLAY_NAME = 'Sinkronisasi Google Sheets (Tab 1b + Tab 1a)';
+    public const DISPLAY_NAME = 'Sinkronisasi Google Sheets';
+
+    /** @var list<string> Label placeholder historis yang dipetakan ke nama fallback saat ditampilkan. */
+    public const LEGACY_DISPLAY_NAMES = [
+        'Sinkronisasi Google Sheets (Tab 1b + Tab 1a)',
+    ];
 
     private const MAX_REDIRECTS = 3;
+
+    private const MAX_DATASET_NAME_LENGTH = 120;
 
     public function __construct(
         private readonly AssetDualUploadService $uploadService,
@@ -92,8 +99,11 @@ class AssetSheetsSyncService
         try {
             // 4. Unduh payload CSV dari Google Sheets
             try {
-                $raw1a = $this->fetchCsv($url1a);
-                $raw1b = $this->fetchCsv($url1b);
+                $fetched1a = $this->fetchCsv($url1a);
+                $fetched1b = $this->fetchCsv($url1b);
+                $raw1a = $fetched1a['body'];
+                $raw1b = $fetched1b['body'];
+                $resolvedDatasetName = self::resolveDatasetName($fetched1a['filename'], $fetched1b['filename']);
             } catch (AssetSyncException $e) {
                 $this->recordFailedDataset((int) $assetDivisionId, $uploader->id, $e->getMessage(), $targetDataset);
                 throw $e;
@@ -189,7 +199,7 @@ class AssetSheetsSyncService
                 $uploader,
                 $resolvedPeriod,
                 $targetDataset,
-                self::DISPLAY_NAME,
+                $resolvedDatasetName,
             );
 
             return [
@@ -327,8 +337,10 @@ class AssetSheetsSyncService
 
     /**
      * Eksekusi HTTP GET untuk mengunduh berkas CSV dengan validasi redirect, DNS publik, IP pinning, timeout, dan Content-Type check.
+     *
+     * @return array{body: string, filename: ?string}
      */
-    private function fetchCsv(string $url): string
+    private function fetchCsv(string $url): array
     {
         $this->validateUrl($url);
 
@@ -393,7 +405,132 @@ class AssetSheetsSyncService
             throw new AssetSyncException("Respons Google Sheets bukan format CSV yang valid (Content-Type: {$contentType}).");
         }
 
-        return $response->body();
+        return [
+            'body' => $response->body(),
+            'filename' => self::extractFilename($response->header('Content-Disposition')),
+        ];
+    }
+
+    /**
+     * Ekstrak dan sanitasi nama berkas dari header HTTP Content-Disposition.
+     */
+    public static function extractFilename(?string $header): ?string
+    {
+        if ($header === null || trim($header) === '' || strlen($header) > 1024) {
+            return null;
+        }
+
+        $raw = null;
+
+        if (preg_match("/filename\\*\\s*=\\s*(?:UTF-8|utf-8)'[^']*'([^;]+)/", $header, $m) === 1) {
+            $decoded = rawurldecode(trim($m[1], " \t\""));
+            $raw = mb_check_encoding($decoded, 'UTF-8') ? $decoded : null;
+        }
+
+        if ($raw === null && preg_match('/filename\s*=\s*(?:"((?:[^"\\\\]|\\\\.)*)"|([^;\s]+))/i', $header, $m) === 1) {
+            $raw = stripslashes($m[1] !== '' ? $m[1] : ($m[2] ?? ''));
+        }
+
+        return $raw === null ? null : self::sanitizeDatasetName($raw);
+    }
+
+    /**
+     * Tentukan nama dataset dari nama Tab 1a dan Tab 1b.
+     * Jika keduanya berbagi prefix judul spreadsheet yang sama sebelum ' - ', gunakan judul tersebut.
+     */
+    public static function resolveDatasetName(?string $name1a, ?string $name1b): string
+    {
+        $extractTitle = static function (?string $name): ?string {
+            if ($name === null || ! str_contains($name, ' - ')) {
+                return null;
+            }
+            $pos = strrpos($name, ' - ');
+            if ($pos === false) {
+                return null;
+            }
+            $candidate = trim(substr($name, 0, $pos));
+
+            return $candidate !== '' ? $candidate : null;
+        };
+
+        $title1a = $extractTitle($name1a);
+        $title1b = $extractTitle($name1b);
+
+        if ($title1a !== null && $title1a === $title1b) {
+            return $title1a;
+        }
+
+        return $name1b ?? $name1a ?? self::fallbackDatasetName();
+    }
+
+    /**
+     * Nama dataset fallback aman dari konfigurasi.
+     */
+    public static function fallbackDatasetName(): string
+    {
+        return self::sanitizeDatasetName((string) config('asset.dataset_name')) ?? 'Rekap Aset UIT JBT';
+    }
+
+    /**
+     * Normalkan nama sumber dataset untuk tampilan UI (memetakan label placeholder lama ke fallback).
+     */
+    public static function normalizeDisplayDatasetName(?string $originalName): string
+    {
+        $trimmed = trim((string) $originalName);
+
+        if (
+            $trimmed === ''
+            || $trimmed === self::DISPLAY_NAME
+            || in_array($trimmed, self::LEGACY_DISPLAY_NAMES, true)
+        ) {
+            return self::fallbackDatasetName();
+        }
+
+        return self::sanitizeDatasetName($trimmed) ?? self::fallbackDatasetName();
+    }
+
+    private static function sanitizeDatasetName(string $raw): ?string
+    {
+        if (self::looksLikeSecret($raw)) {
+            return null;
+        }
+
+        $name = basename(str_replace('\\', '/', $raw));
+        $name = (string) preg_replace('/[\x00-\x1F\x7F]+/u', ' ', $name);
+        $name = (string) preg_replace('/\.csv$/i', '', trim($name));
+        $name = (string) preg_replace('/[^\p{L}\p{N}\s\-_.(),&+]/u', '', $name);
+        $name = trim((string) preg_replace('/\s+/u', ' ', $name), ' .-_');
+
+        if ($name === '' || self::looksLikeSecret($name)) {
+            return null;
+        }
+
+        return mb_substr($name, 0, self::MAX_DATASET_NAME_LENGTH);
+    }
+
+    private static function looksLikeSecret(string $name): bool
+    {
+        $sheetId = trim((string) config('asset.sheet_id'));
+        $gids = array_filter([
+            trim((string) config('asset.sheet_gid_1a')),
+            trim((string) config('asset.sheet_gid_1b')),
+        ], static fn (string $g): bool => $g !== '');
+
+        if (preg_match('#https?|docs\.google|googleusercontent|/d/|gid\s*=#i', $name) === 1) {
+            return true;
+        }
+
+        if ($sheetId !== '' && stripos($name, $sheetId) !== false) {
+            return true;
+        }
+
+        foreach ($gids as $gid) {
+            if (preg_match('/(?<!\d)'.preg_quote($gid, '/').'(?!\d)/', $name) === 1) {
+                return true;
+            }
+        }
+
+        return preg_match('/[A-Za-z0-9_\-]{25,}/', $name) === 1;
     }
 
     /**

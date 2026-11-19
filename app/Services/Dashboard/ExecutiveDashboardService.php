@@ -224,7 +224,7 @@ class ExecutiveDashboardService
      *     freshness: array{has_dataset: bool, last_updated_label: string, last_updated_iso: ?string, latest_period: ?string, latest_period_label: string, is_stale: bool, stale_message: ?string},
      *     labels: list<string>,
      *     series: list<array{name: string, data: list<float>}>,
-     *     summary: array{total_tower: float, total_transmisi: float, total_trafo: float, source?: string},
+     *     summary: array{total_tower: float, total_transmisi: float, total_trafo: float, trafo_bank?: ?float, trafo_unit?: ?float, source?: string},
      *     summary_upt: array{total_tower: float, total_transmisi: float, total_trafo: float},
      *     table_rows: list<array{upt: string, tower: ?float, transmisi: ?float, trafo: ?float}>,
      *     series_by_category: array{tower: list<array{name: string, data: list<float>}>, transmisi: list<array{name: string, data: list<float>}>, trafo: list<array{name: string, data: list<float>}>},
@@ -335,10 +335,17 @@ class ExecutiveDashboardService
             ? (float) $uitTotals->filter(fn (object $t): bool => Str::startsWith($t->kelompok ?? '', 'Trafo ') && (Str::contains($t->satuan ?? '', 'MVA') || Str::contains($t->attribute ?? '', 'MVA')))->sum('total')
             : null;
 
+        $capacityRatios = $assetStockReport->capacityRatios($report['period'], $divisionId);
+        $trafoOverall = is_array($capacityRatios['trafo']['overall'] ?? null)
+            ? $capacityRatios['trafo']['overall']
+            : [];
+
         $summary = [
             'total_tower' => $uitTower ?? $totalTowerUpt,
             'total_transmisi' => round($uitTransmisi ?? $totalTransmisiUpt, 1),
             'total_trafo' => round($uitTrafo ?? $totalTrafoUpt, 1),
+            'trafo_bank' => isset($trafoOverall['bank']) && is_numeric($trafoOverall['bank']) ? (float) $trafoOverall['bank'] : null,
+            'trafo_unit' => isset($trafoOverall['unit']) && is_numeric($trafoOverall['unit']) ? (float) $trafoOverall['unit'] : null,
             'source' => $hasUitData ? 'uit' : 'upt',
         ];
 
@@ -357,7 +364,6 @@ class ExecutiveDashboardService
                 return $uRow;
             }, $ultgRows);
         }
-        $capacityRatios = $assetStockReport->capacityRatios($report['period'], $divisionId);
 
         return [
             'period' => $report['period'],
@@ -633,6 +639,8 @@ class ExecutiveDashboardService
             'total_tower' => 0.0,
             'total_transmisi' => 0.0,
             'total_trafo' => 0.0,
+            'trafo_bank' => null,
+            'trafo_unit' => null,
         ];
 
         return [

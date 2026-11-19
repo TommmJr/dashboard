@@ -712,7 +712,7 @@ class DashboardWidgetLayoutTest extends TestCase
         $this->actingAs($staffAset)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('Status Dataset')
+            ->assertSee('Ringkasan Aset UIT JBT')
             ->assertDontSee('Distribusi NKO');
 
         // 4. Data payload builder pada halaman Editor mencerminkan status kustom (is_customized = true)
@@ -733,7 +733,7 @@ class DashboardWidgetLayoutTest extends TestCase
 
         $this->assertNotNull($targetAset);
         $this->assertFalse($targetAset['is_customized']);
-        $this->assertSame(['dataset-status', 'aset-upt-chart'], $targetAset['active_widgets']);
+        $this->assertSame(['aset-upt-chart'], $targetAset['active_widgets']);
 
         // 5. Editor mereset layout staff_divisi:perencanaan-pengusahaan via JSON.
         $this->actingAs($editor)
@@ -1522,7 +1522,8 @@ class DashboardWidgetLayoutTest extends TestCase
             ->get(route('dashboard'))
             ->assertOk()
             ->assertDontSee('Ruang Kerja Divisi')
-            ->assertSee('Status Dataset')
+            ->assertDontSee('Status Dataset')
+            ->assertSee('Ringkasan Aset UIT JBT')
             ->assertSee('Stok Aset per UPT');
     }
 
@@ -1584,17 +1585,18 @@ class DashboardWidgetLayoutTest extends TestCase
             ->assertDontSee('data-category-filter="trafo"', false)
             ->assertDontSee('Belum ada data aset.');
 
-        // 2. Staf Manajemen Aset melihat widget aset secara lengkap (3 scorecard, tabel, dan grafik)
+        // 2. Staf Manajemen Aset melihat widget aset secara lengkap (hero strip, peringkat 8 UPT, dan grafik)
         $this->actingAs($staffAset)
             ->get(route('dashboard'))
             ->assertOk()
             ->assertSee('Stok Aset per UPT')
-            ->assertSee('Prototipe Demo (Rekapitulasi UPT)')
-            ->assertSee('Total Tower')
-            ->assertSee('Total Jalur Transmisi')
-            ->assertSee('Total Kapasitas Trafo')
-            ->assertSee('Rekapitulasi Matriks Fisik per UPT')
-            ->assertSee('TOTAL UIT JBT')
+            ->assertSee('Ringkasan Aset UIT JBT')
+            ->assertDontSee('Prototipe Demo')
+            ->assertSee('Konstruksi Tower')
+            ->assertSee('Jaringan Transmisi')
+            ->assertSee('Kapasitas Trafo')
+            ->assertSee('Sebaran 8 Wilayah UPT')
+            ->assertSee('Total Induk UIT JBT')
             ->assertSee('asetUptChart', false)
             ->assertSee('data-category-filter="tower"', false)
             ->assertSee('data-category-filter="transmisi"', false)

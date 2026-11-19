@@ -54,7 +54,7 @@ class AsetUptChartWidgetTest extends TestCase
             ->assertSee('Trafo 500\\/150 KV | Bank', false)
             ->assertSee('asetUptChart-aset-upt-chart-', false)
             ->assertSee('min-h-[360px]', false)
-            ->assertSee('height: 380px', false)
+            ->assertSee('height: 360px', false)
             ->assertSee('x-init=', false)
             ->assertSee('"type":"bar"', false);
     }
@@ -192,9 +192,9 @@ class AsetUptChartWidgetTest extends TestCase
             ]
         );
 
-        // Series ke-1 dan ke-6 memakai warna dari palet kategorikal kontras tinggi.
+        // Semua series memakai palet tenang PLN_CHART_PALETTE (#0b6175) tanpa warna kontras mencolok (#e11d48).
         $html->assertSee('"color":"#0b6175"', false)
-            ->assertSee('"color":"#e11d48"', false);
+            ->assertDontSee('"color":"#e11d48"', false);
     }
 
     public function test_menampilkan_status_kosong_tanpa_data(): void
@@ -362,9 +362,9 @@ class AsetUptChartWidgetTest extends TestCase
             ]
         );
 
-        $html->assertSee('Total Tower', false)
-            ->assertSee('Total Jalur Transmisi', false)
-            ->assertSee('Total Kapasitas Trafo', false)
+        $html->assertSee('Konstruksi Tower', false)
+            ->assertSee('Jaringan Transmisi', false)
+            ->assertSee('Kapasitas Trafo', false)
             ->assertSee('300', false)
             ->assertSee('125,7', false)
             ->assertSee('2.500', false)
@@ -373,13 +373,14 @@ class AsetUptChartWidgetTest extends TestCase
             ->assertSee('data-category-filter="tower"', false)
             ->assertSee('data-category-filter="transmisi"', false)
             ->assertSee('data-category-filter="trafo"', false)
-            ->assertSee('Rekapitulasi Matriks Fisik per UPT', false)
+            ->assertSee('Sebaran 8 Wilayah UPT', false)
+            ->assertSee('Unit Pelaksana Transmisi', false)
             ->assertSee('BANDUNG', false)
             ->assertSee('BEKASI', false)
+            ->assertDontSee('Rekapitulasi Matriks Fisik per UPT', false)
             ->assertDontSee('Total Rekapitulasi', false)
-            ->assertSee('TOTAL UIT JBT', false)
-            ->assertSee("type: 'scroll'", false)
-            ->assertSee('top: 48', false)
+            ->assertSee('Total Induk UIT JBT', false)
+            ->assertDontSee("type: 'scroll'", false)
             ->assertSee('containLabel: true', false);
     }
 
@@ -400,7 +401,7 @@ class AsetUptChartWidgetTest extends TestCase
         );
 
         $html->assertSee('Stok Aset per UPT', false)
-            ->assertSee('Total Tower', false)
+            ->assertSee('Konstruksi Tower', false)
             ->assertSee('50', false)
             ->assertDontSee('data-category-filter="all"', false)
             ->assertSee('data-category-filter="tower"', false);
@@ -455,13 +456,13 @@ class AsetUptChartWidgetTest extends TestCase
         $this->assertSame(20500.0, $data['summary']['total_trafo']);
 
         // Verifikasi render HTML
-        $response->assertSee('Total Tower', false)
+        $response->assertSee('Konstruksi Tower', false)
             ->assertSee('6.336', false)
-            ->assertSee('Total Jalur Transmisi', false)
+            ->assertSee('Jaringan Transmisi', false)
             ->assertSee('2.850,5', false)
-            ->assertSee('Total Kapasitas Trafo', false)
+            ->assertSee('Kapasitas Trafo', false)
             ->assertSee('20.500', false)
-            ->assertSee('TOTAL UIT JBT', false)
+            ->assertSee('Total Induk UIT JBT', false)
             ->assertDontSee('Total Rekapitulasi', false)
             ->assertDontSee('data-category-filter="all"', false);
     }
@@ -547,11 +548,13 @@ class AsetUptChartWidgetTest extends TestCase
             $html->assertSee($upt, false);
         }
 
-        $html->assertSee('TOTAL UIT JBT', false)
+        $html->assertSee('Total Induk UIT JBT', false)
+            ->assertSee('id="aset-upt-ranking"', false)
             ->assertDontSee('Total Rekapitulasi', false)
             ->assertSee('680', false)
             ->assertSee('340', false)
-            ->assertSee('6.800', false);
+            ->assertSee('6.800', false)
+            ->assertSee('17,6%', false);
     }
 
     public function test_blade_menampilkan_hirarki_kepemilikan_uit_jbt_dan_provenance_tab_tanpa_double_counting(): void
@@ -586,10 +589,12 @@ class AsetUptChartWidgetTest extends TestCase
             ]
         );
 
-        $html->assertSee('Kepemilikan Aset Induk UIT JBT (Unit Induk Transmisi Jawa Bagian Tengah)', false)
-            ->assertSee('Rekapitulasi Kepemilikan Induk UIT JBT • Tab 1a', false)
-            ->assertSee('Distribusi / Sebaran Wilayah Aset UIT pada 8 UPT (Tab 1b)', false)
-            ->assertSee('Sumber: Rekap Induk UIT (Tab 1a) & Distribusi 8 UPT (Tab 1b)', false)
+        $html->assertSee('Unit Induk Transmisi Jawa Bagian Tengah', false)
+            ->assertSee('Total Induk UIT JBT', false)
+            ->assertSee('Sebaran 8 Wilayah UPT', false)
+            ->assertSee('Unit Pelaksana Transmisi', false)
+            ->assertDontSee('Tab 1a', false)
+            ->assertDontSee('Tab 1b', false)
             ->assertDontSee('belum diverifikasi PIC MANSET', false);
     }
 
@@ -745,10 +750,11 @@ class AsetUptChartWidgetTest extends TestCase
                 ->get(route('dashboard'))
                 ->assertOk()
                 ->assertSee('id="aset-freshness-indicator"', false)
-                ->assertSee('Prototipe Demo')
+                ->assertSee('Sumber data:')
                 ->assertSee('November 2026')
-                ->assertSee('Tab 1a')
-                ->assertSee('Tab 1b')
+                ->assertDontSee('Prototipe Demo')
+                ->assertDontSee('Tab 1a')
+                ->assertDontSee('Tab 1b')
                 ->assertSee('Diperbarui 16 Nov 2026, 14.25 WIB')
                 ->assertDontSee('Diperbarui 16 Nov 2026, 15.00 WIB')
                 ->assertDontSee('Data periode berjalan belum diperbarui');
@@ -788,10 +794,11 @@ class AsetUptChartWidgetTest extends TestCase
                 ->get(route('dashboard'))
                 ->assertOk()
                 ->assertSee('id="aset-freshness-indicator"', false)
-                ->assertSee('Prototipe Demo')
+                ->assertSee('Sumber data:')
                 ->assertSee('Oktober 2026')
-                ->assertSee('Tab 1a')
-                ->assertSee('Tab 1b')
+                ->assertDontSee('Prototipe Demo')
+                ->assertDontSee('Tab 1a')
+                ->assertDontSee('Tab 1b')
                 ->assertSee('Diperbarui 14 Nov 2026, 20.37 WIB')
                 ->assertSee('Data periode berjalan belum diperbarui')
                 ->getContent();
@@ -925,16 +932,10 @@ class AsetUptChartWidgetTest extends TestCase
             ->assertOk()
             ->assertSee('id="aset-widget-period-select"', false)
             ->assertSee('data-auto-submit', false)
-            ->assertSee('id="aset-widget-capacity-ratios"', false)
-            ->assertSee('id="aset-widget-ultg-drilldown"', false)
+            ->assertDontSee('id="aset-widget-capacity-ratios"', false)
+            ->assertDontSee('id="aset-widget-ultg-drilldown"', false)
             ->assertSee('Oktober 2026')
             ->assertSee('Agustus 2026')
-            ->assertSee('BANDUNG BARAT')
-            ->assertSee('BANDUNG SELATAN')
-            ->assertSee('500,0')
-            ->assertSee('166,7')
-            ->assertSee('75,0%')
-            ->assertSee('25,0%')
             ->assertSee('Tidak tercatat')
             ->assertDontSee('2026-12-31')
             ->assertDontSee('font-mono', false);
@@ -978,5 +979,179 @@ class AsetUptChartWidgetTest extends TestCase
             ->assertOk();
         $fallbackWidget = collect($fallbackResponse->viewData('widgets') ?? [])->firstWhere('key', 'aset-upt-chart');
         $this->assertSame('2026-10-31', $fallbackWidget['data']['period']);
+    }
+
+    public function test_header_eksekutif_menampilkan_ringkasan_otomatis_sumber_dan_cta_layar_penuh(): void
+    {
+        $manset = Division::factory()->create(['name' => 'Managemen Aset', 'slug' => 'managemen-aset']);
+        $stafAset = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $manset->id]);
+
+        $dataset = Dataset::factory()->create([
+            'division_id' => $manset->id,
+            'status' => Dataset::STATUS_READY,
+            'original_name' => 'REKAP ASET UIT JBT',
+        ]);
+
+        PerformanceMetric::factory()->create([
+            'metric_name' => 'ASET | BEKASI | BEKASI | Trafo 500/150 KV | MVA',
+            'dataset_id' => $dataset->id,
+            'division_id' => $manset->id,
+            'period' => '2026-10-31',
+            'value' => 7480.0,
+        ]);
+        $this->seedAsetUitRowsFor($manset, '2026-10-31', [
+            ['Trafo 500/150 KV | MVA', 50112.0],
+            ['Transmisi 500 KV | SU | kms', 13259.4],
+            ['Tower 500 KV | SU', 19447.0],
+        ], $dataset);
+
+        $this->actingAs($stafAset)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('id="aset-executive-header"', false)
+            ->assertSee('Ringkasan Aset UIT JBT')
+            ->assertSee('id="aset-auto-summary"', false)
+            ->assertSee('id="aset-source-name"', false)
+            ->assertSee('REKAP ASET UIT JBT')
+            ->assertSee('id="aset-widget-fullscreen-link"', false)
+            ->assertSee('Buka Layar Penuh')
+            ->assertSee('fullscreen=1', false);
+    }
+
+    public function test_hero_strip_menampilkan_bank_dan_unit_trafo_induk(): void
+    {
+        $manset = Division::factory()->create(['name' => 'Managemen Aset', 'slug' => 'managemen-aset']);
+        $stafAset = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $manset->id]);
+
+        $dataset = Dataset::factory()->create([
+            'division_id' => $manset->id,
+            'status' => Dataset::STATUS_READY,
+            'original_name' => 'REKAP ASET UIT JBT',
+        ]);
+
+        PerformanceMetric::factory()->create([
+            'metric_name' => 'ASET | BEKASI | BEKASI | Trafo 500/150 KV | MVA',
+            'dataset_id' => $dataset->id,
+            'division_id' => $manset->id,
+            'period' => '2026-10-31',
+            'value' => 7480.0,
+        ]);
+        $this->seedAsetUitRowsFor($manset, '2026-10-31', [
+            ['Trafo 500/150 KV | MVA', 50112.0],
+            ['Trafo 500/150 KV | Bank', 653.0],
+            ['Trafo 500/150 KV | Unit/Set', 569.0],
+            ['Transmisi 500 KV | SU | kms', 13259.4],
+            ['Tower 500 KV | SU', 19447.0],
+        ], $dataset);
+
+        $this->actingAs($stafAset)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('id="aset-hero-strip"', false)
+            ->assertSee('50.112,0')
+            ->assertSee('653 Bank')
+            ->assertSee('569 Unit')
+            ->assertSee('13.259,4')
+            ->assertSee('19.447');
+    }
+
+    public function test_empat_kartu_pintas_mengarah_ke_section_detail_aset(): void
+    {
+        $manset = Division::factory()->create(['name' => 'Managemen Aset', 'slug' => 'managemen-aset']);
+        $stafAset = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $manset->id]);
+
+        $this->seedAsetRowsFor($manset, '2026-10-31', [
+            ['BEKASI', 'BEKASI', 'Trafo 500/150 KV | MVA', 7480.0],
+        ]);
+
+        $this->actingAs($stafAset)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('id="aset-explore-shortcuts"', false)
+            ->assertSee('Bedah Trafo & Tegangan')
+            ->assertSee('Distribusi Daya (MVA)')
+            ->assertSee('Jaringan Transmisi (kms)')
+            ->assertSee('Sebaran Tower (Unit)')
+            ->assertSee('data-shortcut-section="trafo"', false)
+            ->assertSee('data-shortcut-section="mva"', false)
+            ->assertSee('data-shortcut-section="transmisi"', false)
+            ->assertSee('data-shortcut-section="tower"', false);
+    }
+
+    public function test_widget_aset_bebas_jargon_dan_placeholder_strip(): void
+    {
+        $manset = Division::factory()->create(['name' => 'Managemen Aset', 'slug' => 'managemen-aset']);
+        $stafAset = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $manset->id]);
+
+        $dataset = Dataset::factory()->create([
+            'division_id' => $manset->id,
+            'status' => Dataset::STATUS_READY,
+            'original_name' => 'Sinkronisasi Google Sheets (Tab 1b + Tab 1a)',
+        ]);
+
+        foreach ([
+            ['BEKASI', 'BEKASI', 'Trafo 500/150 KV | MVA', 7480.0],
+            ['BEKASI', 'BEKASI', 'SIRKIT | UPT', 40.0],
+            ['BEKASI', 'BEKASI', 'DIAMETER | CUT OFF CB', 50.0],
+            ['BEKASI', 'BEKASI', 'Joint | SK', 60.0],
+            ['BEKASI', 'BEKASI', 'Gardu Induk Milik Unit Pengusahaan | GI/GITET | 150kV', 70.0],
+        ] as [$upt, $ultg, $attr, $val]) {
+            PerformanceMetric::factory()->create([
+                'metric_name' => "ASET | {$upt} | {$ultg} | {$attr}",
+                'dataset_id' => $dataset->id,
+                'division_id' => $manset->id,
+                'period' => '2026-10-31',
+                'value' => $val,
+            ]);
+        }
+
+        $html = $this->actingAs($stafAset)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('Sumber data:')
+            ->assertSee('Rekap Aset UIT JBT')
+            ->assertDontSee('Tab 1a')
+            ->assertDontSee('Tab 1b')
+            ->assertDontSee('READY')
+            ->assertDontSee('Prototipe Demo')
+            ->assertDontSee('font-mono', false)
+            ->assertDontSee('SIRKIT | UPT', false)
+            ->assertDontSee('DIAMETER | CUT OFF CB', false)
+            ->assertDontSee('Joint | SK', false)
+            ->assertDontSee('GI/GITET', false)
+            ->getContent();
+
+        $visibleHtml = (string) preg_replace('/<script\b[^>]*>.*?<\/script>/is', '', $html);
+        $this->assertStringNotContainsString('—', $visibleHtml);
+        $this->assertDoesNotMatchRegularExpression('/>\s*(?:-|–|—)+\s*</', $visibleHtml);
+    }
+
+    public function test_staf_pengusahaan_tidak_menerima_nama_sumber_dataset_aset(): void
+    {
+        $manset = Division::factory()->create(['name' => 'Managemen Aset', 'slug' => 'managemen-aset']);
+        $pengusahaan = Division::factory()->create(['name' => 'Perencanaan Pengusahaan', 'slug' => 'perencanaan-pengusahaan']);
+
+        $dataset = Dataset::factory()->create([
+            'division_id' => $manset->id,
+            'status' => Dataset::STATUS_READY,
+            'original_name' => 'REKAP ASET UIT JBT RAHASIA',
+        ]);
+
+        PerformanceMetric::factory()->create([
+            'metric_name' => 'ASET | BEKASI | BEKASI | Trafo 500/150 KV | MVA',
+            'dataset_id' => $dataset->id,
+            'division_id' => $manset->id,
+            'period' => '2026-10-31',
+            'value' => 7480.0,
+        ]);
+
+        $stafPengusahaan = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $pengusahaan->id]);
+
+        $this->actingAs($stafPengusahaan)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertDontSee('REKAP ASET UIT JBT RAHASIA')
+            ->assertDontSee('Sumber data:')
+            ->assertDontSee('id="aset-executive-header"', false);
     }
 }

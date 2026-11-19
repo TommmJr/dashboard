@@ -1985,6 +1985,7 @@ class KpiReadModelFlagTest extends TestCase
         config([
             'kpi.read_model' => 'structured',
             'kpi.visible_units' => ['TJBT'],
+            'dashboard_layouts.layouts.staff_divisi:managemen-aset' => ['dataset-status', 'aset-upt-chart'],
         ]);
 
         $response = $this->actingAs($staff)->get(route('dashboard'));

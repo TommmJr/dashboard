@@ -38,12 +38,12 @@ class HandoverReadinessSmokeTest extends TestCase
 
         $this->assertSame(['staff_divisi:managemen-aset'], $mounted);
         $this->assertSame(
-            ['dataset-status', 'aset-upt-chart'],
+            ['aset-upt-chart'],
             $config['layouts']['staff_divisi:managemen-aset'],
         );
     }
 
-    public function test_staf_managemen_aset_melihat_widget_aset_dengan_badge_prototipe_demo(): void
+    public function test_staf_managemen_aset_melihat_ringkasan_aset_tanpa_badge_prototipe(): void
     {
         $manset = Division::create(['name' => 'Managemen Aset', 'slug' => 'managemen-aset']);
         $pengusahaan = Division::create(['name' => 'Perencanaan Pengusahaan', 'slug' => 'perencanaan-pengusahaan']);
@@ -54,15 +54,18 @@ class HandoverReadinessSmokeTest extends TestCase
         $this->actingAs($stafManset)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSeeInOrder(['Status Dataset', 'Stok Aset per UPT'])
-            ->assertSee('Prototipe Demo (Rekapitulasi UPT)')
+            ->assertSee('Ringkasan Aset UIT JBT')
+            ->assertSee('Stok Aset per UPT')
+            ->assertDontSee('Status Dataset')
+            ->assertDontSee('Prototipe Demo')
             ->assertDontSee('Ruang Kerja Divisi');
 
         $this->actingAs($stafPengusahaan)
             ->get(route('dashboard'))
             ->assertOk()
+            ->assertDontSee('Ringkasan Aset UIT JBT')
             ->assertDontSee('Stok Aset per UPT')
-            ->assertDontSee('Prototipe Demo (Rekapitulasi UPT)');
+            ->assertDontSee('Prototipe Demo');
     }
 
     public function test_konfigurasi_produksi_kpi_memakai_structured_dan_scope_tjbt(): void

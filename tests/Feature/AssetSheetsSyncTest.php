@@ -13,6 +13,7 @@ use App\Models\Role;
 use App\Models\User;
 use App\Services\AssetSheetsSyncService;
 use App\Services\PublicDnsResolver;
+use App\Support\DatasetFreshness;
 use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\UnitDivisionSeeder;
 use Illuminate\Console\Scheduling\Event as ScheduledEvent;
@@ -90,14 +91,28 @@ class AssetSheetsSyncTest extends TestCase
         });
     }
 
-    private function fakeGoogleSheetsResponses(?string $csv1a = null, ?string $csv1b = null): void
-    {
+    private function fakeGoogleSheetsResponses(
+        ?string $csv1a = null,
+        ?string $csv1b = null,
+        ?string $disposition1a = null,
+        ?string $disposition1b = null,
+    ): void {
         $content1a = $csv1a ?? file_get_contents(base_path('tests/Fixtures/asset_tab1a_sample.csv'));
         $content1b = $csv1b ?? file_get_contents(base_path('tests/Fixtures/asset_tab1b_sample.csv'));
 
+        $headers1a = ['Content-Type' => 'text/csv; charset=utf-8'];
+        if ($disposition1a !== null) {
+            $headers1a['Content-Disposition'] = $disposition1a;
+        }
+
+        $headers1b = ['Content-Type' => 'text/csv; charset=utf-8'];
+        if ($disposition1b !== null) {
+            $headers1b['Content-Disposition'] = $disposition1b;
+        }
+
         Http::fake([
-            'https://docs.google.com/spreadsheets/d/*/export?format=csv&gid='.config('asset.sheet_gid_1a') => Http::response($content1a, 200, ['Content-Type' => 'text/csv; charset=utf-8']),
-            'https://docs.google.com/spreadsheets/d/*/export?format=csv&gid='.config('asset.sheet_gid_1b') => Http::response($content1b, 200, ['Content-Type' => 'text/csv; charset=utf-8']),
+            'https://docs.google.com/spreadsheets/d/*/export?format=csv&gid='.config('asset.sheet_gid_1a') => Http::response($content1a, 200, $headers1a),
+            'https://docs.google.com/spreadsheets/d/*/export?format=csv&gid='.config('asset.sheet_gid_1b') => Http::response($content1b, 200, $headers1b),
         ]);
     }
 
@@ -1125,7 +1140,7 @@ class AssetSheetsSyncTest extends TestCase
             ->sole();
 
         $this->assertSame($this->admin->id, $placeholder->user_id);
-        $this->assertSame('Sinkronisasi Google Sheets (Tab 1b + Tab 1a)', $placeholder->original_name);
+        $this->assertSame(AssetSheetsSyncService::DISPLAY_NAME, $placeholder->original_name);
 
         Queue::assertPushed(SyncAssetSheetsJob::class, function (SyncAssetSheetsJob $job) use ($placeholder): bool {
             return $job->datasetId === $placeholder->id
@@ -1185,7 +1200,7 @@ class AssetSheetsSyncTest extends TestCase
             'division_id' => $this->assetDivision->id,
             'user_id' => $this->admin->id,
             'status' => Dataset::STATUS_UPLOADING,
-            'original_name' => 'Sinkronisasi Google Sheets (Tab 1b + Tab 1a)',
+            'original_name' => AssetSheetsSyncService::DISPLAY_NAME,
         ]);
 
         $response = $this->actingAs($this->admin)
@@ -1211,7 +1226,7 @@ class AssetSheetsSyncTest extends TestCase
             'division_id' => $this->assetDivision->id,
             'user_id' => $this->admin->id,
             'status' => Dataset::STATUS_UPLOADING,
-            'original_name' => 'Sinkronisasi Google Sheets (Tab 1b + Tab 1a)',
+            'original_name' => AssetSheetsSyncService::DISPLAY_NAME,
         ]);
 
         DB::table('datasets')
@@ -1237,7 +1252,7 @@ class AssetSheetsSyncTest extends TestCase
             'division_id' => $this->assetDivision->id,
             'user_id' => $this->admin->id,
             'status' => Dataset::STATUS_VALIDATING,
-            'original_name' => 'Sinkronisasi Google Sheets (Tab 1b + Tab 1a)',
+            'original_name' => AssetSheetsSyncService::DISPLAY_NAME,
         ]);
 
         $job = new SyncAssetSheetsJob($placeholder->id, $this->admin->id);
@@ -1257,7 +1272,7 @@ class AssetSheetsSyncTest extends TestCase
             'division_id' => $this->assetDivision->id,
             'user_id' => $this->admin->id,
             'status' => Dataset::STATUS_UPLOADING,
-            'original_name' => 'Sinkronisasi Google Sheets (Tab 1b + Tab 1a)',
+            'original_name' => AssetSheetsSyncService::DISPLAY_NAME,
         ]);
 
         Dataset::factory()->create([
@@ -1425,5 +1440,188 @@ class AssetSheetsSyncTest extends TestCase
         } finally {
             Carbon::setTestNow();
         }
+    }
+
+    /**
+     * @return array<string, array{0: ?string, 1: ?string}>
+     */
+    public static function contentDispositionFilenameProvider(): array
+    {
+        $longName = str_repeat('REKAP ASET UIT JBT ', 10);
+
+        return [
+            'rfc5987 utf-8 diprioritaskan atas filename biasa' => [
+                'attachment; filename="fallback.csv"; filename*=UTF-8\'\'REKAP%20ASET%20UIT%20JBT%20-%201b.%20REKAP%20PER%20UPT.csv',
+                'REKAP ASET UIT JBT - 1b. REKAP PER UPT',
+            ],
+            'filename berkutip dengan ekstensi csv' => [
+                'attachment; filename="Rekap Aset Oktober 2026.CSV"',
+                'Rekap Aset Oktober 2026',
+            ],
+            'filename tanpa kutip' => [
+                'attachment; filename=Rekap_Aset_UIT.csv',
+                'Rekap_Aset_UIT',
+            ],
+            'header null atau kosong menghasilkan null' => [
+                null,
+                null,
+            ],
+            'header whitespace menghasilkan null' => [
+                '   ',
+                null,
+            ],
+            'path traversal dibersihkan ke basename' => [
+                'attachment; filename="../../etc/passwd.csv"',
+                'passwd',
+            ],
+            'crlf dan karakter kontrol dihapus' => [
+                "attachment; filename=\"Rekap\r\n\tAset  UIT.csv\"",
+                'Rekap Aset UIT',
+            ],
+            'nama lebih dari 120 karakter dipotong ke 120 karakter' => [
+                'attachment; filename="'.$longName.'.csv"',
+                mb_substr(trim($longName), 0, 120),
+            ],
+        ];
+    }
+
+    #[DataProvider('contentDispositionFilenameProvider')]
+    public function test_extract_filename_mengurai_variasi_content_disposition(?string $header, ?string $expected): void
+    {
+        $this->assertSame($expected, AssetSheetsSyncService::extractFilename($header));
+    }
+
+    public function test_extract_filename_menolak_nama_yang_memuat_sheet_id_gid_atau_url(): void
+    {
+        $sheetId = (string) config('asset.sheet_id');
+        $gid1a = (string) config('asset.sheet_gid_1a');
+        $gid1b = (string) config('asset.sheet_gid_1b');
+
+        $this->assertNull(AssetSheetsSyncService::extractFilename("attachment; filename=\"Export {$sheetId}.csv\""));
+        $this->assertNull(AssetSheetsSyncService::extractFilename("attachment; filename=\"Sheet {$gid1a}.csv\""));
+        $this->assertNull(AssetSheetsSyncService::extractFilename("attachment; filename=\"Sheet {$gid1b}.csv\""));
+        $this->assertNull(AssetSheetsSyncService::extractFilename('attachment; filename="https://docs.google.com/spreadsheets/d/abc.csv"'));
+        $this->assertNull(AssetSheetsSyncService::extractFilename('attachment; filename="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms.csv"'));
+    }
+
+    public function test_sync_menamai_dataset_dari_judul_spreadsheet_bila_prefix_sama(): void
+    {
+        $this->fakeGoogleSheetsResponses(
+            null,
+            null,
+            "attachment; filename=\"fallback.csv\"; filename*=UTF-8''REKAP%20ASET%20UIT%20JBT%20-%201a.%20REKAP%20UIT.csv",
+            "attachment; filename=\"fallback.csv\"; filename*=UTF-8''REKAP%20ASET%20UIT%20JBT%20-%201b.%20REKAP%20PER%20UPT.csv",
+        );
+
+        $this->artisan('aset:sync')->assertExitCode(0);
+
+        $dataset = Dataset::where('division_id', $this->assetDivision->id)
+            ->where('status', Dataset::STATUS_READY)
+            ->sole();
+
+        $this->assertSame('REKAP ASET UIT JBT', $dataset->original_name);
+    }
+
+    public function test_sync_memakai_nama_tab_1b_bila_judul_berbeda(): void
+    {
+        $this->fakeGoogleSheetsResponses(
+            null,
+            null,
+            'attachment; filename="Spreadsheet Induk A - 1a. REKAP UIT.csv"',
+            'attachment; filename="Rekap B - 1b. REKAP PER UPT.csv"',
+        );
+
+        $this->artisan('aset:sync')->assertExitCode(0);
+
+        $dataset = Dataset::where('division_id', $this->assetDivision->id)
+            ->where('status', Dataset::STATUS_READY)
+            ->sole();
+
+        $this->assertSame('Rekap B - 1b. REKAP PER UPT', $dataset->original_name);
+    }
+
+    public function test_sync_fallback_ke_config_bila_header_tidak_ada(): void
+    {
+        config(['asset.dataset_name' => 'Rekap Aset UIT JBT']);
+        $this->fakeGoogleSheetsResponses();
+
+        $this->artisan('aset:sync')->assertExitCode(0);
+
+        $dataset = Dataset::where('division_id', $this->assetDivision->id)
+            ->where('status', Dataset::STATUS_READY)
+            ->sole();
+
+        $this->assertSame('Rekap Aset UIT JBT', $dataset->original_name);
+
+        config(['asset.dataset_name' => 'Master Aset Transmisi JBT']);
+        $this->fakeGoogleSheetsResponses();
+
+        $this->artisan('aset:sync')->assertExitCode(0);
+
+        $latest = Dataset::where('division_id', $this->assetDivision->id)
+            ->where('status', Dataset::STATUS_READY)
+            ->latest('id')
+            ->firstOrFail();
+
+        $this->assertSame('Master Aset Transmisi JBT', $latest->original_name);
+    }
+
+    public function test_nama_dataset_tidak_pernah_memuat_sheet_id_gid_maupun_url(): void
+    {
+        $sheetId = (string) config('asset.sheet_id');
+        $gid1a = (string) config('asset.sheet_gid_1a');
+        $gid1b = (string) config('asset.sheet_gid_1b');
+
+        $this->fakeGoogleSheetsResponses(
+            null,
+            null,
+            "attachment; filename=\"https://docs.google.com/spreadsheets/d/{$sheetId}/export?gid={$gid1a}.csv\"",
+            "attachment; filename=\"{$sheetId}_{$gid1b}.csv\"",
+        );
+
+        $this->artisan('aset:sync')->assertExitCode(0);
+
+        $dataset = Dataset::where('division_id', $this->assetDivision->id)
+            ->where('status', Dataset::STATUS_READY)
+            ->sole();
+
+        $this->assertSame('Rekap Aset UIT JBT', $dataset->original_name);
+        $this->assertStringNotContainsString($sheetId, $dataset->original_name);
+        $this->assertStringNotContainsString($gid1a, $dataset->original_name);
+        $this->assertStringNotContainsString($gid1b, $dataset->original_name);
+        $this->assertStringNotContainsString('docs.google.com', $dataset->original_name);
+
+        $auditPayload = json_encode(
+            AuditLog::where('auditable_type', Dataset::class)->where('auditable_id', $dataset->id)->get()->toArray()
+        );
+        $this->assertStringNotContainsString($sheetId, (string) $auditPayload);
+        $this->assertStringNotContainsString('docs.google.com', (string) $auditPayload);
+    }
+
+    public function test_dataset_freshness_for_asset_menyertakan_source_name_dan_memetakan_label_lama(): void
+    {
+        config(['asset.dataset_name' => 'Rekap Aset UIT JBT']);
+
+        $dataset = Dataset::factory()->create([
+            'division_id' => $this->assetDivision->id,
+            'user_id' => $this->admin->id,
+            'status' => Dataset::STATUS_READY,
+            'original_name' => 'Sinkronisasi Google Sheets (Tab 1b + Tab 1a)',
+        ]);
+
+        PerformanceMetric::create([
+            'dataset_id' => $dataset->id,
+            'division_id' => $this->assetDivision->id,
+            'metric_name' => 'ASET | BANDUNG | BANDUNG SELATAN | Tower 150 KV | SU',
+            'period' => '2026-10-31',
+            'value' => 100,
+        ]);
+
+        $freshnessLegacy = DatasetFreshness::forAsset($this->assetDivision->id, '2026-10-31');
+        $this->assertSame('Rekap Aset UIT JBT', $freshnessLegacy['source_name'] ?? null);
+
+        $dataset->update(['original_name' => 'REKAP ASET UIT JBT']);
+        $freshnessReal = DatasetFreshness::forAsset($this->assetDivision->id, '2026-10-31');
+        $this->assertSame('REKAP ASET UIT JBT', $freshnessReal['source_name'] ?? null);
     }
 }

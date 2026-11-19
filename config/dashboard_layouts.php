@@ -240,10 +240,9 @@ return [
             'trend-chart',
             'kpi-rag-status',
         ],
-        // Demo prototipe 2026-11-11 (instruksi user, bukan sign-off mentor/PIC):
-        // staf Managemen Aset melihat Status Dataset lalu Stok Aset per UPT.
+        // REVISI 2026-11-19: staf Managemen Aset langsung menampilkan Ringkasan
+        // Eksekutif Aset UIT JBT (sumber dataset & kesegaran terintegrasi di header).
         'staff_divisi:managemen-aset' => [
-            'dataset-status',
             'aset-upt-chart',
         ],
     ],

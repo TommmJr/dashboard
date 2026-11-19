@@ -5,6 +5,7 @@ namespace App\Support;
 use App\Enums\DatasetStatus;
 use App\Models\Dataset;
 use App\Models\Division;
+use App\Services\AssetSheetsSyncService;
 use App\Services\AssetStockConverter;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Carbon;
@@ -109,7 +110,8 @@ final class DatasetFreshness
      *     latest_period: ?string,
      *     latest_period_label: string,
      *     is_stale: bool,
-     *     stale_message: ?string
+     *     stale_message: ?string,
+     *     source_name?: ?string
      * }
      */
     public static function forAsset(?int $divisionId, ?string $resolvedPeriod = null): array
@@ -130,7 +132,7 @@ final class DatasetFreshness
             })
             ->orderByDesc('created_at')
             ->orderByDesc('id')
-            ->first(['id', 'created_at']);
+            ->first(['id', 'created_at', 'original_name']);
 
         if ($dataset === null) {
             return self::empty('Belum ada data aktif', 'Belum ada dataset aset aktif');
@@ -148,7 +150,10 @@ final class DatasetFreshness
             $latestPeriod = is_string($rawMax) && $rawMax !== '' ? $rawMax : null;
         }
 
-        return self::build($dataset, $latestPeriod, self::STALE_PERIOD_MESSAGE);
+        $payload = self::build($dataset, $latestPeriod, self::STALE_PERIOD_MESSAGE);
+        $payload['source_name'] = AssetSheetsSyncService::normalizeDisplayDatasetName($dataset->original_name);
+
+        return $payload;
     }
 
     /**
@@ -161,7 +166,8 @@ final class DatasetFreshness
      *     latest_period: ?string,
      *     latest_period_label: string,
      *     is_stale: bool,
-     *     stale_message: ?string
+     *     stale_message: ?string,
+     *     source_name?: ?string
      * }
      */
     public static function empty(
@@ -176,6 +182,7 @@ final class DatasetFreshness
             'latest_period_label' => 'Belum tersedia',
             'is_stale' => true,
             'stale_message' => $staleMessage,
+            'source_name' => null,
         ];
     }
 

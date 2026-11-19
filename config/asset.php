@@ -10,4 +10,5 @@ return [
     'retries' => (int) env('ASET_HTTP_RETRIES', 2),
     'schedule_enabled' => filter_var(env('ASET_SYNC_SCHEDULE_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
     'schedule_cron' => (string) (env('ASET_SYNC_SCHEDULE_CRON') ?: '0 6 * * *'),
+    'dataset_name' => (string) (env('ASET_DATASET_NAME') ?: 'Rekap Aset UIT JBT'),
 ];

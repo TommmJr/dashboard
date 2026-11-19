@@ -228,6 +228,8 @@ class DashboardWidgetScopingTest extends TestCase
 
         $staff = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $divA->id]);
 
+        config(['dashboard_layouts.layouts.staff_divisi:managemen-aset' => ['dataset-status']]);
+
         $response = $this->actingAs($staff)
             ->get(route('dashboard'))
             ->assertOk();
@@ -253,6 +255,8 @@ class DashboardWidgetScopingTest extends TestCase
         ]);
 
         $staff = User::factory()->withRole(Role::STAFF_DIVISI)->create(['division_id' => $divEmpty->id]);
+
+        config(['dashboard_layouts.layouts.staff_divisi:managemen-aset' => ['dataset-status']]);
 
         $response = $this->actingAs($staff)
             ->get(route('dashboard'))
@@ -290,6 +294,8 @@ class DashboardWidgetScopingTest extends TestCase
                 'period' => '2026-08-15',
             ]);
         }
+
+        config(['dashboard_layouts.layouts.staff_divisi:managemen-aset' => ['dataset-status']]);
 
         $response = $this->actingAs($staff)
             ->get(route('dashboard'))
