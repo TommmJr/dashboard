@@ -24,6 +24,7 @@
     $isStaffDashboard = $currentUser?->role?->slug === \App\Models\Role::STAFF_DIVISI;
     $canAccessKpiDetail = \App\Http\Controllers\DashboardController::canAccessKpiDetail($currentUser);
     $isKpiDashboard = $canAccessKpiDetail && ! $isAdminDashboard;
+    $isAssetDashboard = \App\Http\Controllers\AssetDetailController::canAccessAssetDetail($currentUser) && ! $isAdminDashboard;
     $kpiWidgetKeys = ['kpi-summary', 'trend-chart', 'nko-ranking', 'kinerja-realisasi', 'kinerja-detail', 'target-realisasi-per-indikator', 'pencapaian-nko', 'nko-donut', 'kpi-rag-status', 'custom-chart'];
     $hasKpiWidget = collect($widgets)->contains(fn (array $w): bool => in_array($w['key'] ?? '', $kpiWidgetKeys, true));
     $showKpiDictionary = $isKpiDashboard || $hasKpiWidget;
@@ -38,7 +39,7 @@
 
 @section('content')
 <div
-    class="mx-auto min-w-0 {{ $isKpiDashboard ? 'max-w-[1600px] font-pengusahaan space-y-5' : 'max-w-7xl' }}"
+    class="mx-auto min-w-0 {{ $isKpiDashboard ? 'max-w-[1600px] font-pengusahaan space-y-5' : ($isAssetDashboard ? 'max-w-7xl font-aset' : 'max-w-7xl') }}"
     @if ($needsPerformanceState) x-data="performanceDashboard(@js($filters ?? []))" x-init="load()" @endif
 >
     @if ($isKpiDashboard)

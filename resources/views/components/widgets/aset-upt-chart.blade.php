@@ -132,7 +132,7 @@
 @endphp
 
 <div
-    class="space-y-5 min-w-0 max-w-full"
+    class="space-y-5 min-w-0 max-w-full font-aset"
     @if (!$labels->isEmpty() && !$series->isEmpty())
         x-data='asetUptChartWidget(@json($chartId))'
         x-init="init()"
@@ -883,8 +883,10 @@
                         };
 
                         const currentSeries = this.seriesByCategory[this.activeCategory] || this.seriesByCategory.tower || [];
+                        const chartFont = window.PLN_ASET_FONT || "'Geist', 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif";
 
                         const option = {
+                            textStyle: { fontFamily: chartFont },
                             tooltip: {
                                 trigger: 'axis',
                                 axisPointer: { type: 'shadow' },
@@ -1010,6 +1012,7 @@
                                 const donutOption = {
                                     animation: true,
                                     animationDuration: 650,
+                                    textStyle: { fontFamily: chartFont },
                                     tooltip: {
                                         trigger: 'item',
                                         formatter: function (item) {

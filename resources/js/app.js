@@ -46,8 +46,9 @@ window.PLN_CHART_PALETTE = {
     },
 };
 
-// Tipografi scoped khusus ECharts Dashboard Pengusahaan (Geist self-hosted).
+// Tipografi scoped khusus ECharts Dashboard Pengusahaan dan Manajemen Aset (Geist self-hosted).
 window.PLN_PENGUSAHAAN_FONT = "'Geist', 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif";
+window.PLN_ASET_FONT = window.PLN_PENGUSAHAAN_FONT;
 
 export const CHART_COLORS = {
     primary: window.PLN_CHART_PALETTE.primary,

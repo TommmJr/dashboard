@@ -42,8 +42,13 @@
 }
 
 @layer components {
-    /* Scope tipografi Geist khusus Dashboard Pengusahaan (keputusan 2026-11-18).
-       Admin dan Manajemen Aset tetap memakai --font-sans sampai tahap rollout-nya. */
+    /* Scope tipografi Geist untuk Dashboard Pengusahaan dan Manajemen Aset.
+       Dashboard Admin dan modul lain tetap memakai --font-sans sampai tahap rollout-nya. */
+    .font-pengusahaan,
+    .font-aset {
+        --font-sans: 'Geist', 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+    }
+
     .font-pengusahaan,
     .font-pengusahaan td,
     .font-pengusahaan th,
@@ -51,13 +56,24 @@
     .font-pengusahaan select,
     .font-pengusahaan textarea,
     .font-pengusahaan button,
-    .font-pengusahaan .tabular-nums {
+    .font-pengusahaan .tabular-nums,
+    .font-aset,
+    .font-aset td,
+    .font-aset th,
+    .font-aset input,
+    .font-aset select,
+    .font-aset textarea,
+    .font-aset button,
+    .font-aset .font-sans,
+    .font-aset .tabular-nums {
         font-family: 'Geist', 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
         font-feature-settings: "cv02", "cv03", "cv04", "cv11";
     }
 
     .font-pengusahaan .tabular-nums,
-    .font-pengusahaan td {
+    .font-pengusahaan td,
+    .font-aset .tabular-nums,
+    .font-aset td {
         font-variant-numeric: tabular-nums;
     }
 

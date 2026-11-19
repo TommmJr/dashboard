@@ -655,7 +655,7 @@ if (typeof window.assetFullscreenStudio !== 'function') {
                 const isDark = this.studioTheme === 'dark';
                 const pal = getPalette(isDark);
                 const isNarrow = containerWidth < 640;
-                const chartFont = "'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif";
+                const chartFont = window.PLN_ASET_FONT || "'Geist', 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif";
                 const q = this.searchQuery.trim().toLowerCase();
 
                 const visibleUpts = this.studioUpt === 'all'
@@ -1334,22 +1334,22 @@ if (typeof window.assetFullscreenStudio !== 'function') {
 
                         // Header text
                         ctx.fillStyle = badgeText;
-                        ctx.font = '700 20px "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif';
+                        ctx.font = '700 20px "Geist", "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif';
                         ctx.fillText('EKSPLORASI ASET UIT JBT  |  ' + this.activeTabMeta.title.toUpperCase(), padX, 52);
 
                         ctx.fillStyle = titleHex;
-                        ctx.font = '700 32px "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif';
+                        ctx.font = '700 32px "Geist", "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif';
                         ctx.fillText(this.chartHeading, padX, 96);
 
                         const scopeLabel = this.studioUpt === 'all' ? 'Sebaran 8 UPT Kanonis' : ('Fokus UPT ' + this.studioUpt);
                         const periodLabel = this.payload?.formatted_period || this.payload?.period || 'Periode aktif';
                         ctx.fillStyle = mutedHex;
-                        ctx.font = '500 20px "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif';
+                        ctx.font = '500 20px "Geist", "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif';
                         ctx.fillText('Cakupan: ' + scopeLabel + '  |  Periode: ' + periodLabel, padX, 130);
 
                         // Right Induk UIT JBT badge (anti double-counting)
                         const indukText = 'Induk UIT JBT (Tab 1a): ' + this.activeTabMeta.indukLabel;
-                        ctx.font = '700 20px "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif';
+                        ctx.font = '700 20px "Geist", "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif';
                         const badgeW = ctx.measureText(indukText).width + 36;
                         const badgeX = canvasW - padX - badgeW;
                         ctx.fillStyle = badgeBg;
@@ -1366,7 +1366,7 @@ if (typeof window.assetFullscreenStudio !== 'function') {
                         ctx.fillStyle = borderHex;
                         ctx.fillRect(padX, footerY, canvasW - padX * 2, 1);
                         ctx.fillStyle = mutedHex;
-                        ctx.font = '500 18px "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif';
+                        ctx.font = '500 18px "Geist", "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif';
                         ctx.fillText('Sumber: ' + this.ownership.parent_source + ' & ' + this.ownership.distribution_scope, padX, footerY + 38);
 
                         const exportedAt = new Date().toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
@@ -1395,6 +1395,7 @@ if (typeof window.assetFullscreenStudio !== 'function') {
 
 <div
     id="asset-fullscreen-studio-root"
+    class="font-aset"
     x-data='assetFullscreenStudio(@json($safeInitialSection))'
     @open-asset-fullscreen.window="openStudio($event.detail || {})"
     @keydown.window="handleStudioKeydown($event)"

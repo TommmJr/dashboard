@@ -167,7 +167,7 @@
     ];
 @endphp
 
-<div class="space-y-5 min-w-0 max-w-full">
+<div class="space-y-5 min-w-0 max-w-full font-aset">
     <x-asset-fullscreen-studio :payload="$fullscreenStudioPayload" :initial-section="$section" />
 
     {{-- Header Halaman Ringkas --}}
@@ -1534,6 +1534,8 @@ const getAssetPalette = function () {
     };
 };
 
+const getAssetChartFont = () => window.PLN_ASET_FONT || "'Geist', 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif";
+
 // Component 0: ULTG Drill-Down Panel
 if (typeof window.assetUltgDrilldown !== 'function') {
     window.assetUltgDrilldown = function(ultgByUpt, canonicalUpts) {
@@ -1666,6 +1668,7 @@ if (typeof window.assetTrafoCharts !== 'function') {
                 const option = {
                     animation: true,
                     animationDuration: 650,
+                    textStyle: { fontFamily: getAssetChartFont() },
                     tooltip: {
                         trigger: 'axis',
                         axisPointer: { type: 'shadow' },
@@ -1733,6 +1736,7 @@ if (typeof window.assetTrafoCharts !== 'function') {
                 const option = {
                     animation: true,
                     animationDuration: 650,
+                    textStyle: { fontFamily: getAssetChartFont() },
                     tooltip: {
                         trigger: 'axis',
                         axisPointer: { type: 'shadow' },
@@ -1835,6 +1839,7 @@ if (typeof window.assetMvaCharts !== 'function') {
                 const option = {
                     animation: true,
                     animationDuration: 650,
+                    textStyle: { fontFamily: getAssetChartFont() },
                     tooltip: {
                         trigger: 'axis',
                         axisPointer: { type: 'shadow' },
@@ -1894,7 +1899,7 @@ if (typeof window.assetMvaCharts !== 'function') {
                                 return Number(p.value).toLocaleString('id-ID');
                             },
                             fontSize: 10,
-                            fontFamily: 'Plus Jakarta Sans, Inter, sans-serif',
+                            fontFamily: getAssetChartFont(),
                             color: '#475569'
                         }
                     }]
@@ -1920,6 +1925,7 @@ if (typeof window.assetMvaCharts !== 'function') {
                 const option = {
                     animation: true,
                     animationDuration: 650,
+                    textStyle: { fontFamily: getAssetChartFont() },
                     tooltip: {
                         trigger: 'item',
                         formatter: function(item) {
@@ -2000,6 +2006,7 @@ if (typeof window.assetTransmisiCharts !== 'function') {
                 const option = {
                     animation: true,
                     animationDuration: 650,
+                    textStyle: { fontFamily: getAssetChartFont() },
                     tooltip: {
                         trigger: 'axis',
                         axisPointer: { type: 'shadow' },
@@ -2079,6 +2086,7 @@ if (typeof window.assetTransmisiCharts !== 'function') {
                 const option = {
                     animation: true,
                     animationDuration: 650,
+                    textStyle: { fontFamily: getAssetChartFont() },
                     tooltip: {
                         trigger: 'item',
                         formatter: function(item) {
@@ -2164,6 +2172,7 @@ if (typeof window.assetTowerCharts !== 'function') {
                 const option = {
                     animation: true,
                     animationDuration: 650,
+                    textStyle: { fontFamily: getAssetChartFont() },
                     tooltip: {
                         trigger: 'axis',
                         axisPointer: { type: 'shadow' },
@@ -2221,6 +2230,7 @@ if (typeof window.assetTowerCharts !== 'function') {
                 const option = {
                     animation: true,
                     animationDuration: 650,
+                    textStyle: { fontFamily: getAssetChartFont() },
                     tooltip: {
                         trigger: 'item',
                         formatter: function(item) {
