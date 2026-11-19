@@ -51,13 +51,17 @@ class AssetDetailPageTest extends TestCase
         $this->actingAs($user)
             ->get(route('dashboard.asset-detail'))
             ->assertOk()
-            ->assertSee('Rincian Trafo & Stok Aset', false)
+            ->assertSee('Rincian Trafo & Stok Aset')
+            ->assertDontSee('&amp;amp;', false)
+            ->assertDontSee('Prototipe Demo')
+            ->assertDontSee('Tab 1a &amp; Tab 1b', false)
             ->assertSee('Bedah Detail Trafo per Level Tegangan & UPT', false)
             ->assertSee('Total Kapasitas Trafo')
             ->assertSee('Fisik Trafo Terpasang')
             ->assertSee('Panjang Transmisi')
             ->assertSee('Total Tower')
             ->assertSee('id="asset-detail-trafo-chart"', false)
+            ->assertSee('id="asset-interactive-matrix-details"', false)
             ->assertSee('height: 360px', false);
 
         // 2. Trafo explicit
@@ -95,7 +99,9 @@ class AssetDetailPageTest extends TestCase
         $this->actingAs($user)
             ->get(route('dashboard.asset-detail'))
             ->assertOk()
-            ->assertSee('Rincian Trafo & Stok Aset', false);
+            ->assertSee('Rincian Trafo & Stok Aset')
+            ->assertDontSee('&amp;amp;', false)
+            ->assertSee('Bedah Trafo & Tegangan');
     }
 
     public function test_sub_halaman_tidak_dikenal_mengembalikan_404(): void
@@ -465,7 +471,9 @@ class AssetDetailPageTest extends TestCase
                 ->get(route('dashboard.asset-detail'))
                 ->assertOk()
                 ->assertSee('id="asset-detail-freshness-indicator"', false)
-                ->assertSee('Prototipe Demo')
+                ->assertDontSee('Prototipe Demo')
+                ->assertDontSee('Tab 1a &amp; Tab 1b', false)
+                ->assertDontSee('&amp;amp;', false)
                 ->assertSee('Oktober 2026')
                 ->assertSee('Diperbarui 14 Nov 2026, 20.37 WIB')
                 ->assertDontSee('Diperbarui 16 Nov 2026, 23.59 WIB')
@@ -582,6 +590,7 @@ class AssetDetailPageTest extends TestCase
             ->assertSee('data-auto-submit', false)
             ->assertSee('id="asset-capacity-ratios-panel"', false)
             ->assertSee('id="asset-ultg-drilldown-panel"', false)
+            ->assertSee('id="asset-interactive-matrix-details"', false)
             ->assertSee('Rasio Kapasitas Peralatan')
             ->assertSee('Drill-Down Level ULTG per UPT')
             ->assertSee('Oktober 2026')
@@ -590,10 +599,20 @@ class AssetDetailPageTest extends TestCase
             ->assertSee('BANDUNG SELATAN')
             ->assertSee('CIKARANG')
             ->assertSee('500,0')
-            ->assertSee('75,0% / 25,0%')
+            ->assertDontSee('75,0% / 25,0%')
             ->assertSee('Tidak tercatat')
             ->assertDontSee('2026-12-31')
             ->assertDontSee('font-mono', false);
+
+        // Rasio proporsi SU vs SK tampil kontekstual di seksi Transmisi (dan tidak menumpuk di Trafo)
+        $this->actingAs($user)
+            ->get(route('dashboard.asset-detail', ['section' => 'transmisi']))
+            ->assertOk()
+            ->assertSee('id="asset-capacity-ratios-panel"', false)
+            ->assertSee('75,0% / 25,0%')
+            ->assertSee('Saluran Udara (SU)')
+            ->assertSee('Saluran Kabel (SK)')
+            ->assertDontSee('MVA/Bank');
 
         $viewData = $response->viewData('data');
         $this->assertSame('2026-10-31', $viewData['period']);
@@ -606,7 +625,7 @@ class AssetDetailPageTest extends TestCase
         $this->assertStringNotContainsString('|| 0', $html);
         $this->assertDoesNotMatchRegularExpression('/>\s*(?:-|–|—)+\s*</', $html);
 
-        // Pilih periode historis eksplisit (?period=2026-08-31) dan cek propagasi pada tautan tab seksi
+        // Pilih periode historis eksplisit (?period=2026-08-31) dan cek propagasi pada tautan kembali
         $histResponse = $this->actingAs($user)
             ->get(route('dashboard.asset-detail', ['section' => 'mva', 'period' => '2026-08-31']))
             ->assertOk()
@@ -641,13 +660,20 @@ class AssetDetailPageTest extends TestCase
                 ->assertSee('id="asset-studio-tab-transmisi"', false)
                 ->assertSee('id="asset-studio-tab-tower"', false)
                 ->assertSee('id="asset-fullscreen-upt-bar"', false)
-                ->assertSee('id="asset-fullscreen-search"', false)
+                ->assertSee('id="asset-fullscreen-upt-select"', false)
+                ->assertSee('id="asset-fullscreen-side-panel"', false)
+                ->assertSee('xl:col-span-9', false)
+                ->assertSee('xl:col-span-3', false)
+                ->assertDontSee('id="asset-fullscreen-search"', false)
                 ->assertSee('id="asset-fullscreen-echart-canvas"', false)
                 ->assertSee('id="asset-fullscreen-download-png-btn"', false)
                 ->assertSee('id="asset-fullscreen-close-btn"', false)
                 ->assertSee('EKSPLORASI ASET UIT JBT', false)
                 ->assertSee('Kepemilikan Induk UIT JBT', false)
-                ->assertSee('Tidak ada atribut atau unit yang cocok.', false)
+                ->assertSee('Belum ada rincian ULTG tercatat untuk UPT ini.', false)
+                ->assertDontSee('Prototipe Demo', false)
+                ->assertDontSee('Tab 1a &amp; Tab 1b', false)
+                ->assertDontSee('&amp;amp;', false)
                 ->assertDontSee('setUptFilter', false)
                 ->assertDontSee('activeUptFilter', false)
                 ->assertDontSee('asset-upt-filter', false)

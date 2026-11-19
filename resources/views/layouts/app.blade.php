@@ -56,8 +56,8 @@
                             @yield('breadcrumbs')
                         @else
                             @php
-                                $breadcrumbCurrent = trim($__env->yieldContent('title', 'Dashboard'));
-                                $pageHeading = trim($__env->yieldContent('page_heading'));
+                                $breadcrumbCurrent = trim(html_entity_decode($__env->yieldContent('title', 'Dashboard'), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+                                $pageHeading = trim(html_entity_decode($__env->yieldContent('page_heading'), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
                                 $showPageHeadingCrumb = $pageHeading !== ''
                                     && strcasecmp($pageHeading, 'Dashboard') !== 0
                                     && strcasecmp($pageHeading, $breadcrumbCurrent) !== 0;

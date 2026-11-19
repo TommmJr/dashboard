@@ -56,30 +56,66 @@ if (typeof window.assetFullscreenStudio !== 'function') {
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#39;');
 
+        const CANONICAL_UPT_ORDER = ['BANDUNG', 'BEKASI', 'BOGOR', 'CIREBON', 'KARAWANG', 'PURWOKERTO', 'SALATIGA', 'SEMARANG'];
+
         const getPalette = (isDark) => {
-            const base = window.PLN_CHART_PALETTE || {};
-            const primary = isDark ? '#22d3ee' : (base.primary || '#0b6175');
-            const accent = isDark ? '#fbbf24' : '#f59e0b';
-            const softTeal = isDark ? '#60a5fa' : '#2563eb';
-            return {
-                primary,
-                accent,
-                softTeal,
-                targetSlate: isDark ? '#475569' : (base.targetSlate || '#cbd5e1'),
-                gridLine: isDark ? 'rgba(148, 163, 184, 0.16)' : (base.gridLine || '#f1f5f9'),
-                axisText: isDark ? '#94a3b8' : (base.axisText || '#64748b'),
-                labelText: isDark ? '#e2e8f0' : '#1e293b',
-                series: isDark
-                    ? ['#22d3ee', '#fbbf24', '#60a5fa', '#34d399', '#a78bfa', '#fb7185', '#fb923c', '#94a3b8']
-                    : ['#0b6175', '#f59e0b', '#2563eb', '#10b981', '#7c3aed', '#e11d48', '#ea580c', '#64748b'],
-            };
+            const mode = isDark ? 'dark' : 'light';
+            const shared = window.PLN_ASET_PALETTE && window.PLN_ASET_PALETTE[mode];
+            if (shared) {
+                return {
+                    primary: shared.primary,
+                    secondary: shared.secondary,
+                    warmAccent: shared.warmAccent,
+                    targetSlate: shared.targetSlate,
+                    gridLine: shared.gridLine,
+                    axisText: shared.axisText,
+                    labelText: shared.labelText,
+                    uptSeries: shared.uptSeries,
+                    voltageSeries: shared.voltageSeries,
+                    pairPhysical: shared.pairPhysical,
+                    pairSuSk: shared.pairSuSk,
+                };
+            }
+            return isDark
+                ? {
+                    primary: '#22d3ee',
+                    secondary: '#fbbf24',
+                    warmAccent: '#fb923c',
+                    targetSlate: '#475569',
+                    gridLine: 'rgba(148, 163, 184, 0.16)',
+                    axisText: '#94a3b8',
+                    labelText: '#e2e8f0',
+                    uptSeries: ['#22d3ee', '#fbbf24', '#34d399', '#fb7185', '#a78bfa', '#38bdf8', '#fb923c', '#94a3b8'],
+                    voltageSeries: ['#22d3ee', '#fbbf24', '#a78bfa', '#34d399', '#fb7185', '#38bdf8', '#fb923c', '#94a3b8'],
+                    pairPhysical: ['#22d3ee', '#fbbf24'],
+                    pairSuSk: ['#22d3ee', '#fb923c'],
+                }
+                : {
+                    primary: '#0b6175',
+                    secondary: '#f59e0b',
+                    warmAccent: '#ea580c',
+                    targetSlate: '#cbd5e1',
+                    gridLine: '#f1f5f9',
+                    axisText: '#64748b',
+                    labelText: '#1e293b',
+                    uptSeries: ['#0b6175', '#f59e0b', '#10b981', '#e11d48', '#7c3aed', '#0284c7', '#ea580c', '#475569'],
+                    voltageSeries: ['#0b6175', '#f59e0b', '#7c3aed', '#10b981', '#e11d48', '#0284c7', '#ea580c', '#475569'],
+                    pairPhysical: ['#0b6175', '#f59e0b'],
+                    pairSuSk: ['#0b6175', '#ea580c'],
+                };
+        };
+
+        const getUptColor = (pal, uptName, fallbackIdx) => {
+            const key = String(uptName ?? '').trim().toUpperCase();
+            const idx = CANONICAL_UPT_ORDER.indexOf(key);
+            const colorIdx = idx >= 0 ? idx : (fallbackIdx >= 0 ? fallbackIdx : 0);
+            return pal.uptSeries[colorIdx % pal.uptSeries.length];
         };
 
         return {
             isFullscreen: false,
             activeTab: validTabs.includes(initialTab) ? initialTab : 'trafo',
             studioUpt: 'all',
-            searchQuery: '',
             studioTheme: 'light',
             focusMode: false,
             trafoMetric: 'mva',
@@ -234,7 +270,6 @@ if (typeof window.assetFullscreenStudio !== 'function') {
 
             resetStudioFilters() {
                 this.studioUpt = 'all';
-                this.searchQuery = '';
                 this.trafoMetric = 'mva';
                 this.trafoStackMode = 'stacked';
                 this.mvaSort = 'desc';
@@ -254,11 +289,6 @@ if (typeof window.assetFullscreenStudio !== 'function') {
                 if (event.key === 'Escape') {
                     event.preventDefault();
                     this.closeStudio(true);
-                    return;
-                }
-                if (event.key === '/' && !isTyping) {
-                    event.preventDefault();
-                    this.$refs.studioSearchInput?.focus();
                     return;
                 }
                 if (isTyping || event.ctrlKey || event.metaKey || event.altKey) {
@@ -396,7 +426,7 @@ if (typeof window.assetFullscreenStudio !== 'function') {
             },
 
             get hasActiveFilters() {
-                return this.studioUpt !== 'all' || this.searchQuery.trim() !== '';
+                return this.studioUpt !== 'all';
             },
 
             get allUptRankingRows() {
@@ -467,7 +497,7 @@ if (typeof window.assetFullscreenStudio !== 'function') {
                         upt,
                         primaryValue: tower,
                         primaryFormatted: formatIdNumber(tower, 0) + (isRecorded(tower) ? ' Unit' : ''),
-                        secondaryText: 'Distribusi Tower 500/150/70 kV',
+                        secondaryText: 'Tower 500/150/70 kV',
                         pct,
                         sortValue: isRecorded(tower) ? Number(tower) : -1,
                     };
@@ -479,100 +509,6 @@ if (typeof window.assetFullscreenStudio !== 'function') {
                 return rows.sort((a, b) => b.sortValue - a.sortValue);
             },
 
-            get matchedUptRankingRows() {
-                const q = this.searchQuery.trim().toLowerCase();
-                if (!q) {
-                    return this.allUptRankingRows;
-                }
-                return this.allUptRankingRows.filter((row) => row.upt.toLowerCase().includes(q));
-            },
-
-            get displayedAllUptRows() {
-                const q = this.searchQuery.trim();
-                if (!q) {
-                    return this.allUptRankingRows;
-                }
-                if (this.matchedUptRankingRows.length > 0) {
-                    return this.matchedUptRankingRows;
-                }
-                // Saat pencarian cocok ke atribut (mis. "500" atau "SK") dan bukan nama UPT,
-                // tetap tampilkan peringkat 8 UPT di atas daftar atribut yang cocok.
-                if (this.matchedMatrixAttributes.length > 0) {
-                    return this.allUptRankingRows;
-                }
-                return [];
-            },
-
-            get matchedMatrixAttributes() {
-                const rows = Array.isArray(this.payload?.interactive_matrix) ? this.payload.interactive_matrix : [];
-                const q = this.searchQuery.trim().toLowerCase();
-                if (!q) {
-                    return [];
-                }
-                return rows.filter((item) => {
-                    const haystack = [item.attribute, item.group_label, item.unit]
-                        .filter(Boolean)
-                        .join(' ')
-                        .toLowerCase();
-                    return haystack.includes(q);
-                });
-            },
-
-            get hasZeroSearchMatchesInAllMode() {
-                return this.studioUpt === 'all'
-                    && this.searchQuery.trim() !== ''
-                    && this.matchedUptRankingRows.length === 0
-                    && this.matchedMatrixAttributes.length === 0;
-            },
-
-            get selectedUptVoltageRows() {
-                if (this.studioUpt === 'all') {
-                    return [];
-                }
-                const upt = this.studioUpt;
-                const q = this.searchQuery.trim().toLowerCase();
-
-                let list = [];
-                if (this.activeTab === 'trafo' || this.activeTab === 'mva') {
-                    list = (Array.isArray(this.payload?.trafo_groups) ? this.payload.trafo_groups : []).map((g) => {
-                        const cell = g.by_upt?.[upt] || {};
-                        return {
-                            label: g.voltage || g.label,
-                            primary: formatIdNumber(cell.mva, 1) + (isRecorded(cell.mva) ? ' MVA' : ''),
-                            secondary: (isRecorded(cell.bank) ? formatIdNumber(cell.bank, 0) + ' Bank' : 'Bank tidak tercatat')
-                                + ' | '
-                                + (isRecorded(cell.unit) ? formatIdNumber(cell.unit, 0) + ' Unit' : 'Unit tidak tercatat'),
-                            recorded: isRecorded(cell.mva) || isRecorded(cell.bank) || isRecorded(cell.unit),
-                        };
-                    });
-                } else if (this.activeTab === 'transmisi') {
-                    list = (Array.isArray(this.payload?.transmisi_groups) ? this.payload.transmisi_groups : []).map((g) => {
-                        const cell = g.by_upt?.[upt] || {};
-                        return {
-                            label: g.voltage || g.label,
-                            primary: formatIdNumber(cell.total_kms, 1) + (isRecorded(cell.total_kms) ? ' kms' : ''),
-                            secondary: 'SU ' + formatIdNumber(cell.su_kms, 1) + ' | SK ' + formatIdNumber(cell.sk_kms, 1),
-                            recorded: isRecorded(cell.total_kms) || isRecorded(cell.su_kms) || isRecorded(cell.sk_kms),
-                        };
-                    });
-                } else {
-                    list = (Array.isArray(this.payload?.tower_groups) ? this.payload.tower_groups : []).map((g) => {
-                        const cell = g.by_upt?.[upt] || {};
-                        return {
-                            label: g.voltage || g.label,
-                            primary: formatIdNumber(cell.total_unit, 0) + (isRecorded(cell.total_unit) ? ' Unit' : ''),
-                            secondary: 'SU ' + formatIdNumber(cell.su_unit, 0) + ' | SK ' + formatIdNumber(cell.sk_unit, 0),
-                            recorded: isRecorded(cell.total_unit) || isRecorded(cell.su_unit) || isRecorded(cell.sk_unit),
-                        };
-                    });
-                }
-
-                if (!q) {
-                    return list;
-                }
-                return list.filter((row) => (row.label + ' ' + row.primary + ' ' + row.secondary).toLowerCase().includes(q));
-            },
-
             get selectedUptUltgRows() {
                 if (this.studioUpt === 'all') {
                     return [];
@@ -580,22 +516,39 @@ if (typeof window.assetFullscreenStudio !== 'function') {
                 const list = Array.isArray(this.payload?.ultg_by_upt?.[this.studioUpt])
                     ? this.payload.ultg_by_upt[this.studioUpt]
                     : [];
-                const q = this.searchQuery.trim().toLowerCase();
-                if (!q) {
-                    return list;
-                }
-                return list.filter((row) => {
-                    const attrKeys = row.attributes ? Object.keys(row.attributes).join(' ') : '';
-                    return (String(row.ultg || '') + ' ' + attrKeys).toLowerCase().includes(q);
-                });
-            },
 
-            get hasZeroMatchesInSingleUptMode() {
-                return this.studioUpt !== 'all'
-                    && this.searchQuery.trim() !== ''
-                    && this.selectedUptVoltageRows.length === 0
-                    && this.selectedUptUltgRows.length === 0
-                    && this.matchedMatrixAttributes.length === 0;
+                return list.map((row) => {
+                    if (this.activeTab === 'trafo' || this.activeTab === 'mva') {
+                        const val = row.trafo_mva ?? null;
+                        return {
+                            ultg: row.ultg,
+                            primaryText: isRecorded(val) ? formatIdNumber(val, 1) + ' MVA' : 'Tidak tercatat',
+                            secondaryText: (isRecorded(row.trafo_bank) ? formatIdNumber(row.trafo_bank, 0) + ' Bank' : 'Bank tidak tercatat')
+                                + ' | '
+                                + (isRecorded(row.trafo_unit) ? formatIdNumber(row.trafo_unit, 0) + ' Unit' : 'Unit tidak tercatat'),
+                            recorded: isRecorded(val),
+                            sortValue: isRecorded(val) ? Number(val) : -1,
+                        };
+                    }
+                    if (this.activeTab === 'transmisi') {
+                        const val = row.transmisi ?? null;
+                        return {
+                            ultg: row.ultg,
+                            primaryText: isRecorded(val) ? formatIdNumber(val, 1) + ' kms' : 'Tidak tercatat',
+                            secondaryText: 'Tower ' + formatIdNumber(row.tower, 0) + (isRecorded(row.tower) ? ' Unit' : ''),
+                            recorded: isRecorded(val),
+                            sortValue: isRecorded(val) ? Number(val) : -1,
+                        };
+                    }
+                    const val = row.tower ?? null;
+                    return {
+                        ultg: row.ultg,
+                        primaryText: isRecorded(val) ? formatIdNumber(val, 0) + ' Unit' : 'Tidak tercatat',
+                        secondaryText: 'Transmisi ' + formatIdNumber(row.transmisi, 1) + (isRecorded(row.transmisi) ? ' kms' : ''),
+                        recorded: isRecorded(val),
+                        sortValue: isRecorded(val) ? Number(val) : -1,
+                    };
+                }).sort((a, b) => b.sortValue - a.sortValue);
             },
 
             get hasChartData() {
@@ -655,14 +608,10 @@ if (typeof window.assetFullscreenStudio !== 'function') {
                 const isDark = this.studioTheme === 'dark';
                 const pal = getPalette(isDark);
                 const isNarrow = containerWidth < 640;
+                const isHorizontalMobile = containerWidth < 460;
                 const chartFont = window.PLN_ASET_FONT || "'Geist', 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif";
-                const q = this.searchQuery.trim().toLowerCase();
 
-                const visibleUpts = this.studioUpt === 'all'
-                    ? (q && this.matchedUptRankingRows.length > 0
-                        ? this.matchedUptRankingRows.map((r) => r.upt)
-                        : this.canonicalUpts)
-                    : [this.studioUpt];
+                const visibleUpts = this.studioUpt === 'all' ? this.canonicalUpts : [this.studioUpt];
 
                 const tooltipBase = {
                     trigger: 'axis',
@@ -681,19 +630,23 @@ if (typeof window.assetFullscreenStudio !== 'function') {
                     axisLine: { lineStyle: { color: pal.targetSlate } },
                     axisTick: { show: false },
                     axisLabel: {
+                        interval: 0,
+                        hideOverlap: false,
                         fontFamily: chartFont,
                         color: pal.labelText,
                         fontSize: isNarrow ? 10 : 11,
                         fontWeight: 600,
-                        rotate: isNarrow && categories.length > 4 ? 32 : 0,
+                        margin: 10,
+                        rotate: isHorizontalMobile ? 0 : (containerWidth < 760 && categories.length > 5 ? 26 : 0),
                     },
                 });
 
                 const yAxisValue = (unitLabel) => ({
                     type: 'value',
-                    name: unitLabel,
+                    name: isHorizontalMobile ? '' : unitLabel,
                     nameTextStyle: { fontFamily: chartFont, color: pal.axisText, fontSize: 11, padding: [0, 0, 6, 0] },
                     axisLabel: {
+                        show: !isHorizontalMobile,
                         fontFamily: chartFont,
                         color: pal.axisText,
                         fontSize: 11,
@@ -702,7 +655,7 @@ if (typeof window.assetFullscreenStudio !== 'function') {
                     splitLine: { lineStyle: { color: pal.gridLine, type: 'dashed' } },
                 });
 
-                const buildAxisTooltip = (titlePrefix, unitSuffix, decimals) => (params) => {
+                const buildAxisTooltip = (titlePrefix, unitSuffix, decimals, showTotal) => (params) => {
                     if (!Array.isArray(params) || params.length === 0) {
                         return '';
                     }
@@ -710,8 +663,14 @@ if (typeof window.assetFullscreenStudio !== 'function') {
                     let html = '<div style="font-weight:700;margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid '
                         + (isDark ? '#334155' : '#f1f5f9') + ';color:' + (isDark ? '#f8fafc' : '#0f172a') + ';">'
                         + head + '</div>';
+                    let sumTotal = 0;
+                    let anyRecorded = false;
                     params.forEach((item) => {
                         const recorded = item.data && item.data.isRecorded !== false && isRecorded(item.value);
+                        if (recorded) {
+                            anyRecorded = true;
+                            sumTotal += Number(item.value);
+                        }
                         const valText = recorded
                             ? formatIdNumber(item.value, decimals) + (unitSuffix ? ' ' + unitSuffix : '')
                             : 'Tidak tercatat';
@@ -721,6 +680,12 @@ if (typeof window.assetFullscreenStudio !== 'function') {
                             + '<strong style="color:' + (recorded ? (isDark ? '#f8fafc' : '#0f172a') : '#94a3b8') + ';">'
                             + escapeHtml(valText) + '</strong></div>';
                     });
+                    if (showTotal && anyRecorded && params.length > 1) {
+                        html += '<div style="display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:5px;padding-top:5px;border-top:1px solid '
+                            + (isDark ? '#334155' : '#f1f5f9') + ';font-variant-numeric:tabular-nums;">'
+                            + '<span style="font-weight:600;color:' + (isDark ? '#cbd5e1' : '#334155') + ';">Total</span>'
+                            + '<strong style="color:' + pal.primary + ';">' + escapeHtml(formatIdNumber(sumTotal, decimals) + (unitSuffix ? ' ' + unitSuffix : '')) + '</strong></div>';
+                    }
                     return html;
                 };
 
@@ -742,9 +707,9 @@ if (typeof window.assetFullscreenStudio !== 'function') {
                                 animation: true,
                                 animationDuration: 420,
                                 textStyle: { fontFamily: chartFont },
-                                tooltip: Object.assign({}, tooltipBase, { formatter: buildAxisTooltip('Tegangan', '', 0) }),
+                                tooltip: Object.assign({}, tooltipBase, { formatter: buildAxisTooltip('Tegangan', '', 0, false) }),
                                 legend: { top: 4, textStyle: { fontFamily: chartFont, fontSize: 11, color: pal.axisText } },
-                                grid: { top: 44, bottom: isNarrow ? 54 : 36, left: 16, right: 16, containLabel: true },
+                                grid: { top: 44, bottom: isNarrow ? 44 : 32, left: 16, right: 16, containLabel: true },
                                 xAxis: xAxisCategory(labels),
                                 yAxis: yAxisValue('Jumlah Fisik'),
                                 series: [
@@ -752,7 +717,7 @@ if (typeof window.assetFullscreenStudio !== 'function') {
                                         name: 'Bank Fisik',
                                         type: 'bar',
                                         barMaxWidth: 28,
-                                        itemStyle: { color: pal.primary, borderRadius: [6, 6, 0, 0] },
+                                        itemStyle: { color: pal.pairPhysical[0], borderRadius: [6, 6, 0, 0] },
                                         data: targetGroups.map((g) => {
                                             const raw = g.by_upt?.[upt]?.bank;
                                             return { value: safeNum(raw), isRecorded: isRecorded(raw) };
@@ -762,7 +727,7 @@ if (typeof window.assetFullscreenStudio !== 'function') {
                                         name: 'Unit / Set Fisik',
                                         type: 'bar',
                                         barMaxWidth: 28,
-                                        itemStyle: { color: pal.accent, borderRadius: [6, 6, 0, 0] },
+                                        itemStyle: { color: pal.pairPhysical[1], borderRadius: [6, 6, 0, 0] },
                                         data: targetGroups.map((g) => {
                                             const raw = g.by_upt?.[upt]?.unit;
                                             return { value: safeNum(raw), isRecorded: isRecorded(raw) };
@@ -776,8 +741,8 @@ if (typeof window.assetFullscreenStudio !== 'function') {
                             animation: true,
                             animationDuration: 420,
                             textStyle: { fontFamily: chartFont },
-                            tooltip: Object.assign({}, tooltipBase, { formatter: buildAxisTooltip('Tegangan', 'MVA', 1) }),
-                            grid: { top: 36, bottom: isNarrow ? 54 : 36, left: 16, right: 16, containLabel: true },
+                            tooltip: Object.assign({}, tooltipBase, { formatter: buildAxisTooltip('Tegangan', 'MVA', 1, false) }),
+                            grid: { top: 36, bottom: isNarrow ? 44 : 32, left: 16, right: 16, containLabel: true },
                             xAxis: xAxisCategory(labels),
                             yAxis: yAxisValue('MVA'),
                             series: [
@@ -800,7 +765,7 @@ if (typeof window.assetFullscreenStudio !== 'function') {
                                             value: safeNum(raw),
                                             isRecorded: isRecorded(raw),
                                             itemStyle: {
-                                                color: pal.series[idx % pal.series.length],
+                                                color: pal.voltageSeries[idx % pal.voltageSeries.length],
                                                 borderRadius: [6, 6, 0, 0],
                                             },
                                         };
@@ -810,23 +775,30 @@ if (typeof window.assetFullscreenStudio !== 'function') {
                         };
                     }
 
+                    const orderedUpts = isHorizontalMobile ? [...visibleUpts].reverse() : visibleUpts;
+
                     if (this.trafoMetric === 'physical') {
+                        const catAxis = xAxisCategory(orderedUpts);
+                        const valAxis = yAxisValue('Jumlah Fisik');
+                        const radius = isHorizontalMobile ? [0, 5, 5, 0] : [5, 5, 0, 0];
                         return {
                             animation: true,
                             animationDuration: 420,
                             textStyle: { fontFamily: chartFont },
-                            tooltip: Object.assign({}, tooltipBase, { formatter: buildAxisTooltip('UPT', '', 0) }),
+                            tooltip: Object.assign({}, tooltipBase, { formatter: buildAxisTooltip('UPT', '', 0, false) }),
                             legend: { top: 4, textStyle: { fontFamily: chartFont, fontSize: 11, color: pal.axisText } },
-                            grid: { top: 44, bottom: isNarrow ? 54 : 36, left: 16, right: 16, containLabel: true },
-                            xAxis: xAxisCategory(visibleUpts),
-                            yAxis: yAxisValue('Jumlah Fisik'),
+                            grid: isHorizontalMobile
+                                ? { top: 38, bottom: 16, left: 8, right: 20, containLabel: true }
+                                : { top: 44, bottom: 26, left: 16, right: 16, containLabel: true },
+                            xAxis: isHorizontalMobile ? valAxis : catAxis,
+                            yAxis: isHorizontalMobile ? catAxis : valAxis,
                             series: [
                                 {
                                     name: 'Bank Fisik',
                                     type: 'bar',
-                                    barMaxWidth: 24,
-                                    itemStyle: { color: pal.primary, borderRadius: [6, 6, 0, 0] },
-                                    data: visibleUpts.map((u) => {
+                                    barMaxWidth: isHorizontalMobile ? 12 : 24,
+                                    itemStyle: { color: pal.pairPhysical[0], borderRadius: radius },
+                                    data: orderedUpts.map((u) => {
                                         const raw = this.payload?.bank_by_upt?.[u];
                                         return { value: safeNum(raw), isRecorded: isRecorded(raw) };
                                     }),
@@ -834,9 +806,9 @@ if (typeof window.assetFullscreenStudio !== 'function') {
                                 {
                                     name: 'Unit / Set Fisik',
                                     type: 'bar',
-                                    barMaxWidth: 24,
-                                    itemStyle: { color: pal.accent, borderRadius: [6, 6, 0, 0] },
-                                    data: visibleUpts.map((u) => {
+                                    barMaxWidth: isHorizontalMobile ? 12 : 24,
+                                    itemStyle: { color: pal.pairPhysical[1], borderRadius: radius },
+                                    data: orderedUpts.map((u) => {
                                         const raw = this.payload?.unit_by_upt?.[u];
                                         return { value: safeNum(raw), isRecorded: isRecorded(raw) };
                                     }),
@@ -845,30 +817,36 @@ if (typeof window.assetFullscreenStudio !== 'function') {
                         };
                     }
 
-                    const isStacked = this.trafoStackMode === 'stacked';
+                    const isStacked = this.trafoStackMode === 'stacked' || isHorizontalMobile;
+                    const catAxis = xAxisCategory(orderedUpts);
+                    const valAxis = yAxisValue('MVA');
                     return {
                         animation: true,
                         animationDuration: 420,
                         textStyle: { fontFamily: chartFont },
-                        tooltip: Object.assign({}, tooltipBase, { formatter: buildAxisTooltip('UPT', 'MVA', 1) }),
+                        tooltip: Object.assign({}, tooltipBase, { formatter: buildAxisTooltip('UPT', 'MVA', 1, isStacked) }),
                         legend: {
                             type: 'scroll',
                             top: 2,
                             textStyle: { fontFamily: chartFont, fontSize: 11, color: pal.axisText },
                         },
-                        grid: { top: isNarrow ? 62 : 48, bottom: isNarrow ? 54 : 36, left: 16, right: 16, containLabel: true },
-                        xAxis: xAxisCategory(visibleUpts),
-                        yAxis: yAxisValue('MVA'),
+                        grid: isHorizontalMobile
+                            ? { top: 42, bottom: 16, left: 8, right: 20, containLabel: true }
+                            : { top: 48, bottom: 26, left: 16, right: 16, containLabel: true },
+                        xAxis: isHorizontalMobile ? valAxis : catAxis,
+                        yAxis: isHorizontalMobile ? catAxis : valAxis,
                         series: groups.map((g, idx) => ({
                             name: g.voltage || g.label,
                             type: 'bar',
                             stack: isStacked ? 'trafo_mva' : undefined,
-                            barMaxWidth: isStacked ? 34 : 16,
+                            barMaxWidth: isHorizontalMobile ? 18 : (isStacked ? 36 : 16),
                             itemStyle: {
-                                color: pal.series[idx % pal.series.length],
-                                borderRadius: isStacked && idx < groups.length - 1 ? [0, 0, 0, 0] : [5, 5, 0, 0],
+                                color: pal.voltageSeries[idx % pal.voltageSeries.length],
+                                borderRadius: isStacked && idx < groups.length - 1
+                                    ? [0, 0, 0, 0]
+                                    : (isHorizontalMobile ? [0, 5, 5, 0] : [5, 5, 0, 0]),
                             },
-                            data: visibleUpts.map((u) => {
+                            data: orderedUpts.map((u) => {
                                 const raw = g.by_upt?.[u]?.mva;
                                 return { value: safeNum(raw), isRecorded: isRecorded(raw) };
                             }),
@@ -888,14 +866,13 @@ if (typeof window.assetFullscreenStudio !== 'function') {
                             ultgList.sort((a, b) => safeNum(b.trafo_mva) - safeNum(a.trafo_mva));
                         }
                         const uptTotalMva = this.payload?.mva_by_upt?.[this.studioUpt] ?? null;
-                        const maxVal = ultgList.reduce((acc, item) => Math.max(acc, safeNum(item.trafo_mva)), 0);
 
                         return {
                             animation: true,
                             animationDuration: 420,
                             textStyle: { fontFamily: chartFont },
-                            tooltip: Object.assign({}, tooltipBase, { formatter: buildAxisTooltip('ULTG', 'MVA', 1) }),
-                            grid: { top: 20, bottom: 26, left: 16, right: isNarrow ? 75 : 130, containLabel: true },
+                            tooltip: Object.assign({}, tooltipBase, { formatter: buildAxisTooltip('ULTG', 'MVA', 1, false) }),
+                            grid: { top: 18, bottom: 22, left: 14, right: isNarrow ? 75 : 135, containLabel: true },
                             xAxis: yAxisValue('MVA'),
                             yAxis: {
                                 type: 'category',
@@ -903,7 +880,7 @@ if (typeof window.assetFullscreenStudio !== 'function') {
                                 data: ultgList.map((u) => u.ultg),
                                 axisLine: { lineStyle: { color: pal.targetSlate } },
                                 axisTick: { show: false },
-                                axisLabel: { fontFamily: chartFont, color: pal.labelText, fontSize: 11, fontWeight: 600 },
+                                axisLabel: { interval: 0, fontFamily: chartFont, color: pal.labelText, fontSize: 11, fontWeight: 600 },
                             },
                             series: [
                                 {
@@ -917,7 +894,7 @@ if (typeof window.assetFullscreenStudio !== 'function') {
                                             value: val,
                                             isRecorded: recorded,
                                             itemStyle: {
-                                                color: recorded && val === maxVal && maxVal > 0 ? pal.primary : pal.series[(idx + 1) % pal.series.length],
+                                                color: recorded ? pal.uptSeries[idx % pal.uptSeries.length] : '#e2e8f0',
                                                 borderRadius: [0, 6, 6, 0],
                                             },
                                         };
@@ -954,14 +931,13 @@ if (typeof window.assetFullscreenStudio !== 'function') {
                     } else {
                         ranked.sort((a, b) => (isRecorded(b.raw) ? Number(b.raw) : -1) - (isRecorded(a.raw) ? Number(a.raw) : -1));
                     }
-                    const maxMva = ranked.reduce((acc, r) => Math.max(acc, safeNum(r.raw)), 0);
 
                     return {
                         animation: true,
                         animationDuration: 420,
                         textStyle: { fontFamily: chartFont },
-                        tooltip: Object.assign({}, tooltipBase, { formatter: buildAxisTooltip('UPT', 'MVA', 1) }),
-                        grid: { top: 20, bottom: 26, left: 16, right: isNarrow ? 80 : 145, containLabel: true },
+                        tooltip: Object.assign({}, tooltipBase, { formatter: buildAxisTooltip('UPT', 'MVA', 1, false) }),
+                        grid: { top: 18, bottom: 22, left: 14, right: isNarrow ? 78 : 145, containLabel: true },
                         xAxis: yAxisValue('MVA'),
                         yAxis: {
                             type: 'category',
@@ -969,13 +945,13 @@ if (typeof window.assetFullscreenStudio !== 'function') {
                             data: ranked.map((r) => r.upt),
                             axisLine: { lineStyle: { color: pal.targetSlate } },
                             axisTick: { show: false },
-                            axisLabel: { fontFamily: chartFont, color: pal.labelText, fontSize: 11, fontWeight: 600 },
+                            axisLabel: { interval: 0, fontFamily: chartFont, color: pal.labelText, fontSize: 11, fontWeight: 600 },
                         },
                         series: [
                             {
                                 name: 'Kapasitas Daya (MVA)',
                                 type: 'bar',
-                                barMaxWidth: 24,
+                                barMaxWidth: 26,
                                 data: ranked.map((r, idx) => {
                                     const recorded = isRecorded(r.raw);
                                     const val = safeNum(r.raw);
@@ -983,7 +959,7 @@ if (typeof window.assetFullscreenStudio !== 'function') {
                                         value: val,
                                         isRecorded: recorded,
                                         itemStyle: {
-                                            color: recorded && val === maxMva && maxMva > 0 ? pal.primary : pal.series[idx % pal.series.length],
+                                            color: recorded ? getUptColor(pal, r.upt, idx) : '#e2e8f0',
                                             borderRadius: [0, 6, 6, 0],
                                         },
                                     };
@@ -1030,9 +1006,9 @@ if (typeof window.assetFullscreenStudio !== 'function') {
                             animation: true,
                             animationDuration: 420,
                             textStyle: { fontFamily: chartFont },
-                            tooltip: Object.assign({}, tooltipBase, { formatter: buildAxisTooltip('Tegangan', 'kms', 1) }),
+                            tooltip: Object.assign({}, tooltipBase, { formatter: buildAxisTooltip('Tegangan', 'kms', 1, true) }),
                             legend: { top: 4, textStyle: { fontFamily: chartFont, fontSize: 11, color: pal.axisText } },
-                            grid: { top: 44, bottom: 36, left: 16, right: 16, containLabel: true },
+                            grid: { top: 44, bottom: 28, left: 16, right: 16, containLabel: true },
                             xAxis: xAxisCategory(labels),
                             yAxis: yAxisValue('kms'),
                             series: [
@@ -1041,7 +1017,7 @@ if (typeof window.assetFullscreenStudio !== 'function') {
                                     type: 'bar',
                                     stack: 'transmisi_v',
                                     barMaxWidth: 36,
-                                    itemStyle: { color: pal.primary },
+                                    itemStyle: { color: pal.pairSuSk[0] },
                                     data: suData,
                                 },
                                 {
@@ -1049,30 +1025,35 @@ if (typeof window.assetFullscreenStudio !== 'function') {
                                     type: 'bar',
                                     stack: 'transmisi_v',
                                     barMaxWidth: 36,
-                                    itemStyle: { color: pal.accent, borderRadius: [6, 6, 0, 0] },
+                                    itemStyle: { color: pal.pairSuSk[1], borderRadius: [6, 6, 0, 0] },
                                     data: skData,
                                 },
                             ],
                         };
                     }
 
+                    const orderedUpts = isHorizontalMobile ? [...visibleUpts].reverse() : visibleUpts;
+                    const catAxis = xAxisCategory(orderedUpts);
+                    const valAxis = yAxisValue('kms');
                     return {
                         animation: true,
                         animationDuration: 420,
                         textStyle: { fontFamily: chartFont },
-                        tooltip: Object.assign({}, tooltipBase, { formatter: buildAxisTooltip('UPT', 'kms', 1) }),
+                        tooltip: Object.assign({}, tooltipBase, { formatter: buildAxisTooltip('UPT', 'kms', 1, true) }),
                         legend: { type: 'scroll', top: 2, textStyle: { fontFamily: chartFont, fontSize: 11, color: pal.axisText } },
-                        grid: { top: isNarrow ? 58 : 48, bottom: isNarrow ? 54 : 36, left: 16, right: 16, containLabel: true },
-                        xAxis: xAxisCategory(visibleUpts),
-                        yAxis: yAxisValue('kms'),
+                        grid: isHorizontalMobile
+                            ? { top: 40, bottom: 16, left: 8, right: 20, containLabel: true }
+                            : { top: 48, bottom: 26, left: 16, right: 16, containLabel: true },
+                        xAxis: isHorizontalMobile ? valAxis : catAxis,
+                        yAxis: isHorizontalMobile ? catAxis : valAxis,
                         series: [
                             {
                                 name: 'Saluran Udara (SU kms)',
                                 type: 'bar',
                                 stack: 'transmisi_upt',
-                                barMaxWidth: 32,
-                                itemStyle: { color: pal.primary },
-                                data: visibleUpts.map((u) => {
+                                barMaxWidth: isHorizontalMobile ? 18 : 34,
+                                itemStyle: { color: pal.pairSuSk[0] },
+                                data: orderedUpts.map((u) => {
                                     const raw = this.payload?.transmisi_by_upt?.[u]?.su_kms;
                                     return { value: safeNum(raw), isRecorded: isRecorded(raw) };
                                 }),
@@ -1081,9 +1062,9 @@ if (typeof window.assetFullscreenStudio !== 'function') {
                                 name: 'Saluran Kabel (SK kms)',
                                 type: 'bar',
                                 stack: 'transmisi_upt',
-                                barMaxWidth: 32,
-                                itemStyle: { color: pal.accent, borderRadius: [6, 6, 0, 0] },
-                                data: visibleUpts.map((u) => {
+                                barMaxWidth: isHorizontalMobile ? 18 : 34,
+                                itemStyle: { color: pal.pairSuSk[1], borderRadius: isHorizontalMobile ? [0, 5, 5, 0] : [5, 5, 0, 0] },
+                                data: orderedUpts.map((u) => {
                                     const raw = this.payload?.transmisi_by_upt?.[u]?.sk_kms;
                                     return { value: safeNum(raw), isRecorded: isRecorded(raw) };
                                 }),
@@ -1102,9 +1083,9 @@ if (typeof window.assetFullscreenStudio !== 'function') {
                         animation: true,
                         animationDuration: 420,
                         textStyle: { fontFamily: chartFont },
-                        tooltip: Object.assign({}, tooltipBase, { formatter: buildAxisTooltip('Tegangan', 'Unit', 0) }),
+                        tooltip: Object.assign({}, tooltipBase, { formatter: buildAxisTooltip('Tegangan', 'Unit', 0, true) }),
                         legend: { top: 4, textStyle: { fontFamily: chartFont, fontSize: 11, color: pal.axisText } },
-                        grid: { top: 44, bottom: 36, left: 16, right: 16, containLabel: true },
+                        grid: { top: 44, bottom: 28, left: 16, right: 16, containLabel: true },
                         xAxis: xAxisCategory(labels),
                         yAxis: yAxisValue('Unit'),
                         series: [
@@ -1113,7 +1094,7 @@ if (typeof window.assetFullscreenStudio !== 'function') {
                                 type: 'bar',
                                 stack: 'tower_single',
                                 barMaxWidth: 36,
-                                itemStyle: { color: pal.primary },
+                                itemStyle: { color: pal.pairSuSk[0] },
                                 data: towerGroups.map((tw) => {
                                     const raw = tw.by_upt?.[upt]?.su_unit;
                                     return { value: safeNum(raw), isRecorded: isRecorded(raw) };
@@ -1124,7 +1105,7 @@ if (typeof window.assetFullscreenStudio !== 'function') {
                                 type: 'bar',
                                 stack: 'tower_single',
                                 barMaxWidth: 36,
-                                itemStyle: { color: pal.accent, borderRadius: [6, 6, 0, 0] },
+                                itemStyle: { color: pal.pairSuSk[1], borderRadius: [6, 6, 0, 0] },
                                 data: towerGroups.map((tw) => {
                                     const raw = tw.by_upt?.[upt]?.sk_unit;
                                     return { value: safeNum(raw), isRecorded: isRecorded(raw) };
@@ -1133,6 +1114,10 @@ if (typeof window.assetFullscreenStudio !== 'function') {
                         ],
                     };
                 }
+
+                const orderedUpts = isHorizontalMobile ? [...visibleUpts].reverse() : visibleUpts;
+                const catAxis = xAxisCategory(orderedUpts);
+                const valAxis = yAxisValue('Unit');
 
                 if (this.towerView === 'susk') {
                     const sumByType = (upt, field) => {
@@ -1152,27 +1137,29 @@ if (typeof window.assetFullscreenStudio !== 'function') {
                         animation: true,
                         animationDuration: 420,
                         textStyle: { fontFamily: chartFont },
-                        tooltip: Object.assign({}, tooltipBase, { formatter: buildAxisTooltip('UPT', 'Unit', 0) }),
+                        tooltip: Object.assign({}, tooltipBase, { formatter: buildAxisTooltip('UPT', 'Unit', 0, true) }),
                         legend: { top: 4, textStyle: { fontFamily: chartFont, fontSize: 11, color: pal.axisText } },
-                        grid: { top: 44, bottom: isNarrow ? 54 : 36, left: 16, right: 16, containLabel: true },
-                        xAxis: xAxisCategory(visibleUpts),
-                        yAxis: yAxisValue('Unit'),
+                        grid: isHorizontalMobile
+                            ? { top: 40, bottom: 16, left: 8, right: 20, containLabel: true }
+                            : { top: 44, bottom: 26, left: 16, right: 16, containLabel: true },
+                        xAxis: isHorizontalMobile ? valAxis : catAxis,
+                        yAxis: isHorizontalMobile ? catAxis : valAxis,
                         series: [
                             {
                                 name: 'Tower SU (Unit)',
                                 type: 'bar',
                                 stack: 'tower_susk',
-                                barMaxWidth: 32,
-                                itemStyle: { color: pal.primary },
-                                data: visibleUpts.map((u) => sumByType(u, 'su_unit')),
+                                barMaxWidth: isHorizontalMobile ? 18 : 34,
+                                itemStyle: { color: pal.pairSuSk[0] },
+                                data: orderedUpts.map((u) => sumByType(u, 'su_unit')),
                             },
                             {
                                 name: 'Tower SK (Unit)',
                                 type: 'bar',
                                 stack: 'tower_susk',
-                                barMaxWidth: 32,
-                                itemStyle: { color: pal.accent, borderRadius: [6, 6, 0, 0] },
-                                data: visibleUpts.map((u) => sumByType(u, 'sk_unit')),
+                                barMaxWidth: isHorizontalMobile ? 18 : 34,
+                                itemStyle: { color: pal.pairSuSk[1], borderRadius: isHorizontalMobile ? [0, 5, 5, 0] : [5, 5, 0, 0] },
+                                data: orderedUpts.map((u) => sumByType(u, 'sk_unit')),
                             },
                         ],
                     };
@@ -1182,20 +1169,25 @@ if (typeof window.assetFullscreenStudio !== 'function') {
                     animation: true,
                     animationDuration: 420,
                     textStyle: { fontFamily: chartFont },
-                    tooltip: Object.assign({}, tooltipBase, { formatter: buildAxisTooltip('UPT', 'Unit', 0) }),
+                    tooltip: Object.assign({}, tooltipBase, { formatter: buildAxisTooltip('UPT', 'Unit', 0, true) }),
                     legend: { type: 'scroll', top: 2, textStyle: { fontFamily: chartFont, fontSize: 11, color: pal.axisText } },
-                    grid: { top: isNarrow ? 62 : 48, bottom: isNarrow ? 54 : 36, left: 16, right: 16, containLabel: true },
-                    xAxis: xAxisCategory(visibleUpts),
-                    yAxis: yAxisValue('Unit'),
+                    grid: isHorizontalMobile
+                        ? { top: 42, bottom: 16, left: 8, right: 20, containLabel: true }
+                        : { top: 48, bottom: 26, left: 16, right: 16, containLabel: true },
+                    xAxis: isHorizontalMobile ? valAxis : catAxis,
+                    yAxis: isHorizontalMobile ? catAxis : valAxis,
                     series: towerGroups.map((tw, idx) => ({
                         name: tw.voltage || tw.label,
                         type: 'bar',
-                        barMaxWidth: 20,
+                        stack: isHorizontalMobile ? 'tower_v' : undefined,
+                        barMaxWidth: isHorizontalMobile ? 18 : 20,
                         itemStyle: {
-                            color: pal.series[idx % pal.series.length],
-                            borderRadius: [6, 6, 0, 0],
+                            color: pal.voltageSeries[idx % pal.voltageSeries.length],
+                            borderRadius: isHorizontalMobile
+                                ? (idx === towerGroups.length - 1 ? [0, 5, 5, 0] : [0, 0, 0, 0])
+                                : [5, 5, 0, 0],
                         },
-                        data: visibleUpts.map((u) => {
+                        data: orderedUpts.map((u) => {
                             const raw = tw.by_upt?.[u]?.total_unit;
                             return { value: safeNum(raw), isRecorded: isRecorded(raw) };
                         }),
@@ -1244,8 +1236,15 @@ if (typeof window.assetFullscreenStudio !== 'function') {
                     }
 
                     if (!studioResizeObserver) {
+                        let lastWidthBucket = (canvasEl.clientWidth || window.innerWidth) < 460 ? 'mob' : 'desk';
                         studioResizeObserver = new ResizeObserver(() => {
                             if (studioChartInstance && !studioChartInstance.isDisposed()) {
+                                const curW = canvasEl.clientWidth || window.innerWidth;
+                                const nextBucket = curW < 460 ? 'mob' : 'desk';
+                                if (nextBucket !== lastWidthBucket) {
+                                    lastWidthBucket = nextBucket;
+                                    studioChartInstance.setOption(this.buildChartOption(curW), true);
+                                }
                                 studioChartInstance.resize();
                             }
                         });
@@ -1320,11 +1319,9 @@ if (typeof window.assetFullscreenStudio !== 'function') {
                             return;
                         }
 
-                        // Background penuh sesuai tema aktif
                         ctx.fillStyle = bgHex;
                         ctx.fillRect(0, 0, canvasW, canvasH);
 
-                        // Header band + top accent strip
                         ctx.fillStyle = headerBg;
                         ctx.fillRect(0, 0, canvasW, headerH);
                         ctx.fillStyle = accentHex;
@@ -1332,7 +1329,6 @@ if (typeof window.assetFullscreenStudio !== 'function') {
                         ctx.fillStyle = borderHex;
                         ctx.fillRect(0, headerH - 2, canvasW, 2);
 
-                        // Header text
                         ctx.fillStyle = badgeText;
                         ctx.font = '700 20px "Geist", "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif';
                         ctx.fillText('EKSPLORASI ASET UIT JBT  |  ' + this.activeTabMeta.title.toUpperCase(), padX, 52);
@@ -1341,14 +1337,13 @@ if (typeof window.assetFullscreenStudio !== 'function') {
                         ctx.font = '700 32px "Geist", "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif';
                         ctx.fillText(this.chartHeading, padX, 96);
 
-                        const scopeLabel = this.studioUpt === 'all' ? 'Sebaran 8 UPT Kanonis' : ('Fokus UPT ' + this.studioUpt);
+                        const scopeLabel = this.studioUpt === 'all' ? 'Sebaran 8 UPT' : ('Fokus UPT ' + this.studioUpt);
                         const periodLabel = this.payload?.formatted_period || this.payload?.period || 'Periode aktif';
                         ctx.fillStyle = mutedHex;
                         ctx.font = '500 20px "Geist", "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif';
                         ctx.fillText('Cakupan: ' + scopeLabel + '  |  Periode: ' + periodLabel, padX, 130);
 
-                        // Right Induk UIT JBT badge (anti double-counting)
-                        const indukText = 'Induk UIT JBT (Tab 1a): ' + this.activeTabMeta.indukLabel;
+                        const indukText = 'Induk UIT JBT: ' + this.activeTabMeta.indukLabel;
                         ctx.font = '700 20px "Geist", "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif';
                         const badgeW = ctx.measureText(indukText).width + 36;
                         const badgeX = canvasW - padX - badgeW;
@@ -1357,17 +1352,15 @@ if (typeof window.assetFullscreenStudio !== 'function') {
                         ctx.fillStyle = badgeText;
                         ctx.fillText(indukText, badgeX + 18, 71);
 
-                        // Chart image centered
                         const imgX = Math.max(padX, Math.round((canvasW - img.width) / 2));
                         ctx.drawImage(img, imgX, headerH + 20);
 
-                        // Footer
                         const footerY = canvasH - footerH;
                         ctx.fillStyle = borderHex;
                         ctx.fillRect(padX, footerY, canvasW - padX * 2, 1);
                         ctx.fillStyle = mutedHex;
                         ctx.font = '500 18px "Geist", "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif';
-                        ctx.fillText('Sumber: ' + this.ownership.parent_source + ' & ' + this.ownership.distribution_scope, padX, footerY + 38);
+                        ctx.fillText('Sumber: Rekap Induk UIT JBT & Distribusi 8 UPT', padX, footerY + 38);
 
                         const exportedAt = new Date().toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
                         const rightFooter = 'Diekspor ' + exportedAt;
@@ -1418,34 +1411,35 @@ if (typeof window.assetFullscreenStudio !== 'function') {
     >
         <div
             :class="studioTheme === 'dark' ? 'border-slate-800 bg-slate-950 text-slate-100' : 'border-slate-200/80 bg-slate-50/95 text-slate-900'"
-            class="mx-auto max-w-[1600px] min-w-0 rounded-2xl border p-3 sm:p-4 shadow-2xl space-y-2.5 transition-colors duration-200"
+            class="mx-auto max-w-[1640px] min-w-0 rounded-2xl border p-2.5 sm:p-3.5 shadow-2xl space-y-2.5 transition-colors duration-200"
         >
-            {{-- Header Identitas & Kontrol Utilitas Studio --}}
+            {{-- Header Studio Ringkas (Maksimal 2 Baris Kontrol Bersih) --}}
             <div
                 :class="studioTheme === 'dark' ? 'border-slate-800 bg-slate-900' : 'border-slate-200/80 bg-white'"
-                class="rounded-2xl border px-3.5 py-2.5 sm:px-4 sm:py-3 shadow-xs transition-colors duration-200"
+                class="rounded-2xl border px-3.5 py-2.5 sm:px-4 shadow-xs transition-colors duration-200"
             >
-                <div class="flex flex-col gap-2.5 xl:flex-row xl:items-center xl:justify-between">
-                    <div class="min-w-0">
-                        <div class="flex flex-wrap items-center gap-1.5 text-[11px] font-medium" :class="studioTheme === 'dark' ? 'text-slate-400' : 'text-slate-500'">
-                            <span class="font-bold uppercase tracking-[0.06em]" :class="studioTheme === 'dark' ? 'text-cyan-400' : 'text-[#0b6175]'">
-                                EKSPLORASI ASET UIT JBT
-                            </span>
-                            <span class="h-1 w-1 rounded-full bg-slate-400/70" aria-hidden="true"></span>
-                            <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold" :class="studioTheme === 'dark' ? 'bg-cyan-950/80 text-cyan-300 border border-cyan-800/60' : 'bg-[#e6f4f6] text-[#0b6175]'" x-text="ownership.parent_code || 'UIT JBT'"></span>
-                            <span class="inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium font-sans tabular-nums" :class="studioTheme === 'dark' ? 'border-slate-700 bg-slate-800 text-slate-300' : 'border-slate-200/80 bg-slate-50 text-slate-600'">
-                                Periode <strong class="ml-1 font-semibold" :class="studioTheme === 'dark' ? 'text-white' : 'text-slate-900'" x-text="payload.formatted_period || payload.period || 'Tidak tercatat'"></strong>
-                            </span>
-                            <span class="hidden sm:inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium" :class="studioTheme === 'dark' ? 'border-slate-700 bg-slate-800 text-slate-300' : 'border-slate-200/80 bg-white text-slate-600'">
-                                Tab 1a &amp; Tab 1b
-                            </span>
-                        </div>
-                        <h2 id="asset-fullscreen-title" class="mt-0.5 text-sm sm:text-base font-bold tracking-tight" :class="studioTheme === 'dark' ? 'text-white' : 'text-slate-900'">
+                {{-- Baris 1: Judul + Ringkasan Induk Aktif + Aksi Utama --}}
+                <div class="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+                    <div class="min-w-0 flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                        <span class="text-[10.5px] font-bold uppercase tracking-[0.06em]" :class="studioTheme === 'dark' ? 'text-cyan-400' : 'text-[#0b6175]'">
+                            EKSPLORASI ASET UIT JBT
+                        </span>
+                        <span class="h-1 w-1 rounded-full bg-slate-400/70" aria-hidden="true"></span>
+                        <h2 id="asset-fullscreen-title" class="text-sm font-bold tracking-tight" :class="studioTheme === 'dark' ? 'text-white' : 'text-slate-900'">
                             Kepemilikan Induk &amp; Sebaran 8 UPT
                         </h2>
+                        <span class="inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium font-sans tabular-nums" :class="studioTheme === 'dark' ? 'border-slate-700 bg-slate-800 text-slate-300' : 'border-slate-200/80 bg-slate-50 text-slate-600'" x-text="payload.formatted_period || payload.period || 'Tidak tercatat'"></span>
+                        <div
+                            id="asset-fullscreen-induk-ribbon"
+                            :class="studioTheme === 'dark' ? 'border-cyan-900/70 bg-cyan-950/60 text-cyan-200' : 'border-[#0b6175]/15 bg-[#e6f4f6]/75 text-[#0b6175]'"
+                            class="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-sans tabular-nums"
+                        >
+                            <span class="font-semibold">Kepemilikan Induk UIT JBT:</span>
+                            <strong class="font-bold" :class="studioTheme === 'dark' ? 'text-white' : 'text-slate-900'" x-text="activeTabMeta.indukLabel"></strong>
+                        </div>
                     </div>
 
-                    <div class="flex flex-wrap items-center gap-1.5">
+                    <div class="flex flex-wrap items-center gap-1.5 shrink-0">
                         <button
                             type="button"
                             id="asset-fullscreen-focus-btn"
@@ -1506,46 +1500,8 @@ if (typeof window.assetFullscreenStudio !== 'function') {
                     </div>
                 </div>
 
-                {{-- Pita Kepemilikan Induk UIT JBT (Tab 1a) Terisolasi dari Sebaran 8 UPT --}}
-                <div
-                    id="asset-fullscreen-induk-ribbon"
-                    :class="studioTheme === 'dark' ? 'border-cyan-900/60 bg-slate-950/70' : 'border-[#0b6175]/15 bg-[#e6f4f6]/45'"
-                    class="mt-2.5 rounded-xl border px-3 py-2"
-                >
-                    <div class="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-                        <div class="flex flex-wrap items-center gap-2 shrink-0">
-                            <span
-                                :class="studioTheme === 'dark' ? 'bg-cyan-900/80 text-cyan-200' : 'bg-[#0b6175] text-white'"
-                                class="inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider"
-                            >
-                                Kepemilikan Induk UIT JBT
-                            </span>
-                            <span class="text-[11px] font-medium" :class="studioTheme === 'dark' ? 'text-slate-400' : 'text-slate-600'" x-text="ownership.parent_source + ' (Terisolasi dari penjumlahan 8 UPT)'"></span>
-                        </div>
-
-                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4 text-xs font-sans tabular-nums">
-                            <div class="flex flex-col sm:flex-row sm:items-baseline sm:gap-1.5">
-                                <span class="text-[11px]" :class="studioTheme === 'dark' ? 'text-slate-400' : 'text-slate-500'">Kapasitas Trafo</span>
-                                <strong class="font-bold" :class="studioTheme === 'dark' ? 'text-white' : 'text-slate-900'" x-text="formatNum(summaryTotals.total_trafo_mva, 1) + (summaryTotals.total_trafo_mva !== null && summaryTotals.total_trafo_mva !== undefined ? ' MVA' : '')"></strong>
-                            </div>
-                            <div class="flex flex-col sm:flex-row sm:items-baseline sm:gap-1.5">
-                                <span class="text-[11px]" :class="studioTheme === 'dark' ? 'text-slate-400' : 'text-slate-500'">Fisik Trafo</span>
-                                <strong class="font-bold" :class="studioTheme === 'dark' ? 'text-white' : 'text-slate-900'" x-text="formatNum(summaryTotals.total_trafo_bank, 0) + ' Bank / ' + formatNum(summaryTotals.total_trafo_unit, 0) + ' Unit'"></strong>
-                            </div>
-                            <div class="flex flex-col sm:flex-row sm:items-baseline sm:gap-1.5">
-                                <span class="text-[11px]" :class="studioTheme === 'dark' ? 'text-slate-400' : 'text-slate-500'">Transmisi</span>
-                                <strong class="font-bold" :class="studioTheme === 'dark' ? 'text-white' : 'text-slate-900'" x-text="formatNum(summaryTotals.total_transmisi, 1) + (summaryTotals.total_transmisi !== null && summaryTotals.total_transmisi !== undefined ? ' kms' : '')"></strong>
-                            </div>
-                            <div class="flex flex-col sm:flex-row sm:items-baseline sm:gap-1.5">
-                                <span class="text-[11px]" :class="studioTheme === 'dark' ? 'text-slate-400' : 'text-slate-500'">Tower</span>
-                                <strong class="font-bold" :class="studioTheme === 'dark' ? 'text-white' : 'text-slate-900'" x-text="formatNum(summaryTotals.total_tower, 0) + (summaryTotals.total_tower !== null && summaryTotals.total_tower !== undefined ? ' Unit' : '')"></strong>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {{-- 4 Tab Eksplorasi Utama (1 baris, scrollable, ARIA tablist + underline indikator) --}}
-                <div class="mt-2.5 flex flex-col gap-2.5 xl:flex-row xl:items-center xl:justify-between border-t pt-2.5" :class="studioTheme === 'dark' ? 'border-slate-800' : 'border-slate-100'">
+                {{-- Baris 2: 4 Tab Seksi + Pemilih UPT Ringkas --}}
+                <div class="mt-2 flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between border-t pt-2" :class="studioTheme === 'dark' ? 'border-slate-800' : 'border-slate-100'">
                     <div
                         role="tablist"
                         aria-label="Mode eksplorasi aset layar penuh"
@@ -1613,26 +1569,22 @@ if (typeof window.assetFullscreenStudio !== 'function') {
                         </button>
                     </div>
 
-                    {{-- Pencarian Atribut / Unit + Reset --}}
-                    <div class="flex flex-wrap items-center gap-2 shrink-0">
-                        <div class="relative w-full sm:w-60">
-                            <svg class="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                                <circle cx="11" cy="11" r="7"/>
-                                <path d="m20 20-3.5-3.5" stroke-linecap="round"/>
-                            </svg>
-                            <input
-                                id="asset-fullscreen-search"
-                                x-ref="studioSearchInput"
-                                type="search"
-                                x-model="searchQuery"
-                                @input="scheduleRender()"
-                                placeholder="Cari atribut atau UPT..."
-                                aria-label="Cari atribut atau UPT di mode layar penuh"
-                                :class="studioTheme === 'dark' ? 'border-slate-700 bg-slate-800 text-slate-100 placeholder:text-slate-400' : 'border-slate-200/80 bg-white text-slate-800 placeholder:text-slate-400'"
-                                class="w-full rounded-lg border pl-8 pr-3 py-1.5 text-xs transition focus:border-[#0b6175] focus:outline-hidden focus:ring-2 focus:ring-[#0b6175]/15"
-                            />
-                        </div>
-
+                    {{-- Pemilih Wilayah UPT Kompak --}}
+                    <div id="asset-fullscreen-upt-bar" class="flex items-center gap-2 shrink-0">
+                        <label for="asset-fullscreen-upt-select" class="text-[11px] font-semibold shrink-0" :class="studioTheme === 'dark' ? 'text-slate-400' : 'text-slate-500'">Wilayah:</label>
+                        <select
+                            id="asset-fullscreen-upt-select"
+                            x-model="studioUpt"
+                            @change="scheduleRender()"
+                            aria-label="Pilih wilayah UPT pada layar penuh"
+                            :class="studioTheme === 'dark' ? 'border-slate-700 bg-slate-800 text-slate-100' : 'border-slate-200 bg-white text-slate-700'"
+                            class="min-w-[165px] rounded-lg border px-2.5 py-1.5 text-xs font-semibold focus:border-[#0b6175] focus:outline-hidden"
+                        >
+                            <option value="all">Semua UPT (8 UPT)</option>
+                            <template x-for="uptName in canonicalUpts" :key="'opt-' + uptName">
+                                <option :value="uptName" x-text="'UPT ' + uptName"></option>
+                            </template>
+                        </select>
                         <button
                             type="button"
                             x-show="hasActiveFilters"
@@ -1641,57 +1593,8 @@ if (typeof window.assetFullscreenStudio !== 'function') {
                             :class="studioTheme === 'dark' ? 'border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'"
                             class="rounded-lg border px-2.5 py-1.5 text-xs font-semibold cursor-pointer whitespace-nowrap transition"
                         >
-                            Reset Filter
-                        </button>
-                    </div>
-                </div>
-
-                {{-- Filter Cepat 8 UPT Kanonis (Desktop Pills + Mobile Select) --}}
-                <div id="asset-fullscreen-upt-bar" class="mt-2 flex flex-wrap items-center gap-1.5 pt-2 border-t" :class="studioTheme === 'dark' ? 'border-slate-800' : 'border-slate-100'">
-                    <span class="text-[11px] font-semibold mr-1 shrink-0" :class="studioTheme === 'dark' ? 'text-slate-400' : 'text-slate-500'">Wilayah 8 UPT (Tab 1b):</span>
-
-                    {{-- Mobile Select --}}
-                    <select
-                        id="asset-fullscreen-upt-select"
-                        x-model="studioUpt"
-                        @change="scheduleRender()"
-                        aria-label="Pilih wilayah UPT pada layar penuh"
-                        :class="studioTheme === 'dark' ? 'border-slate-700 bg-slate-800 text-slate-100' : 'border-slate-200 bg-white text-slate-700'"
-                        class="sm:hidden w-full rounded-lg border px-2.5 py-1.5 text-xs font-semibold focus:border-[#0b6175] focus:outline-hidden"
-                    >
-                        <option value="all">Semua UPT (8 UPT)</option>
-                        <template x-for="uptName in canonicalUpts" :key="'mob-' + uptName">
-                            <option :value="uptName" x-text="'UPT ' + uptName"></option>
-                        </template>
-                    </select>
-
-                    {{-- Desktop Quick Filter Pills --}}
-                    <div class="hidden sm:flex flex-wrap items-center gap-1.5" role="group" aria-label="Filter cepat 8 UPT kanonis">
-                        <button
-                            type="button"
-                            data-studio-upt="all"
-                            @click="setStudioUpt('all')"
-                            :aria-pressed="studioUpt === 'all'"
-                            :class="studioUpt === 'all'
-                                ? (studioTheme === 'dark' ? 'border-cyan-400 bg-cyan-950/80 text-cyan-200 font-semibold' : 'border-[#0b6175] bg-[#0b6175] text-white font-semibold')
-                                : (studioTheme === 'dark' ? 'border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700' : 'border-slate-200/80 bg-white text-slate-600 hover:bg-slate-50')"
-                            class="rounded-lg border px-2.5 py-1 text-[11px] cursor-pointer whitespace-nowrap transition focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#16a3b8]"
-                        >
                             Semua UPT
                         </button>
-                        <template x-for="uptName in canonicalUpts" :key="'pill-' + uptName">
-                            <button
-                                type="button"
-                                :data-studio-upt="uptName"
-                                @click="setStudioUpt(uptName)"
-                                :aria-pressed="studioUpt === uptName"
-                                :class="studioUpt === uptName
-                                    ? (studioTheme === 'dark' ? 'border-cyan-400 bg-cyan-950/80 text-cyan-200 font-semibold' : 'border-[#0b6175] bg-[#0b6175] text-white font-semibold')
-                                    : (studioTheme === 'dark' ? 'border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700' : 'border-slate-200/80 bg-white text-slate-600 hover:bg-slate-50')"
-                                class="rounded-lg border px-2.5 py-1 text-[11px] cursor-pointer whitespace-nowrap transition focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#16a3b8]"
-                                x-text="uptName"
-                            ></button>
-                        </template>
                     </div>
                 </div>
             </div>
@@ -1707,9 +1610,9 @@ if (typeof window.assetFullscreenStudio !== 'function') {
                 <button type="button" @click="exportError = ''" class="font-semibold underline cursor-pointer">Tutup</button>
             </div>
 
-            {{-- Panggung Boardroom 12 Kolom (8 Kolom Grafik Utama + 4 Kolom Panel Pendamping Kontekstual) --}}
-            <div class="grid grid-cols-1 xl:grid-cols-12 gap-3.5 items-stretch">
-                {{-- Panel Kiri: Kanvas Grafik ECharts Utama --}}
+            {{-- Panggung Presentasi 12 Kolom: 9 Kolom Grafik Utama (75%) + 3 Kolom Panel Ringkas Kontekstual (25%) --}}
+            <div class="grid grid-cols-1 xl:grid-cols-12 gap-3 items-stretch">
+                {{-- Panel Kiri: Kanvas Grafik ECharts Utama (75% lebar / 100% saat Fokus Grafik) --}}
                 <div
                     role="tabpanel"
                     :aria-labelledby="'asset-studio-tab-' + activeTab"
@@ -1717,29 +1620,25 @@ if (typeof window.assetFullscreenStudio !== 'function') {
                         focusMode ? 'xl:!col-span-12' : '',
                         studioTheme === 'dark' ? 'border-slate-800 bg-slate-900' : 'border-slate-200/80 bg-white'
                     ]"
-                    class="xl:col-span-8 min-w-0 max-w-full overflow-hidden rounded-2xl border p-3.5 sm:p-4 shadow-xs flex flex-col transition-colors duration-200"
+                    class="xl:col-span-9 min-w-0 max-w-full overflow-hidden rounded-2xl border p-3.5 sm:p-4 shadow-xs flex flex-col transition-colors duration-200"
                 >
                     <div
                         :class="studioTheme === 'dark' ? 'border-slate-800' : 'border-slate-100'"
-                        class="mb-2.5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-b pb-2.5"
+                        class="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-b pb-2"
                     >
-                        <div class="min-w-0">
+                        <div class="min-w-0 flex flex-wrap items-center gap-2">
                             <h3 class="text-sm font-bold tracking-tight" :class="studioTheme === 'dark' ? 'text-white' : 'text-slate-900'" x-text="chartHeading"></h3>
-                            <div class="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] font-sans tabular-nums" :class="studioTheme === 'dark' ? 'text-slate-400' : 'text-slate-500'">
-                                <span x-show="studioUpt === 'all'">Klik batang UPT pada grafik untuk bedah rincian internal.</span>
-                                <span
-                                    x-show="studioUpt !== 'all'"
-                                    x-cloak
-                                    :class="studioTheme === 'dark' ? 'bg-cyan-950/80 text-cyan-300' : 'bg-[#e6f4f6] text-[#0b6175]'"
-                                    class="inline-flex items-center rounded-full px-2 py-0.5 font-semibold"
-                                    x-text="selectedUptShareBadge"
-                                ></span>
-                            </div>
+                            <span
+                                x-show="studioUpt !== 'all'"
+                                x-cloak
+                                :class="studioTheme === 'dark' ? 'bg-cyan-950/80 text-cyan-300' : 'bg-[#e6f4f6] text-[#0b6175]'"
+                                class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold font-sans tabular-nums"
+                                x-text="selectedUptShareBadge"
+                            ></span>
                         </div>
 
                         {{-- Sub-Toggle Kontekstual per Tab --}}
                         <div class="flex flex-wrap items-center gap-1.5 shrink-0">
-                            {{-- Sub-toggle Tab 1: Kapasitas MVA vs Fisik Bank & Unit (Anti-Mixing) --}}
                             <template x-if="activeTab === 'trafo'">
                                 <div class="flex flex-wrap items-center gap-1.5">
                                     <div :class="studioTheme === 'dark' ? 'border-slate-700 bg-slate-800' : 'border-slate-200/80 bg-slate-100'" class="inline-flex rounded-lg border p-0.5 text-[11px]">
@@ -1781,7 +1680,6 @@ if (typeof window.assetFullscreenStudio !== 'function') {
                                 </div>
                             </template>
 
-                            {{-- Sub-toggle Tab 2: Urutan Peringkat MVA --}}
                             <template x-if="activeTab === 'mva'">
                                 <div :class="studioTheme === 'dark' ? 'border-slate-700 bg-slate-800' : 'border-slate-200/80 bg-slate-100'" class="inline-flex rounded-lg border p-0.5 text-[11px]">
                                     <button
@@ -1803,7 +1701,6 @@ if (typeof window.assetFullscreenStudio !== 'function') {
                                 </div>
                             </template>
 
-                            {{-- Sub-toggle Tab 3: Transmisi Per UPT vs Per Tegangan --}}
                             <template x-if="activeTab === 'transmisi' && studioUpt === 'all'">
                                 <div :class="studioTheme === 'dark' ? 'border-slate-700 bg-slate-800' : 'border-slate-200/80 bg-slate-100'" class="inline-flex rounded-lg border p-0.5 text-[11px]">
                                     <button
@@ -1825,7 +1722,6 @@ if (typeof window.assetFullscreenStudio !== 'function') {
                                 </div>
                             </template>
 
-                            {{-- Sub-toggle Tab 4: Tower Per Tegangan vs SU/SK --}}
                             <template x-if="activeTab === 'tower' && studioUpt === 'all'">
                                 <div :class="studioTheme === 'dark' ? 'border-slate-700 bg-slate-800' : 'border-slate-200/80 bg-slate-100'" class="inline-flex rounded-lg border p-0.5 text-[11px]">
                                     <button
@@ -1853,7 +1749,7 @@ if (typeof window.assetFullscreenStudio !== 'function') {
                     <div
                         x-show="isChartLoading"
                         class="flex items-center justify-center rounded-xl border border-slate-200/60 bg-slate-50/40"
-                        style="width: 100%; height: clamp(320px, calc(100dvh - 385px), 540px); min-height: 320px;"
+                        style="width: 100%; height: clamp(360px, calc(100dvh - 235px), 660px); min-height: 360px;"
                     >
                         <span class="text-xs font-medium text-slate-500">Memuat visualisasi aset...</span>
                     </div>
@@ -1863,7 +1759,7 @@ if (typeof window.assetFullscreenStudio !== 'function') {
                         x-show="!isChartLoading && chartError"
                         x-cloak
                         class="flex flex-col items-center justify-center gap-2.5 rounded-xl border border-rose-200 bg-rose-50/40 p-6 text-center"
-                        style="width: 100%; height: clamp(320px, calc(100dvh - 385px), 540px); min-height: 320px;"
+                        style="width: 100%; height: clamp(360px, calc(100dvh - 235px), 660px); min-height: 360px;"
                     >
                         <p class="text-xs font-medium text-rose-800" x-text="chartError"></p>
                         <button
@@ -1880,52 +1776,52 @@ if (typeof window.assetFullscreenStudio !== 'function') {
                         x-show="!isChartLoading && !chartError && !hasChartData"
                         x-cloak
                         class="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 p-6 text-center"
-                        style="width: 100%; height: clamp(320px, calc(100dvh - 385px), 540px); min-height: 320px;"
+                        style="width: 100%; height: clamp(360px, calc(100dvh - 235px), 660px); min-height: 360px;"
                     >
                         <p class="text-xs font-medium text-slate-500">Belum ada data aset aktif untuk ditampilkan pada periode ini.</p>
                     </div>
 
-                    {{-- Primary ECharts Canvas (Explicit Height) --}}
+                    {{-- Primary ECharts Canvas (Lega >= 75% Stage) --}}
                     <div
                         x-show="!isChartLoading && !chartError && hasChartData"
                         id="asset-fullscreen-echart-canvas"
                         class="w-full"
-                        style="width: 100%; height: clamp(320px, calc(100dvh - 385px), 540px); min-height: 320px;"
+                        style="width: 100%; height: clamp(360px, calc(100dvh - 235px), 660px); min-height: 360px;"
                     ></div>
 
-                    {{-- Micro-Footer Pintasan Keyboard --}}
+                    {{-- Micro-Footer Ringkas --}}
                     <div
                         :class="studioTheme === 'dark' ? 'border-slate-800 text-slate-400' : 'border-slate-100 text-slate-400'"
                         class="mt-2 pt-2 border-t flex flex-wrap items-center justify-between gap-2 text-[10.5px]"
                     >
-                        <span x-text="'Sumber: ' + ownership.parent_source + ' & ' + ownership.distribution_scope"></span>
+                        <span>Sumber: Rekap Induk UIT JBT &amp; Distribusi 8 UPT</span>
                         <div class="hidden sm:flex flex-wrap items-center gap-3">
                             <span><kbd class="font-semibold">1</kbd>/<kbd class="font-semibold">2</kbd>/<kbd class="font-semibold">3</kbd>/<kbd class="font-semibold">4</kbd> Tab</span>
                             <span><kbd class="font-semibold">P</kbd> Fokus</span>
                             <span><kbd class="font-semibold">D</kbd> Tema</span>
-                            <span><kbd class="font-semibold">/</kbd> Cari</span>
                             <span><kbd class="font-semibold">Esc</kbd> Tutup</span>
                         </div>
                     </div>
                 </div>
 
-                {{-- Panel Kanan: Pendamping Kontekstual (Peringkat 8 UPT / Rincian Internal UPT & Drill-Down ULTG) --}}
+                {{-- Panel Kanan: 1 Daftar Ringkas Kontekstual (25% lebar) --}}
                 <div
+                    id="asset-fullscreen-side-panel"
                     x-show="!focusMode"
                     :class="studioTheme === 'dark' ? 'border-slate-800 bg-slate-900' : 'border-slate-200/80 bg-white'"
-                    class="xl:col-span-4 min-w-0 max-w-full rounded-2xl border flex flex-col shadow-xs overflow-hidden transition-colors duration-200"
+                    class="xl:col-span-3 min-w-0 max-w-full rounded-2xl border flex flex-col shadow-xs overflow-hidden transition-colors duration-200"
                 >
                     <div
                         :class="studioTheme === 'dark' ? 'border-slate-800' : 'border-slate-100'"
-                        class="flex items-center justify-between gap-2 border-b px-4 py-3"
+                        class="flex items-center justify-between gap-2 border-b px-3.5 py-2.5"
                     >
                         <div class="min-w-0">
                             <h3
-                                class="text-sm font-bold truncate"
-                                :class="studioTheme === 'dark' ? 'text-white' : 'text-slate-900'"
-                                x-text="studioUpt === 'all' ? 'Peringkat 8 UPT & Pangsa UIT JBT' : ('Rincian Internal UPT ' + studioUpt)"
+                                class="text-xs font-bold uppercase tracking-wider truncate"
+                                :class="studioTheme === 'dark' ? 'text-cyan-300' : 'text-[#0b6175]'"
+                                x-text="studioUpt === 'all' ? 'Peringkat 8 UPT' : ('Daftar ULTG: ' + studioUpt)"
                             ></h3>
-                            <p class="text-[11px]" :class="studioTheme === 'dark' ? 'text-slate-400' : 'text-slate-500'" x-text="studioUpt === 'all' ? 'Klik baris UPT untuk fokus bedah internal' : 'Kelas tegangan, drill-down ULTG & atribut'"></p>
+                            <p class="text-[11px] truncate" :class="studioTheme === 'dark' ? 'text-slate-400' : 'text-slate-500'" x-text="studioUpt === 'all' ? 'Klik UPT untuk melihat ULTG' : (selectedUptUltgRows.length + ' unit layanan tercatat')"></p>
                         </div>
                         <button
                             type="button"
@@ -1933,185 +1829,59 @@ if (typeof window.assetFullscreenStudio !== 'function') {
                             x-cloak
                             @click="setStudioUpt('all')"
                             :class="studioTheme === 'dark' ? 'border-slate-700 bg-slate-800 text-cyan-300 hover:bg-slate-700' : 'border-slate-200 bg-slate-50 text-[#0b6175] hover:bg-[#e6f4f6]'"
-                            class="shrink-0 rounded-lg border px-2.5 py-1 text-[11px] font-semibold cursor-pointer"
+                            class="shrink-0 rounded-lg border px-2 py-1 text-[11px] font-semibold cursor-pointer"
                         >
-                            Semua UPT
+                            Semua
                         </button>
                     </div>
 
-                    <div x-ref="companionScroll" class="flex-1 max-h-[clamp(330px,calc(100dvh-345px),585px)] overflow-y-auto overscroll-contain">
-                        {{-- MODE A: SEMUA UPT --}}
+                    <div x-ref="companionScroll" class="flex-1 max-h-[clamp(360px,calc(100dvh-235px),660px)] overflow-y-auto overscroll-contain">
+                        {{-- Daftar 1: Peringkat 8 UPT saat Semua UPT aktif --}}
                         <template x-if="studioUpt === 'all'">
                             <div class="divide-y" :class="studioTheme === 'dark' ? 'divide-slate-800' : 'divide-slate-100'">
-                                {{-- Empty State saat pencarian 0 hasil (UPT maupun atribut) --}}
-                                <div x-show="hasZeroSearchMatchesInAllMode" class="p-6 text-center space-y-2">
-                                    <p class="text-xs font-medium" :class="studioTheme === 'dark' ? 'text-slate-300' : 'text-slate-600'">Tidak ada atribut atau unit yang cocok.</p>
+                                <template x-for="(row, idx) in allUptRankingRows" :key="'rank-' + row.upt">
                                     <button
                                         type="button"
-                                        @click="searchQuery = ''; scheduleRender()"
-                                        :class="studioTheme === 'dark' ? 'border-slate-700 bg-slate-800 text-slate-200' : 'border-slate-200 bg-white text-slate-700'"
-                                        class="rounded-lg border px-3 py-1 text-xs font-semibold cursor-pointer"
+                                        @click="setStudioUpt(row.upt)"
+                                        :class="studioTheme === 'dark' ? 'hover:bg-slate-800/70' : 'hover:bg-[#e6f4f6]/40'"
+                                        class="w-full text-left px-3.5 py-2.5 cursor-pointer transition-colors block focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#16a3b8]"
                                     >
-                                        Reset Pencarian
-                                    </button>
-                                </div>
-
-                                {{-- Tabel Peringkat 8 UPT --}}
-                                <div x-show="displayedAllUptRows.length > 0">
-                                    <table class="w-full table-fixed border-collapse text-xs">
-                                        <thead
-                                            :class="studioTheme === 'dark' ? 'border-slate-800 bg-slate-900/95 text-slate-400' : 'border-slate-200/80 bg-slate-50/95 text-slate-500'"
-                                            class="sticky top-0 z-10 border-b text-[10.5px] font-semibold uppercase tracking-wider"
-                                        >
-                                            <tr>
-                                                <th class="w-[46%] pl-4 pr-2 py-2 text-left">UPT</th>
-                                                <th class="w-[32%] px-2 py-2 text-right">Nilai</th>
-                                                <th class="w-[22%] pl-2 pr-4 py-2 text-right">Pangsa</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody :class="studioTheme === 'dark' ? 'divide-slate-800' : 'divide-slate-100'" class="divide-y">
-                                            <template x-for="(row, idx) in displayedAllUptRows" :key="'rank-' + row.upt">
-                                                <tr
-                                                    @click="setStudioUpt(row.upt)"
-                                                    :class="studioTheme === 'dark' ? 'hover:bg-slate-800/70' : 'hover:bg-[#e6f4f6]/40'"
-                                                    class="cursor-pointer transition-colors"
-                                                >
-                                                    <td class="pl-4 pr-2 py-1.5 align-top">
-                                                        <div class="flex items-center gap-1.5">
-                                                            <span
-                                                                :class="idx === 0 ? (studioTheme === 'dark' ? 'bg-cyan-900 text-cyan-200' : 'bg-[#0b6175] text-white') : (studioTheme === 'dark' ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-600')"
-                                                                class="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded text-[10px] font-bold font-sans tabular-nums"
-                                                                x-text="idx + 1"
-                                                            ></span>
-                                                            <span class="font-semibold truncate" :class="studioTheme === 'dark' ? 'text-slate-100' : 'text-slate-800'" x-text="row.upt"></span>
-                                                        </div>
-                                                        <div class="mt-0.5 text-[10.5px] truncate" :class="studioTheme === 'dark' ? 'text-slate-400' : 'text-slate-500'" x-text="row.secondaryText"></div>
-                                                    </td>
-                                                    <td class="px-2 py-1.5 text-right align-top font-semibold font-sans tabular-nums" :class="studioTheme === 'dark' ? 'text-slate-100' : 'text-slate-900'" x-text="row.primaryFormatted"></td>
-                                                    <td class="pl-2 pr-4 py-1.5 text-right align-top font-sans tabular-nums">
-                                                        <div class="font-semibold" :class="studioTheme === 'dark' ? 'text-cyan-300' : 'text-[#0b6175]'" x-text="formatPct(row.pct)"></div>
-                                                        <div class="mt-1 h-1 w-full rounded-full overflow-hidden" :class="studioTheme === 'dark' ? 'bg-slate-800' : 'bg-slate-100'">
-                                                            <div class="h-full rounded-full" :class="studioTheme === 'dark' ? 'bg-cyan-400' : 'bg-[#0b6175]'" :style="'width: ' + Math.min(100, Math.max(0, row.pct !== null ? row.pct : 0)) + '%'"></div>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            </template>
-                                        </tbody>
-                                    </table>
-                                </div>
-
-                                {{-- Daftar Atribut interactive_matrix yang cocok pencarian saat Semua UPT aktif --}}
-                                <div x-show="searchQuery.trim() !== '' && matchedMatrixAttributes.length > 0" class="p-3.5 space-y-2">
-                                    <div class="flex items-center justify-between gap-2">
-                                        <span class="text-[11px] font-bold uppercase tracking-wider" :class="studioTheme === 'dark' ? 'text-cyan-300' : 'text-[#0b6175]'">Atribut Cocok Pencarian</span>
-                                        <span class="rounded-full px-2 py-0.5 text-[10.5px] font-semibold font-sans tabular-nums" :class="studioTheme === 'dark' ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-600'" x-text="matchedMatrixAttributes.length + ' atribut'"></span>
-                                    </div>
-                                    <div class="space-y-1.5">
-                                        <template x-for="attr in matchedMatrixAttributes" :key="'all-attr-' + attr.attribute">
-                                            <div
-                                                :class="studioTheme === 'dark' ? 'border-slate-800 bg-slate-950/60' : 'border-slate-200/80 bg-slate-50/70'"
-                                                class="rounded-xl border px-3 py-2 text-xs"
-                                            >
-                                                <div class="flex items-start justify-between gap-2">
-                                                    <div class="min-w-0">
-                                                        <div class="font-semibold break-words" :class="studioTheme === 'dark' ? 'text-slate-100' : 'text-slate-800'" x-text="attr.attribute"></div>
-                                                        <div class="mt-0.5 text-[10.5px]" :class="studioTheme === 'dark' ? 'text-slate-400' : 'text-slate-500'" x-text="attr.group_label + ' (' + attr.unit + ')'"></div>
-                                                    </div>
-                                                    <span class="shrink-0 font-bold font-sans tabular-nums" :class="studioTheme === 'dark' ? 'text-cyan-300' : 'text-[#0b6175]'" x-text="formatNum(attr.total) + ' ' + attr.unit"></span>
-                                                </div>
+                                        <div class="flex items-center justify-between gap-2 text-xs">
+                                            <span class="flex items-center gap-2 min-w-0">
+                                                <span
+                                                    :class="idx === 0 ? (studioTheme === 'dark' ? 'bg-cyan-900 text-cyan-200' : 'bg-[#0b6175] text-white') : (studioTheme === 'dark' ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-600')"
+                                                    class="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded text-[10px] font-bold font-sans tabular-nums"
+                                                    x-text="idx + 1"
+                                                ></span>
+                                                <span class="font-semibold truncate" :class="studioTheme === 'dark' ? 'text-slate-100' : 'text-slate-800'" x-text="row.upt"></span>
+                                            </span>
+                                            <span class="shrink-0 font-bold font-sans tabular-nums" :class="studioTheme === 'dark' ? 'text-white' : 'text-slate-900'" x-text="row.primaryFormatted"></span>
+                                        </div>
+                                        <div class="mt-1.5 flex items-center justify-between gap-2">
+                                            <div class="h-1 flex-1 rounded-full overflow-hidden" :class="studioTheme === 'dark' ? 'bg-slate-800' : 'bg-slate-100'">
+                                                <div class="h-full rounded-full" :class="studioTheme === 'dark' ? 'bg-cyan-400' : 'bg-[#0b6175]'" :style="'width: ' + Math.min(100, Math.max(0, row.pct !== null ? row.pct : 0)) + '%'"></div>
                                             </div>
-                                        </template>
-                                    </div>
-                                </div>
+                                            <span class="text-[10.5px] font-semibold font-sans tabular-nums shrink-0" :class="studioTheme === 'dark' ? 'text-cyan-300' : 'text-[#0b6175]'" x-text="formatPct(row.pct)"></span>
+                                        </div>
+                                    </button>
+                                </template>
                             </div>
                         </template>
 
-                        {{-- MODE B: 1 UPT TERPILIH (Rincian Kelas Tegangan + Drill-Down ULTG + Atribut) --}}
+                        {{-- Daftar 2: Daftar ULTG saat 1 UPT dipilih --}}
                         <template x-if="studioUpt !== 'all'">
-                            <div class="p-3.5 space-y-4">
-                                <div x-show="hasZeroMatchesInSingleUptMode" class="p-4 text-center space-y-2">
-                                    <p class="text-xs font-medium" :class="studioTheme === 'dark' ? 'text-slate-300' : 'text-slate-600'">Tidak ada atribut atau unit yang cocok.</p>
-                                    <button
-                                        type="button"
-                                        @click="searchQuery = ''; scheduleRender()"
-                                        :class="studioTheme === 'dark' ? 'border-slate-700 bg-slate-800 text-slate-200' : 'border-slate-200 bg-white text-slate-700'"
-                                        class="rounded-lg border px-3 py-1 text-xs font-semibold cursor-pointer"
-                                    >
-                                        Reset Pencarian
-                                    </button>
-                                </div>
-
-                                {{-- Seksi 1: Rincian Kelas Tegangan UPT Terpilih --}}
-                                <div x-show="selectedUptVoltageRows.length > 0" class="space-y-2">
-                                    <div class="text-[11px] font-bold uppercase tracking-wider" :class="studioTheme === 'dark' ? 'text-cyan-300' : 'text-[#0b6175]'">
-                                        Rincian Kelas Tegangan
+                            <div class="divide-y" :class="studioTheme === 'dark' ? 'divide-slate-800' : 'divide-slate-100'">
+                                <template x-for="ultg in selectedUptUltgRows" :key="'ultg-' + ultg.ultg">
+                                    <div class="px-3.5 py-2.5 text-xs">
+                                        <div class="flex items-center justify-between gap-2">
+                                            <span class="font-semibold truncate" :class="studioTheme === 'dark' ? 'text-slate-100' : 'text-slate-800'" x-text="ultg.ultg"></span>
+                                            <span class="shrink-0 font-bold font-sans tabular-nums" :class="ultg.recorded ? (studioTheme === 'dark' ? 'text-cyan-300' : 'text-[#0b6175]') : 'text-slate-400 font-normal'" x-text="ultg.primaryText"></span>
+                                        </div>
+                                        <div class="mt-0.5 text-[10.5px] font-sans tabular-nums truncate" :class="studioTheme === 'dark' ? 'text-slate-400' : 'text-slate-500'" x-text="ultg.secondaryText"></div>
                                     </div>
-                                    <div class="space-y-1.5">
-                                        <template x-for="vRow in selectedUptVoltageRows" :key="'v-' + vRow.label">
-                                            <div
-                                                :class="studioTheme === 'dark' ? 'border-slate-800 bg-slate-950/60' : 'border-slate-200/80 bg-slate-50/70'"
-                                                class="rounded-xl border px-3 py-2 text-xs"
-                                            >
-                                                <div class="flex items-center justify-between gap-2">
-                                                    <span class="font-semibold" :class="studioTheme === 'dark' ? 'text-slate-100' : 'text-slate-800'" x-text="vRow.label"></span>
-                                                    <span class="font-bold font-sans tabular-nums" :class="vRow.recorded ? (studioTheme === 'dark' ? 'text-white' : 'text-slate-900') : 'text-slate-400 font-normal'" x-text="vRow.primary"></span>
-                                                </div>
-                                                <div class="mt-0.5 text-[10.5px] font-sans tabular-nums" :class="studioTheme === 'dark' ? 'text-slate-400' : 'text-slate-500'" x-text="vRow.secondary"></div>
-                                            </div>
-                                        </template>
-                                    </div>
-                                </div>
-
-                                {{-- Seksi 2: Drill-Down Level ULTG --}}
-                                <div x-show="selectedUptUltgRows.length > 0" class="space-y-2">
-                                    <div class="flex items-center justify-between gap-2">
-                                        <span class="text-[11px] font-bold uppercase tracking-wider" :class="studioTheme === 'dark' ? 'text-cyan-300' : 'text-[#0b6175]'">Drill-Down ULTG</span>
-                                        <span class="rounded-full px-2 py-0.5 text-[10.5px] font-semibold font-sans tabular-nums" :class="studioTheme === 'dark' ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-600'" x-text="selectedUptUltgRows.length + ' ULTG'"></span>
-                                    </div>
-                                    <div class="space-y-1.5">
-                                        <template x-for="ultg in selectedUptUltgRows" :key="'ultg-' + ultg.ultg">
-                                            <div
-                                                :class="studioTheme === 'dark' ? 'border-slate-800 bg-slate-950/60' : 'border-slate-200/80 bg-white'"
-                                                class="rounded-xl border px-3 py-2 text-xs"
-                                            >
-                                                <div class="font-semibold" :class="studioTheme === 'dark' ? 'text-slate-100' : 'text-slate-800'" x-text="ultg.ultg"></div>
-                                                <div class="mt-1 grid grid-cols-3 gap-1.5 text-[10.5px] font-sans tabular-nums">
-                                                    <div>
-                                                        <span class="block" :class="studioTheme === 'dark' ? 'text-slate-400' : 'text-slate-500'">Trafo</span>
-                                                        <strong :class="studioTheme === 'dark' ? 'text-slate-200' : 'text-slate-800'" x-text="formatNum(ultg.trafo_mva, 1)"></strong>
-                                                    </div>
-                                                    <div>
-                                                        <span class="block" :class="studioTheme === 'dark' ? 'text-slate-400' : 'text-slate-500'">Transmisi</span>
-                                                        <strong :class="studioTheme === 'dark' ? 'text-slate-200' : 'text-slate-800'" x-text="formatNum(ultg.transmisi, 1)"></strong>
-                                                    </div>
-                                                    <div>
-                                                        <span class="block" :class="studioTheme === 'dark' ? 'text-slate-400' : 'text-slate-500'">Tower</span>
-                                                        <strong :class="studioTheme === 'dark' ? 'text-slate-200' : 'text-slate-800'" x-text="formatNum(ultg.tower, 0)"></strong>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </template>
-                                    </div>
-                                </div>
-
-                                {{-- Seksi 3: Atribut Cocok Pencarian untuk UPT Terpilih --}}
-                                <div x-show="searchQuery.trim() !== '' && matchedMatrixAttributes.length > 0" class="space-y-2">
-                                    <div class="text-[11px] font-bold uppercase tracking-wider" :class="studioTheme === 'dark' ? 'text-cyan-300' : 'text-[#0b6175]'">
-                                        Atribut UPT Cocok Pencarian
-                                    </div>
-                                    <div class="space-y-1.5">
-                                        <template x-for="attr in matchedMatrixAttributes" :key="'single-attr-' + attr.attribute">
-                                            <div
-                                                :class="studioTheme === 'dark' ? 'border-slate-800 bg-slate-950/60' : 'border-slate-200/80 bg-slate-50/70'"
-                                                class="rounded-xl border px-3 py-2 text-xs"
-                                            >
-                                                <div class="flex items-start justify-between gap-2">
-                                                    <span class="font-semibold break-words" :class="studioTheme === 'dark' ? 'text-slate-100' : 'text-slate-800'" x-text="attr.attribute"></span>
-                                                    <span class="shrink-0 font-bold font-sans tabular-nums" :class="studioTheme === 'dark' ? 'text-cyan-300' : 'text-[#0b6175]'" x-text="formatNum(attr.values?.[studioUpt]) + (attr.values?.[studioUpt] !== null && attr.values?.[studioUpt] !== undefined ? ' ' + attr.unit : '')"></span>
-                                                </div>
-                                            </div>
-                                        </template>
-                                    </div>
+                                </template>
+                                <div x-show="selectedUptUltgRows.length === 0" class="p-5 text-center text-xs" :class="studioTheme === 'dark' ? 'text-slate-400' : 'text-slate-500'">
+                                    Belum ada rincian ULTG tercatat untuk UPT ini.
                                 </div>
                             </div>
                         </template>

@@ -165,35 +165,46 @@
         'transmisi_by_upt' => $transmisiByUpt,
         'tower_by_upt' => $towerByUpt,
     ];
+
+    $sectionMeta = [
+        'trafo' => ['title' => 'Bedah Trafo & Tegangan', 'context' => 'trafo'],
+        'mva' => ['title' => 'Distribusi Daya (MVA)', 'context' => 'trafo'],
+        'transmisi' => ['title' => 'Jaringan Transmisi (kms)', 'context' => 'transmisi'],
+        'tower' => ['title' => 'Sebaran Tower (Unit)', 'context' => 'transmisi'],
+    ];
+    $activeSectionTitle = $sectionMeta[$section]['title'] ?? 'Bedah Trafo & Tegangan';
+    $ratioContext = $sectionMeta[$section]['context'] ?? 'trafo';
+
+    $ovAvgUnit = $trafoOverall['avg_mva_per_unit'] ?? null;
+    $ovAvgBank = $trafoOverall['avg_mva_per_bank'] ?? null;
+    $ovTrafoMva = $trafoOverall['mva'] ?? null;
+    $ovTrafoUnit = $trafoOverall['unit'] ?? null;
+    $ovTrafoBank = $trafoOverall['bank'] ?? null;
+    $ovSuKms = $transmisiOverall['su_kms'] ?? null;
+    $ovSkKms = $transmisiOverall['sk_kms'] ?? null;
+    $ovTotKms = $transmisiOverall['total_kms'] ?? null;
+    $ovSuPct = $transmisiOverall['su_pct'] ?? null;
+    $ovSkPct = $transmisiOverall['sk_pct'] ?? null;
+    $ovSuWidth = $ovSuPct !== null ? max(0.0, min(100.0, (float) $ovSuPct)) : 0.0;
+    $ovSkWidth = $ovSkPct !== null ? max(0.0, min(100.0, (float) $ovSkPct)) : 0.0;
 @endphp
 
-<div class="space-y-5 min-w-0 max-w-full font-aset">
+<div class="space-y-4 min-w-0 max-w-full font-aset">
     <x-asset-fullscreen-studio :payload="$fullscreenStudioPayload" :initial-section="$section" />
 
     {{-- Header Halaman Ringkas --}}
-    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div class="flex min-w-0 flex-col gap-1.5">
-            <div class="flex flex-wrap items-center gap-2.5">
-                <h1 class="text-2xl font-bold tracking-tight text-slate-900">Rincian Trafo & Stok Aset</h1>
-                <span class="inline-flex items-center rounded-full bg-slate-100 border border-slate-200/80 px-2.5 py-0.5 text-xs font-medium text-slate-600">
-                    Prototipe Demo
-                </span>
-                <span class="inline-flex items-center rounded-full bg-[#e6f4f6] px-2.5 py-0.5 text-xs font-semibold text-[#0b6175]">
+    <div id="asset-detail-header" class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div class="flex min-w-0 flex-col gap-1">
+            <div class="flex flex-wrap items-center gap-2">
+                <h1 class="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">{{ $activeSectionTitle }}</h1>
+                <span class="inline-flex items-center rounded-full bg-[#e6f4f6] px-2.5 py-0.5 text-[11px] font-semibold text-[#0b6175]">
                     UIT JBT
                 </span>
-                @if ($selectedPeriod !== null)
-                    <span class="inline-flex items-center rounded-full bg-white border border-slate-200/80 px-2.5 py-0.5 text-xs font-medium text-slate-600">
-                        {{ $formattedPeriod }}
-                    </span>
-                    <span class="inline-flex items-center rounded-full border border-slate-200/80 bg-white px-2.5 py-0.5 text-xs font-medium text-slate-600">
-                        Tab 1a &amp; Tab 1b
-                    </span>
-                @endif
             </div>
             <x-data-freshness-badge id="asset-detail-freshness-indicator" :freshness="$freshness" />
         </div>
 
-        <div class="flex flex-wrap items-center gap-2">
+        <div class="flex flex-wrap items-center gap-2 sm:shrink-0">
             @if (!empty($availablePeriods))
                 <form method="GET" action="{{ route('dashboard.asset-detail', ['section' => $section]) }}" class="flex items-center">
                     <label for="asset-detail-period-select" class="sr-only">Pilih periode historis aset</label>
@@ -212,8 +223,8 @@
                     </select>
                 </form>
             @endif
-            <a href="{{ $selectedPeriod !== null ? route('dashboard', ['period' => $selectedPeriod]) : route('dashboard') }}" class="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition shadow-2xs">
-                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+            <a href="{{ $selectedPeriod !== null ? route('dashboard', ['period' => $selectedPeriod]) : route('dashboard') }}" class="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition shadow-2xs whitespace-nowrap">
+                <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
                     <path d="M19 12H5M12 19l-7-7 7-7" stroke-linecap="round" stroke-linejoin="round" />
                 </svg>
                 Kembali ke Beranda
@@ -242,60 +253,23 @@
         Distribusi Wilayah Aset UIT JBT pada 8 UPT (Tab 1b)
         {{ $ownership['parent_source'] }}
         {{ $ownership['distribution_scope'] }}
-        @if ($selectedPeriod !== null) Periode {{ $selectedPeriod }} @endif
+        @if ($selectedPeriod !== null) Periode {{ $selectedPeriod }} ({{ $formattedPeriod }}) @endif
     </span>
 
-    {{-- Toolbar Tunggal: 4 Navigasi Seksi --}}
-    <div class="ibs-card min-w-0 max-w-full p-3.5">
-        <div class="flex flex-wrap items-center justify-between gap-3">
-            <div class="flex flex-wrap items-center gap-1.5">
-                <a href="{{ route('dashboard.asset-detail', $sectionRouteParams('trafo')) }}"
-                   class="pill-tab-transition inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold {{ $section === 'trafo' ? 'bg-[#0b6175] text-white shadow-2xs' : 'bg-slate-100/80 text-slate-700 hover:bg-slate-200/70' }}">
-                    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-                        <rect x="3" y="6" width="18" height="12" rx="2" />
-                        <path d="M7 12h2m6 0h2M12 9v6" stroke-linecap="round" stroke-linejoin="round" />
-                    </svg>
-                    Bedah Trafo & Tegangan
-                </a>
-                <a href="{{ route('dashboard.asset-detail', $sectionRouteParams('mva')) }}"
-                   class="pill-tab-transition inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold {{ $section === 'mva' ? 'bg-[#0b6175] text-white shadow-2xs' : 'bg-slate-100/80 text-slate-700 hover:bg-slate-200/70' }}">
-                    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-                        <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" stroke-linecap="round" stroke-linejoin="round" />
-                    </svg>
-                    Distribusi Daya (MVA)
-                </a>
-                <a href="{{ route('dashboard.asset-detail', $sectionRouteParams('transmisi')) }}"
-                   class="pill-tab-transition inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold {{ $section === 'transmisi' ? 'bg-[#0b6175] text-white shadow-2xs' : 'bg-slate-100/80 text-slate-700 hover:bg-slate-200/70' }}">
-                    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-                        <path d="M22 12h-4l-3 9L9 3l-3 9H2" stroke-linecap="round" stroke-linejoin="round" />
-                    </svg>
-                    Jaringan Transmisi (kms)
-                </a>
-                <a href="{{ route('dashboard.asset-detail', $sectionRouteParams('tower')) }}"
-                   class="pill-tab-transition inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold {{ $section === 'tower' ? 'bg-[#0b6175] text-white shadow-2xs' : 'bg-slate-100/80 text-slate-700 hover:bg-slate-200/70' }}">
-                    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-                        <path d="M12 2v20M6 8h12M4 14h16M8 22l4-20 4 20" stroke-linecap="round" stroke-linejoin="round" />
-                    </svg>
-                    Sebaran Tower (Unit)
-                </a>
-            </div>
-        </div>
-    </div>
-
-    {{-- Unified Summary Strip (4 Metrik Induk UIT JBT dalam 1 .ibs-card) --}}
+    {{-- Unified Summary Card: 4 Metrik Induk UIT JBT + 1 Pita Rasio Kontekstual --}}
     <div class="ibs-card min-w-0 max-w-full overflow-hidden">
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-slate-100">
             {{-- Col 1: Total Kapasitas Trafo --}}
-            <div class="p-5">
+            <div class="px-4 py-3.5 sm:px-5 {{ in_array($section, ['trafo', 'mva'], true) ? 'bg-[#e6f4f6]/25' : '' }}">
                 <div class="flex items-center justify-between gap-2">
                     <span class="ibs-metric-label">Total Kapasitas Trafo</span>
                     <span class="rounded-md bg-[#e6f4f6] px-2 py-0.5 text-[11px] font-semibold text-[#0b6175]">MVA</span>
                 </div>
-                <div class="mt-2.5 flex items-baseline gap-1.5">
+                <div class="mt-2 flex items-baseline gap-1.5">
                     @if ($totalTrafoMva === null)
                         <span class="text-sm font-medium text-slate-400">Tidak tercatat</span>
                     @else
-                        <span class="ibs-metric-value text-2xl sm:text-3xl" x-data="numberTicker('{{ number_format($totalTrafoMva, 1, ',', '.') }}')" x-text="display">
+                        <span class="ibs-metric-value text-xl sm:text-2xl" x-data="numberTicker('{{ number_format($totalTrafoMva, 1, ',', '.') }}')" x-text="display">
                             {{ number_format($totalTrafoMva, 1, ',', '.') }}
                         </span>
                         <span class="text-xs font-medium text-slate-500">MVA</span>
@@ -304,19 +278,19 @@
             </div>
 
             {{-- Col 2: Fisik Trafo Terpasang --}}
-            <div class="p-5">
+            <div class="px-4 py-3.5 sm:px-5 {{ $section === 'trafo' ? 'bg-[#e6f4f6]/25' : '' }}">
                 <div class="flex items-center justify-between gap-2">
                     <span class="ibs-metric-label">Fisik Trafo Terpasang</span>
                     <span class="rounded-md bg-[#e6f4f6] px-2 py-0.5 text-[11px] font-semibold text-[#0b6175]">Bank / Unit</span>
                 </div>
-                <div class="mt-2.5 flex flex-wrap items-baseline gap-1.5">
+                <div class="mt-2 flex flex-wrap items-baseline gap-1.5">
                     @if ($totalTrafoBank === null && $totalTrafoUnit === null)
                         <span class="text-sm font-medium text-slate-400">Tidak tercatat</span>
                     @else
                         @if ($totalTrafoBank === null)
                             <span class="text-xs font-medium text-slate-400">Tidak tercatat</span>
                         @else
-                            <span class="ibs-metric-value text-2xl" x-data="numberTicker('{{ number_format($totalTrafoBank, 0, ',', '.') }}')" x-text="display">
+                            <span class="ibs-metric-value text-xl sm:text-2xl" x-data="numberTicker('{{ number_format($totalTrafoBank, 0, ',', '.') }}')" x-text="display">
                                 {{ number_format($totalTrafoBank, 0, ',', '.') }}
                             </span>
                             <span class="text-xs font-medium text-slate-500">Bank</span>
@@ -325,7 +299,7 @@
                         @if ($totalTrafoUnit === null)
                             <span class="text-xs font-medium text-slate-400">Tidak tercatat</span>
                         @else
-                            <span class="ibs-metric-value text-2xl" x-data="numberTicker('{{ number_format($totalTrafoUnit, 0, ',', '.') }}')" x-text="display">
+                            <span class="ibs-metric-value text-xl sm:text-2xl" x-data="numberTicker('{{ number_format($totalTrafoUnit, 0, ',', '.') }}')" x-text="display">
                                 {{ number_format($totalTrafoUnit, 0, ',', '.') }}
                             </span>
                             <span class="text-xs font-medium text-slate-500">Unit</span>
@@ -335,16 +309,16 @@
             </div>
 
             {{-- Col 3: Panjang Transmisi --}}
-            <div class="p-5">
+            <div class="px-4 py-3.5 sm:px-5 {{ $section === 'transmisi' ? 'bg-[#e6f4f6]/25' : '' }}">
                 <div class="flex items-center justify-between gap-2">
                     <span class="ibs-metric-label">Panjang Transmisi</span>
                     <span class="rounded-md bg-[#e6f4f6] px-2 py-0.5 text-[11px] font-semibold text-[#0b6175]">kms</span>
                 </div>
-                <div class="mt-2.5 flex items-baseline gap-1.5">
+                <div class="mt-2 flex items-baseline gap-1.5">
                     @if ($totalTransmisi === null)
                         <span class="text-sm font-medium text-slate-400">Tidak tercatat</span>
                     @else
-                        <span class="ibs-metric-value text-2xl sm:text-3xl" x-data="numberTicker('{{ number_format($totalTransmisi, 1, ',', '.') }}')" x-text="display">
+                        <span class="ibs-metric-value text-xl sm:text-2xl" x-data="numberTicker('{{ number_format($totalTransmisi, 1, ',', '.') }}')" x-text="display">
                             {{ number_format($totalTransmisi, 1, ',', '.') }}
                         </span>
                         <span class="text-xs font-medium text-slate-500">kms</span>
@@ -353,16 +327,16 @@
             </div>
 
             {{-- Col 4: Total Tower --}}
-            <div class="p-5">
+            <div class="px-4 py-3.5 sm:px-5 {{ $section === 'tower' ? 'bg-[#e6f4f6]/25' : '' }}">
                 <div class="flex items-center justify-between gap-2">
                     <span class="ibs-metric-label">Total Tower</span>
                     <span class="rounded-md bg-[#e6f4f6] px-2 py-0.5 text-[11px] font-semibold text-[#0b6175]">Unit</span>
                 </div>
-                <div class="mt-2.5 flex items-baseline gap-1.5">
+                <div class="mt-2 flex items-baseline gap-1.5">
                     @if ($totalTower === null)
                         <span class="text-sm font-medium text-slate-400">Tidak tercatat</span>
                     @else
-                        <span class="ibs-metric-value text-2xl sm:text-3xl" x-data="numberTicker('{{ number_format($totalTower, 0, ',', '.') }}')" x-text="display">
+                        <span class="ibs-metric-value text-xl sm:text-2xl" x-data="numberTicker('{{ number_format($totalTower, 0, ',', '.') }}')" x-text="display">
                             {{ number_format($totalTower, 0, ',', '.') }}
                         </span>
                         <span class="text-xs font-medium text-slate-500">Unit</span>
@@ -370,377 +344,285 @@
                 </div>
             </div>
         </div>
-    </div>
 
-    {{-- Panel Rasio Kapasitas Peralatan --}}
-    @php
-        $ovAvgUnit = $trafoOverall['avg_mva_per_unit'] ?? null;
-        $ovAvgBank = $trafoOverall['avg_mva_per_bank'] ?? null;
-        $ovTrafoMva = $trafoOverall['mva'] ?? null;
-        $ovTrafoUnit = $trafoOverall['unit'] ?? null;
-        $ovTrafoBank = $trafoOverall['bank'] ?? null;
-        $ovSuKms = $transmisiOverall['su_kms'] ?? null;
-        $ovSkKms = $transmisiOverall['sk_kms'] ?? null;
-        $ovTotKms = $transmisiOverall['total_kms'] ?? null;
-        $ovSuPct = $transmisiOverall['su_pct'] ?? null;
-        $ovSkPct = $transmisiOverall['sk_pct'] ?? null;
-        $ovSuWidth = $ovSuPct !== null ? max(0.0, min(100.0, (float) $ovSuPct)) : 0.0;
-        $ovSkWidth = $ovSkPct !== null ? max(0.0, min(100.0, (float) $ovSkPct)) : 0.0;
-    @endphp
-    <div id="asset-capacity-ratios-panel" class="ibs-card min-w-0 max-w-full p-4 sm:p-5" x-data="{ ratioTab: 'voltage' }">
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-3.5">
-            <div class="flex flex-wrap items-center gap-2">
-                <h2 class="ibs-section-title text-base font-bold text-slate-900">Rasio Kapasitas Peralatan</h2>
-                <span class="rounded-full bg-[#e6f4f6] px-2.5 py-0.5 text-[11px] font-semibold text-[#0b6175]">UIT JBT</span>
-            </div>
-            <div class="inline-flex items-center rounded-xl bg-slate-100/90 p-1 text-xs self-start sm:self-auto">
-                <button
-                    type="button"
-                    @click="ratioTab = 'voltage'"
-                    :class="ratioTab === 'voltage' ? 'bg-white text-[#0b6175] font-semibold shadow-2xs' : 'text-slate-600 hover:text-slate-900 font-medium'"
-                    class="pill-tab-transition cursor-pointer rounded-lg px-3 py-1"
-                >
-                    Per Kelas Tegangan
-                </button>
-                <button
-                    type="button"
-                    @click="ratioTab = 'upt'"
-                    :class="ratioTab === 'upt' ? 'bg-white text-[#0b6175] font-semibold shadow-2xs' : 'text-slate-600 hover:text-slate-900 font-medium'"
-                    class="pill-tab-transition cursor-pointer rounded-lg px-3 py-1"
-                >
-                    Per UPT (8 UPT)
-                </button>
-            </div>
-        </div>
-
-        {{-- Ringkasan UIT JBT --}}
-        <div class="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div class="rounded-xl border border-slate-200/80 bg-slate-50/50 p-4">
-                <div class="flex items-center justify-between gap-2">
-                    <span class="text-xs font-semibold text-slate-700">Rata-rata MVA/Unit &amp; MVA/Bank Trafo</span>
-                    <span class="rounded-md bg-white border border-slate-200/80 px-2 py-0.5 text-[11px] font-semibold text-slate-600">Induk UIT JBT</span>
-                </div>
-                <div class="mt-3 grid grid-cols-2 gap-3 font-sans tabular-nums">
-                    <div>
-                        <div class="text-[11px] text-slate-500">MVA per Unit</div>
-                        @if ($ovAvgUnit === null)
-                            <div class="mt-0.5 text-sm font-normal text-slate-400">Tidak tercatat</div>
-                        @else
-                            <div class="mt-0.5 text-xl font-bold text-slate-900">{{ $formatNullable($ovAvgUnit, 1) }} <span class="text-xs font-medium text-slate-500">MVA/Unit</span></div>
-                        @endif
-                        <div class="mt-0.5 text-[11px] text-slate-500">
-                            Basis: {{ $ovTrafoMva === null ? 'Tidak tercatat' : $formatNullable($ovTrafoMva, 1).' MVA' }} / {{ $ovTrafoUnit === null ? 'Tidak tercatat' : $formatNullable($ovTrafoUnit, 0).' Unit' }}
-                        </div>
-                    </div>
-                    <div>
-                        <div class="text-[11px] text-slate-500">MVA per Bank</div>
-                        @if ($ovAvgBank === null)
-                            <div class="mt-0.5 text-sm font-normal text-slate-400">Tidak tercatat</div>
-                        @else
-                            <div class="mt-0.5 text-xl font-bold text-slate-900">{{ $formatNullable($ovAvgBank, 1) }} <span class="text-xs font-medium text-slate-500">MVA/Bank</span></div>
-                        @endif
-                        <div class="mt-0.5 text-[11px] text-slate-500">
-                            Basis: {{ $ovTrafoBank === null ? 'Tidak tercatat' : $formatNullable($ovTrafoBank, 0).' Bank' }}
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="rounded-xl border border-slate-200/80 bg-slate-50/50 p-4 flex flex-col justify-between">
-                <div class="flex items-center justify-between gap-2">
-                    <span class="text-xs font-semibold text-slate-700">Proporsi Kabel SK vs Udara SU</span>
-                    <span class="rounded-md bg-white border border-slate-200/80 px-2 py-0.5 text-[11px] font-semibold font-sans tabular-nums text-slate-600">
-                        {{ $ovTotKms === null ? 'Tidak tercatat' : $formatNullable($ovTotKms, 1).' kms' }}
-                    </span>
-                </div>
-                <div class="mt-3 space-y-2.5">
-                    <div class="flex flex-wrap items-center justify-between gap-2 text-xs font-sans tabular-nums">
-                        <span class="inline-flex items-center gap-1.5 text-slate-700">
-                            <span class="h-2.5 w-2.5 rounded-full bg-[#0b6175]"></span>
-                            <span>Saluran Udara (SU):</span>
-                            @if ($ovSuPct === null)
-                                <span class="text-slate-400">Tidak tercatat</span>
-                            @else
-                                <strong class="text-slate-900">{{ $formatNullable($ovSuPct, 1) }}%</strong>
-                                <span class="text-slate-500">({{ $formatNullable($ovSuKms, 1) }} kms)</span>
-                            @endif
-                        </span>
-                        <span class="inline-flex items-center gap-1.5 text-slate-700">
-                            <span class="h-2.5 w-2.5 rounded-full bg-[#16a3b8]"></span>
-                            <span>Saluran Kabel (SK):</span>
-                            @if ($ovSkPct === null)
-                                <span class="text-slate-400">Tidak tercatat</span>
-                            @else
-                                <strong class="text-slate-900">{{ $formatNullable($ovSkPct, 1) }}%</strong>
-                                <span class="text-slate-500">({{ $formatNullable($ovSkKms, 1) }} kms)</span>
-                            @endif
-                        </span>
-                    </div>
-                    <div class="h-2.5 w-full rounded-full bg-slate-200/70 overflow-hidden flex">
-                        @if ($ovSuPct !== null || $ovSkPct !== null)
-                            <div class="h-full bg-[#0b6175]" style="width: {{ $ovSuWidth }}%;"></div>
-                            <div class="h-full bg-[#16a3b8]" style="width: {{ $ovSkWidth }}%;"></div>
-                        @endif
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        {{-- Tab 1: Per Kelas Tegangan --}}
-        <div class="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4" x-show="ratioTab === 'voltage'">
-            <div class="rounded-xl border border-slate-200/80 overflow-hidden">
-                <div class="bg-slate-50/70 px-4 py-2.5 border-b border-slate-200/80 text-xs font-semibold text-slate-700">
-                    Rasio Kapasitas Trafo per Tegangan
-                </div>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-xs">
-                        <thead class="bg-white text-slate-400 uppercase tracking-wider font-semibold border-b border-slate-100">
-                            <tr>
-                                <th class="py-2 px-3 text-left">Tegangan</th>
-                                <th class="py-2 px-3 text-right">MVA</th>
-                                <th class="py-2 px-3 text-right">Unit</th>
-                                <th class="py-2 px-3 text-right">MVA/Unit</th>
-                                <th class="py-2 px-3 text-right">MVA/Bank</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-slate-100 bg-white">
-                            @forelse ($trafoRatioByVoltage as $vItem)
-                                <tr class="hover:bg-slate-50/50">
-                                    <td class="py-2 px-3 font-semibold text-slate-800">{{ $vItem['voltage'] ?? $vItem['label'] ?? '' }}</td>
-                                    <td class="py-2 px-3 text-right font-sans tabular-nums text-slate-700">
-                                        @if (($vItem['mva'] ?? null) === null) <span class="text-slate-400 font-normal">Tidak tercatat</span> @else {{ $formatNullable($vItem['mva'], 1) }} @endif
-                                    </td>
-                                    <td class="py-2 px-3 text-right font-sans tabular-nums text-slate-700">
-                                        @if (($vItem['unit'] ?? null) === null) <span class="text-slate-400 font-normal">Tidak tercatat</span> @else {{ $formatNullable($vItem['unit'], 0) }} @endif
-                                    </td>
-                                    <td class="py-2 px-3 text-right font-sans tabular-nums font-semibold text-[#0b6175]">
-                                        @if (($vItem['avg_mva_per_unit'] ?? null) === null) <span class="text-slate-400 font-normal">Tidak tercatat</span> @else {{ $formatNullable($vItem['avg_mva_per_unit'], 1) }} @endif
-                                    </td>
-                                    <td class="py-2 px-3 text-right font-sans tabular-nums font-semibold text-slate-800">
-                                        @if (($vItem['avg_mva_per_bank'] ?? null) === null) <span class="text-slate-400 font-normal">Tidak tercatat</span> @else {{ $formatNullable($vItem['avg_mva_per_bank'], 1) }} @endif
-                                    </td>
-                                </tr>
-                            @empty
-                                <tr>
-                                    <td colspan="5" class="py-4 px-3 text-center text-slate-400">Belum ada data rasio trafo per tegangan.</td>
-                                </tr>
-                            @endforelse
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <div class="rounded-xl border border-slate-200/80 overflow-hidden">
-                <div class="bg-slate-50/70 px-4 py-2.5 border-b border-slate-200/80 text-xs font-semibold text-slate-700">
-                    Proporsi SU vs SK per Tegangan
-                </div>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-xs">
-                        <thead class="bg-white text-slate-400 uppercase tracking-wider font-semibold border-b border-slate-100">
-                            <tr>
-                                <th class="py-2 px-3 text-left">Tegangan</th>
-                                <th class="py-2 px-3 text-right">SU (kms)</th>
-                                <th class="py-2 px-3 text-right">SK (kms)</th>
-                                <th class="py-2 px-3 text-right">Proporsi SU / SK</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-slate-100 bg-white">
-                            @forelse ($transmisiRatioByVoltage as $tItem)
-                                @php
-                                    $rSuPct = $tItem['su_pct'] ?? null;
-                                    $rSkPct = $tItem['sk_pct'] ?? null;
-                                @endphp
-                                <tr class="hover:bg-slate-50/50">
-                                    <td class="py-2 px-3 font-semibold text-slate-800">{{ $tItem['voltage'] ?? $tItem['label'] ?? '' }}</td>
-                                    <td class="py-2 px-3 text-right font-sans tabular-nums text-slate-700">
-                                        @if (($tItem['su_kms'] ?? null) === null) <span class="text-slate-400 font-normal">Tidak tercatat</span> @else {{ $formatNullable($tItem['su_kms'], 1) }} @endif
-                                    </td>
-                                    <td class="py-2 px-3 text-right font-sans tabular-nums text-slate-700">
-                                        @if (($tItem['sk_kms'] ?? null) === null) <span class="text-slate-400 font-normal">Tidak tercatat</span> @else {{ $formatNullable($tItem['sk_kms'], 1) }} @endif
-                                    </td>
-                                    <td class="py-2 px-3 text-right font-sans tabular-nums">
-                                        @if ($rSuPct === null && $rSkPct === null)
-                                            <span class="text-slate-400 font-normal">Tidak tercatat</span>
-                                        @else
-                                            <div class="flex items-center justify-end gap-2">
-                                                <div class="hidden sm:flex w-16 h-1.5 rounded-full bg-slate-200/70 overflow-hidden">
-                                                    <div class="h-full bg-[#0b6175]" style="width: {{ max(0.0, min(100.0, (float) ($rSuPct ?? 0))) }}%;"></div>
-                                                    <div class="h-full bg-[#16a3b8]" style="width: {{ max(0.0, min(100.0, (float) ($rSkPct ?? 0))) }}%;"></div>
-                                                </div>
-                                                <span class="text-slate-700">{{ $formatNullable($rSuPct, 1) }}% / {{ $formatNullable($rSkPct, 1) }}%</span>
-                                            </div>
-                                        @endif
-                                    </td>
-                                </tr>
-                            @empty
-                                <tr>
-                                    <td colspan="4" class="py-4 px-3 text-center text-slate-400">Belum ada data rasio transmisi per tegangan.</td>
-                                </tr>
-                            @endforelse
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-
-        {{-- Tab 2: Per UPT --}}
-        <div class="mt-4 overflow-x-auto rounded-xl border border-slate-200/80" x-show="ratioTab === 'upt'" x-cloak>
-            <table class="w-full text-xs">
-                <thead class="bg-slate-50/70 text-slate-500 uppercase tracking-wider font-semibold border-b border-slate-200/80">
-                    <tr>
-                        <th class="py-2.5 px-4 text-left">UPT</th>
-                        <th class="py-2.5 px-4 text-right">Trafo (MVA)</th>
-                        <th class="py-2.5 px-4 text-right">Trafo (Unit)</th>
-                        <th class="py-2.5 px-4 text-right">MVA / Unit</th>
-                        <th class="py-2.5 px-4 text-right">SU (kms)</th>
-                        <th class="py-2.5 px-4 text-right">SK (kms)</th>
-                        <th class="py-2.5 px-4 text-right">Proporsi SU / SK</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100 bg-white">
-                    @forelse ($canonicalUpts as $upt)
-                        @php
-                            $uTrafo = $trafoRatioByUpt[$upt] ?? [];
-                            $uTrans = $transmisiRatioByUpt[$upt] ?? [];
-                            $uSuPct = $uTrans['su_pct'] ?? null;
-                            $uSkPct = $uTrans['sk_pct'] ?? null;
-                        @endphp
-                        <tr class="hover:bg-slate-50/60">
-                            <td class="py-2 px-4 font-semibold text-slate-800">{{ $upt }}</td>
-                            <td class="py-2 px-4 text-right font-sans tabular-nums text-slate-700">
-                                @if (($uTrafo['mva'] ?? null) === null) <span class="text-slate-400 font-normal">Tidak tercatat</span> @else {{ $formatNullable($uTrafo['mva'], 1) }} @endif
-                            </td>
-                            <td class="py-2 px-4 text-right font-sans tabular-nums text-slate-700">
-                                @if (($uTrafo['unit'] ?? null) === null) <span class="text-slate-400 font-normal">Tidak tercatat</span> @else {{ $formatNullable($uTrafo['unit'], 0) }} @endif
-                            </td>
-                            <td class="py-2 px-4 text-right font-sans tabular-nums font-semibold text-[#0b6175]">
-                                @if (($uTrafo['avg_mva_per_unit'] ?? null) === null) <span class="text-slate-400 font-normal">Tidak tercatat</span> @else {{ $formatNullable($uTrafo['avg_mva_per_unit'], 1) }} @endif
-                            </td>
-                            <td class="py-2 px-4 text-right font-sans tabular-nums text-slate-700">
-                                @if (($uTrans['su_kms'] ?? null) === null) <span class="text-slate-400 font-normal">Tidak tercatat</span> @else {{ $formatNullable($uTrans['su_kms'], 1) }} @endif
-                            </td>
-                            <td class="py-2 px-4 text-right font-sans tabular-nums text-slate-700">
-                                @if (($uTrans['sk_kms'] ?? null) === null) <span class="text-slate-400 font-normal">Tidak tercatat</span> @else {{ $formatNullable($uTrans['sk_kms'], 1) }} @endif
-                            </td>
-                            <td class="py-2 px-4 text-right font-sans tabular-nums">
-                                @if ($uSuPct === null && $uSkPct === null)
-                                    <span class="text-slate-400 font-normal">Tidak tercatat</span>
+        {{-- Pita Rasio Kontekstual (1 baris ringkas sesuai seksi aktif + rincian lipat 1 klik) --}}
+        <div id="asset-capacity-ratios-panel" class="border-t border-slate-100 bg-slate-50/55 px-4 py-2.5 sm:px-5" x-data="{ ratioTab: 'voltage' }">
+            <details id="asset-ratio-breakdown-details" class="group">
+                <summary class="flex flex-wrap items-center justify-between gap-3 cursor-pointer list-none [&::-webkit-details-marker]:hidden select-none rounded-lg py-0.5 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#16a3b8]">
+                    @if ($ratioContext === 'trafo')
+                        <div class="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs font-sans tabular-nums">
+                            <span class="inline-flex items-center gap-1.5 font-semibold text-slate-700">
+                                <svg class="h-3.5 w-3.5 shrink-0 text-[#0b6175] transition-transform duration-200 -rotate-90 group-open:rotate-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                                    <path d="m6 9 6 6 6-6" stroke-linecap="round" stroke-linejoin="round" />
+                                </svg>
+                                <span>Rasio Kapasitas Peralatan</span>
+                            </span>
+                            <span class="inline-flex items-baseline gap-1 text-slate-600">
+                                <span>MVA/Unit:</span>
+                                @if ($ovAvgUnit === null)
+                                    <span class="text-slate-400">Tidak tercatat</span>
                                 @else
-                                    <div class="flex items-center justify-end gap-2">
-                                        <div class="hidden sm:flex w-16 h-1.5 rounded-full bg-slate-200/70 overflow-hidden">
-                                            <div class="h-full bg-[#0b6175]" style="width: {{ max(0.0, min(100.0, (float) ($uSuPct ?? 0))) }}%;"></div>
-                                            <div class="h-full bg-[#16a3b8]" style="width: {{ max(0.0, min(100.0, (float) ($uSkPct ?? 0))) }}%;"></div>
-                                        </div>
-                                        <span class="text-slate-700">{{ $formatNullable($uSuPct, 1) }}% / {{ $formatNullable($uSkPct, 1) }}%</span>
-                                    </div>
+                                    <strong class="font-bold text-[#0b6175]">{{ $formatNullable($ovAvgUnit, 1) }}</strong>
+                                    <span class="text-[11px] text-slate-500">MVA/Unit</span>
                                 @endif
-                            </td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="7" class="py-4 px-4 text-center text-slate-400">Belum ada data rasio per UPT.</td>
-                        </tr>
-                    @endforelse
-                </tbody>
-            </table>
-        </div>
-    </div>
+                            </span>
+                            <span class="hidden sm:inline text-slate-300" aria-hidden="true">|</span>
+                            <span class="inline-flex items-baseline gap-1 text-slate-600">
+                                <span>MVA/Bank:</span>
+                                @if ($ovAvgBank === null)
+                                    <span class="text-slate-400">Tidak tercatat</span>
+                                @else
+                                    <strong class="font-bold text-slate-900">{{ $formatNullable($ovAvgBank, 1) }}</strong>
+                                    <span class="text-[11px] text-slate-500">MVA/Bank</span>
+                                @endif
+                            </span>
+                            <span class="hidden lg:inline text-[11px] text-slate-500">
+                                (Basis {{ $ovTrafoMva === null ? 'Tidak tercatat' : $formatNullable($ovTrafoMva, 1).' MVA' }} / {{ $ovTrafoUnit === null ? 'Tidak tercatat' : $formatNullable($ovTrafoUnit, 0).' Unit' }} / {{ $ovTrafoBank === null ? 'Tidak tercatat' : $formatNullable($ovTrafoBank, 0).' Bank' }})
+                            </span>
+                        </div>
+                    @else
+                        <div class="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs font-sans tabular-nums">
+                            <span class="inline-flex items-center gap-1.5 font-semibold text-slate-700">
+                                <svg class="h-3.5 w-3.5 shrink-0 text-[#0b6175] transition-transform duration-200 -rotate-90 group-open:rotate-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                                    <path d="m6 9 6 6 6-6" stroke-linecap="round" stroke-linejoin="round" />
+                                </svg>
+                                <span>Rasio Kapasitas Peralatan</span>
+                            </span>
+                            <span class="inline-flex items-center gap-1.5 text-slate-700">
+                                <span class="h-2 w-2 rounded-full bg-[#0b6175]" aria-hidden="true"></span>
+                                <span>Saluran Udara (SU):</span>
+                                @if ($ovSuPct === null)
+                                    <span class="text-slate-400">Tidak tercatat</span>
+                                @else
+                                    <strong class="font-bold text-slate-900">{{ $formatNullable($ovSuPct, 1) }}%</strong>
+                                    <span class="text-[11px] text-slate-500">({{ $formatNullable($ovSuKms, 1) }} kms)</span>
+                                @endif
+                            </span>
+                            <span class="inline-flex items-center gap-1.5 text-slate-700">
+                                <span class="h-2 w-2 rounded-full bg-[#ea580c]" aria-hidden="true"></span>
+                                <span>Saluran Kabel (SK):</span>
+                                @if ($ovSkPct === null)
+                                    <span class="text-slate-400">Tidak tercatat</span>
+                                @else
+                                    <strong class="font-bold text-slate-900">{{ $formatNullable($ovSkPct, 1) }}%</strong>
+                                    <span class="text-[11px] text-slate-500">({{ $formatNullable($ovSkKms, 1) }} kms)</span>
+                                @endif
+                            </span>
+                            @if ($ovSuPct !== null || $ovSkPct !== null)
+                                <span class="hidden md:inline-flex w-24 h-2 rounded-full bg-slate-200/80 overflow-hidden" aria-hidden="true">
+                                    <span class="h-full bg-[#0b6175]" style="width: {{ $ovSuWidth }}%;"></span>
+                                    <span class="h-full bg-[#ea580c]" style="width: {{ $ovSkWidth }}%;"></span>
+                                </span>
+                            @endif
+                        </div>
+                    @endif
 
-    {{-- Panel Drill-Down Level ULTG per UPT --}}
-    <div
-        id="asset-ultg-drilldown-panel"
-        class="ibs-card min-w-0 max-w-full p-4 sm:p-5"
-        x-data='assetUltgDrilldown(@json($ultgByUpt), @json($canonicalUpts))'
-    >
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-3.5">
-            <div class="flex flex-wrap items-center gap-2">
-                <h2 class="ibs-section-title text-base font-bold text-slate-900">Drill-Down Level ULTG per UPT</h2>
-                <span class="rounded-full bg-[#e6f4f6] px-2.5 py-0.5 text-[11px] font-semibold text-[#0b6175]" x-show="selectedUpt !== ''" x-text="`UPT ${selectedUpt} (${activeUltgRows.length} ULTG)`"></span>
-            </div>
-            <span class="text-[11px] font-medium text-slate-500">Pilih UPT untuk meninjau rincian per ULTG &amp; atribut</span>
-        </div>
-
-        {{-- 8 Canonical UPT Selector Tabs --}}
-        <div class="mt-3.5 flex flex-wrap items-center gap-1.5">
-            @foreach ($canonicalUpts as $uptTab)
-                @php $ultgTabCount = count($ultgByUpt[$uptTab] ?? []); @endphp
-                <button
-                    type="button"
-                    @click='selectUpt(@json($uptTab))'
-                    :class='selectedUpt === @json($uptTab)
-                        ? "bg-[#0b6175] text-white border-[#0b6175] shadow-2xs"
-                        : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"'
-                    class="pill-tab-transition cursor-pointer inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#16a3b8]"
-                >
-                    <span>{{ $uptTab }}</span>
-                    <span
-                        :class='selectedUpt === @json($uptTab) ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600"'
-                        class="rounded-md px-1.5 py-0.5 text-[10px] font-bold font-sans tabular-nums"
-                    >
-                        {{ $ultgTabCount }}
+                    <span class="text-[11px] font-semibold text-[#0b6175] group-open:hidden">
+                        Rincian per tegangan &amp; UPT
                     </span>
-                </button>
-            @endforeach
-        </div>
+                    <span class="hidden text-[11px] font-semibold text-slate-500 group-open:inline">
+                        Tutup rincian rasio
+                    </span>
+                </summary>
 
-        {{-- Tabel ULTG Breakdown --}}
-        <div class="mt-4 overflow-x-auto rounded-xl border border-slate-200/80">
-            <table class="w-full text-xs">
-                <thead class="bg-slate-50/70 text-slate-500 uppercase tracking-wider font-semibold border-b border-slate-200/80">
-                    <tr>
-                        <th class="py-2.5 px-4 text-left">ULTG</th>
-                        <th class="py-2.5 px-4 text-right">Kapasitas Trafo (MVA)</th>
-                        <th class="py-2.5 px-4 text-right">Fisik Trafo (Bank)</th>
-                        <th class="py-2.5 px-4 text-right">Fisik Trafo (Unit / Set)</th>
-                        <th class="py-2.5 px-4 text-right">Transmisi (kms)</th>
-                        <th class="py-2.5 px-4 text-right">Tower (Unit)</th>
-                        <th class="py-2.5 px-4 text-right">Atribut</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100 bg-white">
-                    <template x-for="uRow in activeUltgRows" :key="uRow.ultg">
-                        <tr class="hover:bg-slate-50/60 transition">
-                            <td class="py-2.5 px-4 font-semibold text-slate-800" x-text="uRow.ultg"></td>
-                            <td class="py-2.5 px-4 text-right font-sans tabular-nums" :class="isUnrecorded(uRow.trafo_mva) ? 'text-slate-400' : 'text-slate-700 font-semibold'" x-text="formatNum(uRow.trafo_mva, 1)"></td>
-                            <td class="py-2.5 px-4 text-right font-sans tabular-nums" :class="isUnrecorded(uRow.trafo_bank) ? 'text-slate-400' : 'text-slate-700'" x-text="formatNum(uRow.trafo_bank, 0)"></td>
-                            <td class="py-2.5 px-4 text-right font-sans tabular-nums" :class="isUnrecorded(uRow.trafo_unit) ? 'text-slate-400' : 'text-slate-700'" x-text="formatNum(uRow.trafo_unit, 0)"></td>
-                            <td class="py-2.5 px-4 text-right font-sans tabular-nums" :class="isUnrecorded(uRow.transmisi) ? 'text-slate-400' : 'text-slate-700'" x-text="formatNum(uRow.transmisi, 1)"></td>
-                            <td class="py-2.5 px-4 text-right font-sans tabular-nums" :class="isUnrecorded(uRow.tower) ? 'text-slate-400' : 'text-slate-700'" x-text="formatNum(uRow.tower, 0)"></td>
-                            <td class="py-2.5 px-4 text-right">
-                                <button
-                                    type="button"
-                                    @click="toggleExpand(uRow.ultg)"
-                                    class="cursor-pointer rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-[#0b6175] hover:bg-[#e6f4f6]/60 transition"
-                                    x-text="expandedUltg === uRow.ultg ? 'Tutup' : `Rincian (${Object.keys(uRow.attributes || {}).length})`"
-                                ></button>
-                            </td>
-                        </tr>
-                    </template>
-                    <template x-if="activeUltgRows.length === 0">
-                        <tr>
-                            <td colspan="7" class="py-6 px-4 text-center text-slate-400">
-                                Belum ada data ULTG tercatat untuk UPT yang dipilih.
-                            </td>
-                        </tr>
-                    </template>
-                </tbody>
-            </table>
-        </div>
-
-        {{-- Panel Rincian Atribut ULTG Terpilih --}}
-        <div class="mt-3 rounded-xl border border-[#bce3e8] bg-[#e6f4f6]/35 p-4" x-show="expandedUltg !== '' && expandedAttributes.length > 0" x-cloak>
-            <div class="flex items-center justify-between gap-2 border-b border-[#bce3e8]/80 pb-2 mb-3">
-                <span class="text-xs font-bold text-[#0b6175]" x-text="`Rincian Atribut ULTG ${expandedUltg} (UPT ${selectedUpt})`"></span>
-                <button type="button" @click="expandedUltg = ''" class="cursor-pointer text-[11px] font-semibold text-slate-500 hover:text-slate-800">Tutup</button>
-            </div>
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                <template x-for="attr in expandedAttributes" :key="attr.name">
-                    <div class="flex items-center justify-between gap-2 rounded-lg border border-slate-200/80 bg-white px-3 py-2 text-[11px]">
-                        <span class="text-slate-600 truncate" x-text="attr.name"></span>
-                        <span class="font-sans tabular-nums font-semibold text-slate-900 shrink-0" x-text="attr.formatted"></span>
+                <div class="mt-3 pt-3 border-t border-slate-200/70 space-y-3">
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <span class="text-xs font-semibold text-slate-700">
+                            {{ $ratioContext === 'trafo' ? 'Rasio Kapasitas Trafo (MVA/Unit & MVA/Bank)' : 'Proporsi Saluran Udara (SU) vs Kabel (SK)' }}
+                        </span>
+                        <div class="inline-flex items-center rounded-xl bg-slate-200/70 p-0.5 text-xs">
+                            <button
+                                type="button"
+                                @click="ratioTab = 'voltage'"
+                                :class="ratioTab === 'voltage' ? 'bg-white text-[#0b6175] font-semibold shadow-2xs' : 'text-slate-600 hover:text-slate-900 font-medium'"
+                                class="pill-tab-transition cursor-pointer rounded-lg px-2.5 py-1 text-[11px]"
+                            >
+                                Per Kelas Tegangan
+                            </button>
+                            <button
+                                type="button"
+                                @click="ratioTab = 'upt'"
+                                :class="ratioTab === 'upt' ? 'bg-white text-[#0b6175] font-semibold shadow-2xs' : 'text-slate-600 hover:text-slate-900 font-medium'"
+                                class="pill-tab-transition cursor-pointer rounded-lg px-2.5 py-1 text-[11px]"
+                            >
+                                Per UPT (8 UPT)
+                            </button>
+                        </div>
                     </div>
-                </template>
-            </div>
+
+                    @if ($ratioContext === 'trafo')
+                        {{-- Rincian Trafo: Per Kelas Tegangan --}}
+                        <div class="overflow-x-auto rounded-xl border border-slate-200/80 bg-white" x-show="ratioTab === 'voltage'">
+                            <table class="w-full text-xs">
+                                <thead class="bg-slate-50/70 text-slate-500 uppercase tracking-wider font-semibold border-b border-slate-100">
+                                    <tr>
+                                        <th class="py-2 px-3 text-left">Tegangan</th>
+                                        <th class="py-2 px-3 text-right">MVA</th>
+                                        <th class="py-2 px-3 text-right">Unit</th>
+                                        <th class="py-2 px-3 text-right">MVA/Unit</th>
+                                        <th class="py-2 px-3 text-right">MVA/Bank</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-100">
+                                    @forelse ($trafoRatioByVoltage as $vItem)
+                                        <tr class="hover:bg-slate-50/50">
+                                            <td class="py-2 px-3 font-semibold text-slate-800">{{ $vItem['voltage'] ?? $vItem['label'] ?? '' }}</td>
+                                            <td class="py-2 px-3 text-right font-sans tabular-nums text-slate-700">
+                                                @if (($vItem['mva'] ?? null) === null) <span class="text-slate-400 font-normal">Tidak tercatat</span> @else {{ $formatNullable($vItem['mva'], 1) }} @endif
+                                            </td>
+                                            <td class="py-2 px-3 text-right font-sans tabular-nums text-slate-700">
+                                                @if (($vItem['unit'] ?? null) === null) <span class="text-slate-400 font-normal">Tidak tercatat</span> @else {{ $formatNullable($vItem['unit'], 0) }} @endif
+                                            </td>
+                                            <td class="py-2 px-3 text-right font-sans tabular-nums font-semibold text-[#0b6175]">
+                                                @if (($vItem['avg_mva_per_unit'] ?? null) === null) <span class="text-slate-400 font-normal">Tidak tercatat</span> @else {{ $formatNullable($vItem['avg_mva_per_unit'], 1) }} @endif
+                                            </td>
+                                            <td class="py-2 px-3 text-right font-sans tabular-nums font-semibold text-slate-800">
+                                                @if (($vItem['avg_mva_per_bank'] ?? null) === null) <span class="text-slate-400 font-normal">Tidak tercatat</span> @else {{ $formatNullable($vItem['avg_mva_per_bank'], 1) }} @endif
+                                            </td>
+                                        </tr>
+                                    @empty
+                                        <tr>
+                                            <td colspan="5" class="py-4 px-3 text-center text-slate-400">Belum ada data rasio trafo per tegangan.</td>
+                                        </tr>
+                                    @endforelse
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {{-- Rincian Trafo: Per UPT --}}
+                        <div class="overflow-x-auto rounded-xl border border-slate-200/80 bg-white" x-show="ratioTab === 'upt'" x-cloak>
+                            <table class="w-full text-xs">
+                                <thead class="bg-slate-50/70 text-slate-500 uppercase tracking-wider font-semibold border-b border-slate-100">
+                                    <tr>
+                                        <th class="py-2 px-4 text-left">UPT</th>
+                                        <th class="py-2 px-4 text-right">Trafo (MVA)</th>
+                                        <th class="py-2 px-4 text-right">Trafo (Unit)</th>
+                                        <th class="py-2 px-4 text-right">MVA / Unit</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-100">
+                                    @forelse ($canonicalUpts as $upt)
+                                        @php $uTrafo = $trafoRatioByUpt[$upt] ?? []; @endphp
+                                        <tr class="hover:bg-slate-50/60">
+                                            <td class="py-2 px-4 font-semibold text-slate-800">{{ $upt }}</td>
+                                            <td class="py-2 px-4 text-right font-sans tabular-nums text-slate-700">
+                                                @if (($uTrafo['mva'] ?? null) === null) <span class="text-slate-400 font-normal">Tidak tercatat</span> @else {{ $formatNullable($uTrafo['mva'], 1) }} @endif
+                                            </td>
+                                            <td class="py-2 px-4 text-right font-sans tabular-nums text-slate-700">
+                                                @if (($uTrafo['unit'] ?? null) === null) <span class="text-slate-400 font-normal">Tidak tercatat</span> @else {{ $formatNullable($uTrafo['unit'], 0) }} @endif
+                                            </td>
+                                            <td class="py-2 px-4 text-right font-sans tabular-nums font-semibold text-[#0b6175]">
+                                                @if (($uTrafo['avg_mva_per_unit'] ?? null) === null) <span class="text-slate-400 font-normal">Tidak tercatat</span> @else {{ $formatNullable($uTrafo['avg_mva_per_unit'], 1) }} @endif
+                                            </td>
+                                        </tr>
+                                    @empty
+                                        <tr>
+                                            <td colspan="4" class="py-4 px-4 text-center text-slate-400">Belum ada data rasio trafo per UPT.</td>
+                                        </tr>
+                                    @endforelse
+                                </tbody>
+                            </table>
+                        </div>
+                    @else
+                        {{-- Rincian Transmisi: Per Kelas Tegangan --}}
+                        <div class="overflow-x-auto rounded-xl border border-slate-200/80 bg-white" x-show="ratioTab === 'voltage'">
+                            <table class="w-full text-xs">
+                                <thead class="bg-slate-50/70 text-slate-500 uppercase tracking-wider font-semibold border-b border-slate-100">
+                                    <tr>
+                                        <th class="py-2 px-3 text-left">Tegangan</th>
+                                        <th class="py-2 px-3 text-right">SU (kms)</th>
+                                        <th class="py-2 px-3 text-right">SK (kms)</th>
+                                        <th class="py-2 px-3 text-right">Proporsi SU / SK</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-100">
+                                    @forelse ($transmisiRatioByVoltage as $tItem)
+                                        @php
+                                            $rSuPct = $tItem['su_pct'] ?? null;
+                                            $rSkPct = $tItem['sk_pct'] ?? null;
+                                        @endphp
+                                        <tr class="hover:bg-slate-50/50">
+                                            <td class="py-2 px-3 font-semibold text-slate-800">{{ $tItem['voltage'] ?? $tItem['label'] ?? '' }}</td>
+                                            <td class="py-2 px-3 text-right font-sans tabular-nums text-slate-700">
+                                                @if (($tItem['su_kms'] ?? null) === null) <span class="text-slate-400 font-normal">Tidak tercatat</span> @else {{ $formatNullable($tItem['su_kms'], 1) }} @endif
+                                            </td>
+                                            <td class="py-2 px-3 text-right font-sans tabular-nums text-slate-700">
+                                                @if (($tItem['sk_kms'] ?? null) === null) <span class="text-slate-400 font-normal">Tidak tercatat</span> @else {{ $formatNullable($tItem['sk_kms'], 1) }} @endif
+                                            </td>
+                                            <td class="py-2 px-3 text-right font-sans tabular-nums">
+                                                @if ($rSuPct === null && $rSkPct === null)
+                                                    <span class="text-slate-400 font-normal">Tidak tercatat</span>
+                                                @else
+                                                    <div class="flex items-center justify-end gap-2">
+                                                        <div class="hidden sm:flex w-16 h-1.5 rounded-full bg-slate-200/70 overflow-hidden">
+                                                            <div class="h-full bg-[#0b6175]" style="width: {{ max(0.0, min(100.0, (float) ($rSuPct ?? 0))) }}%;"></div>
+                                                            <div class="h-full bg-[#ea580c]" style="width: {{ max(0.0, min(100.0, (float) ($rSkPct ?? 0))) }}%;"></div>
+                                                        </div>
+                                                        <span class="text-slate-700">{{ $formatNullable($rSuPct, 1) }}% / {{ $formatNullable($rSkPct, 1) }}%</span>
+                                                    </div>
+                                                @endif
+                                            </td>
+                                        </tr>
+                                    @empty
+                                        <tr>
+                                            <td colspan="4" class="py-4 px-3 text-center text-slate-400">Belum ada data rasio transmisi per tegangan.</td>
+                                        </tr>
+                                    @endforelse
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {{-- Rincian Transmisi: Per UPT --}}
+                        <div class="overflow-x-auto rounded-xl border border-slate-200/80 bg-white" x-show="ratioTab === 'upt'" x-cloak>
+                            <table class="w-full text-xs">
+                                <thead class="bg-slate-50/70 text-slate-500 uppercase tracking-wider font-semibold border-b border-slate-100">
+                                    <tr>
+                                        <th class="py-2 px-4 text-left">UPT</th>
+                                        <th class="py-2 px-4 text-right">SU (kms)</th>
+                                        <th class="py-2 px-4 text-right">SK (kms)</th>
+                                        <th class="py-2 px-4 text-right">Proporsi SU / SK</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-100">
+                                    @forelse ($canonicalUpts as $upt)
+                                        @php
+                                            $uTrans = $transmisiRatioByUpt[$upt] ?? [];
+                                            $uSuPct = $uTrans['su_pct'] ?? null;
+                                            $uSkPct = $uTrans['sk_pct'] ?? null;
+                                        @endphp
+                                        <tr class="hover:bg-slate-50/60">
+                                            <td class="py-2 px-4 font-semibold text-slate-800">{{ $upt }}</td>
+                                            <td class="py-2 px-4 text-right font-sans tabular-nums text-slate-700">
+                                                @if (($uTrans['su_kms'] ?? null) === null) <span class="text-slate-400 font-normal">Tidak tercatat</span> @else {{ $formatNullable($uTrans['su_kms'], 1) }} @endif
+                                            </td>
+                                            <td class="py-2 px-4 text-right font-sans tabular-nums text-slate-700">
+                                                @if (($uTrans['sk_kms'] ?? null) === null) <span class="text-slate-400 font-normal">Tidak tercatat</span> @else {{ $formatNullable($uTrans['sk_kms'], 1) }} @endif
+                                            </td>
+                                            <td class="py-2 px-4 text-right font-sans tabular-nums">
+                                                @if ($uSuPct === null && $uSkPct === null)
+                                                    <span class="text-slate-400 font-normal">Tidak tercatat</span>
+                                                @else
+                                                    <div class="flex items-center justify-end gap-2">
+                                                        <div class="hidden sm:flex w-16 h-1.5 rounded-full bg-slate-200/70 overflow-hidden">
+                                                            <div class="h-full bg-[#0b6175]" style="width: {{ max(0.0, min(100.0, (float) ($uSuPct ?? 0))) }}%;"></div>
+                                                            <div class="h-full bg-[#ea580c]" style="width: {{ max(0.0, min(100.0, (float) ($uSkPct ?? 0))) }}%;"></div>
+                                                        </div>
+                                                        <span class="text-slate-700">{{ $formatNullable($uSuPct, 1) }}% / {{ $formatNullable($uSkPct, 1) }}%</span>
+                                                    </div>
+                                                @endif
+                                            </td>
+                                        </tr>
+                                    @empty
+                                        <tr>
+                                            <td colspan="4" class="py-4 px-4 text-center text-slate-400">Belum ada data rasio transmisi per UPT.</td>
+                                        </tr>
+                                    @endforelse
+                                </tbody>
+                            </table>
+                        </div>
+                    @endif
+                </div>
+            </details>
         </div>
     </div>
 
@@ -1380,18 +1262,125 @@
         </div>
     @endif
 
-    {{-- Interactive Alpine.js Matrix & Search Filter (Ada di semua sub-page) --}}
+    {{-- Panel Drill-Down Level ULTG per UPT --}}
     <div
-        class="ibs-card min-w-0 max-w-full p-4 sm:p-6"
-        x-data='assetInteractiveMatrix(@json($interactiveMatrix), @json($canonicalUpts), @json($section))'
+        id="asset-ultg-drilldown-panel"
+        class="ibs-card min-w-0 max-w-full p-4 sm:p-5"
+        x-data='assetUltgDrilldown(@json($ultgByUpt), @json($canonicalUpts))'
     >
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-4">
-            <h2 class="ibs-section-title text-base font-bold text-slate-900">Eksplorasi Matriks Seluruh Atribut Aset</h2>
-            <span class="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold font-sans tabular-nums text-slate-600" x-text="`${filteredRows.length} atribut`"></span>
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-3.5">
+            <div class="flex flex-wrap items-center gap-2">
+                <h2 class="ibs-section-title text-base font-bold text-slate-900">Drill-Down Level ULTG per UPT</h2>
+                <span class="rounded-full bg-[#e6f4f6] px-2.5 py-0.5 text-[11px] font-semibold text-[#0b6175]" x-show="selectedUpt !== ''" x-text="`UPT ${selectedUpt} (${activeUltgRows.length} ULTG)`"></span>
+            </div>
+            <span class="text-[11px] font-medium text-slate-500">Pilih UPT untuk meninjau rincian per ULTG &amp; atribut</span>
         </div>
 
+        {{-- 8 Canonical UPT Selector Tabs --}}
+        <div class="mt-3.5 flex flex-wrap items-center gap-1.5">
+            @foreach ($canonicalUpts as $uptTab)
+                @php $ultgTabCount = count($ultgByUpt[$uptTab] ?? []); @endphp
+                <button
+                    type="button"
+                    @click='selectUpt(@json($uptTab))'
+                    :class='selectedUpt === @json($uptTab)
+                        ? "bg-[#0b6175] text-white border-[#0b6175] shadow-2xs"
+                        : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"'
+                    class="pill-tab-transition cursor-pointer inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#16a3b8]"
+                >
+                    <span>{{ $uptTab }}</span>
+                    <span
+                        :class='selectedUpt === @json($uptTab) ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600"'
+                        class="rounded-md px-1.5 py-0.5 text-[10px] font-bold font-sans tabular-nums"
+                    >
+                        {{ $ultgTabCount }}
+                    </span>
+                </button>
+            @endforeach
+        </div>
+
+        {{-- Tabel ULTG Breakdown --}}
+        <div class="mt-4 overflow-x-auto rounded-xl border border-slate-200/80">
+            <table class="w-full text-xs">
+                <thead class="bg-slate-50/70 text-slate-500 uppercase tracking-wider font-semibold border-b border-slate-200/80">
+                    <tr>
+                        <th class="py-2.5 px-4 text-left">ULTG</th>
+                        <th class="py-2.5 px-4 text-right">Kapasitas Trafo (MVA)</th>
+                        <th class="py-2.5 px-4 text-right">Fisik Trafo (Bank)</th>
+                        <th class="py-2.5 px-4 text-right">Fisik Trafo (Unit / Set)</th>
+                        <th class="py-2.5 px-4 text-right">Transmisi (kms)</th>
+                        <th class="py-2.5 px-4 text-right">Tower (Unit)</th>
+                        <th class="py-2.5 px-4 text-right">Atribut</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 bg-white">
+                    <template x-for="uRow in activeUltgRows" :key="uRow.ultg">
+                        <tr class="hover:bg-slate-50/60 transition">
+                            <td class="py-2.5 px-4 font-semibold text-slate-800" x-text="uRow.ultg"></td>
+                            <td class="py-2.5 px-4 text-right font-sans tabular-nums" :class="isUnrecorded(uRow.trafo_mva) ? 'text-slate-400' : 'text-slate-700 font-semibold'" x-text="formatNum(uRow.trafo_mva, 1)"></td>
+                            <td class="py-2.5 px-4 text-right font-sans tabular-nums" :class="isUnrecorded(uRow.trafo_bank) ? 'text-slate-400' : 'text-slate-700'" x-text="formatNum(uRow.trafo_bank, 0)"></td>
+                            <td class="py-2.5 px-4 text-right font-sans tabular-nums" :class="isUnrecorded(uRow.trafo_unit) ? 'text-slate-400' : 'text-slate-700'" x-text="formatNum(uRow.trafo_unit, 0)"></td>
+                            <td class="py-2.5 px-4 text-right font-sans tabular-nums" :class="isUnrecorded(uRow.transmisi) ? 'text-slate-400' : 'text-slate-700'" x-text="formatNum(uRow.transmisi, 1)"></td>
+                            <td class="py-2.5 px-4 text-right font-sans tabular-nums" :class="isUnrecorded(uRow.tower) ? 'text-slate-400' : 'text-slate-700'" x-text="formatNum(uRow.tower, 0)"></td>
+                            <td class="py-2.5 px-4 text-right">
+                                <button
+                                    type="button"
+                                    @click="toggleExpand(uRow.ultg)"
+                                    class="cursor-pointer rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-[#0b6175] hover:bg-[#e6f4f6]/60 transition"
+                                    x-text="expandedUltg === uRow.ultg ? 'Tutup' : `Rincian (${Object.keys(uRow.attributes || {}).length})`"
+                                ></button>
+                            </td>
+                        </tr>
+                    </template>
+                    <template x-if="activeUltgRows.length === 0">
+                        <tr>
+                            <td colspan="7" class="py-6 px-4 text-center text-slate-400">
+                                Belum ada data ULTG tercatat untuk UPT yang dipilih.
+                            </td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+        </div>
+
+        {{-- Panel Rincian Atribut ULTG Terpilih --}}
+        <div class="mt-3 rounded-xl border border-[#bce3e8] bg-[#e6f4f6]/35 p-4" x-show="expandedUltg !== '' && expandedAttributes.length > 0" x-cloak>
+            <div class="flex items-center justify-between gap-2 border-b border-[#bce3e8]/80 pb-2 mb-3">
+                <span class="text-xs font-bold text-[#0b6175]" x-text="`Rincian Atribut ULTG ${expandedUltg} (UPT ${selectedUpt})`"></span>
+                <button type="button" @click="expandedUltg = ''" class="cursor-pointer text-[11px] font-semibold text-slate-500 hover:text-slate-800">Tutup</button>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                <template x-for="attr in expandedAttributes" :key="attr.name">
+                    <div class="flex items-center justify-between gap-2 rounded-lg border border-slate-200/80 bg-white px-3 py-2 text-[11px]">
+                        <span class="text-slate-600 truncate" x-text="attr.name"></span>
+                        <span class="font-sans tabular-nums font-semibold text-slate-900 shrink-0" x-text="attr.formatted"></span>
+                    </div>
+                </template>
+            </div>
+        </div>
+    </div>
+
+    {{-- Panel Lipat: Interactive Alpine.js Matrix & Search Filter (default tertutup, buka 1 klik) --}}
+    <details
+        id="asset-interactive-matrix-details"
+        class="group ibs-card min-w-0 max-w-full overflow-hidden"
+        x-data='assetInteractiveMatrix(@json($interactiveMatrix), @json($canonicalUpts), @json($section))'
+    >
+        <summary class="flex flex-wrap items-center justify-between gap-3 px-4 py-3.5 sm:px-6 cursor-pointer list-none [&::-webkit-details-marker]:hidden select-none hover:bg-slate-50/70 transition focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#16a3b8]">
+            <span class="inline-flex items-center gap-2.5 min-w-0">
+                <svg class="h-4 w-4 shrink-0 text-[#0b6175] transition-transform duration-200 -rotate-90 group-open:rotate-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <path d="m6 9 6 6 6-6" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                <span class="ibs-section-title text-sm sm:text-base font-bold text-slate-900">Eksplorasi Matriks Seluruh Atribut Aset</span>
+                <span class="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold font-sans tabular-nums text-slate-600" x-text="`${filteredRows.length} atribut`"></span>
+            </span>
+            <span class="text-xs font-semibold text-[#0b6175] group-open:hidden">Buka tabel matriks</span>
+            <span class="hidden text-xs font-semibold text-slate-500 group-open:inline">Tutup tabel matriks</span>
+        </summary>
+
+        <div class="border-t border-slate-100 px-4 pb-5 pt-4 sm:px-6">
         {{-- Controls Filter Bar --}}
-        <div class="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div class="flex flex-wrap items-center gap-1.5 text-xs">
                 <button
                     type="button"
@@ -1511,30 +1500,87 @@
                 </tbody>
             </table>
         </div>
-    </div>
+        </div>
+    </details>
 </div>
 
 <script @cspNonce>
 const getAssetPalette = function () {
-    const p = window.PLN_CHART_PALETTE || {
+    const asetPal = (window.PLN_ASET_PALETTE && window.PLN_ASET_PALETTE.light) || null;
+    if (asetPal) {
+        return {
+            primary: asetPal.primary,
+            secondary: asetPal.secondary,
+            warmAccent: asetPal.warmAccent,
+            targetSlate: asetPal.targetSlate,
+            gridLine: asetPal.gridLine,
+            axisText: asetPal.axisText,
+            labelText: asetPal.labelText,
+            uptSeries: asetPal.uptSeries,
+            voltageSeries: asetPal.voltageSeries,
+            pairPhysical: asetPal.pairPhysical,
+            pairSuSk: asetPal.pairSuSk,
+        };
+    }
+    return {
         primary: '#0b6175',
-        accent: '#16a3b8',
-        softTeal: '#bce3e8',
+        secondary: '#f59e0b',
+        warmAccent: '#ea580c',
         targetSlate: '#cbd5e1',
         gridLine: '#f1f5f9',
         axisText: '#64748b',
-    };
-    const categorical = ['#0b6175', '#f59e0b', '#2563eb', '#10b981', '#7c3aed', '#e11d48', '#ea580c', '#64748b'];
-    return {
-        ...p,
-        accent: '#f59e0b',
-        softTeal: '#2563eb',
-        series: categorical,
-        donut: categorical,
+        labelText: '#334155',
+        uptSeries: ['#0b6175', '#f59e0b', '#10b981', '#e11d48', '#7c3aed', '#0284c7', '#ea580c', '#475569'],
+        voltageSeries: ['#0b6175', '#f59e0b', '#7c3aed', '#10b981', '#e11d48', '#0284c7', '#ea580c', '#475569'],
+        pairPhysical: ['#0b6175', '#f59e0b'],
+        pairSuSk: ['#0b6175', '#ea580c'],
     };
 };
 
+const ASSET_CANONICAL_UPT_ORDER = ['BANDUNG', 'BEKASI', 'BOGOR', 'CIREBON', 'KARAWANG', 'PURWOKERTO', 'SALATIGA', 'SEMARANG'];
+
+const getAssetUptColor = function (uptName, fallbackIdx) {
+    const pal = getAssetPalette();
+    const key = String(uptName ?? '').trim().toUpperCase();
+    const idx = ASSET_CANONICAL_UPT_ORDER.indexOf(key);
+    const colorIdx = idx >= 0 ? idx : (fallbackIdx >= 0 ? fallbackIdx : 0);
+    return pal.uptSeries[colorIdx % pal.uptSeries.length];
+};
+
 const getAssetChartFont = () => window.PLN_ASET_FONT || "'Geist', 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif";
+
+const getAssetChartLayout = function (el, itemCount) {
+    const width = (el && el.clientWidth) ? el.clientWidth : window.innerWidth;
+    const isHorizontal = width < 460;
+    let labelRotate = 0;
+    if (!isHorizontal) {
+        if (width < 700 && itemCount > 5) {
+            labelRotate = 28;
+        } else if (width < 840 && itemCount > 6) {
+            labelRotate = 20;
+        }
+    }
+    return { width, isHorizontal, labelRotate };
+};
+
+const bindAssetChartResponsive = function (el, callback) {
+    if (!el || typeof callback !== 'function') return;
+    let lastBucket = getAssetChartLayout(el, 8).isHorizontal ? 'h' : (el.clientWidth < 700 ? 'm' : 'w');
+    const onResize = () => {
+        const nextLayout = getAssetChartLayout(el, 8);
+        const nextBucket = nextLayout.isHorizontal ? 'h' : (nextLayout.width < 700 ? 'm' : 'w');
+        if (nextBucket !== lastBucket) {
+            lastBucket = nextBucket;
+            callback();
+        }
+    };
+    if (typeof ResizeObserver !== 'undefined') {
+        const ro = new ResizeObserver(onResize);
+        ro.observe(el);
+    } else {
+        window.addEventListener('resize', onResize, { passive: true });
+    }
+};
 
 // Component 0: ULTG Drill-Down Panel
 if (typeof window.assetUltgDrilldown !== 'function') {
@@ -1595,6 +1641,7 @@ if (typeof window.assetTrafoCharts !== 'function') {
     window.assetTrafoCharts = function(config, bankByUpt, unitByUpt, canonicalUpts) {
         let mvaInstance = null;
         let physicalInstance = null;
+        let responsiveBound = false;
         const upts = (config && config.upts) || canonicalUpts || [];
         const mvaSeries = (config && config.mva_series) || [];
         const voltageBreakdown = (config && config.voltage_breakdown) || [];
@@ -1606,6 +1653,11 @@ if (typeof window.assetTrafoCharts !== 'function') {
                 this.$nextTick(() => {
                     this.renderMvaChart();
                     this.renderPhysicalChart();
+                    if (!responsiveBound) {
+                        responsiveBound = true;
+                        bindAssetChartResponsive(document.getElementById('asset-detail-trafo-chart'), () => this.renderMvaChart());
+                        bindAssetChartResponsive(document.getElementById('asset-detail-trafo-physical-chart'), () => this.renderPhysicalChart());
+                    }
                 });
             },
 
@@ -1628,46 +1680,97 @@ if (typeof window.assetTrafoCharts !== 'function') {
                 mvaInstance = chart;
 
                 const pal = getAssetPalette();
+                const layout = getAssetChartLayout(el, upts.length);
+                const isHorizontal = layout.isHorizontal;
+                const orderedUpts = isHorizontal ? [...upts].reverse() : upts;
+                const radius = isHorizontal ? [0, 5, 5, 0] : [5, 5, 0, 0];
                 let series = [];
 
                 if (this.viewMode === 'total') {
-                    const numericVals = mvaSeries.map(v => (v === null || v === undefined ? 0 : Number(v)));
-                    const maxVal = numericVals.length ? Math.max(...numericVals) : 0;
+                    const orderedSeries = isHorizontal ? [...mvaSeries].reverse() : mvaSeries;
                     series = [{
                         name: 'Total Kapasitas (MVA)',
                         type: 'bar',
-                        data: mvaSeries.map(v => {
+                        data: orderedSeries.map((v, idx) => {
                             const isRecorded = v !== null && v !== undefined && v !== '';
                             const numVal = isRecorded ? Number(v) : 0;
+                            const uptName = orderedUpts[idx];
                             return {
                                 value: numVal,
                                 isRecorded: isRecorded,
                                 itemStyle: {
-                                    color: numVal === maxVal && maxVal > 0 ? pal.primary : pal.softTeal,
-                                    borderRadius: [6, 6, 0, 0]
-                                }
+                                    color: isRecorded ? getAssetUptColor(uptName, idx) : '#e2e8f0',
+                                    borderRadius: radius,
+                                },
                             };
                         }),
-                        barMaxWidth: 36,
+                        barMaxWidth: isHorizontal ? 18 : 34,
+                        label: {
+                            show: true,
+                            position: isHorizontal ? 'right' : 'top',
+                            fontFamily: getAssetChartFont(),
+                            fontSize: 10,
+                            fontWeight: 600,
+                            color: pal.labelText,
+                            formatter: function(p) {
+                                if (!p.data || p.data.isRecorded === false) return '';
+                                return Math.round(Number(p.value)).toLocaleString('id-ID');
+                            },
+                        },
                     }];
                 } else {
-                    series = voltageBreakdown.map((item, idx) => ({
-                        name: item.name,
-                        type: 'bar',
-                        data: (item.data || []).map(v => ({
-                            value: (v === null || v === undefined || v === '') ? 0 : Number(v),
-                            isRecorded: v !== null && v !== undefined && v !== '',
-                        })),
-                        itemStyle: {
-                            color: pal.series[idx % pal.series.length],
-                            borderRadius: [6, 6, 0, 0]
-                        }
-                    }));
+                    series = voltageBreakdown.map((item, idx) => {
+                        const rawArr = Array.isArray(item.data) ? item.data : [];
+                        const orderedArr = isHorizontal ? [...rawArr].reverse() : rawArr;
+                        return {
+                            name: item.name,
+                            type: 'bar',
+                            stack: isHorizontal ? 'trafo_mva' : undefined,
+                            data: orderedArr.map(v => ({
+                                value: (v === null || v === undefined || v === '') ? 0 : Number(v),
+                                isRecorded: v !== null && v !== undefined && v !== '',
+                            })),
+                            barMaxWidth: isHorizontal ? 18 : 16,
+                            itemStyle: {
+                                color: pal.voltageSeries[idx % pal.voltageSeries.length],
+                                borderRadius: isHorizontal ? (idx === voltageBreakdown.length - 1 ? [0, 4, 4, 0] : [0, 0, 0, 0]) : [4, 4, 0, 0],
+                            },
+                        };
+                    });
                 }
+
+                const categoryAxis = {
+                    type: 'category',
+                    data: orderedUpts,
+                    axisTick: { show: false },
+                    axisLabel: {
+                        interval: 0,
+                        hideOverlap: false,
+                        rotate: isHorizontal ? 0 : layout.labelRotate,
+                        margin: 10,
+                        color: pal.labelText,
+                        fontSize: isHorizontal ? 10 : 10.5,
+                        fontWeight: 600,
+                    },
+                    axisLine: { lineStyle: { color: pal.targetSlate } },
+                };
+
+                const valueAxis = {
+                    type: 'value',
+                    name: isHorizontal ? '' : 'MVA',
+                    nameTextStyle: { color: pal.axisText, fontSize: 11, padding: [0, 0, 4, 0] },
+                    axisLabel: {
+                        show: !isHorizontal,
+                        color: pal.axisText,
+                        fontSize: 10.5,
+                        formatter: val => Number(val).toLocaleString('id-ID'),
+                    },
+                    splitLine: { lineStyle: { color: pal.gridLine, type: 'dashed' } },
+                };
 
                 const option = {
                     animation: true,
-                    animationDuration: 650,
+                    animationDuration: 550,
                     textStyle: { fontFamily: getAssetChartFont() },
                     tooltip: {
                         trigger: 'axis',
@@ -1689,24 +1792,16 @@ if (typeof window.assetTrafoCharts !== 'function') {
                         }
                     },
                     legend: {
+                        show: this.viewMode !== 'total',
                         type: 'scroll',
-                        top: 5,
+                        top: 4,
                         textStyle: { fontSize: 11, color: pal.axisText }
                     },
-                    grid: { top: 45, bottom: 40, left: '4%', right: '4%', containLabel: true },
-                    xAxis: {
-                        type: 'category',
-                        data: upts,
-                        axisLabel: { color: '#475569', fontSize: 11, fontWeight: 600 },
-                        axisLine: { lineStyle: { color: pal.targetSlate } }
-                    },
-                    yAxis: {
-                        type: 'value',
-                        name: 'MVA',
-                        nameTextStyle: { color: pal.axisText, fontSize: 11, padding: [0, 0, 4, 0] },
-                        axisLabel: { color: pal.axisText, fontSize: 11 },
-                        splitLine: { lineStyle: { color: pal.gridLine, type: 'dashed' } }
-                    },
+                    grid: isHorizontal
+                        ? { top: this.viewMode === 'total' ? 12 : 38, bottom: 14, left: 8, right: 58, containLabel: true }
+                        : { top: this.viewMode === 'total' ? 36 : 44, bottom: layout.labelRotate > 0 ? 18 : 24, left: 10, right: 12, containLabel: true },
+                    xAxis: isHorizontal ? valueAxis : categoryAxis,
+                    yAxis: isHorizontal ? categoryAxis : valueAxis,
                     series: series
                 };
 
@@ -1722,20 +1817,54 @@ if (typeof window.assetTrafoCharts !== 'function') {
                 physicalInstance = chart;
 
                 const pal = getAssetPalette();
-                const bankData = upts.map(u => {
+                const layout = getAssetChartLayout(el, upts.length);
+                const isHorizontal = layout.isHorizontal;
+                const orderedUpts = isHorizontal ? [...upts].reverse() : upts;
+                const radius = isHorizontal ? [0, 4, 4, 0] : [4, 4, 0, 0];
+
+                const bankData = orderedUpts.map(u => {
                     const raw = bankByUpt ? bankByUpt[u] : null;
                     const isRecorded = raw !== null && raw !== undefined && raw !== '';
                     return { value: isRecorded ? Number(raw) : 0, isRecorded: isRecorded };
                 });
-                const unitData = upts.map(u => {
+                const unitData = orderedUpts.map(u => {
                     const raw = unitByUpt ? unitByUpt[u] : null;
                     const isRecorded = raw !== null && raw !== undefined && raw !== '';
                     return { value: isRecorded ? Number(raw) : 0, isRecorded: isRecorded };
                 });
 
+                const categoryAxis = {
+                    type: 'category',
+                    data: orderedUpts,
+                    axisTick: { show: false },
+                    axisLabel: {
+                        interval: 0,
+                        hideOverlap: false,
+                        rotate: isHorizontal ? 0 : layout.labelRotate,
+                        margin: 10,
+                        color: pal.labelText,
+                        fontSize: isHorizontal ? 10 : 10.5,
+                        fontWeight: 600,
+                    },
+                    axisLine: { lineStyle: { color: pal.targetSlate } },
+                };
+
+                const valueAxis = {
+                    type: 'value',
+                    name: isHorizontal ? '' : 'Jumlah Fisik',
+                    nameTextStyle: { color: pal.axisText, fontSize: 11, padding: [0, 0, 4, 0] },
+                    axisLabel: {
+                        show: !isHorizontal,
+                        color: pal.axisText,
+                        fontSize: 10.5,
+                        formatter: val => Number(val).toLocaleString('id-ID'),
+                    },
+                    splitLine: { lineStyle: { color: pal.gridLine, type: 'dashed' } },
+                };
+
                 const option = {
                     animation: true,
-                    animationDuration: 650,
+                    animationDuration: 550,
                     textStyle: { fontFamily: getAssetChartFont() },
                     tooltip: {
                         trigger: 'axis',
@@ -1757,37 +1886,28 @@ if (typeof window.assetTrafoCharts !== 'function') {
                         }
                     },
                     legend: {
-                        top: 5,
+                        top: 4,
                         textStyle: { fontSize: 11, color: pal.axisText }
                     },
-                    grid: { top: 45, bottom: 40, left: '4%', right: '4%', containLabel: true },
-                    xAxis: {
-                        type: 'category',
-                        data: upts,
-                        axisLabel: { color: '#475569', fontSize: 11, fontWeight: 600 },
-                        axisLine: { lineStyle: { color: pal.targetSlate } }
-                    },
-                    yAxis: {
-                        type: 'value',
-                        name: 'Jumlah Fisik',
-                        nameTextStyle: { color: pal.axisText, fontSize: 11, padding: [0, 0, 4, 0] },
-                        axisLabel: { color: pal.axisText, fontSize: 11 },
-                        splitLine: { lineStyle: { color: pal.gridLine, type: 'dashed' } }
-                    },
+                    grid: isHorizontal
+                        ? { top: 36, bottom: 14, left: 8, right: 24, containLabel: true }
+                        : { top: 44, bottom: layout.labelRotate > 0 ? 18 : 24, left: 10, right: 12, containLabel: true },
+                    xAxis: isHorizontal ? valueAxis : categoryAxis,
+                    yAxis: isHorizontal ? categoryAxis : valueAxis,
                     series: [
                         {
                             name: 'Bank Fisik',
                             type: 'bar',
                             data: bankData,
-                            barMaxWidth: 24,
-                            itemStyle: { color: pal.primary, borderRadius: [6, 6, 0, 0] }
+                            barMaxWidth: isHorizontal ? 12 : 20,
+                            itemStyle: { color: pal.pairPhysical[0], borderRadius: radius }
                         },
                         {
                             name: 'Unit / Set Fisik',
                             type: 'bar',
                             data: unitData,
-                            barMaxWidth: 24,
-                            itemStyle: { color: pal.accent, borderRadius: [6, 6, 0, 0] }
+                            barMaxWidth: isHorizontal ? 12 : 20,
+                            itemStyle: { color: pal.pairPhysical[1], borderRadius: radius }
                         }
                     ]
                 };
@@ -1803,6 +1923,7 @@ if (typeof window.assetMvaCharts !== 'function') {
     window.assetMvaCharts = function(mvaByUpt, totalTrafoMva) {
         let rankedInstance = null;
         let donutInstance = null;
+        let responsiveBound = false;
         const hasTotalMva = totalTrafoMva !== null && totalTrafoMva !== undefined && Number(totalTrafoMva) > 0;
 
         return {
@@ -1810,6 +1931,10 @@ if (typeof window.assetMvaCharts !== 'function') {
                 this.$nextTick(() => {
                     this.renderRankedChart();
                     this.renderDonutChart();
+                    if (!responsiveBound) {
+                        responsiveBound = true;
+                        bindAssetChartResponsive(document.getElementById('asset-mva-donut-chart'), () => this.renderDonutChart());
+                    }
                 });
             },
 
@@ -1833,12 +1958,10 @@ if (typeof window.assetMvaCharts !== 'function') {
                     return av - bv;
                 });
                 const uptNames = pairs.map(p => p[0]);
-                const rawVals = pairs.map(p => (p[1] === null || p[1] === undefined) ? 0 : Number(p[1]));
-                const maxVal = rawVals.length ? Math.max(...rawVals) : 0;
 
                 const option = {
                     animation: true,
-                    animationDuration: 650,
+                    animationDuration: 550,
                     textStyle: { fontFamily: getAssetChartFont() },
                     tooltip: {
                         trigger: 'axis',
@@ -1854,38 +1977,43 @@ if (typeof window.assetMvaCharts !== 'function') {
                                 </div>`;
                             }
                             const val = Number(item.value).toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
-                            const pct = hasTotalMva ? ((Number(item.value) / Number(totalTrafoMva)) * 100).toFixed(1) : '0.0';
+                            const pct = hasTotalMva ? ((Number(item.value) / Number(totalTrafoMva)) * 100).toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '0,0';
                             return `<div class="p-1 text-xs font-sans tabular-nums">
                                 <span class="font-bold text-slate-800">UPT ${item.name}</span><br/>
                                 <span class="text-[#0b6175] font-bold">${val} MVA</span> (${pct}%)
                             </div>`;
                         }
                     },
-                    grid: { top: 20, bottom: 25, left: '4%', right: '10%', containLabel: true },
+                    grid: { top: 16, bottom: 24, left: 10, right: 64, containLabel: true },
                     xAxis: {
                         type: 'value',
                         name: 'MVA',
                         nameTextStyle: { color: pal.axisText, fontSize: 11 },
-                        axisLabel: { color: pal.axisText, fontSize: 11 },
+                        axisLabel: {
+                            color: pal.axisText,
+                            fontSize: 10.5,
+                            formatter: val => Number(val).toLocaleString('id-ID'),
+                        },
                         splitLine: { lineStyle: { color: pal.gridLine, type: 'dashed' } }
                     },
                     yAxis: {
                         type: 'category',
                         data: uptNames,
-                        axisLabel: { color: '#334155', fontSize: 11, fontWeight: 600 },
+                        axisTick: { show: false },
+                        axisLabel: { interval: 0, color: pal.labelText, fontSize: 11, fontWeight: 600 },
                         axisLine: { lineStyle: { color: pal.targetSlate } }
                     },
                     series: [{
                         name: 'Kapasitas MVA',
                         type: 'bar',
-                        data: pairs.map(([, raw]) => {
+                        data: pairs.map(([uptName, raw], idx) => {
                             const isRecorded = raw !== null && raw !== undefined && raw !== '';
                             const v = isRecorded ? Number(raw) : 0;
                             return {
                                 value: v,
                                 isRecorded: isRecorded,
                                 itemStyle: {
-                                    color: v === maxVal && maxVal > 0 ? pal.primary : pal.softTeal,
+                                    color: isRecorded ? getAssetUptColor(uptName, idx) : '#e2e8f0',
                                     borderRadius: [0, 6, 6, 0]
                                 }
                             };
@@ -1896,11 +2024,12 @@ if (typeof window.assetMvaCharts !== 'function') {
                             position: 'right',
                             formatter: function(p) {
                                 if (p.data && p.data.isRecorded === false) return 'Tidak tercatat';
-                                return Number(p.value).toLocaleString('id-ID');
+                                return Number(p.value).toLocaleString('id-ID', { maximumFractionDigits: 1 });
                             },
-                            fontSize: 10,
+                            fontSize: 10.5,
+                            fontWeight: 600,
                             fontFamily: getAssetChartFont(),
-                            color: '#475569'
+                            color: pal.labelText
                         }
                     }]
                 };
@@ -1917,14 +2046,20 @@ if (typeof window.assetMvaCharts !== 'function') {
                 donutInstance = chart;
 
                 const pal = getAssetPalette();
-                const pieData = Object.entries(mvaByUpt || {}).map(([name, val]) => {
+                const isCompact = (el.clientWidth || window.innerWidth) < 360;
+                const pieData = Object.entries(mvaByUpt || {}).map(([name, val], idx) => {
                     const isRecorded = val !== null && val !== undefined && val !== '';
-                    return { name: name, value: isRecorded ? Number(val) : 0, isRecorded: isRecorded };
+                    return {
+                        name: name,
+                        value: isRecorded ? Number(val) : 0,
+                        isRecorded: isRecorded,
+                        itemStyle: { color: getAssetUptColor(name, idx) },
+                    };
                 });
 
                 const option = {
                     animation: true,
-                    animationDuration: 650,
+                    animationDuration: 550,
                     textStyle: { fontFamily: getAssetChartFont() },
                     tooltip: {
                         trigger: 'item',
@@ -1937,22 +2072,39 @@ if (typeof window.assetMvaCharts !== 'function') {
                                 </div>`;
                             }
                             const val = Number(item.value).toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+                            const pct = Number(item.percent ?? 0).toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
                             return `<div class="p-1 text-xs font-sans tabular-nums">
                                 <span class="font-bold text-slate-800">UPT ${item.name}</span><br/>
-                                <span class="text-slate-600">${val} MVA (${item.percent ?? 0}%)</span>
+                                <span class="text-slate-600">${val} MVA (${pct}%)</span>
                             </div>`;
                         }
                     },
-                    color: pal.donut,
+                    legend: {
+                        bottom: 2,
+                        left: 'center',
+                        itemWidth: 10,
+                        itemHeight: 10,
+                        itemGap: 8,
+                        textStyle: { fontSize: 10, color: pal.axisText },
+                    },
                     series: [{
                         name: 'Pangsa MVA',
                         type: 'pie',
-                        radius: ['46%', '72%'],
-                        center: ['50%', '50%'],
+                        radius: isCompact ? ['36%', '58%'] : ['40%', '62%'],
+                        center: ['50%', '39%'],
                         avoidLabelOverlap: true,
                         itemStyle: { borderRadius: 4, borderColor: '#ffffff', borderWidth: 2 },
-                        label: { show: true, position: 'outside', formatter: '{b}\n{d}%', fontSize: 10, color: '#475569' },
-                        labelLine: { show: true, length: 8, length2: 8 },
+                        label: {
+                            show: true,
+                            position: 'outside',
+                            formatter: function(p) {
+                                return Number(p.percent ?? 0).toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%';
+                            },
+                            fontSize: 10,
+                            fontWeight: 600,
+                            color: pal.labelText,
+                        },
+                        labelLine: { show: true, length: 6, length2: 6 },
                         data: pieData
                     }]
                 };
@@ -1968,12 +2120,18 @@ if (typeof window.assetTransmisiCharts !== 'function') {
     window.assetTransmisiCharts = function(transmisiByUpt, transmisiGroups, totalTransmisi) {
         let barInstance = null;
         let voltageInstance = null;
+        let responsiveBound = false;
 
         return {
             initCharts() {
                 this.$nextTick(() => {
                     this.renderBarChart();
                     this.renderVoltageChart();
+                    if (!responsiveBound) {
+                        responsiveBound = true;
+                        bindAssetChartResponsive(document.getElementById('asset-transmisi-bar-chart'), () => this.renderBarChart());
+                        bindAssetChartResponsive(document.getElementById('asset-transmisi-voltage-chart'), () => this.renderVoltageChart());
+                    }
                 });
             },
 
@@ -1992,20 +2150,53 @@ if (typeof window.assetTransmisiCharts !== 'function') {
 
                 const pal = getAssetPalette();
                 const upts = Object.keys(transmisiByUpt || {});
-                const suData = upts.map(u => {
+                const layout = getAssetChartLayout(el, upts.length);
+                const isHorizontal = layout.isHorizontal;
+                const orderedUpts = isHorizontal ? [...upts].reverse() : upts;
+
+                const suData = orderedUpts.map(u => {
                     const raw = transmisiByUpt[u]?.su_kms;
                     const isRecorded = raw !== null && raw !== undefined && raw !== '';
                     return { value: isRecorded ? Number(raw) : 0, isRecorded: isRecorded };
                 });
-                const skData = upts.map(u => {
+                const skData = orderedUpts.map(u => {
                     const raw = transmisiByUpt[u]?.sk_kms;
                     const isRecorded = raw !== null && raw !== undefined && raw !== '';
                     return { value: isRecorded ? Number(raw) : 0, isRecorded: isRecorded };
                 });
 
+                const categoryAxis = {
+                    type: 'category',
+                    data: orderedUpts,
+                    axisTick: { show: false },
+                    axisLabel: {
+                        interval: 0,
+                        hideOverlap: false,
+                        rotate: isHorizontal ? 0 : layout.labelRotate,
+                        margin: 10,
+                        color: pal.labelText,
+                        fontSize: isHorizontal ? 10 : 10.5,
+                        fontWeight: 600,
+                    },
+                    axisLine: { lineStyle: { color: pal.targetSlate } },
+                };
+
+                const valueAxis = {
+                    type: 'value',
+                    name: isHorizontal ? '' : 'kms',
+                    nameTextStyle: { color: pal.axisText, fontSize: 11, padding: [0, 0, 4, 0] },
+                    axisLabel: {
+                        show: !isHorizontal,
+                        color: pal.axisText,
+                        fontSize: 10.5,
+                        formatter: val => Number(val).toLocaleString('id-ID'),
+                    },
+                    splitLine: { lineStyle: { color: pal.gridLine, type: 'dashed' } },
+                };
+
                 const option = {
                     animation: true,
-                    animationDuration: 650,
+                    animationDuration: 550,
                     textStyle: { fontFamily: getAssetChartFont() },
                     tooltip: {
                         trigger: 'axis',
@@ -2013,8 +2204,14 @@ if (typeof window.assetTransmisiCharts !== 'function') {
                         formatter: function(params) {
                             if (!params || !params.length) return '';
                             let html = '<div class="font-bold text-slate-800 border-b border-slate-100 pb-1 mb-1 text-xs">UPT ' + params[0].name + '</div>';
+                            let sumTotal = 0;
+                            let anyRecorded = false;
                             params.forEach(item => {
                                 const isRecorded = item.data && item.data.isRecorded !== false && item.value !== null && item.value !== undefined;
+                                if (isRecorded) {
+                                    anyRecorded = true;
+                                    sumTotal += Number(item.value);
+                                }
                                 const valDisplay = isRecorded
                                     ? Number(item.value).toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' kms'
                                     : '<span class="text-slate-400 font-normal">Tidak tercatat</span>';
@@ -2023,40 +2220,37 @@ if (typeof window.assetTransmisiCharts !== 'function') {
                                     + '<span class="font-bold font-sans tabular-nums text-slate-900">' + valDisplay + '</span>'
                                     + '</div>';
                             });
+                            if (anyRecorded) {
+                                html += '<div class="mt-1 pt-1 border-t border-slate-100 flex items-center justify-between gap-4 text-xs">'
+                                    + '<span class="font-semibold text-slate-700">Total Saluran</span>'
+                                    + '<span class="font-bold font-sans tabular-nums text-[#0b6175]">' + sumTotal.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' kms</span>'
+                                    + '</div>';
+                            }
                             return html;
                         }
                     },
-                    legend: { top: 5, textStyle: { fontSize: 11, color: pal.axisText } },
-                    grid: { top: 45, bottom: 40, left: '4%', right: '4%', containLabel: true },
-                    xAxis: {
-                        type: 'category',
-                        data: upts,
-                        axisLabel: { color: '#475569', fontSize: 11, fontWeight: 600 },
-                        axisLine: { lineStyle: { color: pal.targetSlate } }
-                    },
-                    yAxis: {
-                        type: 'value',
-                        name: 'kms',
-                        nameTextStyle: { color: pal.axisText, fontSize: 11, padding: [0, 0, 4, 0] },
-                        axisLabel: { color: pal.axisText, fontSize: 11 },
-                        splitLine: { lineStyle: { color: pal.gridLine, type: 'dashed' } }
-                    },
+                    legend: { top: 4, textStyle: { fontSize: 11, color: pal.axisText } },
+                    grid: isHorizontal
+                        ? { top: 36, bottom: 14, left: 8, right: 24, containLabel: true }
+                        : { top: 44, bottom: layout.labelRotate > 0 ? 18 : 24, left: 10, right: 12, containLabel: true },
+                    xAxis: isHorizontal ? valueAxis : categoryAxis,
+                    yAxis: isHorizontal ? categoryAxis : valueAxis,
                     series: [
                         {
                             name: 'Saluran Udara (SU kms)',
                             type: 'bar',
                             stack: 'transmisi',
                             data: suData,
-                            barMaxWidth: 30,
-                            itemStyle: { color: pal.primary }
+                            barMaxWidth: isHorizontal ? 18 : 30,
+                            itemStyle: { color: pal.pairSuSk[0] }
                         },
                         {
                             name: 'Saluran Kabel (SK kms)',
                             type: 'bar',
                             stack: 'transmisi',
                             data: skData,
-                            barMaxWidth: 30,
-                            itemStyle: { color: pal.accent, borderRadius: [6, 6, 0, 0] }
+                            barMaxWidth: isHorizontal ? 18 : 30,
+                            itemStyle: { color: pal.pairSuSk[1], borderRadius: isHorizontal ? [0, 5, 5, 0] : [5, 5, 0, 0] }
                         }
                     ]
                 };
@@ -2073,6 +2267,7 @@ if (typeof window.assetTransmisiCharts !== 'function') {
                 voltageInstance = chart;
 
                 const pal = getAssetPalette();
+                const isCompact = (el.clientWidth || window.innerWidth) < 360;
                 const pieData = (transmisiGroups || []).map(tg => {
                     const raw = tg.uit_total?.total_kms ?? tg.total_upt?.total_kms ?? null;
                     const isRecorded = raw !== null && raw !== undefined && raw !== '';
@@ -2085,7 +2280,7 @@ if (typeof window.assetTransmisiCharts !== 'function') {
 
                 const option = {
                     animation: true,
-                    animationDuration: 650,
+                    animationDuration: 550,
                     textStyle: { fontFamily: getAssetChartFont() },
                     tooltip: {
                         trigger: 'item',
@@ -2098,22 +2293,40 @@ if (typeof window.assetTransmisiCharts !== 'function') {
                                 </div>`;
                             }
                             const val = Number(item.value).toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+                            const pct = Number(item.percent ?? 0).toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
                             return `<div class="p-1 text-xs font-sans tabular-nums">
                                 <span class="font-bold text-slate-800">${item.name}</span><br/>
-                                <span class="text-slate-600">${val} kms (${item.percent ?? 0}%)</span>
+                                <span class="text-slate-600">${val} kms (${pct}%)</span>
                             </div>`;
                         }
                     },
-                    color: pal.series,
+                    color: pal.voltageSeries,
+                    legend: {
+                        bottom: 4,
+                        left: 'center',
+                        itemWidth: 10,
+                        itemHeight: 10,
+                        itemGap: 10,
+                        textStyle: { fontSize: 10.5, color: pal.axisText },
+                    },
                     series: [{
                         name: 'Kelas Tegangan',
                         type: 'pie',
-                        radius: ['46%', '72%'],
-                        center: ['50%', '50%'],
+                        radius: isCompact ? ['38%', '60%'] : ['42%', '64%'],
+                        center: ['50%', '42%'],
                         avoidLabelOverlap: true,
                         itemStyle: { borderRadius: 4, borderColor: '#ffffff', borderWidth: 2 },
-                        label: { show: true, position: 'outside', formatter: '{b}\n{d}%', fontSize: 10, color: '#475569' },
-                        labelLine: { show: true, length: 8, length2: 8 },
+                        label: {
+                            show: true,
+                            position: 'outside',
+                            formatter: function(p) {
+                                return Number(p.percent ?? 0).toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%';
+                            },
+                            fontSize: 10,
+                            fontWeight: 600,
+                            color: pal.labelText,
+                        },
+                        labelLine: { show: true, length: 6, length2: 6 },
                         data: pieData
                     }]
                 };
@@ -2129,12 +2342,18 @@ if (typeof window.assetTowerCharts !== 'function') {
     window.assetTowerCharts = function(towerGroups, towerByUpt, canonicalUpts, totalTower) {
         let barInstance = null;
         let pieInstance = null;
+        let responsiveBound = false;
 
         return {
             initCharts() {
                 this.$nextTick(() => {
                     this.renderBarChart();
                     this.renderPieChart();
+                    if (!responsiveBound) {
+                        responsiveBound = true;
+                        bindAssetChartResponsive(document.getElementById('asset-tower-bar-chart'), () => this.renderBarChart());
+                        bindAssetChartResponsive(document.getElementById('asset-tower-pie-chart'), () => this.renderPieChart());
+                    }
                 });
             },
 
@@ -2153,25 +2372,58 @@ if (typeof window.assetTowerCharts !== 'function') {
 
                 const pal = getAssetPalette();
                 const upts = canonicalUpts || [];
+                const layout = getAssetChartLayout(el, upts.length);
+                const isHorizontal = layout.isHorizontal;
+                const orderedUpts = isHorizontal ? [...upts].reverse() : upts;
 
                 const series = (towerGroups || []).map((tw, idx) => ({
                     name: tw.voltage,
                     type: 'bar',
-                    data: upts.map(u => {
+                    stack: isHorizontal ? 'tower_v' : undefined,
+                    data: orderedUpts.map(u => {
                         const raw = tw.by_upt?.[u]?.total_unit;
                         const isRecorded = raw !== null && raw !== undefined && raw !== '';
                         return { value: isRecorded ? Number(raw) : 0, isRecorded: isRecorded };
                     }),
-                    barMaxWidth: 20,
+                    barMaxWidth: isHorizontal ? 18 : 18,
                     itemStyle: {
-                        color: pal.series[idx % pal.series.length],
-                        borderRadius: [6, 6, 0, 0]
+                        color: pal.voltageSeries[idx % pal.voltageSeries.length],
+                        borderRadius: isHorizontal ? (idx === (towerGroups || []).length - 1 ? [0, 4, 4, 0] : [0, 0, 0, 0]) : [4, 4, 0, 0],
                     }
                 }));
 
+                const categoryAxis = {
+                    type: 'category',
+                    data: orderedUpts,
+                    axisTick: { show: false },
+                    axisLabel: {
+                        interval: 0,
+                        hideOverlap: false,
+                        rotate: isHorizontal ? 0 : layout.labelRotate,
+                        margin: 10,
+                        color: pal.labelText,
+                        fontSize: isHorizontal ? 10 : 10.5,
+                        fontWeight: 600,
+                    },
+                    axisLine: { lineStyle: { color: pal.targetSlate } },
+                };
+
+                const valueAxis = {
+                    type: 'value',
+                    name: isHorizontal ? '' : 'Unit',
+                    nameTextStyle: { color: pal.axisText, fontSize: 11, padding: [0, 0, 4, 0] },
+                    axisLabel: {
+                        show: !isHorizontal,
+                        color: pal.axisText,
+                        fontSize: 10.5,
+                        formatter: val => Number(val).toLocaleString('id-ID'),
+                    },
+                    splitLine: { lineStyle: { color: pal.gridLine, type: 'dashed' } },
+                };
+
                 const option = {
                     animation: true,
-                    animationDuration: 650,
+                    animationDuration: 550,
                     textStyle: { fontFamily: getAssetChartFont() },
                     tooltip: {
                         trigger: 'axis',
@@ -2179,8 +2431,14 @@ if (typeof window.assetTowerCharts !== 'function') {
                         formatter: function(params) {
                             if (!params || !params.length) return '';
                             let html = '<div class="font-bold text-slate-800 border-b border-slate-100 pb-1 mb-1 text-xs">UPT ' + params[0].name + '</div>';
+                            let sumTotal = 0;
+                            let anyRecorded = false;
                             params.forEach(item => {
                                 const isRecorded = item.data && item.data.isRecorded !== false && item.value !== null && item.value !== undefined;
+                                if (isRecorded) {
+                                    anyRecorded = true;
+                                    sumTotal += Number(item.value);
+                                }
                                 const valDisplay = isRecorded
                                     ? Number(item.value).toLocaleString('id-ID') + ' Unit'
                                     : '<span class="text-slate-400 font-normal">Tidak tercatat</span>';
@@ -2189,24 +2447,21 @@ if (typeof window.assetTowerCharts !== 'function') {
                                     + '<span class="font-bold font-sans tabular-nums text-slate-900">' + valDisplay + '</span>'
                                     + '</div>';
                             });
+                            if (anyRecorded) {
+                                html += '<div class="mt-1 pt-1 border-t border-slate-100 flex items-center justify-between gap-4 text-xs">'
+                                    + '<span class="font-semibold text-slate-700">Total Tower</span>'
+                                    + '<span class="font-bold font-sans tabular-nums text-[#0b6175]">' + sumTotal.toLocaleString('id-ID') + ' Unit</span>'
+                                    + '</div>';
+                            }
                             return html;
                         }
                     },
-                    legend: { top: 5, textStyle: { fontSize: 11, color: pal.axisText } },
-                    grid: { top: 45, bottom: 40, left: '4%', right: '4%', containLabel: true },
-                    xAxis: {
-                        type: 'category',
-                        data: upts,
-                        axisLabel: { color: '#475569', fontSize: 11, fontWeight: 600 },
-                        axisLine: { lineStyle: { color: pal.targetSlate } }
-                    },
-                    yAxis: {
-                        type: 'value',
-                        name: 'Unit',
-                        nameTextStyle: { color: pal.axisText, fontSize: 11, padding: [0, 0, 4, 0] },
-                        axisLabel: { color: pal.axisText, fontSize: 11 },
-                        splitLine: { lineStyle: { color: pal.gridLine, type: 'dashed' } }
-                    },
+                    legend: { top: 4, textStyle: { fontSize: 11, color: pal.axisText } },
+                    grid: isHorizontal
+                        ? { top: 36, bottom: 14, left: 8, right: 24, containLabel: true }
+                        : { top: 44, bottom: layout.labelRotate > 0 ? 18 : 24, left: 10, right: 12, containLabel: true },
+                    xAxis: isHorizontal ? valueAxis : categoryAxis,
+                    yAxis: isHorizontal ? categoryAxis : valueAxis,
                     series: series
                 };
 
@@ -2222,14 +2477,20 @@ if (typeof window.assetTowerCharts !== 'function') {
                 pieInstance = chart;
 
                 const pal = getAssetPalette();
-                const pieData = Object.entries(towerByUpt || {}).map(([name, val]) => {
+                const isCompact = (el.clientWidth || window.innerWidth) < 360;
+                const pieData = Object.entries(towerByUpt || {}).map(([name, val], idx) => {
                     const isRecorded = val !== null && val !== undefined && val !== '';
-                    return { name: name, value: isRecorded ? Number(val) : 0, isRecorded: isRecorded };
+                    return {
+                        name: name,
+                        value: isRecorded ? Number(val) : 0,
+                        isRecorded: isRecorded,
+                        itemStyle: { color: getAssetUptColor(name, idx) },
+                    };
                 });
 
                 const option = {
                     animation: true,
-                    animationDuration: 650,
+                    animationDuration: 550,
                     textStyle: { fontFamily: getAssetChartFont() },
                     tooltip: {
                         trigger: 'item',
@@ -2242,22 +2503,39 @@ if (typeof window.assetTowerCharts !== 'function') {
                                 </div>`;
                             }
                             const val = Number(item.value).toLocaleString('id-ID');
+                            const pct = Number(item.percent ?? 0).toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
                             return `<div class="p-1 text-xs font-sans tabular-nums">
                                 <span class="font-bold text-slate-800">UPT ${item.name}</span><br/>
-                                <span class="text-slate-600">${val} Unit (${item.percent ?? 0}%)</span>
+                                <span class="text-slate-600">${val} Unit (${pct}%)</span>
                             </div>`;
                         }
                     },
-                    color: pal.donut,
+                    legend: {
+                        bottom: 2,
+                        left: 'center',
+                        itemWidth: 10,
+                        itemHeight: 10,
+                        itemGap: 8,
+                        textStyle: { fontSize: 10, color: pal.axisText },
+                    },
                     series: [{
                         name: 'Pangsa Tower',
                         type: 'pie',
-                        radius: ['46%', '72%'],
-                        center: ['50%', '50%'],
+                        radius: isCompact ? ['36%', '58%'] : ['40%', '62%'],
+                        center: ['50%', '39%'],
                         avoidLabelOverlap: true,
                         itemStyle: { borderRadius: 4, borderColor: '#ffffff', borderWidth: 2 },
-                        label: { show: true, position: 'outside', formatter: '{b}\n{d}%', fontSize: 10, color: '#475569' },
-                        labelLine: { show: true, length: 8, length2: 8 },
+                        label: {
+                            show: true,
+                            position: 'outside',
+                            formatter: function(p) {
+                                return Number(p.percent ?? 0).toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%';
+                            },
+                            fontSize: 10,
+                            fontWeight: 600,
+                            color: pal.labelText,
+                        },
+                        labelLine: { show: true, length: 6, length2: 6 },
                         data: pieData
                     }]
                 };

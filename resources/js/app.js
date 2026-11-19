@@ -30,8 +30,7 @@ echarts.use([
     CanvasRenderer,
 ]);
 
-// Design token warna — selaraskan dengan @theme di resources/css/app.css.
-// Single Source of Truth untuk seluruh warna ECharts di aplikasi.
+// Design token warna, selaraskan dengan @theme di resources/css/app.css.
 window.PLN_CHART_PALETTE = {
     primary: '#0b6175',
     accent: '#16a3b8',
@@ -49,6 +48,66 @@ window.PLN_CHART_PALETTE = {
 // Tipografi scoped khusus ECharts Dashboard Pengusahaan dan Manajemen Aset (Geist self-hosted).
 window.PLN_PENGUSAHAAN_FONT = "'Geist', 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif";
 window.PLN_ASET_FONT = window.PLN_PENGUSAHAAN_FONT;
+
+// Palet harmonis khusus domain Manajemen Aset.
+window.PLN_ASET_PALETTE = {
+    light: {
+        primary: '#0b6175',
+        secondary: '#16a3b8',
+        warmAccent: '#d97706',
+        uptSeries: ['#0b6175', '#0f8fa6', '#2a9d8f', '#d97706', '#3b7a9e', '#5b6eae', '#c26d2d', '#64748b'],
+        voltageSeries: ['#0b6175', '#16a3b8', '#d97706', '#5b6eae', '#2a9d8f', '#c26d2d', '#64748b', '#7c6a99'],
+        pairPhysical: ['#0b6175', '#16a3b8'],
+        pairSuSk: ['#0b6175', '#d97706'],
+        targetSlate: '#cbd5e1',
+        gridLine: '#f1f5f9',
+        axisText: '#64748b',
+        labelText: '#334155',
+    },
+    dark: {
+        primary: '#22d3ee',
+        secondary: '#38bdf8',
+        warmAccent: '#fbbf24',
+        uptSeries: ['#22d3ee', '#38bdf8', '#34d399', '#fbbf24', '#60a5fa', '#a5b4fc', '#fb923c', '#94a3b8'],
+        voltageSeries: ['#22d3ee', '#38bdf8', '#fbbf24', '#a5b4fc', '#34d399', '#fb923c', '#94a3b8', '#c4b5fd'],
+        pairPhysical: ['#22d3ee', '#38bdf8'],
+        pairSuSk: ['#22d3ee', '#fbbf24'],
+        targetSlate: '#475569',
+        gridLine: 'rgba(148, 163, 184, 0.16)',
+        axisText: '#94a3b8',
+        labelText: '#e2e8f0',
+    },
+};
+
+// Palet kontras tinggi khusus domain Manajemen Aset (tiap wilayah UPT & seri dibedakan lintas spektrum warna).
+window.PLN_ASET_PALETTE = {
+    light: {
+        primary: '#0b6175',
+        secondary: '#f59e0b',
+        warmAccent: '#ea580c',
+        uptSeries: ['#0b6175', '#f59e0b', '#10b981', '#e11d48', '#7c3aed', '#0284c7', '#ea580c', '#475569'],
+        voltageSeries: ['#0b6175', '#f59e0b', '#7c3aed', '#10b981', '#e11d48', '#0284c7', '#ea580c', '#475569'],
+        pairPhysical: ['#0b6175', '#f59e0b'],
+        pairSuSk: ['#0b6175', '#ea580c'],
+        targetSlate: '#cbd5e1',
+        gridLine: '#f1f5f9',
+        axisText: '#64748b',
+        labelText: '#334155',
+    },
+    dark: {
+        primary: '#22d3ee',
+        secondary: '#fbbf24',
+        warmAccent: '#fb923c',
+        uptSeries: ['#22d3ee', '#fbbf24', '#34d399', '#fb7185', '#a78bfa', '#38bdf8', '#fb923c', '#94a3b8'],
+        voltageSeries: ['#22d3ee', '#fbbf24', '#a78bfa', '#34d399', '#fb7185', '#38bdf8', '#fb923c', '#94a3b8'],
+        pairPhysical: ['#22d3ee', '#fbbf24'],
+        pairSuSk: ['#22d3ee', '#fb923c'],
+        targetSlate: '#475569',
+        gridLine: 'rgba(148, 163, 184, 0.16)',
+        axisText: '#94a3b8',
+        labelText: '#e2e8f0',
+    },
+};
 
 export const CHART_COLORS = {
     primary: window.PLN_CHART_PALETTE.primary,
