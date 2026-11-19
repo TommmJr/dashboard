@@ -419,7 +419,13 @@
                             <span>{{ $assetSummary['matched_count'] }} / {{ $assetSummary['reconciled_count'] }}</span>
                         </div>
                         <div class="mt-1 text-[11px] text-slate-500 tabular-nums">
-                            {{ $assetSummary['mismatched_count'] }} selisih terdeteksi
+                            @if ($assetSummary['mismatched_count'] > 0)
+                                {{ $assetSummary['mismatched_count'] }} selisih data sumber
+                            @elseif (($assetSummary['rounding_tolerance_count'] ?? 0) > 0)
+                                0 selisih terdeteksi ({{ $assetSummary['rounding_tolerance_count'] }} toleransi pembulatan desimal)
+                            @else
+                                0 selisih terdeteksi
+                            @endif
                         </div>
                     </div>
 
@@ -564,10 +570,18 @@
                                     {{ number_format((float) ($row['delta'] ?? 0), 1, ',', '.') }}
                                 </td>
                                 <td class="px-6 py-2.5 text-right">
-                                    <span class="inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[11px] font-medium {{ $row['is_matched'] ? 'border-slate-200 bg-white text-slate-700' : 'border-rose-200 bg-rose-50 text-rose-700' }}">
-                                        <span class="h-1.5 w-1.5 rounded-full {{ $row['is_matched'] ? 'bg-emerald-500' : 'bg-rose-500' }}"></span>
-                                        {{ $row['is_matched'] ? 'Sinkron' : 'Selisih' }}
-                                    </span>
+                                    @if ($row['is_rounding_tolerance'] ?? false)
+                                        <span title="Selisih pembulatan 1 desimal (maks 0,1 kms) dari ekspor CSV per ULTG terhadap total Induk UIT"
+                                              class="inline-flex items-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50/70 px-2 py-0.5 text-[11px] font-medium text-emerald-800">
+                                            <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+                                            Sinkron (Pembulatan)
+                                        </span>
+                                    @else
+                                        <span class="inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[11px] font-medium {{ $row['is_matched'] ? 'border-slate-200 bg-white text-slate-700' : 'border-rose-200 bg-rose-50 text-rose-700' }}">
+                                            <span class="h-1.5 w-1.5 rounded-full {{ $row['is_matched'] ? 'bg-emerald-500' : 'bg-rose-500' }}"></span>
+                                            {{ $row['is_matched'] ? 'Sinkron' : 'Selisih' }}
+                                        </span>
+                                    @endif
                                 </td>
                             </tr>
                         @endforeach

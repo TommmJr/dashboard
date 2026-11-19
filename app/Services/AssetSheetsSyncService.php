@@ -608,7 +608,8 @@ class AssetSheetsSyncService
 
             if ($val1a > 0.0 || $sum1b > 0.0) {
                 $delta = abs($sum1b - $val1a);
-                if ($delta > 0.001) {
+                $tolerance = $category === 'Transmisi' ? 0.101 : 0.001;
+                if ($delta > $tolerance) {
                     throw new AssetSyncException(
                         "Sanity guard failure: Cross-check reconciliation mismatch for '{$category}'. Tab 1a: {$val1a}, Tab 1b sum: {$sum1b}, delta: {$delta}."
                     );

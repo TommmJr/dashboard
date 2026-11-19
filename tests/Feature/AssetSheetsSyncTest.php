@@ -21,6 +21,7 @@ use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
@@ -1126,63 +1127,26 @@ class AssetSheetsSyncTest extends TestCase
         $this->assertSame(Dataset::STATUS_READY, $activeDataset->fresh()->status->value);
     }
 
-    public function test_web_sync_endpoint_dispatches_sync_job_to_queue_when_faked_and_creates_uploading_placeholder(): void
-    {
-        Queue::fake();
-
-        $response = $this->actingAs($this->admin)->post(route('datasets.asset-sync'));
-
-        $response->assertRedirect(route('datasets.index'));
-        $response->assertSessionHas('status');
-
-        $placeholder = Dataset::where('division_id', $this->assetDivision->id)
-            ->where('status', Dataset::STATUS_UPLOADING)
-            ->sole();
-
-        $this->assertSame($this->admin->id, $placeholder->user_id);
-        $this->assertSame(AssetSheetsSyncService::DISPLAY_NAME, $placeholder->original_name);
-
-        Queue::assertPushed(SyncAssetSheetsJob::class, function (SyncAssetSheetsJob $job) use ($placeholder): bool {
-            return $job->datasetId === $placeholder->id
-                && $job->userId === $this->admin->id;
-        });
-
-        // Endpoint JSON mengembalikan HTTP 202 Accepted saat diproses asinkron
-        $placeholder->update(['status' => DatasetStatus::ARCHIVED]);
-
-        $jsonResponse = $this->actingAs($this->admin)->postJson(route('datasets.asset-sync'));
-        $jsonResponse->assertStatus(202)
-            ->assertJsonPath('dataset.status', Dataset::STATUS_UPLOADING);
-    }
-
-    public function test_web_sync_with_database_queue_processes_job_and_transitions_uploading_to_ready(): void
+    public function test_web_sync_executes_synchronously_without_pushing_to_queue_and_returns_ready_response(): void
     {
         config(['queue.default' => 'database']);
+        Queue::fake();
         $this->fakeGoogleSheetsResponses();
 
         $response = $this->actingAs($this->admin)->post(route('datasets.asset-sync'));
 
         $response->assertRedirect(route('datasets.index'));
-        $response->assertSessionHas('status');
+        $response->assertSessionHas('success');
+        Queue::assertNothingPushed();
+        $this->assertSame(0, DB::table('jobs')->count());
 
-        $this->assertSame(1, DB::table('jobs')->count());
-
-        $placeholder = Dataset::where('division_id', $this->assetDivision->id)
-            ->where('status', Dataset::STATUS_UPLOADING)
+        $ready = Dataset::where('division_id', $this->assetDivision->id)
+            ->where('status', Dataset::STATUS_READY)
             ->sole();
 
-        $this->assertSame(0, PerformanceMetric::count());
-
-        $this->artisan('queue:work', ['--once' => true])
-            ->assertExitCode(0);
-
-        $this->assertSame(0, DB::table('jobs')->count());
-        $this->assertSame(1, Dataset::where('division_id', $this->assetDivision->id)->count());
-
-        $ready = $placeholder->fresh();
-        $this->assertNotNull($ready);
-        $this->assertSame(Dataset::STATUS_READY, $ready->status->value);
+        $this->assertSame($this->admin->id, $ready->user_id);
         $this->assertNull($ready->error_message);
+        $this->assertGreaterThan(0, $ready->size);
         $this->assertGreaterThan(0, $ready->metrics()->count());
         $this->assertTrue(
             AuditLog::where('auditable_type', Dataset::class)
@@ -1190,6 +1154,53 @@ class AssetSheetsSyncTest extends TestCase
                 ->where('action', AuditLog::ACTION_IMPORT)
                 ->exists()
         );
+
+        // Endpoint JSON langsung mengembalikan HTTP 200 dengan status READY tanpa masuk antrean
+        $jsonResponse = $this->actingAs($this->admin)->postJson(route('datasets.asset-sync'));
+        $jsonResponse->assertOk()
+            ->assertJsonPath('dataset.status', Dataset::STATUS_READY);
+        Queue::assertNothingPushed();
+        $this->assertSame(0, DB::table('jobs')->count());
+    }
+
+    public function test_web_sync_with_database_queue_marks_dataset_failed_synchronously_with_sanitized_error_on_failure(): void
+    {
+        config(['queue.default' => 'database']);
+        $content1a = (string) file_get_contents(base_path('tests/Fixtures/asset_tab1a_sample.csv'));
+        $content1b = (string) file_get_contents(base_path('tests/Fixtures/asset_tab1b_sample.csv'));
+        $shouldFail = true;
+
+        Http::fake([
+            'https://docs.google.com/spreadsheets/d/*/export?format=csv&gid='.config('asset.sheet_gid_1a') => function () use (&$shouldFail, $content1a) {
+                return $shouldFail
+                    ? Http::response('Server Error', 500)
+                    : Http::response($content1a, 200, ['Content-Type' => 'text/csv; charset=utf-8']);
+            },
+            'https://docs.google.com/spreadsheets/d/*/export?format=csv&gid='.config('asset.sheet_gid_1b') => function () use (&$shouldFail, $content1b) {
+                return $shouldFail
+                    ? Http::response('Server Error', 500)
+                    : Http::response($content1b, 200, ['Content-Type' => 'text/csv; charset=utf-8']);
+            },
+        ]);
+
+        $jsonResponse = $this->actingAs($this->admin)->postJson(route('datasets.asset-sync'));
+
+        $jsonResponse->assertStatus(422);
+        $this->assertSame(0, DB::table('jobs')->count());
+
+        $failed = Dataset::where('division_id', $this->assetDivision->id)
+            ->where('status', Dataset::STATUS_FAILED)
+            ->sole();
+
+        $this->assertNotNull($failed->error_message);
+        $this->assertStringNotContainsString('docs.google.com', (string) $failed->error_message);
+        $this->assertStringNotContainsString((string) config('asset.sheet_id'), (string) $failed->error_message);
+
+        // Lock harus dilepas setelah kegagalan sehingga percobaan ulang berikutnya dapat langsung berjalan
+        $shouldFail = false;
+        $retryResponse = $this->actingAs($this->admin)->postJson(route('datasets.asset-sync'));
+        $retryResponse->assertOk()
+            ->assertJsonPath('dataset.status', Dataset::STATUS_READY);
     }
 
     public function test_web_sync_prevents_duplicate_dispatch_while_active_sync_is_in_progress(): void
@@ -1216,11 +1227,31 @@ class AssetSheetsSyncTest extends TestCase
             ->assertStatus(409);
 
         $this->assertSame(Dataset::STATUS_UPLOADING, $active->fresh()->status->value);
+
+        // Proteksi anti-double-submit berbasis atomic Cache::lock menolak request paralel
+        $active->update(['status' => DatasetStatus::ARCHIVED]);
+        $lock = Cache::lock("asset-sync:division:{$this->assetDivision->id}", 60);
+        $this->assertTrue($lock->get());
+
+        try {
+            $this->actingAs($this->admin)
+                ->postJson(route('datasets.asset-sync'))
+                ->assertStatus(409);
+
+            $this->actingAs($this->admin)
+                ->post(route('datasets.asset-sync'))
+                ->assertRedirect(route('datasets.index'))
+                ->assertSessionHas('warning');
+        } finally {
+            $lock->release();
+        }
     }
 
-    public function test_web_sync_marks_stale_uploading_placeholder_failed_and_allows_new_dispatch(): void
+    public function test_web_sync_marks_stale_uploading_placeholder_failed_and_executes_new_sync(): void
     {
+        config(['queue.default' => 'database']);
         Queue::fake();
+        $this->fakeGoogleSheetsResponses();
 
         $stale = Dataset::factory()->create([
             'division_id' => $this->assetDivision->id,
@@ -1239,11 +1270,17 @@ class AssetSheetsSyncTest extends TestCase
         $response = $this->actingAs($this->admin)->post(route('datasets.asset-sync'));
 
         $response->assertRedirect(route('datasets.index'));
-        $response->assertSessionHas('status');
+        $response->assertSessionHas('success');
 
         $this->assertSame(Dataset::STATUS_FAILED, $stale->fresh()->status->value);
         $this->assertNotNull($stale->fresh()->error_message);
-        Queue::assertPushed(SyncAssetSheetsJob::class);
+        Queue::assertNothingPushed();
+        $this->assertSame(0, DB::table('jobs')->count());
+
+        $ready = Dataset::where('division_id', $this->assetDivision->id)
+            ->where('status', Dataset::STATUS_READY)
+            ->sole();
+        $this->assertGreaterThan(0, $ready->metrics()->count());
     }
 
     public function test_sync_asset_sheets_job_failed_hook_marks_dataset_failed_with_sanitized_message(): void
@@ -1623,5 +1660,152 @@ class AssetSheetsSyncTest extends TestCase
         $dataset->update(['original_name' => 'REKAP ASET UIT JBT']);
         $freshnessReal = DatasetFreshness::forAsset($this->assetDivision->id, '2026-10-31');
         $this->assertSame('REKAP ASET UIT JBT', $freshnessReal['source_name'] ?? null);
+    }
+
+    public function test_dataset_show_accepts_one_decimal_rounding_tolerance_for_transmisi_kms_without_mutating_raw_values(): void
+    {
+        $dataset = Dataset::factory()->create([
+            'division_id' => $this->assetDivision->id,
+            'user_id' => $this->admin->id,
+            'status' => Dataset::STATUS_READY,
+            'original_name' => 'DATA ASET REGISTER UIT JBT',
+        ]);
+
+        $rows = [
+            // Transmisi 30 KV SU: 41.2 (UIT) vs 7.0 + 25.2 + 8.9 = 41.1 (8 UPT), delta +0.1 (1-decimal CSV rounding drift)
+            ['ASET | UIT | Transmisi 30 KV | SU (kms)', 41.20],
+            ['ASET | BANDUNG | BANDUNG SELATAN | Transmisi 30 KV | SU | kms', 7.00],
+            ['ASET | PURWOKERTO | PURWOKERTO | Transmisi 30 KV | SU | kms', 25.20],
+            ['ASET | SALATIGA | SALATIGA | Transmisi 30 KV | SU | kms', 8.90],
+            // Transmisi 70 KV SU: 1143.5 (UIT) vs 533.7 + 609.9 = 1143.6 (8 UPT), delta -0.1 (1-decimal CSV rounding drift)
+            ['ASET | UIT | Transmisi 70 KV | SU (kms)', 1143.50],
+            ['ASET | BANDUNG | BANDUNG BARAT | Transmisi 70 KV | SU | kms', 533.70],
+            ['ASET | CIREBON | CIREBON | Transmisi 70 KV | SU | kms', 609.90],
+        ];
+
+        foreach ($rows as [$metricName, $value]) {
+            PerformanceMetric::create([
+                'dataset_id' => $dataset->id,
+                'division_id' => $this->assetDivision->id,
+                'unit_id' => $this->admin->id,
+                'metric_name' => $metricName,
+                'value' => $value,
+                'period' => '2026-10-31',
+            ]);
+        }
+
+        $response = $this->actingAs($this->admin)
+            ->get(route('datasets.show', $dataset));
+
+        $response->assertOk()
+            ->assertSee('Rekonsiliasi Sinkron')
+            ->assertSee('Sinkron (Pembulatan)')
+            ->assertSee('toleransi pembulatan desimal')
+            ->assertSee('41,2')
+            ->assertSee('41,1')
+            ->assertSee('1.143,5')
+            ->assertSee('1.143,6');
+
+        $analysis = $response->viewData('assetAnalysis');
+        $this->assertSame(3, $analysis['summary']['reconciled_count']);
+        $this->assertSame(3, $analysis['summary']['matched_count']);
+        $this->assertSame(0, $analysis['summary']['mismatched_count']);
+        $this->assertSame(2, $analysis['summary']['rounding_tolerance_count']);
+        $this->assertTrue($analysis['summary']['transmisi_matched']);
+
+        $byLabel = collect($analysis['reconciliation'])->keyBy('label');
+        $this->assertSame(41.2, $byLabel['Transmisi 30 KV | SU (kms)']['uit_value']);
+        $this->assertSame(41.1, $byLabel['Transmisi 30 KV | SU (kms)']['upt_sum']);
+        $this->assertSame(0.1, $byLabel['Transmisi 30 KV | SU (kms)']['delta']);
+        $this->assertTrue($byLabel['Transmisi 30 KV | SU (kms)']['is_matched']);
+        $this->assertTrue($byLabel['Transmisi 30 KV | SU (kms)']['is_rounding_tolerance']);
+
+        $this->assertSame(1143.5, $byLabel['Transmisi 70 KV | SU (kms)']['uit_value']);
+        $this->assertSame(1143.6, $byLabel['Transmisi 70 KV | SU (kms)']['upt_sum']);
+        $this->assertSame(-0.1, $byLabel['Transmisi 70 KV | SU (kms)']['delta']);
+        $this->assertTrue($byLabel['Transmisi 70 KV | SU (kms)']['is_matched']);
+        $this->assertTrue($byLabel['Transmisi 70 KV | SU (kms)']['is_rounding_tolerance']);
+    }
+
+    public function test_dataset_show_still_flags_transmisi_kms_mismatch_above_rounding_tolerance_and_strict_non_transmisi_delta(): void
+    {
+        $dataset = Dataset::factory()->create([
+            'division_id' => $this->assetDivision->id,
+            'user_id' => $this->admin->id,
+            'status' => Dataset::STATUS_READY,
+            'original_name' => 'asset_real_mismatch_check.csv',
+        ]);
+
+        $rows = [
+            // Transmisi 30 KV SU dengan selisih 0.2 kms (di atas toleransi pembulatan 0.1 kms) -> wajib Selisih
+            ['ASET | UIT | Transmisi 30 KV | SU (kms)', 41.20],
+            ['ASET | BANDUNG | BANDUNG SELATAN | Transmisi 30 KV | SU | kms', 41.00],
+            // Trafo MVA dengan selisih 0.1 (bukan kms) -> wajib tetap Selisih
+            ['ASET | UIT | Trafo 500/150 KV | MVA', 20500.00],
+            ['ASET | BANDUNG | BANDUNG BARAT | Trafo 500/150 KV | MVA', 20499.90],
+        ];
+
+        foreach ($rows as [$metricName, $value]) {
+            PerformanceMetric::create([
+                'dataset_id' => $dataset->id,
+                'division_id' => $this->assetDivision->id,
+                'unit_id' => $this->admin->id,
+                'metric_name' => $metricName,
+                'value' => $value,
+                'period' => '2026-10-31',
+            ]);
+        }
+
+        $response = $this->actingAs($this->admin)
+            ->get(route('datasets.show', $dataset));
+
+        $response->assertOk()
+            ->assertSee('selisih data sumber');
+
+        $analysis = $response->viewData('assetAnalysis');
+        $this->assertSame(4, $analysis['summary']['mismatched_count']);
+        $this->assertSame(0, $analysis['summary']['matched_count']);
+        $this->assertFalse($analysis['summary']['transmisi_matched']);
+        $this->assertFalse($analysis['summary']['trafo_mva_matched']);
+
+        $byLabel = collect($analysis['reconciliation'])->keyBy('label');
+        $this->assertFalse($byLabel['Transmisi 30 KV | SU (kms)']['is_matched']);
+        $this->assertFalse($byLabel['Trafo 500/150 KV | MVA']['is_matched']);
+    }
+
+    public function test_reconcile_cross_check_accepts_transmisi_one_decimal_rounding_drift_and_rejects_larger_mismatch(): void
+    {
+        $content1a = (string) file_get_contents(base_path('tests/Fixtures/asset_tab1a_sample.csv'));
+        $valid1b = (string) file_get_contents(base_path('tests/Fixtures/asset_tab1b_sample.csv'));
+
+        // Selisih 0.1 kms pada Transmisi 500 KV SU (500.0 -> 499.9) harus diterima sebagai toleransi pembulatan CSV 1 desimal
+        $rounded1b = str_replace(
+            '1,BANDUNG,"BANDUNG BARAT",15,5,2500.0,500.0,-,800,-,2,4,1000.0,1000.0,-,1500,-',
+            '1,BANDUNG,"BANDUNG BARAT",15,5,2500.0,499.9,-,800,-,2,4,1000.0,1000.0,-,1500,-',
+            $valid1b
+        );
+
+        // Selisih 0.5 kms pada Transmisi 500 KV SU (500.0 -> 499.5) harus ditolak sanity guard
+        $mismatched1b = str_replace(
+            '1,BANDUNG,"BANDUNG BARAT",15,5,2500.0,500.0,-,800,-,2,4,1000.0,1000.0,-,1500,-',
+            '1,BANDUNG,"BANDUNG BARAT",15,5,2500.0,499.5,-,800,-,2,4,1000.0,1000.0,-,1500,-',
+            $valid1b
+        );
+
+        $useMismatched = false;
+        Http::fake([
+            'https://docs.google.com/spreadsheets/d/*/export?format=csv&gid='.config('asset.sheet_gid_1a') => fn () => Http::response($content1a, 200, ['Content-Type' => 'text/csv; charset=utf-8']),
+            'https://docs.google.com/spreadsheets/d/*/export?format=csv&gid='.config('asset.sheet_gid_1b') => function () use (&$useMismatched, $rounded1b, $mismatched1b) {
+                return Http::response($useMismatched ? $mismatched1b : $rounded1b, 200, ['Content-Type' => 'text/csv; charset=utf-8']);
+            },
+        ]);
+
+        $this->artisan('aset:sync')->assertExitCode(0);
+
+        $useMismatched = true;
+
+        $this->artisan('aset:sync')
+            ->expectsOutputToContain('Cross-check reconciliation mismatch')
+            ->assertExitCode(1);
     }
 }

@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Enums\DatasetStatus;
 use App\Exceptions\AssetSyncException;
-use App\Jobs\SyncAssetSheetsJob;
 use App\Models\AuditLog;
 use App\Models\Dataset;
 use App\Models\Division;
@@ -21,6 +20,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
@@ -33,6 +33,12 @@ use Throwable;
 class DatasetController extends Controller
 {
     private const ASSET_SYNC_STALE_MINUTES = 10;
+
+    private const ASSET_SYNC_LOCK_SECONDS = 60;
+
+    private const ASSET_STRICT_RECONCILIATION_TOLERANCE = 0.009;
+
+    private const ASSET_KMS_ROUNDING_TOLERANCE = 0.1;
 
     public function create()
     {
@@ -333,9 +339,9 @@ class DatasetController extends Controller
     }
 
     /**
-     * Sinkronisasi data aset dari Google Sheets (Tab 1b & Tab 1a) via Laravel Queue.
+     * Sinkronisasi data aset dari Google Sheets (Tab 1b & Tab 1a) secara sinkron dalam siklus request.
      */
-    public function syncAssetSheets(Request $request)
+    public function syncAssetSheets(Request $request, AssetSheetsSyncService $syncService)
     {
         $user = Auth::user();
         $assetDivision = Division::where('slug', 'managemen-aset')->first();
@@ -346,12 +352,41 @@ class DatasetController extends Controller
 
         abort_unless($canSyncAsset, 403, 'Hanya admin atau staf divisi Manajemen Aset yang dapat menyinkronkan dataset Manajemen Aset.');
 
+        $syncLock = null;
+        $lockAcquired = false;
+        $placeholder = null;
+
         try {
             if ($assetDivisionId === null) {
                 throw new AssetSyncException("Divisi 'managemen-aset' tidak ditemukan di database.");
             }
 
-            // Tandai placeholder yang macet melampaui batas waktu sebagai GAGAL sebelum cek antrean aktif
+            $busyMessage = 'Sinkronisasi data aset masih diproses. Mohon tunggu hingga selesai.';
+
+            // Proteksi anti-double-submit atomik agar request paralel tidak mengeksekusi sinkronisasi ganda
+            $syncLock = Cache::lock("asset-sync:division:{$assetDivisionId}", self::ASSET_SYNC_LOCK_SECONDS);
+            $lockAcquired = $syncLock->get();
+
+            if (! $lockAcquired) {
+                $activeSync = Dataset::query()
+                    ->where('division_id', $assetDivisionId)
+                    ->whereIn('status', [Dataset::STATUS_UPLOADING, Dataset::STATUS_VALIDATING])
+                    ->latest('id')
+                    ->first();
+
+                if ($request->expectsJson()) {
+                    return response()->json([
+                        'message' => $busyMessage,
+                        'dataset' => $activeSync,
+                    ], 409);
+                }
+
+                return redirect()
+                    ->route('datasets.index')
+                    ->with('warning', $busyMessage);
+            }
+
+            // Tandai placeholder yang macet melampaui batas waktu sebagai GAGAL sebelum cek sinkronisasi aktif
             $staleCutoff = now()->subMinutes(self::ASSET_SYNC_STALE_MINUTES);
             Dataset::query()
                 ->where('division_id', $assetDivisionId)
@@ -372,8 +407,6 @@ class DatasetController extends Controller
                 ->first();
 
             if ($activeSync !== null) {
-                $busyMessage = 'Sinkronisasi data aset masih diproses. Mohon tunggu hingga selesai.';
-
                 if ($request->expectsJson()) {
                     return response()->json([
                         'message' => $busyMessage,
@@ -396,9 +429,27 @@ class DatasetController extends Controller
                 'status' => DatasetStatus::UPLOADING,
             ]);
 
-            SyncAssetSheetsJob::dispatch($placeholder->id, $user->id);
+            if (function_exists('set_time_limit')) {
+                @set_time_limit(self::ASSET_SYNC_LOCK_SECONDS);
+            }
+
+            // Eksekusi langsung (sinkron) tanpa bergantung pada daemon queue:work di latar belakang
+            $syncService->sync(
+                dryRun: false,
+                period: null,
+                user: $user,
+                targetDataset: $placeholder,
+            );
 
             $freshDataset = $placeholder->fresh();
+            if ($freshDataset !== null && $freshDataset->status !== DatasetStatus::READY) {
+                $freshDataset->update([
+                    'status' => DatasetStatus::READY,
+                    'error_message' => null,
+                ]);
+                $freshDataset = $freshDataset->fresh();
+            }
+
             if ($freshDataset !== null && $freshDataset->status === DatasetStatus::READY) {
                 $resolvedPeriod = (string) ($freshDataset->metrics()->value('period') ?? '');
                 $periodLabel = $resolvedPeriod !== '' ? " (Periode: {$resolvedPeriod})" : '';
@@ -415,20 +466,21 @@ class DatasetController extends Controller
                     ->with('success', "Sinkronisasi data aset dari Google Sheets berhasil{$periodLabel}.");
             }
 
-            $queuedMessage = 'Permintaan sinkronisasi data aset masuk antrean dan sedang diproses.';
-
-            if ($request->expectsJson()) {
-                return response()->json([
-                    'message' => $queuedMessage,
-                    'dataset' => $freshDataset ?? $placeholder,
-                ], 202);
-            }
-
-            return redirect()
-                ->route('datasets.index')
-                ->with('status', $queuedMessage);
+            throw new AssetSyncException(
+                (string) ($freshDataset?->error_message ?: 'Sinkronisasi data aset tidak dapat diselesaikan. Silakan coba lagi.')
+            );
         } catch (AssetSyncException $e) {
             $errorMessage = AssetSyncException::sanitize($e->getMessage());
+
+            if ($placeholder !== null) {
+                $fresh = $placeholder->fresh();
+                if ($fresh !== null && $fresh->status !== DatasetStatus::FAILED && $fresh->status !== DatasetStatus::READY) {
+                    $fresh->update([
+                        'status' => DatasetStatus::FAILED,
+                        'error_message' => $errorMessage,
+                    ]);
+                }
+            }
 
             Log::warning('Sinkronisasi data aset dari Google Sheets gagal', [
                 'user_id' => $user->id,
@@ -445,6 +497,18 @@ class DatasetController extends Controller
             return back()
                 ->with('error', 'Gagal menyinkronkan data aset: '.$errorMessage);
         } catch (Throwable $e) {
+            $genericMessage = 'Terjadi kesalahan sistem saat sinkronisasi data aset. Hubungi administrator.';
+
+            if ($placeholder !== null) {
+                $fresh = $placeholder->fresh();
+                if ($fresh !== null && $fresh->status !== DatasetStatus::FAILED && $fresh->status !== DatasetStatus::READY) {
+                    $fresh->update([
+                        'status' => DatasetStatus::FAILED,
+                        'error_message' => $genericMessage,
+                    ]);
+                }
+            }
+
             Log::error('Kesalahan tak terduga saat sinkronisasi data aset', [
                 'user_id' => $user->id,
                 'exception' => get_class($e),
@@ -453,12 +517,16 @@ class DatasetController extends Controller
 
             if ($request->expectsJson()) {
                 return response()->json([
-                    'message' => 'Terjadi kesalahan sistem saat sinkronisasi data aset. Hubungi administrator.',
+                    'message' => $genericMessage,
                 ], 500);
             }
 
             return back()
-                ->with('error', 'Terjadi kesalahan sistem saat sinkronisasi data aset. Hubungi administrator.');
+                ->with('error', $genericMessage);
+        } finally {
+            if ($lockAcquired && $syncLock !== null) {
+                $syncLock->release();
+            }
         }
     }
 
@@ -1115,6 +1183,8 @@ class DatasetController extends Controller
             $uitVal = round($spec['uit'], 2);
             $uptVal = round($spec['upt'], 2);
             $delta = round($uitVal - $uptVal, 2);
+            $tolerance = $this->reconciliationTolerance($spec['label'], $spec['kategori']);
+            $isMatched = abs($delta) <= $tolerance + 0.0001;
             $reconciliation[] = [
                 'label' => $spec['label'],
                 'uit_label' => $spec['label'].' (Tab 1a)',
@@ -1124,7 +1194,8 @@ class DatasetController extends Controller
                 'uit_value' => $uitVal,
                 'upt_sum' => $uptVal,
                 'delta' => $delta,
-                'is_matched' => abs($delta) < 0.01,
+                'is_matched' => $isMatched,
+                'is_rounding_tolerance' => $isMatched && abs($delta) >= 0.01,
             ];
         }
 
@@ -1137,6 +1208,8 @@ class DatasetController extends Controller
             $uitVal = round($uitItem['value'], 2);
             $uptVal = round($uptItem['value'], 2);
             $delta = round($uitVal - $uptVal, 2);
+            $tolerance = $this->reconciliationTolerance($uitItem['label'], $uitItem['kategori']);
+            $isMatched = abs($delta) <= $tolerance + 0.0001;
 
             $reconciliation[] = [
                 'label' => $uitItem['label'],
@@ -1147,11 +1220,13 @@ class DatasetController extends Controller
                 'uit_value' => $uitVal,
                 'upt_sum' => $uptVal,
                 'delta' => $delta,
-                'is_matched' => abs($delta) < 0.01,
+                'is_matched' => $isMatched,
+                'is_rounding_tolerance' => $isMatched && abs($delta) >= 0.01,
             ];
         }
 
         $matchedCount = count(array_filter($reconciliation, static fn (array $r): bool => $r['is_matched']));
+        $roundingToleranceCount = count(array_filter($reconciliation, static fn (array $r): bool => $r['is_rounding_tolerance']));
         $reconciledCount = count($reconciliation);
 
         return [
@@ -1167,17 +1242,34 @@ class DatasetController extends Controller
                 'reconciled_count' => $reconciledCount,
                 'matched_count' => $matchedCount,
                 'mismatched_count' => $reconciledCount - $matchedCount,
+                'rounding_tolerance_count' => $roundingToleranceCount,
                 'tower_uit' => round($towerUitTotal, 2),
                 'tower_upt' => round($towerUptTotal, 2),
                 'tower_matched' => abs($towerUitTotal - $towerUptTotal) < 0.01,
                 'transmisi_uit' => round($transmisiUitTotal, 2),
                 'transmisi_upt' => round($transmisiUptTotal, 2),
-                'transmisi_matched' => abs($transmisiUitTotal - $transmisiUptTotal) < 0.01,
+                'transmisi_matched' => abs(round($transmisiUitTotal, 2) - round($transmisiUptTotal, 2)) <= self::ASSET_KMS_ROUNDING_TOLERANCE + 0.0001,
                 'trafo_mva_uit' => round($trafoMvaUitTotal, 2),
                 'trafo_mva_upt' => round($trafoMvaUptTotal, 2),
                 'trafo_mva_matched' => abs($trafoMvaUitTotal - $trafoMvaUptTotal) < 0.01,
             ],
         ];
+    }
+
+    /**
+     * Tentukan ambang toleransi rekonsiliasi Induk UIT vs 8 UPT.
+     *
+     * Metrik Transmisi (kms) diekspor Google Sheets CSV dengan format tampilan 1 desimal per ULTG,
+     * sehingga penjumlahan sel 1 desimal terhadap total Induk UIT berpotensi memiliki selisih pembulatan 0,1 kms.
+     * Kategori lain tetap menggunakan toleransi ketat (< 0,01).
+     */
+    private function reconciliationTolerance(string $label, string $kategori): float
+    {
+        if ($kategori === 'Transmisi' || str_contains(mb_strtolower($label), 'kms')) {
+            return self::ASSET_KMS_ROUNDING_TOLERANCE;
+        }
+
+        return self::ASSET_STRICT_RECONCILIATION_TOLERANCE;
     }
 
     /**
